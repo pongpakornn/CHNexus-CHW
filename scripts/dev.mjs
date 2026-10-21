@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WEB = join(ROOT, "frontend");
-const API = join(ROOT, "backend", "CHR.Synchron.Api");
+const API = join(ROOT, "backend", "CHR.Nexus.Api");
 const API_URL = process.env.API_URL ?? "http://localhost:5080";
 const WEB_PORT = process.env.PORT ?? "3000";
 const isWin = process.platform === "win32";

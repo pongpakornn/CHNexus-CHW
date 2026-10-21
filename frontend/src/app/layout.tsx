@@ -10,9 +10,10 @@ const thai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "CHR-Synchron",
-  description: "CHR Inventory Management System (Web)",
-  icons: { icon: "/icons/CIMS.png" },
+  title: "CHR-Nexus",
+  description: "CHR-Nexus - ระบบกลางของ CHR (Inventory Management)",
+  applicationName: "CHR-Nexus",
+  appleWebApp: { capable: true, title: "CHR-Nexus", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {

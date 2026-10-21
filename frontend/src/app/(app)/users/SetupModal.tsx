@@ -217,7 +217,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
       const r = await upload<{ path: string; sheets: string[] }>("/setup/excel/file", file);
       patch({ path: r.path, fileFound: true });
       setSheets(r.sheets);
-      toast.show("Uploaded", `อัปโหลด ${r.path} เข้า CHR-Synchron แล้ว`, "ok");
+      toast.show("Uploaded", `อัปโหลด ${r.path} เข้า CHR-Nexus แล้ว`, "ok");
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     }
@@ -337,7 +337,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
             <div>
               <span className={L}>2. EXCEL FILE</span>
               <div className="flex flex-wrap gap-2">
-                <input className="field min-w-0 flex-1" value={row.path} placeholder="ชื่อไฟล์ใน CHR-Synchron (storage/excel)" onChange={(e) => patch({ path: e.target.value })} />
+                <input className="field min-w-0 flex-1" value={row.path} placeholder="ชื่อไฟล์ใน CHR-Nexus (storage/excel)" onChange={(e) => patch({ path: e.target.value })} />
                 <button className="btn bg-info" onClick={() => fileRef.current?.click()}>
                   ⤒ UPLOAD
                 </button>
@@ -353,7 +353,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                   }}
                 />
               </div>
-              {row.path.trim() && <div className={`mt-1 text-[11px] font-bold ${row.fileFound ? "text-success" : "text-warning"}`}>{row.fileFound ? "✓ file is in CHR-Synchron" : "⚠ file not uploaded to CHR-Synchron yet"}</div>}
+              {row.path.trim() && <div className={`mt-1 text-[11px] font-bold ${row.fileFound ? "text-success" : "text-warning"}`}>{row.fileFound ? "✓ file is in CHR-Nexus" : "⚠ file not uploaded to CHR-Nexus yet"}</div>}
             </div>
 
             {isRpa && (

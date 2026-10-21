@@ -55,10 +55,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const brand = (compact: boolean) => (
     <div className={`flex items-center gap-3 px-5 py-5 ${compact ? "justify-center px-0" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icons/CIMS.png" alt="" className="h-10 w-10 object-contain" />
+      <img src="/icons/logo.png" alt="CHR-Nexus" className="h-10 w-10 object-contain" />
       {!compact && (
         <div className="leading-tight">
-          <div className="text-lg font-extrabold text-white">CHR-Synchron</div>
+          <div className="text-lg font-extrabold text-white">CHR-Nexus</div>
           <div className="text-[10px] font-semibold text-white/60">CHR Inventory Management System</div>
         </div>
       )}
@@ -66,7 +66,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 
   const footer = (compact: boolean) => (
-    <div className="px-3 pb-4 pt-2 text-center text-[10px] text-white/45">{compact ? "P.U." : "© 2026 CIMS • Pongpakorn Urang"}</div>
+    <div className="px-3 pb-4 pt-2 text-center text-[10px] text-white/45">{compact ? "P.U." : "© 2026 CHR-Nexus • Pongpakorn Urang"}</div>
   );
 
   return (
@@ -102,7 +102,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           >
             ☰
           </button>
-          <h1 className="truncate text-base font-extrabold uppercase tracking-wide text-primary md:text-lg">{current?.title ?? "CHR-SYNCHRON"}</h1>
+          <h1 className="truncate text-base font-extrabold uppercase tracking-wide text-primary md:text-lg">{current?.title ?? "CHR-NEXUS"}</h1>
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden text-right leading-tight sm:block">
               <div className="text-sm font-bold">{me?.userName || me?.userId}</div>

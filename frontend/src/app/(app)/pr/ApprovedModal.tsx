@@ -205,7 +205,7 @@ export function ApprovedModal({
               onClick={() => ((data?.pathStocks.length ?? 0) > 0 ? setChoose("PATH") : toast.show("WARNING", "ยังไม่มีคลังที่ตั้งไฟล์ Excel\nตั้งได้ที่ User Management -> ⚙ SETUP -> EXCEL SETUP (Admin)", "warn"))}
             >
               <div className="font-extrabold text-primary">📥 EXPORT PATH</div>
-              <div className="text-sm">ต่อข้อมูลลงไฟล์ Excel ของคลัง ตามช่องที่ตั้งไว้ (ไฟล์ของ CHR-Synchron)</div>
+              <div className="text-sm">ต่อข้อมูลลงไฟล์ Excel ของคลัง ตามช่องที่ตั้งไว้ (ไฟล์ของ CHR-Nexus)</div>
               <div className="text-xs text-ink-soft">{data?.pathStocks.map((s) => s.code).join("  •  ")}</div>
             </button>
           </div>
@@ -215,7 +215,7 @@ export function ApprovedModal({
             <p className="mb-1 text-sm font-semibold text-ink-soft">{choose === "PATH" ? "เลือกคลัง: ระบบต่อรายการที่ติ๊กลงไฟล์ Excel ของคลังนั้น" : "เลือกคลัง"}</p>
             {(choose === "PATH" ? data?.pathStocks ?? [] : data?.exportStocks ?? []).map((s) => (
               <div key={s.stkId} className="flex items-center gap-2 rounded-xl border-2 border-line p-3">
-                <button className="flex-1 text-left" onClick={() => (choose === "PATH" && !(s as PathStock).fileFound ? toast.show("WARNING", "ยังไม่มีไฟล์ใน CHR-Synchron - กด UPLOAD ก่อน", "warn") : doExport(choose, s))}>
+                <button className="flex-1 text-left" onClick={() => (choose === "PATH" && !(s as PathStock).fileFound ? toast.show("WARNING", "ยังไม่มีไฟล์ใน CHR-Nexus - กด UPLOAD ก่อน", "warn") : doExport(choose, s))}>
                   <div className="font-extrabold text-primary">{s.code}</div>
                   <div className="text-xs text-ink-soft">{choose === "PATH" ? `📊 ${(s as PathStock).file}${(s as PathStock).fileFound ? "" : " • ⚠ ยังไม่มีไฟล์"}` : s.name}</div>
                 </button>

@@ -563,7 +563,7 @@ function CardStrip({ rows, withImage, unit }: { rows: Product[]; withImage: bool
           <div key={i} className="flex w-56 shrink-0 gap-3 rounded-xl border-l-8 bg-surface-2 p-3" style={{ borderColor: STATUS_COLOR(p.stockStatus) }}>
             {withImage && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.imageUrl ?? "/icons/CIMS.png"} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-lg bg-surface object-contain" />
+              <img src={p.imageUrl ?? "/icons/logo.png"} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-lg bg-surface object-contain" />
             )}
             <div className="min-w-0">
               <div className="truncate text-sm font-extrabold text-primary">{p.partCode}</div>

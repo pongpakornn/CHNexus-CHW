@@ -114,9 +114,9 @@ export default function PickListPage() {
           </>
         }
       />
-      {source === "CHR-Synchron" && (
+      {source === "CHR-Nexus" && (
         <div className="rounded-xl border border-warning/40 bg-[#fff3e0] p-3 text-sm font-semibold text-warning">
-          🔒 CHR-Synchron ไม่เชื่อม ERP ของระบบที่ใช้งานจริง (192.168.10.10) — รายการด้านล่างมาจากประวัติการพิมพ์ใน CHR-Synchron (ดู / พิมพ์ซ้ำ / Export ได้)
+          🔒 ยังไม่ได้ตั้งค่าการอ่านข้อมูลจาก ERP (192.168.10.10 อ่านอย่างเดียว) — รายการด้านล่างมาจากประวัติการพิมพ์ใน CHR-Nexus (ดู / พิมพ์ซ้ำ / Export ได้)
         </div>
       )}
 

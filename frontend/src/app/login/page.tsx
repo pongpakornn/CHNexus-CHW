@@ -45,8 +45,8 @@ export default function LoginPage() {
       <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-surface p-8 shadow-2xl">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/CIMS.png" alt="" className="h-20 w-20 rounded-full bg-primary object-contain p-3" />
-          <div className="text-2xl font-extrabold text-primary">CHR-Synchron</div>
+          <img src="/icons/app-192.png" alt="CHR-Nexus" className="h-20 w-20 rounded-2xl object-cover shadow-lg" />
+          <div className="text-2xl font-extrabold text-primary">CHR-Nexus</div>
           <div className="text-xs font-semibold text-ink-soft">CHR Inventory Management System</div>
         </div>
         <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">User ID</label>
@@ -56,7 +56,7 @@ export default function LoginPage() {
         <button className="btn w-full bg-accent py-3 text-base" disabled={busy}>
           {busy ? "⏳ กำลังเข้าสู่ระบบ..." : "LOGIN"}
         </button>
-        <div className="mt-6 text-center text-[11px] text-ink-soft">© 2026 CIMS • Pongpakorn Urang</div>
+        <div className="mt-6 text-center text-[11px] text-ink-soft">© 2026 CHR-Nexus • Pongpakorn Urang</div>
       </form>
     </div>
   );

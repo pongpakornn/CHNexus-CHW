@@ -13,6 +13,6 @@ appsettings.*.Local.json
 ## Node / Next.js (frontend/.gitignore ดูแลส่วนที่เหลือ)
 node_modules/
 
-## ไฟล์ของ CHR-Synchron (รูปสินค้า / Excel RPA / PR) - ไม่ขึ้น GitHub
+## ไฟล์ของ CHR-Nexus (รูปสินค้า / Excel RPA / PR) - ไม่ขึ้น GitHub
 storage/
 
