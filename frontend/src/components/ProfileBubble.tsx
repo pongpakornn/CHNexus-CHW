@@ -172,13 +172,13 @@ export function ProfileBubble() {
           className={`menu-pop absolute max-h-[min(70dvh,520px)] w-max overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#141416] p-2 shadow-2xl shadow-black/50 ${right ? "right-0" : "left-0"}`}
           style={top ? { top: SIZE + 10 } : { bottom: SIZE + 10 }}
         >
-          <div className="px-2 pb-2 pt-1">
+          <div className={`px-2 pb-2 pt-1 ${right ? "text-right" : ""}`}>
             <div className="max-w-60 truncate text-sm font-extrabold text-white">{me.userName || me.userId}</div>
             <div className="text-[11px] font-semibold text-white/45">
               {me.userId} · LEVEL {me.userLevel}
             </div>
           </div>
-          <SlideMenu items={items} />
+          <SlideMenu items={items} side={right ? "right" : "left"} />
         </div>
       )}
     </div>

@@ -24,13 +24,15 @@ const TONE: Record<Tone, string> = {
   neutral: "#d4d4d8",
 };
 
-export function SlideMenu({ items, empty }: { items: SlideItem[]; empty?: string }) {
+// side = ฝั่งที่เมนูชิด: "left" ไอคอนชิดซ้าย ขยายไปทางขวา / "right" ไอคอนชิดขวา ขยายไปทางซ้าย (วงกลมอยู่ฝั่งขวาของจอ)
+export function SlideMenu({ items, empty, side = "left" }: { items: SlideItem[]; empty?: string; side?: "left" | "right" }) {
   const [open, setOpen] = useState<string | null>(null);
+  const r = side === "right";
 
   if (items.length === 0) return <div className="px-4 py-3 text-sm font-semibold text-white/60">{empty ?? "ไม่มีรายการ"}</div>;
 
   return (
-    <ul className="flex w-64 flex-col gap-1 border-l border-white/10 pl-1">
+    <ul className={`flex w-64 flex-col gap-1 border-white/10 ${r ? "items-end border-r pr-1" : "border-l pl-1"}`}>
       {items.map((it) => {
         const isOpen = open === it.key;
         const tone = TONE[it.tone ?? "neutral"];
@@ -38,7 +40,7 @@ export function SlideMenu({ items, empty }: { items: SlideItem[]; empty?: string
           <li
             key={it.key}
             style={{ "--tone": tone } as React.CSSProperties}
-            className={`group overflow-hidden rounded-lg border-l border-transparent bg-[#232326] transition-all duration-500 hover:w-64 hover:border-white/10 hover:shadow-lg hover:shadow-black/40 ${
+            className={`group overflow-hidden rounded-lg border-transparent bg-[#232326] ${r ? "border-r" : "border-l"} transition-all duration-500 hover:w-64 hover:border-white/10 hover:shadow-lg hover:shadow-black/40 ${
               isOpen ? "w-64 border-white/10 shadow-lg shadow-black/40" : "w-14"
             }`}
           >
@@ -46,19 +48,19 @@ export function SlideMenu({ items, empty }: { items: SlideItem[]; empty?: string
               type="button"
               onClick={() => (it.detail ? setOpen(isOpen ? null : it.key) : it.onSelect?.())}
               aria-expanded={it.detail ? isOpen : undefined}
-              className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[var(--tone)] transition-all outline-none focus-visible:bg-white/5 active:scale-95"
+              className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-[var(--tone)] transition-all outline-none focus-visible:bg-white/5 active:scale-95 ${r ? "flex-row-reverse text-right" : "text-left"}`}
             >
               <div className="relative shrink-0 rounded-lg border-2 border-[color-mix(in_srgb,var(--tone)_45%,transparent)] bg-[color-mix(in_srgb,var(--tone)_14%,transparent)] p-1">
                 <Icon name={it.icon} />
                 {!!it.badge && (
-                  <span className="absolute -right-2 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--tone)] px-1 text-[10px] font-extrabold text-[#141416]">
+                  <span className={`absolute -top-2 grid ${r ? "-left-2" : "-right-2"} h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--tone)] px-1 text-[10px] font-extrabold text-[#141416]`}>
                     {it.badge > 99 ? "99+" : it.badge}
                   </span>
                 )}
               </div>
               <div className="truncate whitespace-nowrap font-semibold text-white">{it.label}</div>
               {it.detail && (
-                <span className={`ml-auto text-white/40 transition-transform duration-300 ${isOpen ? "rotate-90" : ""}`}>
+                <span className={`text-white/40 transition-transform duration-300 ${r ? "mr-auto" : "ml-auto"} ${isOpen ? "rotate-90" : r ? "rotate-180" : ""}`}>
                   <Icon name="chevron" className="size-4" />
                 </span>
               )}

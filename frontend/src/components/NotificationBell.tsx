@@ -79,6 +79,7 @@ export function NotificationBell() {
             {data && <div className="text-[11px] font-semibold text-white/40">อัพเดท {data.time}</div>}
           </div>
           <SlideMenu
+            side="right"
             empty="ไม่มีเรื่องที่ต้องจัดการ"
             items={(data?.items ?? []).map((n) => ({
               key: n.key,
