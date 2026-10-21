@@ -1,14 +1,18 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { useBubbleCorner } from "@/lib/profileCorner";
+import { Icon, type IconName } from "./icons";
 
-// 🔔 แจ้งเตือนมุมจอ + เสียง (แทน NotificationManager + SystemSounds ของ WPF) - ไม่เด้ง Popup ค้าง สแกนต่อได้เลย
-type Toast = { id: number; title: string; message: string; kind: "ok" | "error" | "warn" | "info" };
-type Ctx = { show: (title: string, message: string, kind?: Toast["kind"]) => void };
+// 🔔 แจ้งเตือนมุมขวาล่าง + เสียง (แทน NotificationManager + SystemSounds ของ WPF) - ไม่เด้ง Popup ค้าง สแกนต่อได้เลย
+//    หลอดเวลาทางขวาค่อยๆ ลดลง หมดแล้วค่อยๆ จางหาย · ชี้ค้าง = หยุดเวลา · กด = ปิดทันที
+type Kind = "ok" | "error" | "warn" | "info";
+type Toast = { id: number; title: string; message: string; kind: Kind; ms: number; leaving: boolean };
+type Ctx = { show: (title: string, message: string, kind?: Kind) => void };
 
 const ToastCtx = createContext<Ctx | null>(null);
 
-function beep(kind: Toast["kind"]) {
+function beep(kind: Kind) {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC();
@@ -29,40 +33,55 @@ function beep(kind: Toast["kind"]) {
   }
 }
 
-const STYLE: Record<Toast["kind"], string> = {
-  ok: "border-success bg-[#e8f5e9]",
-  error: "border-danger bg-[#ffebee]",
-  warn: "border-warning bg-[#fff3e0]",
-  info: "border-info bg-[#e3f2fd]",
-};
-const ICON: Record<Toast["kind"], string> = { ok: "✔", error: "✖", warn: "⚠", info: "ℹ" };
+const TONE: Record<Kind, string> = { ok: "#4ade80", error: "#d65563", warn: "#f0b04a", info: "#6aa6f8" };
+const ICON: Record<Kind, IconName> = { ok: "check", error: "error", warn: "triangle", info: "info" };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [list, setList] = useState<Toast[]>([]);
   const seq = useRef(0);
+  const bubble = useBubbleCorner();
 
-  const show = useCallback((title: string, message: string, kind: Toast["kind"] = "info") => {
+  const show = useCallback((title: string, message: string, kind: Kind = "info") => {
     const id = ++seq.current;
     if (kind !== "info") beep(kind);
-    setList((l) => [{ id, title, message, kind }, ...l].slice(0, 4));
-    setTimeout(() => setList((l) => l.filter((t) => t.id !== id)), kind === "error" || kind === "warn" ? 9000 : 4500);
+    const ms = kind === "error" || kind === "warn" ? 9000 : 4500;
+    setList((l) => [{ id, title, message, kind, ms, leaving: false }, ...l].slice(0, 4));
   }, []);
+
+  const leave = (id: number) => setList((l) => l.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+  const remove = (id: number) => setList((l) => l.filter((t) => t.id !== id));
 
   return (
     <ToastCtx.Provider value={{ show }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[100] flex flex-col items-end gap-2 sm:inset-x-auto sm:right-4 sm:w-[420px]">
+      <div
+        className="pointer-events-none fixed inset-x-3 z-[100] flex flex-col items-end gap-2 sm:inset-x-auto sm:right-4 sm:w-80"
+        style={{ bottom: bubble === "br" ? 84 : 16 }}
+      >
         {list.map((t) => (
           <div
             key={t.id}
-            role="status"
-            onClick={() => setList((l) => l.filter((x) => x.id !== t.id))}
-            className={`pointer-events-auto w-full cursor-pointer rounded-xl border-l-8 p-4 shadow-lg ${STYLE[t.kind]}`}
+            role={t.kind === "error" ? "alert" : "status"}
+            onClick={() => leave(t.id)}
+            onTransitionEnd={(e) => e.propertyName === "opacity" && t.leaving && remove(t.id)}
+            className={`toast-card pointer-events-auto flex w-full cursor-pointer items-center gap-2.5 rounded-lg bg-[#232531] px-2.5 py-2 shadow-xl shadow-black/30 transition-[opacity,transform] duration-300 ${
+              t.leaving ? "translate-x-4 opacity-0" : "opacity-100"
+            }`}
           >
-            <div className="text-sm font-extrabold uppercase">
-              {ICON[t.kind]} {t.title}
+            <div className="shrink-0 rounded-lg bg-white/5 p-1 backdrop-blur-xl" style={{ color: TONE[t.kind] }}>
+              <Icon name={ICON[t.kind]} />
             </div>
-            <div className="mt-1 whitespace-pre-line text-sm font-semibold text-ink">{t.message}</div>
+            <div className="min-w-0 flex-1 py-0.5">
+              <p className="text-xs font-semibold text-white sm:text-sm">{t.title}</p>
+              {t.message && <p className="whitespace-pre-line break-words text-[11px] text-gray-400 sm:text-xs">{t.message}</p>}
+            </div>
+            <div className="relative h-9 w-1.5 shrink-0 self-center overflow-hidden rounded-full bg-white/10" aria-hidden="true">
+              <div
+                className="toast-tube absolute inset-0 rounded-full"
+                style={{ background: TONE[t.kind], animationDuration: `${t.ms}ms` }}
+                onAnimationEnd={() => leave(t.id)}
+              />
+            </div>
           </div>
         ))}
       </div>

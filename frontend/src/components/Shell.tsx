@@ -6,6 +6,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { MENU } from "@/lib/menu";
+import { Icon } from "./icons";
+import { NotificationBell } from "./NotificationBell";
+import { ProfileBubble } from "./ProfileBubble";
 
 // 🧭 หน้าหลัก: Sidebar (กาง 260 / พับ 80 แบบเดิม) + แถบชื่อหน้า - จอเล็ก (มือถือ / แท็บเล็ต) = เมนูเลื่อนออกด้านซ้าย
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -53,13 +56,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 
   const brand = (compact: boolean) => (
-    <div className={`flex items-center gap-3 px-5 py-5 ${compact ? "justify-center px-0" : ""}`}>
+    <div className={`flex items-center gap-2.5 px-4 py-5 ${compact ? "justify-center px-0" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/icons/logo.png" alt="CHR-Nexus" className="h-10 w-10 object-contain" />
       {!compact && (
-        <div className="leading-tight">
+        <div className="min-w-0 leading-tight">
           <div className="text-lg font-extrabold text-white">CHR-Nexus</div>
-          <div className="text-[10px] font-semibold text-white/60">CHR Inventory Management System</div>
+          <div className="whitespace-nowrap text-[9.5px] font-semibold text-white/75">CH.RADIATORS COMPANY LIMITED</div>
+          <div className="whitespace-nowrap text-[10px] font-medium text-white/55">บริษัท ซีเอช เรดิเอเตอร์ จำกัด</div>
         </div>
       )}
     </div>
@@ -94,7 +98,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[60px] shrink-0 items-center gap-3 border-b border-line bg-surface/90 px-3 text-ink backdrop-blur md:px-5">
+        <header className="relative z-30 flex h-[60px] shrink-0 items-center gap-3 border-b border-line bg-surface/90 px-3 text-ink backdrop-blur md:px-5">
           <button
             onClick={() => (window.innerWidth < 768 ? setMobile(true) : setOpen((o) => !o))}
             className="rounded-lg px-2 py-1 text-2xl text-primary hover:bg-surface-2"
@@ -104,20 +108,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </button>
           <h1 className="truncate text-base font-extrabold uppercase tracking-wide text-primary md:text-lg">{current?.title ?? "CHR-NEXUS"}</h1>
           <div className="ml-auto flex items-center gap-3">
-            <div className="hidden text-right leading-tight sm:block">
-              <div className="text-sm font-bold">{me?.userName || me?.userId}</div>
-              <div className="text-[11px] text-ink-soft">
-                {me?.userId} • LEVEL {me?.userLevel}
-                {me?.department ? ` • ${me.department}` : ""}
-              </div>
-            </div>
-            <button onClick={logout} className="rounded-lg bg-[#1c1c1e] px-3 py-1.5 text-sm font-bold text-white hover:bg-danger" title="Logout">
-              ⏻ <span className="hidden sm:inline">LOGOUT</span>
+            <NotificationBell />
+            <button type="button" onClick={logout} className="logout-btn" aria-label="Logout">
+              <span className="logout-ico">
+                <Icon name="logout" className="size-5" />
+              </span>
+              <span className="logout-txt">Logout</span>
             </button>
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
+      <ProfileBubble />
     </div>
   );
 }

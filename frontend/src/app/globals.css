@@ -75,3 +75,123 @@ body {
 .field {
   @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft;
 }
+
+/* 🔔 ปุ่มกระดิ่ง: วงกลมเทาเข้ม · ชี้แล้วกระดิ่งแกว่ง · กดแล้วยุบ */
+.bell-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 9999px;
+  background: #2c2c2c;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 2px 2px 10px rgb(0 0 0 / 0.13);
+  transition: background-color 0.3s, transform 0.15s;
+}
+.bell-btn:hover {
+  background: #383838;
+}
+.bell-btn:hover svg {
+  transform-origin: top center;
+  animation: bell-swing 0.9s both;
+}
+.bell-btn:active {
+  transform: scale(0.85);
+}
+@keyframes bell-swing {
+  15% { transform: rotate(10deg); }
+  30% { transform: rotate(-10deg); }
+  45% { transform: rotate(5deg); }
+  60% { transform: rotate(-5deg); }
+  75% { transform: rotate(2deg); }
+  100% { transform: rotate(0); }
+}
+
+/* ⏻ ปุ่ม Logout: วงกลมแดง · ชี้แล้วยืดเป็นแคปซูลพร้อมคำว่า Logout */
+.logout-btn {
+  display: flex;
+  align-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #ff4141;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 2px 2px 10px rgb(0 0 0 / 0.2);
+  transition: width 0.3s, background-color 0.3s, transform 0.15s;
+}
+.logout-btn .logout-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+}
+.logout-btn .logout-txt {
+  white-space: nowrap;
+  padding-right: 16px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.logout-btn:hover,
+.logout-btn:focus-visible {
+  width: 124px;
+}
+.logout-btn:hover .logout-txt,
+.logout-btn:focus-visible .logout-txt {
+  opacity: 1;
+  transform: none;
+}
+.logout-btn:active {
+  transform: translate(2px, 2px);
+}
+
+/* เมนูที่เด้งออกมาจากกระดิ่ง / วงกลมโปรไฟล์ */
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+.menu-pop {
+  animation: menu-pop 0.22s ease-out both;
+}
+.profile-bubble {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.profile-bubble:hover {
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.08), 0 12px 28px rgb(0 0 0 / 0.45);
+}
+
+/* Toast: เลื่อนเข้าจากขวา · หลอดเวลาลดจากบนลงล่าง (ชี้ค้าง = หยุด) */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(24px); }
+}
+.toast-card {
+  /* backwards = หลังเข้าเสร็จไม่ค้างทับ transition ตอนจางหาย */
+  animation: toast-in 0.3s ease-out backwards;
+}
+@keyframes toast-tube {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0); }
+}
+.toast-tube {
+  transform-origin: bottom;
+  animation-name: toast-tube;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.toast-card:hover .toast-tube {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bell-btn:hover svg,
+  .toast-card,
+  .menu-pop {
+    animation: none;
+  }
+}

@@ -47,7 +47,8 @@ export default function LoginPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/app-192.png" alt="CHR-Nexus" className="h-20 w-20 rounded-2xl object-cover shadow-lg" />
           <div className="text-2xl font-extrabold text-primary">CHR-Nexus</div>
-          <div className="text-xs font-semibold text-ink-soft">CHR Inventory Management System</div>
+          <div className="text-xs font-bold tracking-wide text-ink-soft">CH.RADIATORS COMPANY LIMITED</div>
+          <div className="-mt-1.5 text-xs font-medium text-ink-soft">บริษัท ซีเอช เรดิเอเตอร์ จำกัด</div>
         </div>
         <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">User ID</label>
         <input className="field mb-4" autoFocus autoComplete="username" value={userId} onChange={(e) => setUserId(e.target.value)} />
