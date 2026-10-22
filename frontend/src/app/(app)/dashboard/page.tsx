@@ -100,7 +100,7 @@ export default function DashboardPage() {
           {!charts ? <Loading /> : <ShareBars rows={charts.customers} empty="ยังไม่มี Order ของเดือนนี้" />}
         </Card>
         <Card title={`FORECAST / ORDER / DELIVERY • ${charts?.year ?? ""}`} bodyClass="p-4">
-          {!charts ? <Loading /> : <MonthChart data={charts.months} />}
+          {!charts ? <Loading /> : <MonthChart data={charts.months} year={charts.year} />}
         </Card>
       </div>
     </PageBody>

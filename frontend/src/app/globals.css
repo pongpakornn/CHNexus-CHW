@@ -208,3 +208,36 @@ body {
     0 0 0 1px rgb(28 28 30 / 0.06),
     0 18px 50px -14px rgb(28 28 30 / 0.35);
 }
+
+/* 📈 กราฟ Forecast / Order / Delivery */
+.fc-band {
+  transition: transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.22s;
+}
+.fc-mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.26s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.fc-mark.is-hover {
+  transform: scale(1.75);
+}
+.fc-tip {
+  background: rgb(8 14 30 / 0.66);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  transition: left 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: menu-pop 0.18s ease-out both;
+}
+.fc-chart svg:focus-visible {
+  outline: 2px solid #1f5eff;
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-band,
+  .fc-mark,
+  .fc-tip {
+    transition: none;
+    animation: none;
+  }
+}

@@ -230,7 +230,7 @@ export default function ForecastPage() {
 
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <Card title={`FORECAST, ORDER & DELIVERY • ${chart?.year ?? ""}`} bodyClass="p-4">
-          {!chart ? <Loading /> : <MonthChart data={chart.months} />}
+          {!chart ? <Loading /> : <MonthChart data={chart.months} year={chart.year} />}
         </Card>
         <Card
           title="TOP 5 ORDER"
