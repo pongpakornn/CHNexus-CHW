@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Icon, type IconName } from "./icons";
-import { SlideMenu, SlideRow, type Tone } from "./SlideMenu";
+import { SlideDetail, SlideMenu, SlideRow, type Tone } from "./SlideMenu";
 
 // 🔔 กระดิ่งมุมขวาบน: สินค้าต่ำกว่า MIN / PR รออนุมัติ / NOT DEDUCTED (ข้อมูลจริงตามสิทธิ์) - กดแล้วเมนูสไลด์ลงมา
 type Row = { label: string; sub?: string; count: number; href: string };
@@ -73,10 +73,10 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="menu-pop absolute right-0 top-[52px] z-50 max-h-[calc(100dvh-80px)] w-max max-w-[calc(100vw-24px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#141416] p-2 shadow-2xl shadow-black/50">
-          <div className="flex items-center justify-between gap-6 px-2 pb-2 pt-1">
-            <div className="text-sm font-extrabold text-white">การแจ้งเตือน</div>
-            {data && <div className="text-[11px] font-semibold text-white/40">อัพเดท {data.time}</div>}
+        <div className="menu-pop glass-panel absolute right-0 top-[52px] z-50 max-h-[calc(100dvh-80px)] w-80 max-w-[calc(100vw-24px)] overflow-y-auto overscroll-contain p-2">
+          <div className="flex items-baseline justify-between gap-6 px-2.5 pb-1.5 pt-1">
+            {data && <div className="text-[11px] font-semibold text-ink-soft">อัพเดท {data.time}</div>}
+            <div className="ml-auto text-sm font-extrabold text-ink">การแจ้งเตือน</div>
           </div>
           <SlideMenu
             side="right"
@@ -87,13 +87,13 @@ export function NotificationBell() {
               label: n.title,
               tone: n.tone,
               badge: n.count,
+              hint: n.detail,
               detail: (
-                <ul className="divide-y divide-white/10 p-4 pt-0">
-                  <li className="py-1.5 text-xs font-semibold text-white/45">{n.detail}</li>
+                <SlideDetail side="right">
                   {n.rows.map((r) => (
                     <SlideRow key={r.label} title={r.label} sub={r.sub} value={r.count.toLocaleString()} onClick={() => go(r.href)} />
                   ))}
-                </ul>
+                </SlideDetail>
               ),
             }))}
           />

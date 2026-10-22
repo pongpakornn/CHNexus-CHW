@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { Icon, type IconName } from "./icons";
 
-// 📜 รายการแบบสไลด์ (โทนเทาเข้มเกือบดำ): แต่ละรายการเป็นไอคอน -> ชี้ / กด แล้วขยายออกเป็นชื่อ -> กดอีกครั้งเลื่อนรายละเอียดลงมา
-export type Tone = "danger" | "warning" | "info" | "success" | "neutral";
+// 📜 รายการในเมนูกระดิ่ง / โปรไฟล์ (พื้นใส กลืนกับระบบ): ชี้ / กด = พื้นจางๆ ขึ้นมา · มีรายละเอียด = กดแล้วเลื่อนลงมา
+export type Tone = "danger" | "warning" | "info" | "success" | "neutral" | "accent";
 
 export type SlideItem = {
   key: string;
   icon: IconName;
   label: string;
+  hint?: string; // บรรทัดเล็กใต้ชื่อ
   tone?: Tone;
   badge?: number;
   detail?: React.ReactNode; // มี = กดแล้วเลื่อนรายละเอียดลงมา
@@ -17,56 +18,59 @@ export type SlideItem = {
 };
 
 const TONE: Record<Tone, string> = {
-  danger: "#f87171",
-  warning: "#fbbf24",
-  info: "#60a5fa",
-  success: "#4ade80",
-  neutral: "#d4d4d8",
+  danger: "var(--danger)",
+  warning: "var(--warning)",
+  info: "var(--info)",
+  success: "var(--success)",
+  neutral: "var(--primary)",
+  accent: "var(--accent)",
 };
 
-// side = ฝั่งที่เมนูชิด: "left" ไอคอนชิดซ้าย ขยายไปทางขวา / "right" ไอคอนชิดขวา ขยายไปทางซ้าย (วงกลมอยู่ฝั่งขวาของจอ)
+// side = ฝั่งที่เมนูชิด: "right" = ไอคอนชิดขวา ข้อความชิดขวา (เปิดจากฝั่งขวาของจอ)
 export function SlideMenu({ items, empty, side = "left" }: { items: SlideItem[]; empty?: string; side?: "left" | "right" }) {
   const [open, setOpen] = useState<string | null>(null);
   const r = side === "right";
 
-  if (items.length === 0) return <div className="px-4 py-3 text-sm font-semibold text-white/60">{empty ?? "ไม่มีรายการ"}</div>;
+  if (items.length === 0) return <div className="px-3 py-4 text-center text-sm font-semibold text-ink-soft">{empty ?? "ไม่มีรายการ"}</div>;
 
   return (
-    <ul className={`flex w-64 flex-col gap-1 border-white/10 ${r ? "items-end border-r pr-1" : "border-l pl-1"}`}>
+    <ul className="flex flex-col gap-0.5">
       {items.map((it) => {
         const isOpen = open === it.key;
-        const tone = TONE[it.tone ?? "neutral"];
         return (
           <li
             key={it.key}
-            style={{ "--tone": tone } as React.CSSProperties}
-            className={`group overflow-hidden rounded-lg border-transparent bg-[#232326] ${r ? "border-r" : "border-l"} transition-all duration-500 hover:w-64 hover:border-white/10 hover:shadow-lg hover:shadow-black/40 ${
-              isOpen ? "w-64 border-white/10 shadow-lg shadow-black/40" : "w-14"
-            }`}
+            style={{ "--tone": TONE[it.tone ?? "neutral"] } as React.CSSProperties}
+            className={`overflow-hidden rounded-xl transition-colors duration-300 ${isOpen ? "bg-[color-mix(in_srgb,var(--tone)_7%,transparent)]" : ""}`}
           >
             <button
               type="button"
               onClick={() => (it.detail ? setOpen(isOpen ? null : it.key) : it.onSelect?.())}
               aria-expanded={it.detail ? isOpen : undefined}
-              className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-[var(--tone)] transition-all outline-none focus-visible:bg-white/5 active:scale-95 ${r ? "flex-row-reverse text-right" : "text-left"}`}
+              className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 transition-all outline-none hover:bg-[color-mix(in_srgb,var(--tone)_9%,transparent)] focus-visible:bg-[color-mix(in_srgb,var(--tone)_9%,transparent)] active:scale-[0.98] ${
+                r ? "flex-row-reverse text-right" : "text-left"
+              }`}
             >
-              <div className="relative shrink-0 rounded-lg border-2 border-[color-mix(in_srgb,var(--tone)_45%,transparent)] bg-[color-mix(in_srgb,var(--tone)_14%,transparent)] p-1">
-                <Icon name={it.icon} />
+              <span className="relative grid size-9 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--tone)_12%,transparent)] text-[var(--tone)] transition-transform duration-300 group-hover:scale-105">
+                <Icon name={it.icon} className="size-5" />
                 {!!it.badge && (
-                  <span className={`absolute -top-2 grid ${r ? "-left-2" : "-right-2"} h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--tone)] px-1 text-[10px] font-extrabold text-[#141416]`}>
+                  <span className={`absolute -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--tone)] px-1 text-[10px] font-extrabold text-white ring-2 ring-white/80 ${r ? "-left-1.5" : "-right-1.5"}`}>
                     {it.badge > 99 ? "99+" : it.badge}
                   </span>
                 )}
-              </div>
-              <div className="truncate whitespace-nowrap font-semibold text-white">{it.label}</div>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-ink">{it.label}</span>
+                {it.hint && <span className="block truncate text-[11px] font-semibold text-ink-soft">{it.hint}</span>}
+              </span>
               {it.detail && (
-                <span className={`text-white/40 transition-transform duration-300 ${r ? "mr-auto" : "ml-auto"} ${isOpen ? "rotate-90" : r ? "rotate-180" : ""}`}>
+                <span className={`shrink-0 text-ink-soft/70 transition-transform duration-300 ${isOpen ? "rotate-90" : r ? "rotate-180" : ""}`}>
                   <Icon name="chevron" className="size-4" />
                 </span>
               )}
             </button>
             {it.detail && (
-              <div className={`grid overflow-hidden transition-all duration-500 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+              <div className={`grid transition-all duration-500 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                 <div className="overflow-hidden">{it.detail}</div>
               </div>
             )}
@@ -77,21 +81,31 @@ export function SlideMenu({ items, empty, side = "left" }: { items: SlideItem[];
   );
 }
 
-// แถวในรายละเอียด: หัวข้อ + ค่าทางขวา + คำอธิบายบรรทัดล่าง
+// แถวในรายละเอียด: หัวข้อ + ค่าทางขวา + คำอธิบายบรรทัดล่าง (กดได้ถ้ามี onClick)
 export function SlideRow({ title, value, sub, onClick }: { title: string; value?: React.ReactNode; sub?: string; onClick?: () => void }) {
+  const body = (
+    <>
+      <span className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[13px] font-bold text-ink">{title}</span>
+        {value !== undefined && <span className="shrink-0 text-[13px] font-extrabold text-ink-soft tabular-nums">{value}</span>}
+      </span>
+      {sub && <span className="block truncate text-[11px] font-semibold text-ink-soft/80">{sub}</span>}
+    </>
+  );
   return (
-    <li className="py-2">
-      <div className="flex items-center justify-between gap-3">
-        {onClick ? (
-          <button type="button" onClick={onClick} className="peer min-w-0 cursor-pointer truncate text-left font-semibold text-white/90 hover:text-[var(--tone)]">
-            {title}
-          </button>
-        ) : (
-          <div className="min-w-0 truncate font-semibold text-white/90">{title}</div>
-        )}
-        {value !== undefined && <div className="shrink-0 text-sm font-bold text-white/55 transition-all peer-hover:translate-x-1">{value}</div>}
-      </div>
-      {sub && <div className="truncate text-xs text-white/45">{sub}</div>}
+    <li>
+      {onClick ? (
+        <button type="button" onClick={onClick} className="block w-full cursor-pointer rounded-lg px-2 py-1.5 text-left transition hover:bg-[color-mix(in_srgb,var(--tone)_10%,transparent)] active:scale-[0.98]">
+          {body}
+        </button>
+      ) : (
+        <div className="px-2 py-1.5">{body}</div>
+      )}
     </li>
   );
+}
+
+// กล่องของรายละเอียด (เว้นด้านเดียวกับไอคอน ให้ข้อความตรงกับชื่อรายการ)
+export function SlideDetail({ children, side = "left" }: { children: React.ReactNode; side?: "left" | "right" }) {
+  return <ul className={`flex flex-col gap-0.5 pb-2 pt-0.5 ${side === "right" ? "pl-2 pr-12" : "pl-12 pr-2"}`}>{children}</ul>;
 }

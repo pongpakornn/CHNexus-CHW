@@ -98,7 +98,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative z-30 flex h-[60px] shrink-0 items-center gap-3 border-b border-line bg-surface/90 px-3 text-ink backdrop-blur md:px-5">
+        <header className="relative z-30 flex h-[60px] shrink-0 items-center gap-3 border-b border-line bg-surface/95 px-3 text-ink md:px-5">
           <button
             onClick={() => (window.innerWidth < 768 ? setMobile(true) : setOpen((o) => !o))}
             className="rounded-lg px-2 py-1 text-2xl text-primary hover:bg-surface-2"
