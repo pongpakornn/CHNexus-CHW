@@ -104,7 +104,8 @@ export default function DashboardPage() {
   };
 
   return (
-    <PageBody>
+    // จอใหญ่: หน้าสูงเต็มจอ แถวกราฟยืดลงไปจนสุด ไม่เหลือพื้นที่ว่างด้านล่าง
+    <PageBody className="xl:min-h-full">
       <PageHeader
         icon="/icons/Dashboard.png"
         title="Dashboard"
@@ -247,13 +248,13 @@ export default function DashboardPage() {
         </section>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+      <div className="grid gap-4 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
         {!charts ? (
           <Card title="CUSTOMER ORDER">
             <Loading />
           </Card>
         ) : (
-          <CustomerDonut title={`CUSTOMER ORDER • ${charts.month}`} period={charts.month} rows={charts.customers} empty="ยังไม่มี Order ของเดือนนี้" />
+          <CustomerDonut title={`CUSTOMER ORDER • ${charts.month}`} period={charts.month} rows={charts.customers} empty="ยังไม่มี Order ของเดือนนี้" fill />
         )}
         <Card title={`FORECAST / ORDER / DELIVERY • ${charts?.year ?? ""}`} className="flex flex-col" bodyClass="flex flex-1 flex-col p-4">
           {!charts ? <Loading /> : <MonthChart data={charts.months} year={charts.year} fill />}

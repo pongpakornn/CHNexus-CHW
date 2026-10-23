@@ -31,7 +31,8 @@ function arc(a0: number, a1: number) {
   return `M${x1},${y1} A${R2},${R2} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${R1},${R1} 0 ${large} 0 ${x4},${y4} Z`;
 }
 
-export function CustomerDonut({ title, period, rows, empty = "ไม่มีข้อมูล" }: { title: React.ReactNode; period?: string; rows: CustomerRow[]; empty?: string }) {
+// fill = จอใหญ่ (xl) ยืดวงแหวน + รายชื่อให้เต็มความสูงของการ์ด
+export function CustomerDonut({ title, period, rows, empty = "ไม่มีข้อมูล", fill = false }: { title: React.ReactNode; period?: string; rows: CustomerRow[]; empty?: string; fill?: boolean }) {
   const [view, setView] = useState<"chart" | "table">("chart");
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1); // ลำดับลูกค้าที่ชี้อยู่
@@ -127,10 +128,10 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
         </div>
       ) : (
         <>
-          <div className="@container flex-1">
-            <div className="grid items-center gap-4 p-4 @[540px]:grid-cols-[minmax(220px,.9fr)_minmax(0,1.1fr)]">
+          <div className={`@container flex-1 ${fill ? "relative xl:min-h-[380px]" : ""}`}>
+            <div className={`grid items-center gap-4 p-4 @[540px]:grid-cols-[minmax(220px,.9fr)_minmax(0,1.1fr)] ${fill ? "xl:absolute xl:inset-0 xl:grid-rows-[minmax(0,1fr)] xl:@[540px]:grid-cols-[minmax(240px,1.15fr)_minmax(250px,.85fr)]" : ""}`}>
               {/* วงแหวน */}
-              <div className="relative mx-auto aspect-square w-full max-w-[320px]">
+              <div className={`relative mx-auto aspect-square w-full max-w-[320px] ${fill ? "xl:max-h-full xl:max-w-[400px]" : ""}`}>
                 <svg viewBox="0 0 360 360" className="size-full overflow-visible" role="img" aria-label="Customer order share" onMouseLeave={() => setActive(-1)}>
                   {segs.map((s) => (
                     <path
@@ -157,7 +158,7 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
               </div>
 
               {/* รายชื่อลูกค้า */}
-              <div ref={listRef} className="grid h-[320px] content-start gap-1 overflow-auto pr-1">
+              <div ref={listRef} className={`grid h-[320px] content-start gap-1 overflow-auto pr-1 ${fill ? "xl:h-full" : ""}`}>
                 {list.map(({ r, i }) => {
                   return (
                     <div
