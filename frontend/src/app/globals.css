@@ -188,6 +188,14 @@ body {
   animation-play-state: paused;
 }
 
+/* Sidebar กางออก: ตัวหนังสือค่อยๆ จางเข้า (ไม่ขยับตำแหน่ง) */
+@keyframes sb-fade {
+  from { opacity: 0; }
+}
+.sb-fade {
+  animation: sb-fade 0.35s ease-out 0.05s both;
+}
+
 /* สลับ CHART / TABLE: ของใหม่ค่อยๆ ลอยขึ้นมา */
 @keyframes view-in {
   from { opacity: 0; transform: translateY(8px) scale(0.985); filter: blur(2px); }
@@ -222,7 +230,8 @@ body {
   .bell-btn:hover svg,
   .toast-card,
   .menu-pop,
-  .view-in {
+  .view-in,
+  .sb-fade {
     animation: none;
   }
   .fold {

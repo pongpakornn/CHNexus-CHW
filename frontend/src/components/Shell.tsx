@@ -47,8 +47,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={m.icon} alt="" className="h-7 w-7 shrink-0 object-contain brightness-0 invert" />
-            {!compact && <span className="truncate">{m.label}</span>}
-            {!compact && !m.ready && <span className="ml-auto rounded bg-white/15 px-1.5 text-[10px] font-bold">SOON</span>}
+            {!compact && <span className="sb-fade truncate">{m.label}</span>}
+            {!compact && !m.ready && <span className="sb-fade ml-auto rounded bg-white/15 px-1.5 text-[10px] font-bold">SOON</span>}
           </Link>
         );
       })}
@@ -56,12 +56,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 
   const brand = (compact: boolean) => (
-    <div className={`flex items-center gap-2.5 px-4 py-5 ${compact ? "justify-center px-0" : ""}`}>
+    <div className={`flex h-[92px] shrink-0 items-center gap-2.5 px-4 ${compact ? "justify-center px-0" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/icons/logo.png" alt="CHR-Nexus" className="h-10 w-10 object-contain" />
       {!compact && (
-        <div className="min-w-0 leading-tight">
-          <div className="text-lg font-extrabold text-white">CHR-Nexus</div>
+        <div className="sb-fade min-w-0 leading-tight">
+          <div className="whitespace-nowrap text-lg font-extrabold text-white">CHR-Nexus</div>
           <div className="whitespace-nowrap text-[9.5px] font-semibold text-white/75">CH.RADIATORS COMPANY LIMITED</div>
           <div className="whitespace-nowrap text-[10px] font-medium text-white/55">บริษัท ซีเอช เรดิเอเตอร์ จำกัด</div>
         </div>
@@ -70,19 +70,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 
   const footer = (compact: boolean) => (
-    <div className="px-3 pb-4 pt-2 text-center text-[10px] text-white/45">{compact ? "P.U." : "© 2026 CHR-Nexus • Pongpakorn Urang"}</div>
+    <div className="whitespace-nowrap px-3 pb-4 pt-2 text-center text-[10px] text-white/45">{compact ? "P.U." : <span className="sb-fade">© 2026 CHR-Nexus • Pongpakorn Urang</span>}</div>
   );
 
   return (
     <div className="flex h-dvh overflow-hidden">
       {/* Sidebar จอใหญ่ */}
+      {/* กว้างของเนื้อหาเปลี่ยนทันที ส่วนกล่องนอกเลื่อนกว้างตาม (ซ่อนส่วนเกิน) = ตัวหนังสือไม่ถูกบีบจนขึ้นบรรทัดใหม่ระหว่างกาง */}
       <aside
-        className="hidden shrink-0 flex-col bg-sidebar shadow-xl backdrop-blur transition-[width] duration-300 md:flex"
+        className="hidden shrink-0 overflow-hidden bg-sidebar shadow-xl backdrop-blur transition-[width] duration-300 ease-out md:flex"
         style={{ width: open ? 260 : 80 }}
       >
-        {brand(!open)}
-        {nav(!open)}
-        {footer(!open)}
+        <div className="flex h-full shrink-0 flex-col" style={{ width: open ? 260 : 80 }}>
+          {brand(!open)}
+          {nav(!open)}
+          {footer(!open)}
+        </div>
       </aside>
 
       {/* Sidebar มือถือ */}
