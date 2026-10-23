@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-// 🍩 สัดส่วน Order ของลูกค้า: วงแหวน 8 อันดับแรก + ที่เหลือรวมเป็น Other customers · รายชื่อค้นหาได้ · CHART / TABLE
+// 🍩 สัดส่วน Order ของลูกค้า: วงแหวนแสดงทุกลูกค้า (ชี้ดูได้ทุกชิ้น) · รายชื่อค้นหาได้ · CHART / TABLE
 export type CustomerRow = { name: string; amount: number; percentage?: number };
 
-const TOP = 8;
-const COLORS = ["#2563eb", "#38bdf8", "#0f2f8f", "#60a5fa", "#0891b2", "#818cf8", "#14b8a6", "#93c5fd"];
-const OTHER = "#cbd8ee";
+// สีตามลำดับลูกค้า (มากไปน้อย) - เกินจำนวนสีจะวนซ้ำ
+const COLORS = [
+  "#2563eb", "#38bdf8", "#0f2f8f", "#60a5fa", "#0891b2", "#818cf8", "#14b8a6", "#93c5fd", "#64748b", "#a78bfa", "#22a6b3", "#f59e0b", "#10b981",
+  "#6366f1", "#0ea5e9", "#8b5cf6", "#06b6d4", "#94a3b8", "#3b82f6", "#2dd4bf", "#a3a3a3", "#7c3aed", "#f97316", "#0d9488", "#cbd5e1",
+];
+// ชิ้นเล็กมากยังต้องชี้ได้: ทุกชิ้นได้มุมขั้นต่ำ แล้วแบ่งส่วนที่เหลือตามสัดส่วนจริง (ตัวเลข / % ที่แสดงเป็นค่าจริงเสมอ)
+const MIN_DEG = 0.9;
 const fmt = new Intl.NumberFormat("en-US");
+// % จากระบบปัดทศนิยมไว้: ลูกค้าที่มียอดแต่ % ปัดเหลือ 0 แสดงเป็น <0.01%
+const pctText = (v: number, amount: number, d = 1) => (amount > 0 && v < 0.005 ? "<0.01%" : `${v < 1 ? v.toFixed(2) : v.toFixed(d)}%`);
 const C = 180;
 const R2 = 146;
 const R1 = 98;
@@ -28,17 +34,18 @@ function arc(a0: number, a1: number) {
 export function CustomerDonut({ title, period, rows, empty = "ไม่มีข้อมูล" }: { title: React.ReactNode; period?: string; rows: CustomerRow[]; empty?: string }) {
   const [view, setView] = useState<"chart" | "table">("chart");
   const [q, setQ] = useState("");
-  const [active, setActive] = useState(-1); // ลำดับชิ้นในวงแหวน (TOP = Other)
+  const [active, setActive] = useState(-1); // ลำดับลูกค้าที่ชี้อยู่
+  const listRef = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(0);
 
   const total = rows.reduce((a, r) => a + r.amount, 0);
   const pctOf = (r: CustomerRow) => r.percentage ?? (total > 0 ? (r.amount / total) * 100 : 0);
-  const slices = useMemo(() => {
-    const top = rows.slice(0, TOP).map((r, i) => ({ name: r.name, value: r.amount, color: COLORS[i] }));
-    const rest = rows.slice(TOP).reduce((a, r) => a + r.amount, 0);
-    return rows.length > TOP ? [...top, { name: "Other customers", value: rest, color: OTHER }] : top;
-  }, [rows]);
-  const sliceOf = (i: number) => (i < TOP ? i : TOP);
+  const slices = useMemo(() => rows.map((r, i) => ({ name: r.name, value: r.amount, color: COLORS[i % COLORS.length] })), [rows]);
+  const minDeg = Math.min(MIN_DEG, 180 / Math.max(1, slices.length));
+  const pointSlice = (i: number) => {
+    setActive(i);
+    listRef.current?.querySelector(`[data-i="${i}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
 
   // วงแหวนค่อยๆ วาดรอบตอนเปิด
   useEffect(() => {
@@ -61,7 +68,7 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
   const list = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.name.toLowerCase().includes(q.trim().toLowerCase()));
   const act = active >= 0 ? slices[active] : null;
 
-  const spans = slices.map((s) => (total > 0 ? (s.value / total) * 360 * p : 0));
+  const spans = slices.map((s) => (total > 0 ? (minDeg + (s.value / total) * (360 - minDeg * slices.length)) * p : 0));
   const segs = slices.map((s, i) => {
     const span = spans[i];
     const a0 = spans.slice(0, i).reduce((a, x) => a + x, 0);
@@ -112,7 +119,7 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
                 <tr key={r.name} className="transition-colors hover:bg-[#e8f0ff]">
                   <td className="border-b border-line px-3 py-2 font-bold">{r.name}</td>
                   <td className="border-b border-line px-3 py-2 text-right font-semibold">{fmt.format(r.amount)}</td>
-                  <td className="border-b border-line px-3 py-2 text-right font-semibold">{pctOf(r).toFixed(2)}%</td>
+                  <td className="border-b border-line px-3 py-2 text-right font-semibold">{pctText(pctOf(r), r.amount, 2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -131,10 +138,10 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
                       d={s.d}
                       fill={s.color}
                       stroke="var(--surface)"
-                      strokeWidth={2}
+                      strokeWidth={slices.length > 12 ? 1.25 : 2}
                       tabIndex={0}
                       aria-label={`${s.name}: ${fmt.format(s.value)}`}
-                      onMouseEnter={() => setActive(s.i)}
+                      onMouseEnter={() => pointSlice(s.i)}
                       onFocus={() => setActive(s.i)}
                       onBlur={() => setActive(-1)}
                       className="cursor-pointer outline-none transition-[opacity,transform] duration-200"
@@ -145,25 +152,25 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-[30%] text-center">
                   <div className="max-w-full truncate text-[11px] font-extrabold uppercase tracking-[.08em] text-ink-soft">{act ? act.name : "Total Order"}</div>
                   <div className="text-[clamp(20px,3vw,28px)] font-extrabold tabular-nums tracking-tight text-[#0a1a3a]">{fmt.format(act ? act.value : total)}</div>
-                  <div className="text-[11px] font-semibold text-ink-soft">{act ? `${total > 0 ? ((act.value / total) * 100).toFixed(1) : "0"}%` : period}</div>
+                  <div className="text-[11px] font-semibold text-ink-soft">{act ? pctText(pctOf(rows[active]), rows[active].amount) : period}</div>
                 </div>
               </div>
 
               {/* รายชื่อลูกค้า */}
-              <div className="grid h-[320px] content-start gap-1 overflow-auto pr-1">
+              <div ref={listRef} className="grid h-[320px] content-start gap-1 overflow-auto pr-1">
                 {list.map(({ r, i }) => {
-                  const si = sliceOf(i);
                   return (
                     <div
                       key={r.name}
-                      onMouseEnter={() => setActive(si)}
+                      data-i={i}
+                      onMouseEnter={() => setActive(i)}
                       onMouseLeave={() => setActive(-1)}
-                      className={`grid grid-cols-[10px_minmax(60px,1fr)_auto_44px] items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 transition-colors ${active === si ? "bg-[#e8f0ff]" : "hover:bg-[#e8f0ff]"}`}
+                      className={`grid grid-cols-[10px_minmax(60px,1fr)_auto_44px] items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 transition-colors ${active === i ? "bg-[#e8f0ff]" : "hover:bg-[#e8f0ff]"}`}
                     >
-                      <span className="size-[9px] rounded-[3px]" style={{ background: i < TOP ? COLORS[i] : OTHER }} />
+                      <span className="size-[9px] rounded-[3px]" style={{ background: slices[i]?.color }} />
                       <span className="truncate text-xs font-extrabold text-ink">{r.name}</span>
                       <span className="text-xs font-extrabold tabular-nums text-ink">{fmt.format(r.amount)}</span>
-                      <span className="text-right text-[11px] font-semibold tabular-nums text-ink-soft">{pctOf(r).toFixed(1)}%</span>
+                      <span className="text-right text-[11px] font-semibold tabular-nums text-ink-soft">{pctText(pctOf(r), r.amount)}</span>
                     </div>
                   );
                 })}
@@ -172,7 +179,9 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 pb-4 text-[11px] font-semibold text-ink-soft">
-            <span>{rows.length > TOP ? <>แสดง <b className="text-ink">{TOP} อันดับแรก</b> ในวงแหวน ลูกค้าที่เหลือรวมเป็น “Other customers”</> : `${rows.length} ลูกค้า`}</span>
+            <span>
+              <b className="text-ink">{rows.length} ลูกค้า</b> · ชี้ที่วงแหวนหรือรายชื่อเพื่อดูยอดของแต่ละลูกค้า
+            </span>
             <input
               type="search"
               value={q}
