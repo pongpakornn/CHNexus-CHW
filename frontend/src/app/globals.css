@@ -250,6 +250,208 @@ body {
   transition: 100ms;
 }
 
+/* ปุ่ม SETTINGS: เม็ดยาฟ้าอ่อน · ชี้ = พื้นฟ้าเต็ม ตัวอักษรขาว + เฟืองหมุน */
+.gear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(37 99 235 / 0.12);
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease, transform 0.1s;
+}
+.gear-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.gear-btn:hover {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 7px 22px 0 rgb(37 99 235 / 0.55);
+}
+.gear-btn:hover svg {
+  animation: gear-spin 2s linear infinite;
+}
+.gear-btn:active {
+  background: #1d4ed8;
+  transform: translateY(2px);
+}
+@keyframes gear-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ปุ่ม DELETE: วงกลมถังขยะ · ชี้ = ยืดเป็นเม็ดยาสีแดง ฝาถังเปิด + ข้อความ Delete */
+.bin-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(220 38 38 / 0.1);
+  cursor: pointer;
+  transition-duration: 0.3s;
+}
+.bin-btn .bin-top,
+.bin-btn .bin-bottom {
+  width: 11px;
+  transition-duration: 0.3s;
+}
+.bin-btn path {
+  fill: #dc2626;
+  transition: fill 0.3s;
+}
+.bin-btn .bin-top {
+  transform-origin: bottom right;
+}
+.bin-btn::before {
+  content: "Delete";
+  position: absolute;
+  top: -20px;
+  color: #fff;
+  font-size: 2px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition-duration: 0.3s;
+}
+.bin-btn:hover {
+  width: 110px;
+  gap: 0;
+  background: #ef4444;
+  box-shadow: 0 7px 22px 0 rgb(239 68 68 / 0.5);
+}
+.bin-btn:hover path {
+  fill: #fff;
+}
+.bin-btn:hover .bin-bottom {
+  width: 40px;
+  transform: translateY(60%);
+}
+.bin-btn:hover .bin-top {
+  width: 40px;
+  transform: translateY(60%) rotate(160deg);
+}
+.bin-btn:hover::before {
+  font-size: 11px;
+  transform: translateY(29px);
+}
+
+/* หน้าต่าง (Modal): พื้นหลังจางเข้า + หน้าต่างเด้งขึ้นมา */
+@keyframes modal-bg-in {
+  from { opacity: 0; }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+}
+.modal-bg {
+  animation: modal-bg-in 0.25s ease-out both;
+}
+.modal-in {
+  animation: modal-in 0.35s cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
+}
+
+/* Checkbox: กรอบค่อยๆ หายแล้ววาดเครื่องหมายถูกสีฟ้า */
+.cbx {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cbx::before {
+  content: "";
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgb(37 99 235 / 0.06);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.cbx svg {
+  position: relative;
+  z-index: 1;
+  fill: none;
+  stroke: #c8ccd4;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: all 0.2s ease;
+}
+.cbx svg path {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+}
+.cbx svg polyline {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 66;
+}
+.cbx:hover::before {
+  opacity: 1;
+}
+.cbx:hover svg,
+.cbx-input:checked + .cbx svg {
+  stroke: #2563eb;
+}
+.cbx-input:checked + .cbx svg path {
+  stroke-dashoffset: 60;
+  transition: all 0.3s linear;
+}
+.cbx-input:checked + .cbx svg polyline {
+  stroke-dashoffset: 42;
+  transition: all 0.2s linear 0.15s;
+}
+.cbx-input:focus-visible + .cbx::before {
+  opacity: 1;
+}
+.cbx-input:disabled + .cbx {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Dropdown: ปุ่มขาว · ชี้ = ขอบฟ้า · รายการเลื่อนลงมา · ชี้รายการหนึ่ง = รายการอื่นเบลอ + ย่อเล็กน้อย */
+.dd-list:hover > .dd-opt:not(:hover) {
+  filter: blur(1px);
+  transform: scale(0.95);
+}
+.dd-opt {
+  transition: transform 0.3s, filter 0.3s, background-color 0.2s, color 0.2s;
+}
+.dd-opt::before {
+  content: "";
+  position: absolute;
+  top: 18%;
+  left: 2px;
+  width: 4px;
+  height: 64%;
+  border-radius: 4px;
+  background: #2563eb;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.dd-opt[aria-selected="true"]::before {
+  opacity: 1;
+}
+
 /* ปุ่มวงกลม + ที่ยืดออกเป็นเม็ดยาพร้อมข้อความตอนชี้ (ADD STOCK) */
 .add-btn {
   position: relative;
@@ -260,8 +462,8 @@ body {
   overflow: hidden;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #8d72d8, var(--accent));
-  box-shadow: 0 6px 16px -6px rgb(103 80 164 / 0.8);
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 6px 16px -6px rgb(37 99 235 / 0.8);
   cursor: pointer;
   transition: width 0.3s ease, box-shadow 0.3s ease, transform 0.1s;
 }
@@ -292,7 +494,7 @@ body {
 .add-btn:hover,
 .add-btn:focus-visible {
   width: 150px;
-  box-shadow: 0 10px 24px -8px rgb(103 80 164 / 0.9);
+  box-shadow: 0 10px 24px -8px rgb(37 99 235 / 0.9);
 }
 .add-btn:hover .sign,
 .add-btn:focus-visible .sign {
@@ -346,7 +548,10 @@ body {
   .view-in,
   .sb-fade,
   .card-in,
-  .sb-sheen::after {
+  .sb-sheen::after,
+  .modal-bg,
+  .modal-in,
+  .gear-btn:hover svg {
     animation: none;
   }
   .fold {

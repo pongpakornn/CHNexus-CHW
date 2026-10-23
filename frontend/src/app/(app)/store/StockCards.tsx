@@ -15,6 +15,7 @@ type Card = {
   stkId: number;
   code: string;
   name: string;
+  stockType: string | null;
   isMain: boolean;
   unit: string;
   itemCount: number;
@@ -94,7 +95,7 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {data.stocks.map((c, i) => {
-            const [ic, col] = stockIcon(c.code, i);
+            const [ic, col] = stockIcon(c.code, i, c.stockType);
             return (
               <div
                 key={c.stkId}
@@ -172,15 +173,30 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
                     </div>
                   )}
                   {(data.canEdit || c.canDelete) && (
-                    <div className="relative mt-3 flex gap-2 opacity-100 transition duration-300 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
+                    <div className="relative mt-3 flex items-center gap-2 opacity-100 transition duration-300 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
                       {data.canEdit && (
-                        <button className="btn-ghost px-3 py-1 text-xs" onClick={(e) => (e.stopPropagation(), setEditor({ stkId: c.stkId }))}>
-                          ⚙ SETTINGS
+                        <button type="button" className="gear-btn" onClick={(e) => (e.stopPropagation(), setEditor({ stkId: c.stkId }))}>
+                          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <g strokeWidth="1.5" strokeLinecap="round" stroke="currentColor">
+                              <circle r="2.5" cy="10" cx="10" />
+                              <path
+                                fillRule="evenodd"
+                                clipRule="evenodd"
+                                d="m8.39079 2.80235c.53842-1.51424 2.67991-1.51424 3.21831-.00001.3392.95358 1.4284 1.40477 2.3425.97027 1.4514-.68995 2.9657.82427 2.2758 2.27575-.4345.91407.0166 2.00334.9702 2.34248 1.5143.53842 1.5143 2.67996 0 3.21836-.9536.3391-1.4047 1.4284-.9702 2.3425.6899 1.4514-.8244 2.9656-2.2758 2.2757-.9141-.4345-2.0033.0167-2.3425.9703-.5384 1.5142-2.67989 1.5142-3.21831 0-.33914-.9536-1.4284-1.4048-2.34247-.9703-1.45148.6899-2.96571-.8243-2.27575-2.2757.43449-.9141-.01669-2.0034-.97028-2.3425-1.51422-.5384-1.51422-2.67994.00001-3.21836.95358-.33914 1.40476-1.42841.97027-2.34248-.68996-1.45148.82427-2.9657 2.27575-2.27575.91407.4345 2.00333-.01669 2.34247-.97026z"
+                              />
+                            </g>
+                          </svg>
+                          Settings
                         </button>
                       )}
                       {c.canDelete && (
-                        <button className="btn-ghost px-3 py-1 text-xs text-danger" onClick={(e) => (e.stopPropagation(), remove(c))}>
-                          🗑 DELETE
+                        <button type="button" className="bin-btn" aria-label="Delete stock" title="DELETE" onClick={(e) => (e.stopPropagation(), remove(c))}>
+                          <svg viewBox="0 0 69 14" fill="none" className="bin-top" aria-hidden="true">
+                            <path d="M20.8232 2.62734L19.9948 4.21304C19.8224 4.54309 19.4808 4.75 19.1085 4.75H4.92857C2.20246 4.75 0 6.87266 0 9.5C0 12.1273 2.20246 14.25 4.92857 14.25H64.0714C66.7975 14.25 69 12.1273 69 9.5C69 6.87266 66.7975 4.75 64.0714 4.75H49.8915C49.5192 4.75 49.1776 4.54309 49.0052 4.21305L48.1768 2.62734C47.3451 1.00938 45.6355 0 43.7719 0H25.2281C23.3645 0 21.6549 1.00938 20.8232 2.62734Z" />
+                          </svg>
+                          <svg viewBox="0 0 69 57" fill="none" className="bin-bottom" aria-hidden="true">
+                            <path d="M64.0023 1.0648C64.0397 0.4882 63.5822 0 63.0044 0H5.99556C5.4178 0 4.96025 0.4882 4.99766 1.0648L8.19375 50.3203C8.44018 54.0758 11.6746 57 15.5712 57H53.4288C57.3254 57 60.5598 54.0758 60.8062 50.3203L64.0023 1.0648Z" />
+                          </svg>
                         </button>
                       )}
                     </div>

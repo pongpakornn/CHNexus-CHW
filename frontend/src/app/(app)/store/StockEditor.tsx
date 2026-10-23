@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Loading } from "@/components/ui/Page";
+import { Select } from "@/components/ui/Select";
 import { api } from "@/lib/api";
+import { STOCK_TYPES, tileStyle } from "@/lib/stockIcons";
 import { FormatsModal } from "./FormatsModal";
 import type { Stock } from "./types";
 
@@ -57,6 +60,7 @@ const NEW_STOCK: Partial<Stock> = {
   outPickList: false,
   outSupplier: false,
   formatIds: [],
+  stockType: null,
 };
 
 // ⚙ ตั้งค่าคลัง (StockEditorWindow): ข้อมูลคลัง / คอลัมน์ตาราง (ลำดับตามที่ติ๊ก) / แถว Coil ย่อย / การ์ด / ช่องทางสแกน / รูปแบบป้าย
@@ -102,6 +106,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
     if (!s) return;
     if (!s.code?.trim()) return toast.show("WARNING", "กรุณากรอกรหัสคลัง (STOCK CODE)", "warn");
     if (!s.name?.trim()) return toast.show("WARNING", "กรุณากรอกชื่อคลัง (STOCK NAME)", "warn");
+    if (!stkId && !s.stockType) return toast.show("WARNING", "กรุณาเลือกประเภทคลัง (STOCK TYPE)", "warn");
     if (cols.length === 0) return toast.show("WARNING", "กรุณาเลือกคอลัมน์ที่ต้องการแสดงอย่างน้อย 1 คอลัมน์", "warn");
     if (supplier && (s.formatIds ?? []).length === 0) return toast.show("WARNING", "เปิดช่องทาง SUPPLIER LABEL แล้ว กรุณาเลือกรูปแบบบาร์โค้ด Supplier อย่างน้อย 1 รูปแบบ", "warn");
     const body = {
@@ -121,8 +126,9 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
     }
   }
 
-  const chip = (on: boolean, label: React.ReactNode, onClick: () => void, disabled = false) => (
+  const chip = (key: string | number, on: boolean, label: React.ReactNode, onClick: () => void, disabled = false) => (
     <button
+      key={key}
       type="button"
       disabled={disabled}
       onClick={onClick}
@@ -131,12 +137,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
       {label}
     </button>
   );
-  const check = (k: keyof Stock, label: string) => (
-    <label className="flex items-center gap-2 text-sm font-bold">
-      <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={!!s[k]} onChange={(e) => set(k, e.target.checked as never)} />
-      {label}
-    </label>
-  );
+  const check = (k: keyof Stock, label: string) => <Checkbox checked={!!s[k]} onChange={(v) => set(k, v as never)} label={label} />;
   const section = (title: string, children: React.ReactNode, hint?: string) => (
     <div className="rounded-2xl border border-line/70 p-4">
       <div className="mb-3 text-xs font-extrabold uppercase tracking-wide text-primary">{title}</div>
@@ -177,30 +178,46 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               <span className="mb-1 block text-xs font-bold text-ink-soft">STOCK NAME</span>
               <input className="field" value={s.name ?? ""} onChange={(e) => set("name", e.target.value)} />
             </label>
-            <label>
+            <div className="col-span-2">
+              <span className="mb-1.5 block text-xs font-bold text-ink-soft">STOCK TYPE {stkId ? "" : "*"} (ไอคอนของคลัง)</span>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Stock type">
+                {STOCK_TYPES.map((t) => {
+                  const on = s.stockType === t.value;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      title={t.hint}
+                      onClick={() => set("stockType", t.value)}
+                      className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-[11px] font-extrabold uppercase transition duration-200 hover:-translate-y-0.5 ${
+                        on ? "border-transparent text-white shadow-[0_8px_18px_-8px_rgba(37,99,235,.8)]" : "border-line bg-surface text-ink hover:border-[#2563eb]"
+                      }`}
+                      style={on ? { background: `linear-gradient(145deg, color-mix(in srgb, ${t.color} 62%, white), ${t.color})` } : undefined}
+                    >
+                      <span className="grid size-9 place-items-center rounded-[11px] transition-transform duration-300 group-hover:scale-110" style={on ? { background: "rgb(255 255 255 / .22)" } : tileStyle(t.color)}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={t.icon} alt="" className="size-6 object-contain" />
+                      </span>
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
               <span className="mb-1 block text-xs font-bold text-ink-soft">UNIT</span>
-              <select className="field" value={s.unit} onChange={(e) => set("unit", e.target.value)}>
-                <option>KG</option>
-                <option>PCS</option>
-                <option>SHEET</option>
-              </select>
-            </label>
-            <label>
+              <Select ariaLabel="Unit" value={s.unit ?? "KG"} onChange={(v) => set("unit", v)} options={["KG", "PCS", "SHEET"].map((u) => ({ value: u, label: u }))} />
+            </div>
+            <div>
               <span className="mb-1 block text-xs font-bold text-ink-soft">GROUP BY</span>
-              <select className="field" value={s.groupBy} onChange={(e) => set("groupBy", e.target.value)}>
-                <option>CATEGORY</option>
-                <option>CUSTOMER</option>
-                <option>SUPPLIER</option>
-              </select>
-            </label>
-            <label>
+              <Select ariaLabel="Group by" value={s.groupBy ?? "CATEGORY"} onChange={(v) => set("groupBy", v)} options={["CATEGORY", "CUSTOMER", "SUPPLIER"].map((u) => ({ value: u, label: u }))} />
+            </div>
+            <div>
               <span className="mb-1 block text-xs font-bold text-ink-soft">MAX / MIN UNIT</span>
-              <select className="field" value={s.maxMinBasis} onChange={(e) => set("maxMinBasis", e.target.value)}>
-                {["KG", "PCS", "SHEET", "BOX", "COIL"].map((u) => (
-                  <option key={u}>{u}</option>
-                ))}
-              </select>
-            </label>
+              <Select ariaLabel="Max / min unit" value={s.maxMinBasis ?? "KG"} onChange={(v) => set("maxMinBasis", v)} options={["KG", "PCS", "SHEET", "BOX", "COIL"].map((u) => ({ value: u, label: u }))} />
+            </div>
             <div className="col-span-2 mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {check("allowDecimal", "DECIMAL QTY")}
               {check("maxMinDecimalSetting", "MAX / MIN DECIMAL")}
@@ -211,7 +228,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
         {section(
           "TABLE COLUMNS (order = order ticked)",
           <>
-            <div className="flex flex-wrap gap-2">{COLUMNS.map(([k, l]) => chip(cols.includes(k), cols.includes(k) ? `${cols.indexOf(k) + 1}. ${l}` : l, () => toggleCol(k)))}</div>
+            <div className="flex flex-wrap gap-2">{COLUMNS.map(([k, l]) => chip(k, cols.includes(k), cols.includes(k) ? `${cols.indexOf(k) + 1}. ${l}` : l, () => toggleCol(k)))}</div>
             <div className="mt-3 text-xs font-bold text-ink-soft">ORDER: {cols.length ? cols.map((k) => COLUMNS.find((c) => c[0] === k)?.[1]).join("  →  ") : "-"}</div>
           </>,
           "STOCK (COIL) = นับ Coil (คลัง KG) • ติ๊กก่อน = แสดงก่อน",
@@ -219,29 +236,27 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
         {section(
           "COIL SUB ROWS",
           <>
-            <label className="mb-3 flex items-center gap-2 text-sm font-bold">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--accent)]"
-                checked={s.showCoilRowsSetting ?? true}
-                onChange={(e) => set("showCoilRowsSetting", e.target.checked)}
-                disabled={!cols.includes("COIL")}
-              />
-              Click PD CODE shows the coils
-            </label>
+            <div className="mb-3">
+              <Checkbox checked={s.showCoilRowsSetting ?? true} onChange={(v) => set("showCoilRowsSetting", v)} disabled={!cols.includes("COIL")} label="Click PD CODE shows the coils" />
+            </div>
             <div className="flex flex-wrap gap-2">
-              {SUB_ROWS.map(([k, l]) => chip(subs.includes(k), subs.includes(k) ? `${subs.indexOf(k) + 1}. ${l}` : l, () => toggleSub(k), !cols.includes("COIL")))}
+              {SUB_ROWS.map(([k, l]) => chip(k, subs.includes(k), subs.includes(k) ? `${subs.indexOf(k) + 1}. ${l}` : l, () => toggleSub(k), !cols.includes("COIL")))}
             </div>
           </>,
           "ใช้กับคลังที่เปิด STOCK (COIL)",
         )}
         {section(
           "PRODUCT CARDS",
-          <select className="field" value={s.cardStyleSetting ?? "OFF"} onChange={(e) => set("cardStyleSetting", e.target.value)}>
-            <option value="IMAGE">WITH IMAGE</option>
-            <option value="TEXT">NO IMAGE</option>
-            <option value="OFF">OFF</option>
-          </select>,
+          <Select
+            ariaLabel="Product cards"
+            value={s.cardStyleSetting ?? "OFF"}
+            onChange={(v) => set("cardStyleSetting", v)}
+            options={[
+              { value: "IMAGE", label: "WITH IMAGE" },
+              { value: "TEXT", label: "NO IMAGE" },
+              { value: "OFF", label: "OFF" },
+            ]}
+          />,
           s.cardStyleSetting === "IMAGE" && !cols.includes("IMAGE")
             ? "IMAGE column is off - cards will show as NO IMAGE. Tick IMAGE in TABLE COLUMNS to show pictures on the cards."
             : "Cards that scroll above the table (SHOW CARDS on the Store page).",
@@ -271,6 +286,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               {formats.length === 0 && <span className="text-sm text-ink-soft">ยังไม่มีรูปแบบบาร์โค้ด</span>}
               {formats.map((f) =>
                 chip(
+                  f.fmtId,
                   (s.formatIds ?? []).includes(f.fmtId),
                   f.isActive ? f.name : `${f.name} (INACTIVE)`,
                   () => set("formatIds", (s.formatIds ?? []).includes(f.fmtId) ? (s.formatIds ?? []).filter((x) => x !== f.fmtId) : [...(s.formatIds ?? []), f.fmtId]),

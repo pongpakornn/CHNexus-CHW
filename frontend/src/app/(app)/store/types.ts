@@ -16,6 +16,7 @@ export type Stock = {
   notSetButton: boolean;
   thirdButtonText: string;
   cardStyleSetting: string | null;
+  stockType: string | null;
   cardStyle: string;
   coilRowColumns: string | null;
   columnOrder: string | null;

@@ -267,6 +267,10 @@ namespace Nexus.Helpers
             }
         }
 
+        // database/nexus/02_Add_StockType.sql: Nexus.Stocks.StockType (ประเภทคลัง = ไอคอนบนเว็บ)
+        private static bool? _stockType;
+        public static bool HasStockType => _stockType ?? (_stockType = ColumnExists("StockType")) ?? false;
+
         // Update_20261010d.sql: Nexus.Stocks.CardStyle (การ์ดสินค้า มีรูป / ไม่มีรูป / ปิด)
         private static bool? _cardStyle;
         public static bool HasCardStyle => _cardStyle ?? (_cardStyle = ColumnExists("CardStyle")) ?? false;

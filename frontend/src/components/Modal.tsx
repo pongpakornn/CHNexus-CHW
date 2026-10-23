@@ -27,12 +27,12 @@ export function Modal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" onMouseDown={onClose}>
+    <div className="modal-bg fixed inset-0 z-[90] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
-        className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-2xl sm:rounded-2xl ${wide ? "sm:max-w-6xl" : "sm:max-w-lg"}`}
+        className={`modal-in flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-2xl sm:rounded-2xl ${wide ? "sm:max-w-6xl" : "sm:max-w-lg"}`}
       >
         <div className="flex items-center justify-between bg-primary px-5 py-3 text-white">
           <div className="text-base font-extrabold uppercase tracking-wide">{title}</div>

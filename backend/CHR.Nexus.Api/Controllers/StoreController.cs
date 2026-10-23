@@ -43,7 +43,7 @@ public sealed class StoreController : AppController
                 var c = s.CountCoil && DbSchema.HasCoilRegister ? (coils.TryGetValue(s.StkId, out var x) ? x : new CoilService.CoilSummary()) : null;
                 return new
                 {
-                    s.StkId, s.Code, s.Name, s.IsMain, unit = s.UnitDisplay, itemCount = counts.TryGetValue(s.StkId, out int n) ? n : s.ItemCount,
+                    s.StkId, s.Code, s.Name, s.IsMain, s.StockType, unit = s.UnitDisplay, itemCount = counts.TryGetValue(s.StkId, out int n) ? n : s.ItemCount,
                     canDelete = Me.CanDeleteStock(s),
                     coil = c == null ? null : new { c.MasterCount, c.MasterKg, c.ChildCount, c.ChildKg, c.TotalCount, c.TotalKg }
                 };
@@ -67,6 +67,8 @@ public sealed class StoreController : AppController
         return Ok(_stocks.GetFormats().Select(f => new { f.FmtId, f.Name, f.IsActive }));
     }
 
+    private static readonly string[] StockTypes = { "MATERIAL", "PRODUCT", "SPAREPART", "COMPONENT", "CONSUMABLE" };
+
     private IActionResult ValidateStock(StockModel s, out StockModel clean)
     {
         clean = null;
@@ -85,6 +87,9 @@ public sealed class StoreController : AppController
         s.GroupBy = s.GroupBy is "CUSTOMER" or "SUPPLIER" ? s.GroupBy : "CATEGORY";
         if (!new[] { "KG", "PCS", "SHEET", "BOX", "COIL", "UNIT" }.Contains(s.MaxMinBasis)) s.MaxMinBasis = "UNIT";
         if (!usesSupplier) s.FormatIds = new List<int>();
+        // ประเภทคลัง (ไอคอนบนเว็บ): คลังใหม่ต้องเลือก · คลังเดิมที่ยังไม่มีค่า = ดูจากรหัสคลังเหมือนเดิม
+        s.StockType = StockTypes.Contains(s.StockType ?? "") ? s.StockType : null;
+        if (s.StkId == 0 && s.StockType == null && DbSchema.HasStockType) return Fail("กรุณาเลือกประเภทคลัง (STOCK TYPE)");
         // คอลัมน์ที่ติ๊ก = ลำดับที่ติ๊ก (Col* ตาม ColumnOrder)
         var set = new HashSet<string>(cols);
         s.ColNo = set.Contains("NO"); s.ColImage = set.Contains("IMAGE"); s.ColCustomer = set.Contains("CUSTOMER"); s.ColCode = set.Contains("CODE");

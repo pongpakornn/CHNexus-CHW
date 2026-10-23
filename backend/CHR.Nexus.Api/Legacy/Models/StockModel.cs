@@ -63,6 +63,8 @@ namespace Nexus.Models
         // 🃏 การ์ดสินค้า (แถบเลื่อนเหนือตาราง): null = เดิม (คลังที่แสดงรูป = การ์ดมีรูป / ไม่แสดงรูป = ไม่มีการ์ด)
         //   "IMAGE" = การ์ดมีรูป · "TEXT" = การ์ดไม่มีรูป (ตัวเลขใหญ่ อ่านไกล) · "OFF" = ไม่แสดงการ์ด
         public string CardStyleSetting { get; set; }
+        // ประเภทคลัง (ใช้เลือกไอคอนบนเว็บ): MATERIAL / PRODUCT / SPAREPART / COMPONENT / CONSUMABLE · null = ดูจากรหัสคลัง
+        public string StockType { get; set; }
         public string CardStyle
         {
             get

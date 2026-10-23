@@ -10,7 +10,7 @@ import { Card, Loading, PageBody, PageHeader } from "@/components/ui/Page";
 import { api } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
 
-type StockRow = { stkId: number; code: string; name: string; items: number; maxCount: number; minCount: number };
+type StockRow = { stkId: number; code: string; name: string; stockType: string | null; items: number; maxCount: number; minCount: number };
 type Cards = { stocks: StockRow[]; totals: { stocks: number; items: number; max: number; min: number }; time: string; canStore: boolean };
 type Charts = { month: string; year: number; customers: { name: string; amount: number; percentage: number }[]; months: (MonthPoint & { month: number })[] };
 type Kind = "STOCK" | "PRODUCT" | "MAX" | "MIN";
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                 <div>
                   <div key={kind} className="view-in grid gap-3 border-t border-line/60 p-4 sm:grid-cols-2 xl:grid-cols-3">
                     {cards.stocks.map((s, i) => {
-                      const [ic, col] = stockIcon(s.code, i);
+                      const [ic, col] = stockIcon(s.code, i, s.stockType);
                       return (
                         <button
                           key={s.stkId}

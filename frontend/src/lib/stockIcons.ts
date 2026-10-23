@@ -15,9 +15,22 @@ const STOCK_ICON: Record<string, [string, string]> = {
 };
 const FALLBACK = ["#8b5cf6", "#3b82f6", "#06b6d4", "#f59e0b", "#14b8a6", "#ec4899"];
 
-/** [ภาพไอคอน, สีประจำคลัง] */
-export const stockIcon = (code: string, i: number): [string, string] =>
-  STOCK_ICON[code.split("-").pop()!.toUpperCase()] ?? [img("products"), FALLBACK[i % FALLBACK.length]];
+// ประเภทคลัง (Nexus.Stocks.StockType) - เลือกตอนสร้าง / แก้คลัง = ไอคอนของคลัง
+export const STOCK_TYPES = [
+  { value: "MATERIAL", label: "Material", hint: "เหล็ก / Coil (แบบ STOCK-MAT)", icon: img("coil"), color: "#8b5cf6" },
+  { value: "PRODUCT", label: "Product", hint: "สินค้า (แบบ STORE-PC)", icon: img("products"), color: "#06b6d4" },
+  { value: "SPAREPART", label: "Spare part", hint: "อะไหล่ (แบบ STORE-SP)", icon: img("sparepart"), color: "#f59e0b" },
+  { value: "COMPONENT", label: "Component", hint: "ชิ้นส่วน (แบบ STORE-CPN)", icon: img("component"), color: "#14b8a6" },
+  { value: "CONSUMABLE", label: "Consumable", hint: "วัสดุสิ้นเปลือง (แบบ STOCK-CONS)", icon: img("consumables"), color: "#6366f1" },
+] as const;
+
+/** [ภาพไอคอน, สีประจำคลัง] - ไอคอนตามประเภทคลัง (ถ้ามี) · สีตามรหัสคลังเดิม ถ้าไม่รู้จักใช้สีของประเภท */
+export const stockIcon = (code: string, i: number, type?: string | null): [string, string] => {
+  const byCode = STOCK_ICON[code.split("-").pop()!.toUpperCase()];
+  const t = STOCK_TYPES.find((x) => x.value === type);
+  if (t) return [t.icon, byCode?.[1] ?? t.color];
+  return byCode ?? [img("products"), FALLBACK[i % FALLBACK.length]];
+};
 
 export const COIL_ICON = img("coil");
 

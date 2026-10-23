@@ -19,7 +19,7 @@ public sealed class DashboardController : AppController
         var visible = _svc.GetStockSummaries().Where(d => Me.CanViewStock(d.Stock)).ToList();
         return Ok(new
         {
-            stocks = visible.Select(v => new { v.Stock.StkId, v.Stock.Code, v.Stock.Name, v.Items, v.MaxCount, v.MinCount }),
+            stocks = visible.Select(v => new { v.Stock.StkId, v.Stock.Code, v.Stock.Name, v.Stock.StockType, v.Items, v.MaxCount, v.MinCount }),
             totals = new { stocks = visible.Count, items = visible.Sum(v => v.Items), max = visible.Sum(v => v.MaxCount), min = visible.Sum(v => v.MinCount) },
             time = DateTime.Now.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture),
             canStore = Me.CanViewStore
