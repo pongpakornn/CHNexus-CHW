@@ -22,19 +22,21 @@ const CARD: Record<Kind, { title: string; tone: string; icon: IconName; pick: st
   MIN: { title: "MIN PRODUCT", tone: "var(--danger)", icon: "triangle", pick: "Under MIN by stock", badge: ["/images/dashboard/ic-min.png", "#fb7185", "#e11d48"], art: "/images/dashboard/warning.webp", filter: "UNDER_MIN" },
 };
 
-// ไอคอน + สีของแต่ละคลัง (ดูจากท้ายรหัสคลัง) - คลังที่ไม่รู้จักใช้กล่อง + สีตามลำดับ
-const STOCK_ICON: Record<string, [IconName, string]> = {
-  MAT: ["cube", "#8b5cf6"],
-  PANTA: ["building", "#3b82f6"],
-  PC: ["desktop", "#06b6d4"],
-  SP: ["wrench", "#f59e0b"],
-  CPN: ["squares", "#14b8a6"],
-  SUB: ["storefront", "#ec4899"],
-  CONS: ["archive", "#6366f1"],
-  MSH: ["document", "#2563eb"],
+// ไอคอน (ภาพขาว) + สีของแต่ละคลัง (ดูจากท้ายรหัสคลัง) - คลังที่ไม่รู้จักใช้ products + สีตามลำดับ
+//   MAT / PANTA / MSH = CoilMaterial · PC / SUB = products · CONS = Consumables · SP = Sparepart · CPN = component
+const STOCK_IMG = (n: string) => `/images/stocks/${n}.png`;
+const STOCK_ICON: Record<string, [string, string]> = {
+  MAT: [STOCK_IMG("coil"), "#8b5cf6"],
+  PANTA: [STOCK_IMG("coil"), "#3b82f6"],
+  PC: [STOCK_IMG("products"), "#06b6d4"],
+  SP: [STOCK_IMG("sparepart"), "#f59e0b"],
+  CPN: [STOCK_IMG("component"), "#14b8a6"],
+  SUB: [STOCK_IMG("products"), "#ec4899"],
+  CONS: [STOCK_IMG("consumables"), "#6366f1"],
+  MSH: [STOCK_IMG("coil"), "#2563eb"],
 };
 const FALLBACK = ["#8b5cf6", "#3b82f6", "#06b6d4", "#f59e0b", "#14b8a6", "#ec4899"];
-const stockIcon = (code: string, i: number): [IconName, string] => STOCK_ICON[code.split("-").pop()!.toUpperCase()] ?? ["cube", FALLBACK[i % FALLBACK.length]];
+const stockIcon = (code: string, i: number): [string, string] => STOCK_ICON[code.split("-").pop()!.toUpperCase()] ?? [STOCK_IMG("products"), FALLBACK[i % FALLBACK.length]];
 const tint = (c: string, p: number) => `color-mix(in srgb, ${c} ${p}%, transparent)`;
 
 // เส้นเล็กเทียบจำนวนของแต่ละคลัง (ข้อมูลจริงจากการ์ด เรียงตามคลัง ไม่ใช่แนวโน้มตามเวลา)
@@ -210,8 +212,12 @@ export default function DashboardPage() {
           <div>
             <section className="overflow-hidden rounded-2xl border border-line/60 bg-surface">
               <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <span className="grid size-9 place-items-center rounded-xl" style={{ background: tint(CARD[kind].tone, 14), color: CARD[kind].tone }}>
-                  <Icon name={CARD[kind].icon} className="size-5" />
+                <span
+                  className="grid size-10 place-items-center rounded-[13px]"
+                  style={{ background: `linear-gradient(145deg, ${CARD[kind].badge[1]}, ${CARD[kind].badge[2]})`, boxShadow: `0 6px 14px -6px ${CARD[kind].badge[2]}, inset 0 1px 0 rgb(255 255 255 / .35)` }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={CARD[kind].badge[0]} alt="" draggable={false} className="size-6 object-contain" />
                 </span>
                 <h3 className="font-extrabold text-ink">{CARD[kind].pick}</h3>
                 <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: tint(CARD[kind].tone, 12), color: CARD[kind].tone }}>
@@ -239,8 +245,12 @@ export default function DashboardPage() {
                           onClick={() => router.push(`/store?stk=${s.stkId}${CARD[kind].filter ? `&f=${CARD[kind].filter}` : ""}`)}
                           className="group flex items-center gap-3 rounded-xl border border-line/60 bg-surface px-3.5 py-3 text-left transition enabled:hover:-translate-y-0.5 enabled:hover:border-line enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                          <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: tint(col, 14), color: col }}>
-                            <Icon name={ic} className="size-6" />
+                          <span
+                            className="grid size-11 shrink-0 place-items-center rounded-[13px] transition-transform duration-300 group-hover:scale-105"
+                            style={{ background: `linear-gradient(145deg, color-mix(in srgb, ${col} 62%, white), ${col})`, boxShadow: `0 6px 14px -7px ${col}, inset 0 1px 0 rgb(255 255 255 / .35)` }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={ic} alt="" draggable={false} className="size-7 object-contain" />
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-extrabold text-ink">{s.code}</div>
