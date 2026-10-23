@@ -74,13 +74,14 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
         actions={
           <>
             {data?.canFormats && (
-              <button className="btn bg-primary" onClick={() => setFormats(true)}>
+              <button type="button" className="pill-btn" onClick={() => setFormats(true)}>
                 🏷️ BARCODE FORMATS
               </button>
             )}
             {data?.canCreate && (
-              <button className="btn bg-accent" onClick={() => setEditor({ stkId: null })}>
-                ＋ ADD STOCK
+              <button type="button" className="add-btn" onClick={() => setEditor({ stkId: null })} aria-label="Add stock" title="ADD STOCK">
+                <span className="sign">+</span>
+                <span className="text">Add Stock</span>
               </button>
             )}
           </>
