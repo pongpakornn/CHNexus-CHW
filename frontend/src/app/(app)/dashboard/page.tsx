@@ -14,11 +14,12 @@ type Cards = { stocks: StockRow[]; totals: { stocks: number; items: number; max:
 type Charts = { month: string; year: number; customers: { name: string; amount: number; percentage: number }[]; months: (MonthPoint & { month: number })[] };
 type Kind = "STOCK" | "PRODUCT" | "MAX" | "MIN";
 
-const CARD: Record<Kind, { title: string; tone: string; icon: IconName; pick: string; art?: string; filter?: string }> = {
-  STOCK: { title: "STOCK", tone: "var(--accent)", icon: "home", pick: "Select a stock", art: "/images/dashboard/warehouse.webp" },
-  PRODUCT: { title: "PRODUCT ALL", tone: "var(--info)", icon: "cube", pick: "Products by stock", art: "/images/dashboard/box.webp" },
-  MAX: { title: "MAX PRODUCT", tone: "var(--success)", icon: "cube", pick: "Over MAX by stock", art: "/images/dashboard/box-green.webp", filter: "OVER_MAX" },
-  MIN: { title: "MIN PRODUCT", tone: "var(--danger)", icon: "triangle", pick: "Under MIN by stock", filter: "UNDER_MIN" },
+// badge = ไอคอนขาวบนกรอบสี่เหลี่ยมมนไล่สี (สีอ่อน -> เข้ม)
+const CARD: Record<Kind, { title: string; tone: string; icon: IconName; pick: string; badge: [string, string, string]; art?: string; filter?: string }> = {
+  STOCK: { title: "STOCK", tone: "var(--accent)", icon: "home", pick: "Select a stock", badge: ["/images/dashboard/ic-stock.png", "#8b7cf6", "#5b47e0"], art: "/images/dashboard/warehouse.webp" },
+  PRODUCT: { title: "PRODUCT ALL", tone: "var(--info)", icon: "cube", pick: "Products by stock", badge: ["/images/dashboard/ic-product.png", "#38bdf8", "#2563eb"], art: "/images/dashboard/box.webp" },
+  MAX: { title: "MAX PRODUCT", tone: "var(--success)", icon: "cube", pick: "Over MAX by stock", badge: ["/images/dashboard/ic-max.png", "#4ade80", "#15803d"], art: "/images/dashboard/box-green.webp", filter: "OVER_MAX" },
+  MIN: { title: "MIN PRODUCT", tone: "var(--danger)", icon: "triangle", pick: "Under MIN by stock", badge: ["/images/dashboard/ic-min.png", "#fb7185", "#e11d48"], art: "/images/dashboard/warning.webp", filter: "UNDER_MIN" },
 };
 
 // ไอคอน + สีของแต่ละคลัง (ดูจากท้ายรหัสคลัง) - คลังที่ไม่รู้จักใช้กล่อง + สีตามลำดับ
@@ -166,8 +167,12 @@ export default function DashboardPage() {
               {k === "STOCK" && <Icon name="chevronUp" className={`absolute right-4 top-4 size-4 text-ink-soft transition-transform duration-300 ${on ? "" : "rotate-180"}`} />}
 
               <div className="relative flex items-start gap-3.5">
-                <span className="grid size-11 shrink-0 place-items-center rounded-[14px] shadow-sm" style={{ background: `linear-gradient(145deg, ${tint(c.tone, 22)}, ${tint(c.tone, 10)})`, color: c.tone }}>
-                  <Icon name={c.icon} className="size-6" />
+                <span
+                  className="grid size-12 shrink-0 place-items-center rounded-[15px] transition-transform duration-300 group-hover:scale-105"
+                  style={{ background: `linear-gradient(145deg, ${c.badge[1]}, ${c.badge[2]})`, boxShadow: `0 8px 18px -8px ${c.badge[2]}, inset 0 1px 0 rgb(255 255 255 / .35)` }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={c.badge[0]} alt="" draggable={false} className="size-7 object-contain" />
                 </span>
                 <div className="min-w-0">
                   <div className="text-[13px] font-extrabold uppercase tracking-wide text-[#1f2350]">{c.title}</div>
