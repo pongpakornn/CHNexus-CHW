@@ -6,6 +6,8 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { Badge, Empty, Loading, PageBody, PageHeader } from "@/components/ui/Page";
 import { api } from "@/lib/api";
 import { qty } from "@/lib/format";
+import { COIL_ICON, stockIcon, tileStyle } from "@/lib/stockIcons";
+import { Icon } from "@/components/icons";
 import { FormatsModal } from "./FormatsModal";
 import { StockEditor } from "./StockEditor";
 
@@ -90,60 +92,104 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
         <Empty>ยังไม่มีคลังที่คุณมีสิทธิ์ดู กรุณาติดต่อ Admin</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {data.stocks.map((c) => (
-            <div
-              key={c.stkId}
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpen(c.stkId)}
-              onKeyDown={(e) => e.key === "Enter" && onOpen(c.stkId)}
-              className="group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-line/60 bg-surface p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: c.isMain ? "var(--primary)" : "var(--accent)" }} />
-              <div className="flex items-start gap-3">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-accent to-primary">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/StoreWarehouse.png" alt="" className="h-7 w-7 object-contain brightness-0 invert" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-lg font-extrabold text-primary">{c.code}</span>
-                    {c.isMain && <Badge>MAIN</Badge>}
-                  </div>
-                  <div className="truncate text-sm font-semibold text-ink-soft">{c.name}</div>
-                </div>
-              </div>
-              <div className="mt-5 flex items-end justify-between">
-                <div>
-                  <div className="text-[11px] font-extrabold uppercase text-ink-soft">ITEMS</div>
-                  <div className="text-3xl font-extrabold text-ink">{c.itemCount.toLocaleString()}</div>
-                </div>
-                <span className="rounded-lg bg-surface-2 px-2 py-1 text-xs font-extrabold text-primary">{c.unit}</span>
-              </div>
-              {c.coil && (
+          {data.stocks.map((c, i) => {
+            const [ic, col] = stockIcon(c.code, i);
+            return (
+              <div
+                key={c.stkId}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpen(c.stkId)}
+                onKeyDown={(e) => e.key === "Enter" && onOpen(c.stkId)}
+                className="card-in group relative flex cursor-pointer flex-col overflow-hidden rounded-[22px] border border-[#e2e4f0] bg-surface p-5 text-left shadow-[0_1px_2px_rgb(20_25_60/0.04),0_12px_30px_-20px_rgb(40_45_110/0.28)] outline-none transition duration-300 hover:-translate-y-1 focus-visible:ring-2"
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                {/* แถบสีด้านบน + แสงสีประจำคลังตอนชี้ */}
+                <div className="absolute inset-x-0 top-0 h-1 transition-[height] duration-300 group-hover:h-1.5" style={{ background: `linear-gradient(90deg, ${col}, color-mix(in srgb, ${col} 45%, white))` }} />
                 <div
-                  className="mt-3 rounded-xl bg-[#f4f0fc] px-3 py-2 text-xs font-bold text-accent"
-                  title={`MASTER COIL ${c.coil.masterCount} (${qty(c.coil.masterKg)} KG) • COIL NO ${c.coil.childCount} (${qty(c.coil.childKg)} KG)`}
-                >
-                  🧲 COIL NO {c.coil.totalCount.toLocaleString()} | {qty(c.coil.totalKg)} KG | {qty(Math.round(c.coil.totalKg / 10) / 100)} TON
+                  className="pointer-events-none absolute inset-0 rounded-[22px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{ boxShadow: `0 18px 40px -22px ${col}, inset 0 0 0 1px color-mix(in srgb, ${col} 35%, transparent)`, background: `radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, ${col} 9%, transparent), transparent 60%)` }}
+                />
+                {/* ลายน้ำไอคอนคลังมุมขวาล่าง */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -bottom-6 -right-6 size-36 rotate-[-12deg] opacity-[.07] transition duration-500 group-hover:rotate-0 group-hover:scale-110 group-hover:opacity-[.12]"
+                  style={{ background: col, WebkitMask: `url(${ic}) center / contain no-repeat`, mask: `url(${ic}) center / contain no-repeat` }}
+                />
+
+                <div className="relative flex items-start gap-3">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-[15px] transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110" style={tileStyle(col)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={ic} alt="" draggable={false} className="size-7 object-contain" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-lg font-extrabold text-[#1f2350]">{c.code}</span>
+                      {c.isMain && <Badge>MAIN</Badge>}
+                    </div>
+                    <div className="truncate text-sm font-semibold text-ink-soft">{c.name}</div>
+                  </div>
+                  <span className="grid size-8 shrink-0 -translate-x-1 place-items-center rounded-full opacity-0 transition duration-300 group-hover:translate-x-0 group-hover:opacity-100" style={{ background: `color-mix(in srgb, ${col} 14%, transparent)`, color: col }}>
+                    <Icon name="chevron" className="size-4" />
+                  </span>
                 </div>
-              )}
-              {(data.canEdit || c.canDelete) && (
-                <div className="mt-4 flex gap-2 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
-                  {data.canEdit && (
-                    <button className="btn-ghost px-3 py-1 text-xs" onClick={(e) => (e.stopPropagation(), setEditor({ stkId: c.stkId }))}>
-                      ⚙ SETTINGS
-                    </button>
-                  )}
-                  {c.canDelete && (
-                    <button className="btn-ghost px-3 py-1 text-xs text-danger" onClick={(e) => (e.stopPropagation(), remove(c))}>
-                      🗑 DELETE
-                    </button>
-                  )}
+
+                <div className="relative mt-5 flex items-end justify-between">
+                  <div>
+                    <div className="text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">ITEMS</div>
+                    <div className="text-[32px] font-extrabold leading-tight tabular-nums text-[#1f2350]">{c.itemCount.toLocaleString()}</div>
+                  </div>
+                  <span className="rounded-lg px-2.5 py-1 text-xs font-extrabold" style={{ background: `color-mix(in srgb, ${col} 12%, transparent)`, color: col }}>
+                    {c.unit}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {c.coil && (
+                  <div
+                    className="relative mt-3 grid grid-cols-3 gap-1.5 rounded-2xl p-1.5"
+                    style={{ background: `color-mix(in srgb, ${col} 8%, transparent)` }}
+                    title={`MASTER COIL ${c.coil.masterCount} (${qty(c.coil.masterKg)} KG) • COIL NO ${c.coil.childCount} (${qty(c.coil.childKg)} KG)`}
+                  >
+                    {[
+                      ["COIL NO", c.coil.totalCount.toLocaleString()],
+                      ["KG", qty(c.coil.totalKg)],
+                      ["TON", qty(Math.round(c.coil.totalKg / 10) / 100)],
+                    ].map(([k, v], j) => (
+                      <div key={k} className="flex min-w-0 items-center gap-1.5 rounded-xl bg-surface/80 px-2 py-1.5 shadow-[0_1px_2px_rgb(20_25_60/0.06)]">
+                        {j === 0 && (
+                          <span className="grid size-6 shrink-0 place-items-center rounded-lg" style={tileStyle(col)}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={COIL_ICON} alt="" className="size-4 object-contain" />
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-[9px] font-extrabold uppercase tracking-wider text-ink-soft">{k}</div>
+                          <div className="truncate text-[13px] font-extrabold tabular-nums" style={{ color: col }}>
+                            {v}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(data.canEdit || c.canDelete) && (
+                  <div className="relative mt-4 flex gap-2 opacity-100 transition duration-300 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
+                    {data.canEdit && (
+                      <button className="btn-ghost px-3 py-1 text-xs" onClick={(e) => (e.stopPropagation(), setEditor({ stkId: c.stkId }))}>
+                        ⚙ SETTINGS
+                      </button>
+                    )}
+                    {c.canDelete && (
+                      <button className="btn-ghost px-3 py-1 text-xs text-danger" onClick={(e) => (e.stopPropagation(), remove(c))}>
+                        🗑 DELETE
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       {editor && (

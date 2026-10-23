@@ -196,6 +196,29 @@ body {
   animation: sb-fade 0.35s ease-out 0.05s both;
 }
 
+/* เมนู Sidebar ที่เลือก: แสงวิ่งผ่านหนึ่งครั้งตอนเลือก */
+@keyframes sb-sheen {
+  from { transform: translateX(-120%) skewX(-18deg); }
+  to { transform: translateX(260%) skewX(-18deg); }
+}
+.sb-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent);
+  animation: sb-sheen 0.9s ease-out 0.1s both;
+  pointer-events: none;
+}
+
+/* การ์ดที่ทยอยเข้ามาทีละใบ (หน่วงเวลาด้วย style animationDelay) */
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+}
+.card-in {
+  animation: card-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
 /* สลับ CHART / TABLE: ของใหม่ค่อยๆ ลอยขึ้นมา */
 @keyframes view-in {
   from { opacity: 0; transform: translateY(8px) scale(0.985); filter: blur(2px); }
@@ -231,7 +254,9 @@ body {
   .toast-card,
   .menu-pop,
   .view-in,
-  .sb-fade {
+  .sb-fade,
+  .card-in,
+  .sb-sheen::after {
     animation: none;
   }
   .fold {

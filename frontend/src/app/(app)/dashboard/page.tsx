@@ -8,6 +8,7 @@ import { CustomerDonut } from "@/components/ui/CustomerDonut";
 import { Icon, type IconName } from "@/components/icons";
 import { Card, Loading, PageBody, PageHeader } from "@/components/ui/Page";
 import { api } from "@/lib/api";
+import { stockIcon, tileStyle } from "@/lib/stockIcons";
 
 type StockRow = { stkId: number; code: string; name: string; items: number; maxCount: number; minCount: number };
 type Cards = { stocks: StockRow[]; totals: { stocks: number; items: number; max: number; min: number }; time: string; canStore: boolean };
@@ -22,21 +23,6 @@ const CARD: Record<Kind, { title: string; tone: string; icon: IconName; pick: st
   MIN: { title: "MIN PRODUCT", tone: "var(--danger)", icon: "triangle", pick: "Under MIN by stock", badge: ["/images/dashboard/ic-min.png", "#fb7185", "#e11d48"], art: "/images/dashboard/warning.webp", filter: "UNDER_MIN" },
 };
 
-// ไอคอน (ภาพขาว) + สีของแต่ละคลัง (ดูจากท้ายรหัสคลัง) - คลังที่ไม่รู้จักใช้ products + สีตามลำดับ
-//   MAT / PANTA / MSH = CoilMaterial · PC / SUB = products · CONS = Consumables · SP = Sparepart · CPN = component
-const STOCK_IMG = (n: string) => `/images/stocks/${n}.png`;
-const STOCK_ICON: Record<string, [string, string]> = {
-  MAT: [STOCK_IMG("coil"), "#8b5cf6"],
-  PANTA: [STOCK_IMG("coil"), "#3b82f6"],
-  PC: [STOCK_IMG("products"), "#06b6d4"],
-  SP: [STOCK_IMG("sparepart"), "#f59e0b"],
-  CPN: [STOCK_IMG("component"), "#14b8a6"],
-  SUB: [STOCK_IMG("products"), "#ec4899"],
-  CONS: [STOCK_IMG("consumables"), "#6366f1"],
-  MSH: [STOCK_IMG("coil"), "#2563eb"],
-};
-const FALLBACK = ["#8b5cf6", "#3b82f6", "#06b6d4", "#f59e0b", "#14b8a6", "#ec4899"];
-const stockIcon = (code: string, i: number): [string, string] => STOCK_ICON[code.split("-").pop()!.toUpperCase()] ?? [STOCK_IMG("products"), FALLBACK[i % FALLBACK.length]];
 const tint = (c: string, p: number) => `color-mix(in srgb, ${c} ${p}%, transparent)`;
 
 // เส้นเล็กเทียบจำนวนของแต่ละคลัง (ข้อมูลจริงจากการ์ด เรียงตามคลัง ไม่ใช่แนวโน้มตามเวลา)
@@ -247,7 +233,7 @@ export default function DashboardPage() {
                         >
                           <span
                             className="grid size-11 shrink-0 place-items-center rounded-[13px] transition-transform duration-300 group-hover:scale-105"
-                            style={{ background: `linear-gradient(145deg, color-mix(in srgb, ${col} 62%, white), ${col})`, boxShadow: `0 6px 14px -7px ${col}, inset 0 1px 0 rgb(255 255 255 / .35)` }}
+                            style={tileStyle(col)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={ic} alt="" draggable={false} className="size-7 object-contain" />

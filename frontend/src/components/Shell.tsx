@@ -41,12 +41,26 @@ export function Shell({ children }: { children: React.ReactNode }) {
             key={m.href}
             href={m.href}
             title={m.label}
-            className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition ${
-              active ? "bg-accent text-white shadow-lg shadow-accent/30" : "text-white/70 hover:bg-white/10 hover:text-white"
+            className={`group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-sm font-bold transition-all duration-300 ${
+              active
+                ? "sb-sheen bg-gradient-to-r from-accent to-[#8d72d8] text-white shadow-[0_10px_24px_-10px_rgba(103,80,164,.95)] ring-1 ring-white/15"
+                : `text-white/65 hover:bg-white/[.08] hover:text-white ${compact ? "" : "hover:pl-4"}`
             } ${compact ? "justify-center" : ""}`}
           >
+            {/* แถบซ้าย: โผล่ตอนชี้ ยาวขึ้นตอนเลือก */}
+            <span
+              className={`absolute left-1 top-1/2 w-[3px] -translate-y-1/2 rounded-full bg-white transition-all duration-300 ${
+                active ? "h-6 opacity-100" : "h-0 opacity-0 group-hover:h-4 group-hover:opacity-70"
+              }`}
+            />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={m.icon} alt="" className="h-7 w-7 shrink-0 object-contain brightness-0 invert" />
+            <img
+              src={m.icon}
+              alt=""
+              className={`h-7 w-7 shrink-0 object-contain brightness-0 invert transition-transform duration-300 ${
+                active ? "scale-110 drop-shadow-[0_2px_6px_rgba(0,0,0,.35)]" : "group-hover:-rotate-6 group-hover:scale-110"
+              }`}
+            />
             {!compact && <span className="sb-fade truncate">{m.label}</span>}
             {!compact && !m.ready && <span className="sb-fade ml-auto rounded bg-white/15 px-1.5 text-[10px] font-bold">SOON</span>}
           </Link>
