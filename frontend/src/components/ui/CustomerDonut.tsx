@@ -104,27 +104,29 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
       {rows.length === 0 ? (
         <div className="py-16 text-center text-sm font-semibold text-ink-soft">{empty}</div>
       ) : view === "table" ? (
-        <div className="max-h-[520px] overflow-auto px-4 pb-4">
-          <table className="w-full border-collapse text-sm tabular-nums">
-            <thead className="sticky top-0 bg-surface">
-              <tr className="text-[11px] uppercase tracking-wider text-ink-soft">
-                {["Customer", "Order", "Share"].map((h, i) => (
-                  <th key={h} className={`border-b border-line px-3 py-2.5 font-bold ${i ? "text-right" : "text-left"}`}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.name} className="transition-colors hover:bg-[#e8f0ff]">
-                  <td className="border-b border-line px-3 py-2 font-bold">{r.name}</td>
-                  <td className="border-b border-line px-3 py-2 text-right font-semibold">{fmt.format(r.amount)}</td>
-                  <td className="border-b border-line px-3 py-2 text-right font-semibold">{pctText(pctOf(r), r.amount, 2)}</td>
+        <div className={fill ? "relative flex-1 xl:min-h-[380px]" : ""}>
+          <div className={`max-h-[520px] overflow-auto px-4 pb-4 ${fill ? "xl:absolute xl:inset-0 xl:max-h-none" : ""}`}>
+            <table className="w-full border-collapse text-sm tabular-nums">
+              <thead className="sticky top-0 z-10 bg-surface">
+                <tr className="text-[11px] uppercase tracking-wider text-ink-soft">
+                  {["Customer", "Order", "Share"].map((h, i) => (
+                    <th key={h} className={`border-b border-line px-3 py-2.5 font-bold ${i ? "text-right" : "text-left"}`}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.name} className="transition-colors hover:bg-[#e8f0ff]">
+                    <td className="border-b border-line px-3 py-2 font-bold">{r.name}</td>
+                    <td className="border-b border-line px-3 py-2 text-right font-semibold">{fmt.format(r.amount)}</td>
+                    <td className="border-b border-line px-3 py-2 text-right font-semibold">{pctText(pctOf(r), r.amount, 2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <>
