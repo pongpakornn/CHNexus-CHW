@@ -188,11 +188,45 @@ body {
   animation-play-state: paused;
 }
 
+/* สลับ CHART / TABLE: ของใหม่ค่อยๆ ลอยขึ้นมา */
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); filter: blur(2px); }
+}
+.view-in {
+  animation: view-in 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* แผงกาง / พับแบบนุ่ม (ความสูงวิ่งจาก 0 ถึงความสูงจริง) - .fold-gap = ดึงช่องว่าง gap-4 ของหน้ากลับตอนพับ */
+.fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.3s ease,
+    margin-top 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.fold > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.fold.is-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.fold-gap.is-closed {
+  margin-top: -1rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bell-btn:hover svg,
   .toast-card,
-  .menu-pop {
+  .menu-pop,
+  .view-in {
     animation: none;
+  }
+  .fold {
+    transition: none;
   }
 }
 

@@ -274,7 +274,7 @@ export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; y
       </div>
 
       {view === "table" ? (
-        <div className="overflow-x-auto">
+        <div className="view-in overflow-x-auto">
           <table className="w-full min-w-[520px] border-collapse text-sm tabular-nums">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-ink-soft">
@@ -312,7 +312,7 @@ export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; y
           </table>
         </div>
       ) : (
-        <div ref={stage} className={`fc-chart relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
+        <div ref={stage} className={`fc-chart view-in relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             width="100%"

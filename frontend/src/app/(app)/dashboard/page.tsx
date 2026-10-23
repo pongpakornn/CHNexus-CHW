@@ -70,6 +70,7 @@ export default function DashboardPage() {
   const [cards, setCards] = useState<Cards | null>(null);
   const [charts, setCharts] = useState<Charts | null>(null);
   const [open, setOpen] = useState<Kind | null>(null);
+  const [last, setLast] = useState<Kind>("STOCK"); // ใบล่าสุด: ใช้แสดงเนื้อหาระหว่างแผงกำลังพับ
   const [folded, setFolded] = useState(false);
 
   const loadCards = useCallback(async () => {
@@ -100,8 +101,10 @@ export default function DashboardPage() {
         : { main: pct(k === "MAX" ? cards.totals.max : cards.totals.min), sub: "of all products" };
   const toggle = (k: Kind) => {
     setFolded(false);
+    setLast(k);
     setOpen((o) => (o === k ? null : k));
   };
+  const kind = open ?? last;
 
   return (
     // จอใหญ่: หน้าสูงเต็มจอ แถวกราฟยืดลงไปจนสุด ไม่เหลือพื้นที่ว่างด้านล่าง
@@ -196,56 +199,63 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {open && cards && (
-        <section className="menu-pop overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
-          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <span className="grid size-9 place-items-center rounded-xl" style={{ background: tint(CARD[open].tone, 14), color: CARD[open].tone }}>
-              <Icon name={CARD[open].icon} className="size-5" />
-            </span>
-            <h3 className="font-extrabold text-ink">{CARD[open].pick}</h3>
-            <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: tint(CARD[open].tone, 12), color: CARD[open].tone }}>
-              {cards.stocks.length} inventories
-            </span>
-            <div className="ml-auto flex items-center gap-1">
-              <button type="button" onClick={() => setFolded((f) => !f)} className="grid size-8 place-items-center rounded-lg text-ink-soft hover:bg-surface-2 hover:text-ink" aria-label={folded ? "Expand" : "Collapse"}>
-                <Icon name="chevronUp" className={`size-4 transition-transform ${folded ? "rotate-180" : ""}`} />
-              </button>
-              <button type="button" onClick={() => setOpen(null)} className="grid size-8 place-items-center rounded-lg text-ink-soft hover:bg-surface-2 hover:text-ink" aria-label="Close">
-                <Icon name="xMark" className="size-4" />
-              </button>
-            </div>
-          </div>
-          {!folded && (
-            <div className="grid gap-3 border-t border-line/60 p-4 sm:grid-cols-2 xl:grid-cols-3">
-              {cards.stocks.map((s, i) => {
-                const [ic, col] = stockIcon(s.code, i);
-                return (
-                  <button
-                    key={s.stkId}
-                    type="button"
-                    disabled={!cards.canStore}
-                    onClick={() => router.push(`/store?stk=${s.stkId}${CARD[open].filter ? `&f=${CARD[open].filter}` : ""}`)}
-                    className="group flex items-center gap-3 rounded-xl border border-line/60 bg-surface px-3.5 py-3 text-left transition enabled:hover:-translate-y-0.5 enabled:hover:border-line enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: tint(col, 14), color: col }}>
-                      <Icon name={ic} className="size-6" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-extrabold text-ink">{s.code}</div>
-                      <div className="truncate text-xs text-ink-soft">{s.name}</div>
-                    </div>
-                    {open !== "STOCK" && (
-                      <span className="text-lg font-extrabold tabular-nums" style={{ color: CARD[open].tone }}>
-                        {rowValue(open, s).toLocaleString()}
-                      </span>
-                    )}
-                    {cards.canStore && <Icon name="chevron" className="size-4 shrink-0 text-ink-soft transition group-hover:translate-x-0.5" />}
+      {/* แผงเลือกคลัง: กาง / พับแบบนุ่ม */}
+      {cards && (
+        <div className={`fold fold-gap ${open ? "" : "is-closed"}`} inert={!open}>
+          <div>
+            <section className="overflow-hidden rounded-2xl border border-line/60 bg-surface">
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <span className="grid size-9 place-items-center rounded-xl" style={{ background: tint(CARD[kind].tone, 14), color: CARD[kind].tone }}>
+                  <Icon name={CARD[kind].icon} className="size-5" />
+                </span>
+                <h3 className="font-extrabold text-ink">{CARD[kind].pick}</h3>
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: tint(CARD[kind].tone, 12), color: CARD[kind].tone }}>
+                  {cards.stocks.length} inventories
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  <button type="button" onClick={() => setFolded((f) => !f)} className="grid size-8 place-items-center rounded-lg text-ink-soft hover:bg-surface-2 hover:text-ink" aria-label={folded ? "Expand" : "Collapse"}>
+                    <Icon name="chevronUp" className={`size-4 transition-transform ${folded ? "rotate-180" : ""}`} />
                   </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                  <button type="button" onClick={() => setOpen(null)} className="grid size-8 place-items-center rounded-lg text-ink-soft hover:bg-surface-2 hover:text-ink" aria-label="Close">
+                    <Icon name="xMark" className="size-4" />
+                  </button>
+                </div>
+              </div>
+              <div className={`fold ${folded ? "is-closed" : ""}`} inert={folded}>
+                <div>
+                  <div key={kind} className="view-in grid gap-3 border-t border-line/60 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {cards.stocks.map((s, i) => {
+                      const [ic, col] = stockIcon(s.code, i);
+                      return (
+                        <button
+                          key={s.stkId}
+                          type="button"
+                          disabled={!cards.canStore}
+                          onClick={() => router.push(`/store?stk=${s.stkId}${CARD[kind].filter ? `&f=${CARD[kind].filter}` : ""}`)}
+                          className="group flex items-center gap-3 rounded-xl border border-line/60 bg-surface px-3.5 py-3 text-left transition enabled:hover:-translate-y-0.5 enabled:hover:border-line enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: tint(col, 14), color: col }}>
+                            <Icon name={ic} className="size-6" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-extrabold text-ink">{s.code}</div>
+                            <div className="truncate text-xs text-ink-soft">{s.name}</div>
+                          </div>
+                          {kind !== "STOCK" && (
+                            <span className="text-lg font-extrabold tabular-nums" style={{ color: CARD[kind].tone }}>
+                              {rowValue(kind, s).toLocaleString()}
+                            </span>
+                          )}
+                          {cards.canStore && <Icon name="chevron" className="size-4 shrink-0 text-ink-soft transition group-hover:translate-x-0.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-4 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
