@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
 import { useToast } from "@/components/Toasts";
-import { MonthChart, ShareBars, type MonthPoint } from "@/components/ui/Charts";
+import { MonthChart, type MonthPoint } from "@/components/ui/Charts";
+import { CustomerDonut } from "@/components/ui/CustomerDonut";
 import { Icon, type IconName } from "@/components/icons";
 import { Card, Loading, PageBody, PageHeader } from "@/components/ui/Page";
 import { api } from "@/lib/api";
@@ -246,12 +247,16 @@ export default function DashboardPage() {
         </section>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_2fr]">
-        <Card title={`CUSTOMER ORDER • ${charts?.month ?? ""}`} bodyClass="p-4">
-          {!charts ? <Loading /> : <ShareBars rows={charts.customers} empty="ยังไม่มี Order ของเดือนนี้" />}
-        </Card>
-        <Card title={`FORECAST / ORDER / DELIVERY • ${charts?.year ?? ""}`} bodyClass="p-4">
-          {!charts ? <Loading /> : <MonthChart data={charts.months} year={charts.year} />}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+        {!charts ? (
+          <Card title="CUSTOMER ORDER">
+            <Loading />
+          </Card>
+        ) : (
+          <CustomerDonut title={`CUSTOMER ORDER • ${charts.month}`} period={charts.month} rows={charts.customers} empty="ยังไม่มี Order ของเดือนนี้" />
+        )}
+        <Card title={`FORECAST / ORDER / DELIVERY • ${charts?.year ?? ""}`} className="flex flex-col" bodyClass="flex flex-1 flex-col p-4">
+          {!charts ? <Loading /> : <MonthChart data={charts.months} year={charts.year} fill />}
         </Card>
       </div>
     </PageBody>

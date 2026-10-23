@@ -50,13 +50,15 @@ function curve(p: [number, number][]) {
 
 const toDisp = (data: MonthPoint[]) => data.map((d) => (hasData(d) ? { ...d } : null));
 
-export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number | string }) {
+// fill = สูงเต็มกล่อง (ให้สูงเท่าการ์ดข้างๆ ในแถวเดียวกัน)
+export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; year?: number | string; fill?: boolean }) {
   const uid = useId().replace(/:/g, "");
   const [vis, setVis] = useState<Vis>({ order: true, delivery: true, forecast: true });
   const [view, setView] = useState<"chart" | "table">("chart");
   const [hover, setHover] = useState(-1);
   const [tipY, setTipY] = useState(0);
   const [width, setWidth] = useState(0);
+  const [height, setHeight] = useState(0);
   const [frame, setFrame] = useState<Frame>(() => ({ intro: 0, vf: { order: 1, delivery: 1, forecast: 1 }, disp: toDisp(data).map(() => null) }));
   const stage = useRef<HTMLDivElement>(null);
 
@@ -128,13 +130,13 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
   useEffect(() => {
     const el = stage.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    const ro = new ResizeObserver(() => (setWidth(el.clientWidth), setHeight(el.clientHeight)));
     ro.observe(el);
     return () => ro.disconnect();
   }, [view]);
 
   const W = Math.max(300, width || 760);
-  const H = W < 520 ? 280 : W < 800 ? 320 : 360;
+  const H = fill && height > 0 ? Math.max(260, height) : W < 520 ? 280 : W < 800 ? 320 : 360;
   const m = { t: 22, r: W < 520 ? 10 : 18, b: 34, l: W < 520 ? 44 : 56 };
   const n = Math.max(1, data.length);
   const ih = H - m.t - m.b;
@@ -231,7 +233,7 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
   );
 
   return (
-    <div className="grid gap-3">
+    <div className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "grid gap-3"}>
       {/* ปุ่ม Filter + CHART / TABLE */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className={`flex flex-wrap gap-2 transition-opacity ${view === "table" ? "invisible" : ""}`}>
@@ -310,7 +312,7 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
           </table>
         </div>
       ) : (
-        <div ref={stage} className="fc-chart relative">
+        <div ref={stage} className={`fc-chart relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             width="100%"
@@ -320,7 +322,7 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
             tabIndex={0}
             onKeyDown={onKey}
             onBlur={() => setHover(-1)}
-            className="block overflow-visible outline-none"
+            className={`block overflow-visible outline-none ${fill ? "absolute inset-x-0 top-0" : ""}`}
           >
             <defs>
               <linearGradient id={`o${uid}`} x1="0" y1="0" x2="0" y2="1">
