@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChartHeader, ViewSwitch, type ChartView } from "./ChartHeader";
 
 // 🍩 สัดส่วน Order ของลูกค้า: วงแหวนแสดงทุกลูกค้า (ชี้ดูได้ทุกชิ้น) · รายชื่อค้นหาได้ · CHART / TABLE
 export type CustomerRow = { name: string; amount: number; percentage?: number };
@@ -33,7 +34,7 @@ function arc(a0: number, a1: number) {
 
 // fill = จอใหญ่ (xl) ยืดวงแหวน + รายชื่อให้เต็มความสูงของการ์ด
 export function CustomerDonut({ title, period, rows, empty = "ไม่มีข้อมูล", fill = false }: { title: React.ReactNode; period?: string; rows: CustomerRow[]; empty?: string; fill?: boolean }) {
-  const [view, setView] = useState<"chart" | "table">("chart");
+  const [view, setView] = useState<ChartView>("chart");
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1); // ลำดับลูกค้าที่ชี้อยู่
   const listRef = useRef<HTMLDivElement>(null);
@@ -79,27 +80,12 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
 
   return (
     <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 px-4 py-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-extrabold uppercase tracking-wide text-primary">{title}</h3>
-          <div className="text-xs font-semibold text-ink-soft">สัดส่วนยอด Order แยกตามลูกค้า</div>
-        </div>
-        <div className="ml-auto inline-flex rounded-full bg-[#e8f0ff] p-[3px]" role="group" aria-label="View">
-          {(["chart", "table"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={view === v}
-              onClick={() => (setView(v), setActive(-1))}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 ${
-                view === v ? "bg-surface text-[#1f5eff] shadow-[0_2px_8px_rgba(20,60,160,.18)]" : "text-ink-soft hover:text-ink"
-              }`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ChartHeader
+        icon="/images/dashboard/customers.png"
+        title={title}
+        subtitle="สัดส่วนยอด Order แยกตามลูกค้า"
+        actions={<ViewSwitch value={view} onChange={(v) => (setView(v), setActive(-1))} />}
+      />
 
       {rows.length === 0 ? (
         <div className="py-16 text-center text-sm font-semibold text-ink-soft">{empty}</div>

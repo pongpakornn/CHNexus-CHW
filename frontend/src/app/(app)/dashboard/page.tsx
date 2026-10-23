@@ -266,9 +266,15 @@ export default function DashboardPage() {
         ) : (
           <CustomerDonut title={`CUSTOMER ORDER • ${charts.month}`} period={charts.month} rows={charts.customers} empty="ยังไม่มี Order ของเดือนนี้" fill />
         )}
-        <Card title={`FORECAST / ORDER / DELIVERY • ${charts?.year ?? ""}`} className="flex flex-col" bodyClass="flex flex-1 flex-col p-4">
-          {!charts ? <Loading /> : <MonthChart data={charts.months} year={charts.year} fill />}
-        </Card>
+        {!charts ? (
+          <Card title="FORECAST / ORDER / DELIVERY">
+            <Loading />
+          </Card>
+        ) : (
+          <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
+            <MonthChart data={charts.months} year={charts.year} fill header={{ icon: "/images/dashboard/chart.png", title: `FORECAST / ORDER / DELIVERY • ${charts.year}` }} />
+          </section>
+        )}
       </div>
     </PageBody>
   );

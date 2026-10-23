@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChartHeader, ViewSwitch, type ChartView } from "./ChartHeader";
 
 // 📈 FORECAST / ORDER / DELIVERY รายเดือน (SVG + React ไม่มี library)
 //   ORDER / DELIVERY = แท่งไล่สีคู่ · FORECAST = เส้นโค้ง + พื้นใต้เส้น (แกนเดียว หน่วยเดียวกัน)
@@ -51,10 +52,21 @@ function curve(p: [number, number][]) {
 const toDisp = (data: MonthPoint[]) => data.map((d) => (hasData(d) ? { ...d } : null));
 
 // fill = สูงเต็มกล่อง (ให้สูงเท่าการ์ดข้างๆ ในแถวเดียวกัน)
-export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; year?: number | string; fill?: boolean }) {
+// header = แสดงหัวการ์ด (ไอคอน + ชื่อ) พร้อมสวิตช์ CHART / TABLE ด้านขวาของหัว
+export function MonthChart({
+  data,
+  year,
+  fill = false,
+  header,
+}: {
+  data: MonthPoint[];
+  year?: number | string;
+  fill?: boolean;
+  header?: { icon: string; title: React.ReactNode; subtitle?: React.ReactNode };
+}) {
   const uid = useId().replace(/:/g, "");
   const [vis, setVis] = useState<Vis>({ order: true, delivery: true, forecast: true });
-  const [view, setView] = useState<"chart" | "table">("chart");
+  const [view, setView] = useState<ChartView>("chart");
   const [hover, setHover] = useState(-1);
   const [tipY, setTipY] = useState(0);
   const [width, setWidth] = useState(0);
@@ -232,7 +244,8 @@ export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; y
     </div>
   );
 
-  return (
+  const switcher = <ViewSwitch value={view} onChange={(v) => (setView(v), setHover(-1))} />;
+  const body = (
     <div className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "grid gap-3"}>
       {/* ปุ่ม Filter + CHART / TABLE */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -256,21 +269,7 @@ export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; y
             </button>
           ))}
         </div>
-        <div className="inline-flex rounded-full bg-[#e8f0ff] p-[3px]" role="group" aria-label="View">
-          {(["chart", "table"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={view === v}
-              onClick={() => (setView(v), setHover(-1))}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 ${
-                view === v ? "bg-surface text-[#1f5eff] shadow-[0_2px_8px_rgba(20,60,160,.18)]" : "text-ink-soft hover:text-ink"
-              }`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
+        {!header && switcher}
       </div>
 
       {view === "table" ? (
@@ -433,5 +432,12 @@ export function MonthChart({ data, year, fill = false }: { data: MonthPoint[]; y
         </div>
       )}
     </div>
+  );
+  if (!header) return body;
+  return (
+    <>
+      <ChartHeader icon={header.icon} title={header.title} subtitle={header.subtitle} actions={switcher} />
+      <div className={fill ? "flex flex-1 flex-col p-4" : "p-4"}>{body}</div>
+    </>
   );
 }
