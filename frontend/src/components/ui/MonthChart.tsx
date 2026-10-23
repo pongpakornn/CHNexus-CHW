@@ -179,7 +179,11 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
   };
 
   // ---- Tooltip
-  const hd = hover >= 0 ? data[hover] : null;
+  // แสดงเฉพาะชุดที่เปิดอยู่ (ปุ่ม Filter) - อัตราส่วนแสดงเมื่อเปิดทั้ง 2 ชุดที่ใช้คำนวณ
+  const shown = (["forecast", "order", "delivery"] as Key[]).filter((k) => vis[k]);
+  const hd = hover >= 0 && shown.length ? data[hover] : null;
+  const showVsFc = !!hd && vis.order && vis.forecast && hd.forecast > 0;
+  const showRate = !!hd && vis.order && vis.delivery && hd.order > 0;
   const tipLeftSide = hover >= 0 && sx(hover) + band / 2 + 236 > W;
   const tip = hd && (
     <div
@@ -198,15 +202,15 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
         <div className="text-xs font-semibold opacity-75">ยังไม่มีข้อมูล</div>
       ) : (
         <>
-          {(["forecast", "order", "delivery"] as Key[]).map((k) => (
+          {shown.map((k) => (
             <div key={k} className="flex items-center gap-2 py-0.5 text-[12.5px]">
               <i className="inline-block size-2.5 rounded-[3px]" style={{ background: k === "forecast" ? "#9cc4ff" : SERIES[k].a }} />
               <span className="font-semibold opacity-75">{SERIES[k].label}</span>
               <b className="ml-auto font-extrabold tabular-nums">{fmt.format(Math.round(hd[k]))}</b>
             </div>
           ))}
-          <hr className="my-2 border-white/15" />
-          {hd.forecast > 0 && (
+          {(showVsFc || showRate) && <hr className="my-2 border-white/15" />}
+          {showVsFc && (
             <div className="flex justify-between gap-3 text-xs">
               <span>Order vs Forecast</span>
               <b className={hd.order >= hd.forecast ? "text-[#3fe3ae]" : "text-[#ff8aa0]"}>
@@ -215,7 +219,7 @@ export function MonthChart({ data, year }: { data: MonthPoint[]; year?: number |
               </b>
             </div>
           )}
-          {hd.order > 0 && (
+          {showRate && (
             <div className="flex justify-between gap-3 text-xs">
               <span>Delivery rate</span>
               <b className="tabular-nums">{((hd.delivery / hd.order) * 100).toFixed(1)}%</b>
