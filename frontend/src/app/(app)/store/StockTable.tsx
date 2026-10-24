@@ -10,9 +10,9 @@ import { StatCards, type CoilSum } from "./StatCards";
 import { ActionMenu, type MenuAction } from "./ActionMenu";
 import { ShowCards } from "./ShowCards";
 import { StockHeader } from "./StockHeader";
-import { StatusLamp } from "./StatusLamp";
+import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg } from "./TableRows";
 import { CategoryPicker, SearchField } from "./Toolbar";
-import { STATUS_COLOR, type Counts, type Product, type Stock } from "./types";
+import { type Counts, type Product, type Stock } from "./types";
 
 type Meta = {
   stock: Stock;
@@ -28,8 +28,6 @@ type Meta = {
   hasCoilRegister: boolean;
   coilRemark?: boolean;
 };
-type CoilRow = { coilId: number; partId: number; isMother: boolean; no: string; coilNo: string; motherCoil: string; weight: string; ton: string; received: string; remark?: string | null };
-type Field = "max" | "min" | "qty" | "stockBox" | "stockPcs" | "remark";
 type Live = { stock: boolean; settings?: string; structure?: string | null; coils?: string | null };
 
 const PAGE = 100;
@@ -69,9 +67,10 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const [showCoils, setShowCoils] = useState(false);
   const [speed, setSpeed] = useState(() => Math.min(MAX_SPEED, Math.max(1, Number(pref.get("ShowSpeed", "12")) || 12)));
   const [speedText, setSpeedText] = useState(String(speed));
-  const [coils, setCoils] = useState<Record<number, CoilRow[] | "loading">>({});
+  const [coils, setCoils] = useState<Record<number, CoilState>>({});
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [closing, setClosing] = useState<Set<number>>(new Set());
+  const [animOpen, setAnimOpen] = useState<Set<number>>(new Set()); // แถว Coil ที่เพิ่งกดเปิด (เล่นอนิเมชันกางลง)
   const [loop, setLoop] = useState(false);
   const [busy, setBusy] = useState(false);
   // เปลี่ยนตัวกรอง (การ์ด MAX / MIN / ... / หมวด / ค้นหา): ระหว่างโหลด = ตารางจางลง (out) -> ได้ข้อมูล = แถวทยอยเลื่อนเข้า (in)
@@ -91,11 +90,13 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const rowsRef = useRef<Product[] | null>(null);
   const coilsRef = useRef(coils);
   const showCoilsRef = useRef(showCoils);
+  const metaRef = useRef<Meta | null>(null);
   useEffect(() => {
     rowsRef.current = rows;
     coilsRef.current = coils;
     showCoilsRef.current = showCoils;
-  }, [rows, coils, showCoils]);
+    metaRef.current = meta;
+  }, [rows, coils, showCoils, meta]);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -162,7 +163,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     try {
       const all = await api<Record<string, CoilRow[]>>(`/store/${stkId}/coils`);
       setCoils((cur) => {
-        const n: Record<number, CoilRow[] | "loading"> = {};
+        const n: Record<number, CoilState> = {};
         for (const id of Object.keys(cur).map(Number)) n[id] = all[id] ?? [];
         if (showCoilsRef.current) for (const id of Object.keys(all)) n[Number(id)] = all[id];
         return n;
@@ -282,96 +283,129 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     return g;
   }, [rows]);
 
-  if (!meta) return <Loading />;
-  const s = meta.stock;
-  const cols = meta.columns;
-  const coilKeys = ["NO", ...meta.coilRowOrder];
-  const iCoil = coilKeys.indexOf("COILNO");
-  const iMother = coilKeys.indexOf("MOTHER");
-  if (iCoil >= 0 && iMother > iCoil) [coilKeys[iCoil], coilKeys[iMother]] = ["MOTHER", "COILNO"];
-  if (meta.coilRemark) coilKeys.push("REMARK");
-  const header = (c: string) =>
-    ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ?? c;
-  const width = cols.reduce((a, c) => a + (c === "MAXMIN" ? 2 : 1), 0);
-  const coilsOn = s.showCoilRows && meta.hasCoilRegister;
-  // คลังประเภท Material: หัวหมวดไอคอนคลังสินค้า + กดทั้งแถวเพื่อเปิด / ปิด Coil (ตาราง / คอลัมน์เหมือนเดิม เปลี่ยนแค่หน้าตา)
-  const mat = s.stockType === "MATERIAL" || (!s.stockType && s.countCoil);
-  const rowToggle = mat && coilsOn;
+  // ⚡ ค่าคงที่ของแถว: เปลี่ยนเฉพาะตอนตั้งค่าคลังเปลี่ยน (ตัวเลขเรียลไทม์ทุก 3 วินาทีไม่ทำให้ทุกแถววาดใหม่)
+  const mStock = meta?.stock;
+  const mCols = meta?.columns;
+  const mCoilOrder = meta?.coilRowOrder;
+  const mCoilRemark = meta?.coilRemark;
+  const mCanEdit = meta?.canEdit;
+  const mCoilReg = meta?.hasCoilRegister;
+  const cfg = useMemo<RowCfg | null>(() => {
+    if (!mStock || !mCols || !mCoilOrder) return null;
+    const keys = ["NO", ...mCoilOrder];
+    const iCoil = keys.indexOf("COILNO");
+    const iMother = keys.indexOf("MOTHER");
+    if (iCoil >= 0 && iMother > iCoil) [keys[iCoil], keys[iMother]] = ["MOTHER", "COILNO"]; // MASTER COIL มาก่อน COIL NO.
+    if (mCoilRemark) keys.push("REMARK");
+    const coilsOn = mStock.showCoilRows && !!mCoilReg;
+    // คลังประเภท Material: กดทั้งแถวเพื่อเปิด / ปิด Coil
+    const mat = mStock.stockType === "MATERIAL" || (!mStock.stockType && mStock.countCoil);
+    return {
+      cols: mCols,
+      width: mCols.reduce((a, c) => a + (c === "MAXMIN" ? 2 : 1), 0),
+      coilKeys: keys,
+      coilsOn,
+      rowToggle: mat && coilsOn,
+      unit: mStock.unitDisplay,
+      canEdit: !!mCanEdit,
+      isLiveView: mStock.isLiveView,
+    };
+  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg]);
 
-  async function save(p: Product, field: Field, value: string) {
-    const original = { partCode: p.partCode, remark: p.remark, max: p.max, min: p.min, qty: p.qty, stockBox: p.stockBox, stockPcs: p.stockPcs };
-    if ((original[field] ?? "") === value) return;
-    const next = { ...original, [field]: value };
-    setRows((cur) => cur?.map((x) => (x.partId === p.partId ? { ...x, [field]: value } : x)) ?? cur);
-    editingRef.current = true; // ระหว่างบันทึก รอบเรียลไทม์ไม่ดึงค่ามาทับ
-    try {
-      await api(`/store/${stkId}/products/${p.partId}`, { method: "PUT", body: { ...next, original } });
-      editingRef.current = false;
-      tokenRef.current = null; // แก้ BOX / PCS แล้วอีกค่าคำนวณใหม่ใน SQL -> ดึงยอดล่าสุดมาแสดงทันที
-      await pullNumbers().catch(() => undefined);
-    } catch (e) {
-      toast.show("ERROR", "ไม่สามารถบันทึกข้อมูลได้\n" + (e as Error).message, "error");
-      reload(rowsRef.current?.length ?? 0);
-    } finally {
-      editingRef.current = false;
-    }
-  }
-
-  // คลังที่นับ Coil: กด PD CODE -> เปิด / ปิด Master Coil / Coil ลูก ใต้แถวสินค้านั้น
-  async function toggleCoils(p: Product) {
-    if (!coilsOn) return;
-    if (coils[p.partId]) {
-      // กดซ้ำระหว่างกำลังพับ = กางกลับ
-      setClosing((cur) => {
-        const n = new Set(cur);
-        if (n.has(p.partId)) n.delete(p.partId);
-        else n.add(p.partId);
-        return n;
-      });
-      return;
-    }
-    setCoils((c) => ({ ...c, [p.partId]: "loading" }));
-    try {
-      const r = await api<CoilRow[]>(`/store/${stkId}/coils/${p.partId}`);
-      setCoils((c) => ({ ...c, [p.partId]: r }));
-    } catch (e) {
+  // คำสั่งจากแถว (อ็อบเจกต์คงที่ - อ่านค่าล่าสุดจาก ref) -> แถวที่ memo ไว้ไม่ต้องวาดใหม่
+  const act = useMemo<RowActions>(() => {
+    const dropCoil = (partId: number) =>
       setCoils((c) => {
         const n = { ...c };
-        delete n[p.partId];
+        delete n[partId];
         return n;
       });
-      toast.show("COIL", "โหลดรายการ Coil ไม่สำเร็จ\n" + (e as Error).message, "error");
-    }
-  }
+    const dropFrom = (set: typeof setClosing, partId: number) =>
+      set((cur) => {
+        const n = new Set(cur);
+        n.delete(partId);
+        return n;
+      });
+    return {
+      // คลังที่นับ Coil: กด PD CODE / แถว -> เปิด / ปิด Master Coil / Coil ลูก ใต้แถวสินค้านั้น · กดซ้ำระหว่างกำลังพับ = กางกลับ
+      toggle: async (p) => {
+        const m = metaRef.current;
+        if (!m || !(m.stock.showCoilRows && m.hasCoilRegister)) return;
+        if (coilsRef.current[p.partId]) {
+          setClosing((cur) => {
+            const n = new Set(cur);
+            if (n.has(p.partId)) n.delete(p.partId);
+            else n.add(p.partId);
+            return n;
+          });
+          return;
+        }
+        setAnimOpen((cur) => new Set(cur).add(p.partId));
+        setCoils((c) => ({ ...c, [p.partId]: "loading" }));
+        try {
+          const r = await api<CoilRow[]>(`/store/${stkId}/coils/${p.partId}`);
+          setCoils((c) => ({ ...c, [p.partId]: r }));
+        } catch (e) {
+          dropCoil(p.partId);
+          toast.show("COIL", "โหลดรายการ Coil ไม่สำเร็จ\n" + (e as Error).message, "error");
+        }
+      },
+      save: async (p, field, value) => {
+        const original = { partCode: p.partCode, remark: p.remark, max: p.max, min: p.min, qty: p.qty, stockBox: p.stockBox, stockPcs: p.stockPcs };
+        if ((original[field] ?? "") === value) return;
+        const next = { ...original, [field]: value };
+        setRows((cur) => cur?.map((x) => (x.partId === p.partId ? { ...x, [field]: value } : x)) ?? cur);
+        editingRef.current = true; // ระหว่างบันทึก รอบเรียลไทม์ไม่ดึงค่ามาทับ
+        try {
+          await api(`/store/${stkId}/products/${p.partId}`, { method: "PUT", body: { ...next, original } });
+          editingRef.current = false;
+          tokenRef.current = null; // แก้ BOX / PCS แล้วอีกค่าคำนวณใหม่ใน SQL -> ดึงยอดล่าสุดมาแสดงทันที
+          await pullNumbers().catch(() => undefined);
+        } catch (e) {
+          toast.show("ERROR", "ไม่สามารถบันทึกข้อมูลได้\n" + (e as Error).message, "error");
+          reload(rowsRef.current?.length ?? 0);
+        } finally {
+          editingRef.current = false;
+        }
+      },
+      // ดูสดจาก StorePC = ดูอย่างเดียว (รวม REMARK) · ไม่มีสิทธิ์ EDIT = แก้ได้เฉพาะ REMARK
+      denied: (f) => {
+        if (metaRef.current?.stock.isLiveView) toast.show("READ ONLY", "คลังนี้แสดงข้อมูลสดจากโปรแกรมเดิม ดูได้อย่างเดียว", "warn");
+        else if (f !== "remark") toast.show("ACCESS DENIED", "คุณไม่มีสิทธิ์แก้ไขข้อมูลในคลังนี้ (แก้ไขได้เฉพาะ REMARK)", "warn");
+      },
+      editing: (v) => {
+        editingRef.current = v;
+      },
+      // พับเสร็จ (จบอนิเมชัน) -> เอาแถว Coil ออก
+      closed: (partId) => {
+        dropCoil(partId);
+        dropFrom(setClosing, partId);
+      },
+      opened: (partId) => dropFrom(setAnimOpen, partId),
+      // 💬 REMARK ของ Coil ลูก: แสดงทันที แล้วบันทึก (ไม่สำเร็จ = โหลด Coil ใหม่)
+      saveCoilRemark: async (r, v) => {
+        if ((r.remark ?? "") === v) return;
+        setCoils((c) => {
+          const list = c[r.partId];
+          return Array.isArray(list) ? { ...c, [r.partId]: list.map((x) => (x.coilId === r.coilId ? { ...x, remark: v } : x)) } : c;
+        });
+        try {
+          await api(`/store/${stkId}/coils/${r.coilId}/remark`, { method: "PUT", body: { remark: v } });
+        } catch (e) {
+          toast.show("ERROR", "ไม่สามารถบันทึก REMARK ได้\n" + (e as Error).message, "error");
+          refreshCoils();
+        }
+      },
+    };
+  }, [stkId, toast, pullNumbers, reload, refreshCoils]);
 
-  // พับเสร็จ (จบอนิเมชัน) -> เอาแถว Coil ออก
-  function finishClose(partId: number) {
-    setCoils((c) => {
-      const n = { ...c };
-      delete n[partId];
-      return n;
-    });
-    setClosing((cur) => {
-      const n = new Set(cur);
-      n.delete(partId);
-      return n;
-    });
-  }
-
-  // 💬 REMARK ของ Coil ลูก: แสดงทันที แล้วบันทึก (ไม่สำเร็จ = โหลด Coil ใหม่)
-  async function saveCoilRemark(r: CoilRow, v: string) {
-    if ((r.remark ?? "") === v) return;
-    setCoils((c) => {
-      const list = c[r.partId];
-      return Array.isArray(list) ? { ...c, [r.partId]: list.map((x) => (x.coilId === r.coilId ? { ...x, remark: v } : x)) } : c;
-    });
-    try {
-      await api(`/store/${stkId}/coils/${r.coilId}/remark`, { method: "PUT", body: { remark: v } });
-    } catch (e) {
-      toast.show("ERROR", "ไม่สามารถบันทึก REMARK ได้\n" + (e as Error).message, "error");
-      refreshCoils();
-    }
-  }
+  if (!meta || !cfg) return <Loading />;
+  const s = meta.stock;
+  const cols = meta.columns;
+  const header = (c: string) =>
+    ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ?? c;
+  const width = cfg.width;
+  const coilsOn = cfg.coilsOn;
 
   function toggleShowCoils(on: boolean) {
     setShowCoils(on);
@@ -379,6 +413,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     if (!on) {
       setCoils({});
       setClosing(new Set());
+      setAnimOpen(new Set());
     }
   }
 
@@ -437,186 +472,6 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   }
 
   const c = meta.counts;
-  // ดูสดจาก StorePC = ดูอย่างเดียว (รวม REMARK) · ไม่มีสิทธิ์ EDIT = แก้ได้เฉพาะ REMARK
-  const editable = (f: Field) => (f === "remark" ? !s.isLiveView : meta.canEdit);
-  const denied = (f: Field) => () =>
-    s.isLiveView
-      ? toast.show("READ ONLY", "คลังนี้แสดงข้อมูลสดจากโปรแกรมเดิม ดูได้อย่างเดียว", "warn")
-      : f !== "remark" && toast.show("ACCESS DENIED", "คุณไม่มีสิทธิ์แก้ไขข้อมูลในคลังนี้ (แก้ไขได้เฉพาะ REMARK)", "warn");
-  const edit = (p: Product, f: Field, extra: { align?: "right"; strong?: boolean; wide?: boolean; color?: string } = {}) => (
-    <Edit
-      key={f}
-      value={p[f]}
-      align={extra.align}
-      strong={extra.strong}
-      wide={extra.wide}
-      color={extra.color}
-      disabled={!editable(f)}
-      onDenied={denied(f)}
-      onEditing={(v) => (editingRef.current = v)}
-      onSave={(v) => save(p, f, v)}
-    />
-  );
-
-  const cell = (p: Product, col: string, no: number) => {
-    switch (col) {
-      case "NO":
-        return (
-          <td key={col} className="text-center font-bold text-ink-soft">
-            {rowToggle ? (
-              <span className="inline-flex items-center gap-2">
-                <span className={`row-chev ${isOpen(p) ? "is-open" : ""}`} aria-hidden>
-                  <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 3.5L10.5 8 6 12.5" />
-                  </svg>
-                </span>
-                {no}
-              </span>
-            ) : (
-              no
-            )}
-          </td>
-        );
-      case "IMAGE":
-        return (
-          <td key={col} className="w-20">
-            {p.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.imageUrl} alt="" loading="lazy" className="h-14 w-14 rounded-lg bg-white object-contain" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
-            ) : (
-              <div className="grid h-14 w-14 place-items-center rounded-lg bg-surface-2 text-line">▣</div>
-            )}
-          </td>
-        );
-      case "CODE":
-        return (
-          <td key={col} className="whitespace-nowrap">
-            <button
-              className={`flex items-center gap-1.5 font-extrabold ${coilsOn ? "text-accent hover:underline" : "cursor-default text-primary"} ${p.stockStatus === "NO_CONFIG" ? "!text-[#adb5bd]" : ""}`}
-              onClick={() => toggleCoils(p)}
-              title={coilsOn ? "กดเพื่อดู Master Coil / Coil ลูก" : undefined}
-            >
-              {p.partCode}
-              {coilsOn && !rowToggle && <span className="text-[10px]">{coils[p.partId] ? "▲" : "▼"}</span>}
-            </button>
-          </td>
-        );
-      case "CUSTOMER":
-        return <td key={col} className="font-bold">{p.customer}</td>;
-      case "PARTA":
-        return <td key={col} className="font-bold">{p.partA}</td>;
-      case "PARTB":
-        return <td key={col} className="font-bold">{p.partB}</td>;
-      case "PARTNO":
-        return <td key={col} className="font-bold">{p.partNo}</td>;
-      case "MODEL":
-        return <td key={col} className="font-bold">{p.model}</td>;
-      case "NAME":
-        return <td key={col} className="min-w-[240px] font-bold">{p.partName}</td>;
-      case "MAXMIN":
-        return (
-          <Fragment key={col}>
-            {edit(p, "max", { align: "right" })}
-            {edit(p, "min", { align: "right" })}
-          </Fragment>
-        );
-      case "QTY":
-        return edit(p, "qty", { align: "right", strong: true, color: p.stockStatus === "NO_CONFIG" ? undefined : STATUS_COLOR(p.stockStatus) });
-      case "BOX":
-        return edit(p, "stockBox", { align: "right" });
-      case "PCS":
-        return edit(p, "stockPcs", { align: "right" });
-      case "REMARK":
-        return edit(p, "remark", { wide: true });
-      case "STATUS":
-        return (
-          <td key={col} className="w-[90px] text-center align-middle">
-            <StatusLamp status={p.stockStatus} size={28} className="align-middle" />
-          </td>
-        );
-      default:
-        return <td key={col} />;
-    }
-  };
-
-  // 🧲 แถว Coil ใต้สินค้า (CoilRowsView): ต่อ Master Coil 1 กลุ่ม = แถบ MASTER COIL (น้ำหนัก + TON + จำนวน) -> หัวคอลัมน์ -> Coil ลูกแถวละ 1 ม้วน
-  //    กางออก / พับเก็บ = เลื่อนนุ่ม ๆ (coil-slide) · พับเสร็จแล้วค่อยเอาแถวออก
-  const coilHead = (key: string) =>
-    ({ NO: "NO.", COILNO: "COIL NO.", MOTHER: "MASTER COIL", WEIGHT: `WEIGHT (${s.unitDisplay}.)`, COIL: "STOCK (COIL)", TON: "WEIGHT (TON)", RECEIVED: "RECEIVED", REMARK: "REMARK" })[key] ?? "";
-  const coilCell = (key: string, r: CoilRow) => ({ NO: r.no, COILNO: r.coilNo, MOTHER: r.motherCoil, WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[key] ?? "";
-  const isOpen = (p: Product) => !!coils[p.partId] && !closing.has(p.partId);
-  const coilHeadRow = (k: string) => (
-    <tr key={"h" + k}>
-      {coilKeys.map((kk) => (
-        <td key={kk} className={`h-9 !border-b !border-[#ece8f6] bg-[#faf9fd] !px-1 !py-0 text-center !text-[11.5px] font-extrabold tracking-wide text-[#7a7492] ${kk === "NO" ? "w-[6%]" : ""} ${kk === "REMARK" ? "w-[16%]" : ""}`}>
-          {coilHead(kk)}
-        </td>
-      ))}
-    </tr>
-  );
-  const coilPanel = (p: Product) => {
-    const list = coils[p.partId];
-    return (
-      <tr className="hover:!bg-transparent">
-        <td colSpan={width} className="!border-0 !p-0">
-          <div className={`coil-slide ${closing.has(p.partId) ? "is-closing" : ""}`} onAnimationEnd={(e) => e.target === e.currentTarget && e.animationName === "coil-close" && finishClose(p.partId)}>
-            <div>
-              <div className="px-3 pb-3 pt-1">
-                <div className="overflow-hidden rounded-2xl border border-[#e4def3] bg-white shadow-[0_10px_26px_-20px_rgb(60_40_130/0.5)]">
-                  {list === "loading" ? (
-                    <div className="p-3 text-center text-xs font-bold text-ink-soft">⏳ LOADING COILS...</div>
-                  ) : !list || !list.some((r) => !r.isMother) ? (
-                    <div className="py-3.5 text-center text-[13px] font-bold text-ink-soft">ยังไม่มี Coil ในคลังของสินค้านี้ (สแกนรับเข้า หรือ Import COIL LIST)</div>
-                  ) : (
-                    <table className="w-full table-fixed text-[13px]">
-                      <tbody>
-                        {!list[0]?.isMother && coilHeadRow("top")}
-                        {list.map((r, i) =>
-                          r.isMother ? (
-                            <Fragment key={"m" + r.motherCoil}>
-                              <tr>
-                                <td colSpan={coilKeys.length} className={`!border-0 !p-0 ${i > 0 ? "border-t border-[#ebe5f7]" : ""}`}>
-                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-[linear-gradient(90deg,#f1ecfc,#faf8fe_70%)] px-4 py-2">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src="/images/store/master-coil.webp" alt="" className="size-7 shrink-0" draggable={false} />
-                                    <span className="text-[13px] font-extrabold text-accent">
-                                      MASTER COIL <span className="text-[#2d2a32]">{r.motherCoil || "-"}</span>
-                                    </span>
-                                    <span className="text-[13px] font-bold text-ink-soft">
-                                      {r.weight} {s.unitDisplay} <span className="mx-1.5 text-[#cfc8de]">|</span> {r.ton} TON
-                                    </span>
-                                    <span className="ml-auto rounded-full bg-[#ece6fb] px-3 py-0.5 text-[11px] font-extrabold text-accent">{r.coilNo}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                              {coilHeadRow(r.motherCoil)}
-                            </Fragment>
-                          ) : (
-                            <tr key={r.coilId} className="h-11 transition-colors hover:bg-[#faf8ff]">
-                              {coilKeys.map((kk) => (
-                                <td key={kk} className="break-words !border-[#f1eef7] !px-1 !py-0 text-center !text-[13px] font-semibold text-[#3d3a4a]">
-                                  {kk === "REMARK" ? (
-                                    <CoilRemark value={r.remark ?? ""} disabled={s.isLiveView} onEditing={(v) => (editingRef.current = v)} onSave={(v) => saveCoilRemark(r, v)} />
-                                  ) : (
-                                    coilCell(kk, r)
-                                  )}
-                                </td>
-                              ))}
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </td>
-      </tr>
-    );
-  };
-
   // ตารางทั้งชุด (SHOW PRODUCTION วาดซ้ำต่อท้ายอีกชุดเพื่อวนต่อเนื่อง)
   const body = (copy: boolean) =>
     groups.map((g) => (
@@ -644,15 +499,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         </tr>
         {!collapsed.has(g.key) &&
           g.items.map((p, i) => (
-            <Fragment key={p.partId}>
-              <tr
-                className={`${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${rowToggle ? "mat-row cursor-pointer" : ""} ${rowToggle && isOpen(p) ? "is-open" : ""}`}
-                onClick={rowToggle ? (e) => !(e.target as HTMLElement).closest("input, button, [data-edit]") && toggleCoils(p) : undefined}
-              >
-                {cols.map((col) => cell(p, col, i + 1))}
-              </tr>
-              {coils[p.partId] && coilPanel(p)}
-            </Fragment>
+            <ProductRow key={p.partId} p={p} no={i + 1} cfg={cfg} coil={coils[p.partId]} closing={closing.has(p.partId)} anim={animOpen.has(p.partId)} act={act} />
           ))}
       </Fragment>
     ));
@@ -818,107 +665,5 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
         <span className={on ? "ml-1.5" : "ml-auto mr-1"}>{on ? "ON" : "OFF"}</span>
       </span>
     </button>
-  );
-}
-
-// 💬 REMARK ของ Coil ลูก: คลิก -> พิมพ์ -> Enter / ออกจากช่อง = บันทึก, Esc = ยกเลิก · ดูอย่างเดียว = แสดงเฉย ๆ
-function CoilRemark({ value, disabled, onSave, onEditing }: { value: string; disabled?: boolean; onSave: (v: string) => void; onEditing: (v: boolean) => void }) {
-  const [edit, setEdit] = useState<string | null>(null);
-  const done = (commit: boolean) => {
-    if (edit !== null && commit) onSave(edit.trim());
-    setEdit(null);
-    onEditing(false);
-  };
-  if (edit !== null)
-    return (
-      <input
-        autoFocus
-        maxLength={500}
-        className="field !py-1 text-center !text-[13px] font-semibold"
-        value={edit}
-        placeholder="REMARK"
-        onChange={(e) => setEdit(e.target.value)}
-        onBlur={() => done(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") done(true);
-          if (e.key === "Escape") done(false);
-        }}
-      />
-    );
-  if (disabled) return <span title={value}>{value || "-"}</span>;
-  return (
-    <button
-      type="button"
-      className="coil-remark w-full truncate rounded-lg px-2 py-1 text-center"
-      title={value ? `${value}\n(คลิกเพื่อแก้ไข)` : "คลิกเพื่อเพิ่ม REMARK"}
-      onClick={() => {
-        onEditing(true);
-        setEdit(value);
-      }}
-    >
-      {value || <span className="text-[11px] font-bold text-[#c2bcd2]">+ REMARK</span>}
-    </button>
-  );
-}
-
-// ✏️ ช่องที่แก้ในตาราง: คลิก -> พิมพ์ -> Enter / ออกจากช่อง = บันทึก, Esc = ยกเลิก
-function Edit({
-  value,
-  onSave,
-  onEditing,
-  onDenied,
-  disabled,
-  align,
-  strong,
-  color,
-  wide,
-}: {
-  value: string;
-  onSave: (v: string) => void;
-  onEditing: (v: boolean) => void;
-  onDenied?: () => void;
-  disabled?: boolean;
-  align?: "right";
-  strong?: boolean;
-  color?: string;
-  wide?: boolean;
-}) {
-  const [edit, setEdit] = useState<string | null>(null);
-  const done = (commit: boolean) => {
-    if (edit !== null && commit) onSave(edit.trim());
-    setEdit(null);
-    onEditing(false);
-  };
-  if (edit !== null)
-    return (
-      <td className="p-1">
-        <input
-          autoFocus
-          className={`field py-1 font-black ${align === "right" ? "text-right" : ""} ${wide ? "min-w-[180px]" : "w-24"}`}
-          value={edit}
-          onChange={(e) => setEdit(e.target.value)}
-          onBlur={() => done(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") done(true);
-            if (e.key === "Escape") done(false);
-          }}
-        />
-      </td>
-    );
-  return (
-    <td
-      className={`font-bold ${align === "right" ? "text-right" : ""} ${disabled ? "" : "cursor-text hover:bg-accent-soft/40"} ${strong ? "text-base font-extrabold" : ""} ${wide ? "min-w-[160px]" : "whitespace-nowrap"}`}
-      style={color ? { color } : undefined}
-      title={disabled ? undefined : "คลิกเพื่อแก้ไข"}
-      data-edit={disabled ? undefined : ""}
-      onDoubleClick={() => disabled && onDenied?.()}
-      onClick={() => {
-        if (disabled) return;
-        onEditing(true);
-        setEdit(value ?? "");
-      }}
-    >
-      {value || "-"}
-    </td>
   );
 }
