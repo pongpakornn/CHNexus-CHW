@@ -222,61 +222,80 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   }, [stkId, pullNumbers, loadMeta, reload, refreshCoils, onBack]);
   useLive([`store:${stkId}`], liveTick, 10000);
 
-  // 🔁 SHOW PRODUCTION: เลื่อนตารางขึ้นวนไปเรื่อย ๆ แบบป้ายโฆษณา
+  // 🔁 SHOW PRODUCTION: เลื่อนตารางขึ้นวนไปเรื่อย ๆ แบบป้ายโฆษณา - เลื่อนด้วย transform ทีละเศษพิกเซลบนการ์ดจอ (ลื่นแบบการ์ด SHOW CARD ไม่ขยับเป็นขั้น)
   //    หน้าเดียว = วนต่อเนื่อง (แถวที่พ้นด้านบนต่อท้ายใหม่) · หลายหน้า = เลื่อนจนสุดหน้า -> ไปหน้าถัดไป -> หน้าสุดท้ายแล้วกลับหน้าแรก (ครบทุกรายการ)
-  //    หยุดชั่วคราว 5 วินาทีเมื่อผู้ใช้เลื่อน / คลิกตาราง และระหว่างแก้ไขช่อง
+  //    หมุนล้อเมาส์ = เลื่อนเองได้ + หยุดอัตโนมัติ 5 วินาที · คลิกตาราง / แก้ไขช่อง = หยุดชั่วคราว
   const pagesRef = useRef(1);
+  const pageRef = useRef(0);
   useEffect(() => {
-    if (!production) return;
+    const el = scrollRef.current;
+    if (!production || !el) return;
+    el.scrollTop = 0;
     let raf = 0;
     let last = performance.now();
-    let pos = -1;
+    let pos = 0;
     let endAt = 0;
-    const el = scrollRef.current;
-    const touch = () => (pauseUntil.current = performance.now() + 5000);
-    el?.addEventListener("wheel", touch, { passive: true });
-    el?.addEventListener("pointerdown", touch);
+    let seenPage = pageRef.current;
+    const bodies = () => el.querySelectorAll<HTMLElement>("tbody[data-slide]");
+    const apply = () => {
+      const y = `translate3d(0,${-pos}px,0)`;
+      bodies().forEach((b) => (b.style.transform = y));
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      pauseUntil.current = performance.now() + 5000;
+      pos = Math.max(0, pos + e.deltaY);
+    };
+    const onDown = () => (pauseUntil.current = performance.now() + 5000);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
     const step = (now: number) => {
-      const dt = Math.min(0.034, (now - last) / 1000);
+      const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const body = bodyRef.current;
-      if (el && body && pagesRef.current > 1) {
-        setLoop((cur) => (cur ? false : cur));
-        const max = el.scrollHeight - el.clientHeight;
-        if (!editingRef.current && now > pauseUntil.current) {
-          if (pos < 0 || Math.abs(el.scrollTop - pos) > 2) pos = el.scrollTop;
-          if (max <= 1 || pos >= max - 1) {
-            endAt ||= now;
-            if (now - endAt > (max <= 1 ? 6000 : 1500)) {
-              endAt = 0;
-              pos = 0;
-              el.scrollTop = 0;
-              setPage((cur) => (cur + 1) % pagesRef.current);
-            }
-          } else {
-            pos = Math.min(max, pos + speed * dt);
-            el.scrollTop = pos;
+      if (seenPage !== pageRef.current) {
+        seenPage = pageRef.current; // เปลี่ยนหน้า (เอง / อัตโนมัติ) -> เริ่มจากบนสุด
+        pos = 0;
+        endAt = 0;
+      }
+      if (body) {
+        const head = (body.previousElementSibling as HTMLElement | null)?.offsetHeight ?? 0;
+        const h = body.offsetHeight;
+        const view = el.clientHeight - head;
+        const run = !editingRef.current && now > pauseUntil.current;
+        if (pagesRef.current > 1) {
+          setLoop((cur) => (cur ? false : cur));
+          const max = Math.max(0, h - view);
+          if (pos > max) pos = max;
+          if (run) {
+            if (pos >= max - 0.5) {
+              endAt ||= now;
+              if (now - endAt > (max <= 1 ? 6000 : 1500)) {
+                endAt = 0;
+                pos = 0;
+                setPage((cur) => (cur + 1) % pagesRef.current);
+              }
+            } else pos = Math.min(max, pos + speed * dt);
+          }
+        } else {
+          const loopOn = h > view;
+          setLoop((cur) => (cur === loopOn ? cur : loopOn));
+          if (!loopOn) pos = 0;
+          else {
+            if (run) pos += speed * dt;
+            if (pos >= h) pos -= h;
           }
         }
-      } else if (el && body) {
-        const h = body.offsetHeight;
-        const head = (body.previousElementSibling as HTMLElement | null)?.offsetHeight ?? 0;
-        const shouldLoop = h + head > el.clientHeight;
-        setLoop((cur) => (cur === shouldLoop ? cur : shouldLoop));
-        if (shouldLoop && !editingRef.current && now > pauseUntil.current) {
-          if (pos < 0 || Math.abs(el.scrollTop - pos) > 2) pos = el.scrollTop; // ผู้ใช้เลื่อนเอง -> ต่อจากตรงนั้น
-          pos += speed * dt;
-          if (pos >= h) pos -= h;
-          el.scrollTop = pos;
-        }
+        apply();
       }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(raf);
-      el?.removeEventListener("wheel", touch);
-      el?.removeEventListener("pointerdown", touch);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      bodies().forEach((b) => (b.style.transform = ""));
     };
   }, [production, speed]);
 
@@ -284,7 +303,8 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const curPage = Math.min(page, pages - 1);
   useEffect(() => {
     pagesRef.current = pages;
-  }, [pages]);
+    pageRef.current = curPage;
+  }, [pages, curPage]);
   const pageRows = useMemo(() => rows?.slice(curPage * PAGE, (curPage + 1) * PAGE) ?? null, [rows, curPage]);
   // เปลี่ยนหน้า: ขึ้นบนสุดของตาราง + แถวทยอยเลื่อนเข้า
   const goPage = useCallback((n: number) => {
@@ -649,7 +669,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
 
       <div
         ref={scrollRef}
-        className={`swap-${swap} overflow-auto rounded-2xl border border-line/60 bg-surface shadow-sm ${production ? "max-h-[75vh] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "max-h-[calc(100dvh-330px)] min-h-[320px]"}`}
+        className={`swap-${swap} rounded-2xl border border-line/60 bg-surface shadow-sm ${production ? "prod-scroll max-h-[75vh] overflow-hidden" : "max-h-[calc(100dvh-330px)] min-h-[320px] overflow-auto"}`}
       >
         {!rows ? (
           <Loading />
@@ -673,8 +693,8 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
                 )}
               </tr>
             </thead>
-            <tbody ref={bodyRef}>{body(false)}</tbody>
-            {production && loop && <tbody aria-hidden>{body(true)}</tbody>}
+            <tbody ref={bodyRef} data-slide>{body(false)}</tbody>
+            {production && loop && <tbody aria-hidden data-slide>{body(true)}</tbody>}
           </table>
         )}
       </div>

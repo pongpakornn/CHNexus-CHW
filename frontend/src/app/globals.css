@@ -1034,6 +1034,15 @@ div.swap-in:has(> .show-strip) {
   .pg-gap { height: 38px; width: 16px; }
 }
 
+/* SHOW PRODUCTION: ตารางเลื่อนด้วย transform บนการ์ดจอ (หัวตารางอยู่บนเสมอ) */
+.prod-scroll tbody[data-slide] {
+  will-change: transform;
+}
+.prod-scroll thead {
+  position: relative;
+  z-index: 10;
+}
+
 /* 🔽 รายการหมวดหน้าคลัง: เลื่อนลงจากปุ่ม (เผยจากบนลงล่าง) + รายการทยอยเข้า (หน่วงด้วย --d) */
 .cat-drop {
   opacity: 0;
