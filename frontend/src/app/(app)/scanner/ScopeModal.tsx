@@ -49,13 +49,13 @@ export function ScopeModal({ ctx, onClose, onSaved }: { ctx: ScannerContext; onC
         </>
       }
     >
-      <label className="mb-3 flex cursor-pointer items-center gap-3 rounded-xl border-2 border-line p-3 font-bold">
+      <label className={`pick-card mb-3 flex cursor-pointer items-center gap-3 font-bold ${auto ? "is-on" : ""}`}>
         <input type="checkbox" className="h-5 w-5 accent-[var(--accent)]" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
         ⚡ AUTO ( ALL STOCKS ) — ระบบหาคลังของสินค้าที่สแกนเอง
       </label>
       <div className="grid gap-2">
         {ctx.stocks.map((s) => (
-          <div key={s.stkId} className={`flex items-center gap-3 rounded-xl border p-3 ${chosen.includes(s.stkId) ? "border-accent bg-surface-2" : "border-line"}`}>
+          <div key={s.stkId} className={`pick-card flex items-center gap-3 ${chosen.includes(s.stkId) ? "is-on" : ""}`}>
             <input type="checkbox" className="h-5 w-5 accent-[var(--accent)]" disabled={auto} checked={chosen.includes(s.stkId)} onChange={() => toggle(s.stkId)} />
             <div className="min-w-0 flex-1">
               <div className="font-extrabold text-primary">{s.code}</div>

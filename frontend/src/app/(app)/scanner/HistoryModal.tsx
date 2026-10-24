@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { SearchBox } from "@/components/ui/Page";
+import { Pager } from "../store/Toolbar";
+import { StatusPill } from "./Pill";
 import { useToast } from "@/components/Toasts";
 import { api, download, upload } from "@/lib/api";
 import { qtyText } from "./types";
@@ -147,18 +150,10 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
         onClose={onClose}
         footer={
           <>
-            <span className="mr-auto self-center text-xs font-bold text-ink-soft">
-              {loading ? "⏳ LOADING..." : `${first.toLocaleString()} - ${lastNo.toLocaleString()} OF ${(data?.total ?? 0).toLocaleString()} RECORDS`}
+            <span className="mr-auto flex items-center gap-2 self-center text-xs font-bold text-ink-soft">
+              {loading && <span className="sc-dot text-accent" />}
+              {loading ? "LOADING..." : `${first.toLocaleString()} - ${lastNo.toLocaleString()} OF ${(data?.total ?? 0).toLocaleString()} RECORDS`}
             </span>
-            <button className="btn-ghost" disabled={page === 0 || loading} onClick={() => load(page - 1)}>
-              ◀ PREV
-            </button>
-            <span className="self-center text-sm font-bold">
-              PAGE {page + 1} / {pages}
-            </span>
-            <button className="btn-ghost" disabled={!data || (page + 1) * data.pageSize >= data.total || loading} onClick={() => load(page + 1)}>
-              NEXT ▶
-            </button>
             <button className="btn bg-success" onClick={() => setExportChoice(true)}>
               📤 EXPORT
             </button>
@@ -166,10 +161,16 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
         }
       >
         <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
-          <input className="field col-span-2" placeholder="🔍 ค้นหา รหัส / ชื่อ / บาร์โค้ด / ผู้ใช้ / EMP ID" value={key} onChange={(e) => setKey(e.target.value)} />
-          <input type="date" className="field" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <input type="date" className="field" value={to} onChange={(e) => setTo(e.target.value)} />
-          <select className="field" value={stkId} onChange={(e) => setStkId(e.target.value)}>
+          <SearchBox className="col-span-2" value={key} onChange={setKey} placeholder="ค้นหา รหัส / ชื่อ / บาร์โค้ด / ผู้ใช้ / EMP ID" />
+          <label className="relative">
+            <span className="hist-cap">FROM</span>
+            <input type="date" className="field !h-10 !pt-3.5 !pb-1" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="relative">
+            <span className="hist-cap">TO</span>
+            <input type="date" className="field !h-10 !pt-3.5 !pb-1" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <select className="field !h-10" value={stkId} onChange={(e) => setStkId(e.target.value)}>
             <option value="">ALL STOCKS</option>
             {data?.stocks.map((s) => (
               <option key={s.stkId} value={s.stkId}>
@@ -177,16 +178,16 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
               </option>
             ))}
           </select>
-          <select className="field" value={type} onChange={(e) => setType(e.target.value)}>
+          <select className="field !h-10" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">ALL TYPES</option>
             <option>IN</option>
             <option>OUT</option>
             <option>RETURN</option>
           </select>
         </div>
-        <div className="overflow-auto rounded-xl border border-line">
+        <div className={`overflow-auto rounded-2xl border border-[#e7e4ef] transition-opacity ${loading ? "opacity-60" : ""}`}>
           <table className="data-table w-full">
-            <thead className="sticky top-0">
+            <thead className="sticky top-0 z-[1]">
               <tr>
                 <th>DATE TIME</th>
                 <th>STOCK</th>
@@ -202,13 +203,17 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             </thead>
             <tbody>
               {data?.rows.map((r, i) => (
-                <tr key={i} className={r.isCancelled ? "text-ink-soft line-through" : ""}>
-                  <td className="whitespace-nowrap text-xs">{r.date}</td>
-                  <td>{r.stockCode}</td>
-                  <td className="whitespace-nowrap">{r.type}</td>
-                  <td className="break-all">{r.code}</td>
+                <tr key={i} className={`sc-row ${r.isCancelled ? "text-ink-soft line-through" : ""}`} style={{ animationDelay: `${Math.min(i, 20) * 14}ms` }}>
+                  <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
+                  <td>
+                    <span className="sc-tag whitespace-nowrap">{r.stockCode}</span>
+                  </td>
+                  <td className="whitespace-nowrap">
+                    <StatusPill status={r.type} />
+                  </td>
+                  <td className="break-all font-extrabold text-primary">{r.code}</td>
                   <td className="min-w-[200px]">{r.partName}</td>
-                  <td className="text-right">{qtyText(r.qty)}</td>
+                  <td className="text-right font-extrabold tabular-nums">{qtyText(r.qty)}</td>
                   <td className="whitespace-nowrap">{r.user}</td>
                   <td>{r.employeeId}</td>
                   <td>{r.department}</td>
@@ -227,19 +232,24 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             </tbody>
           </table>
         </div>
+        {data && pages > 1 && (
+          <div className="mt-4">
+            <Pager page={page} pages={pages} total={data.total} size={data.pageSize} onPage={(p) => !loading && load(p)} />
+          </div>
+        )}
       </Modal>
 
       {/* 📤 เลือกวิธี EXPORT */}
       <Modal open={exportChoice} title="📤 EXPORT" onClose={() => setExportChoice(false)}>
         <p className="mb-4 text-sm font-semibold text-ink-soft">Choose how to export the scan history</p>
         <div className="grid gap-3">
-          <button className="rounded-xl border-2 border-line p-4 text-left hover:border-accent" onClick={exportNormal}>
+          <button className="pick-card" onClick={exportNormal}>
             <div className="font-extrabold text-primary">📤 EXPORT</div>
             <div className="text-sm">Every record of the current filter → a new Excel file</div>
             <div className="text-xs text-ink-soft">date / stock / type / search above</div>
           </button>
           <button
-            className="rounded-xl border-2 border-line p-4 text-left hover:border-accent"
+            className="pick-card"
             onClick={() => {
               setExportChoice(false);
               setRpaChecked([]);
@@ -278,7 +288,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             <label className="text-sm font-extrabold">DAY</label>
             <input
               type="date"
-              className="field w-auto"
+              className="field !w-auto"
               value={rpaDay}
               onChange={(e) => {
                 setRpaDay(e.target.value);
@@ -289,7 +299,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
         )}
         <div className="grid gap-2">
           {rpa?.stocks.map((s) => (
-            <label key={s.stkId} className={`flex gap-3 rounded-xl border p-3 ${s.canExport ? "cursor-pointer border-line" : "border-danger/40 bg-[#ffebee]"}`}>
+            <label key={s.stkId} className={`pick-card flex gap-3 ${s.canExport ? "cursor-pointer" : "is-bad"}`}>
               <input
                 type="checkbox"
                 className="mt-1 h-5 w-5 accent-[var(--accent)]"

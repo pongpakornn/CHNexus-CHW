@@ -6,21 +6,24 @@ import { daysAgo, monthStart, today } from "@/lib/format";
 export function DateRange({ from, to, onChange, quick = true }: { from: string; to: string; onChange: (from: string, to: string) => void; quick?: boolean }) {
   const t = today();
   const btn = (label: string, f: string) => (
-    <button
-      type="button"
-      className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold ${from === f && to === t ? "bg-accent text-white" : "bg-surface-2 text-ink hover:bg-line"}`}
-      onClick={() => onChange(f, t)}
-    >
+    <button type="button" className={`dr-chip ${from === f && to === t ? "is-on" : ""}`} onClick={() => onChange(f, t)}>
       {label}
     </button>
   );
+  // ช่วงวันที่: กล่องเดียว [ปฏิทิน | จาก → ถึง] + ปุ่มลัด (เลือกอยู่ = ม่วง)
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <input type="date" className="field w-auto" value={from} onChange={(e) => onChange(e.target.value, to)} />
-      <span className="text-xs font-bold text-ink-soft">TO</span>
-      <input type="date" className="field w-auto" value={to} onChange={(e) => onChange(from, e.target.value)} />
+      <div className="dr-box">
+        <svg viewBox="0 0 24 24" className="size-4 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="4" width="18" height="17" rx="3" />
+          <path d="M3 9h18M8 2v4M16 2v4" />
+        </svg>
+        <input type="date" className="dr-input" value={from} onChange={(e) => onChange(e.target.value, to)} aria-label="From" />
+        <span className="text-xs font-black text-ink-soft">→</span>
+        <input type="date" className="dr-input" value={to} onChange={(e) => onChange(from, e.target.value)} aria-label="To" />
+      </div>
       {quick && (
-        <div className="flex flex-wrap gap-1">
+        <div className="dr-chips">
           {btn("TODAY", t)}
           {btn("7 DAYS", daysAgo(6))}
           {btn("THIS MONTH", monthStart())}

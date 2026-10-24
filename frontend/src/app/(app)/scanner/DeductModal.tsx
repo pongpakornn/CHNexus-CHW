@@ -157,9 +157,9 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
         {!rows ? (
           <Loading />
         ) : (
-          <div className="overflow-auto rounded-xl border border-line">
+          <div className="overflow-auto rounded-2xl border border-[#e7e4ef]">
             <table className="data-table w-full">
-              <thead className="sticky top-0">
+              <thead className="sticky top-0 z-[1]">
                 <tr>
                   <th>
                     <input type="checkbox" checked={allSel} onChange={(e) => setSel(e.target.checked ? all.map((r) => r.missId) : [])} />
@@ -329,7 +329,7 @@ function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void
         </>
       }
     >
-      <div className="mb-3 rounded-xl bg-surface-2 p-3 text-xs font-semibold">
+      <div className="mb-3 rounded-2xl border border-[#ebe7f4] bg-[linear-gradient(145deg,#faf9fd,#f3f0fa)] p-3 text-xs font-semibold">
         <div>
           {row.date} • {row.userId} • {row.reasonText}
         </div>

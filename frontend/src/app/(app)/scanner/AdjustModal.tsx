@@ -9,6 +9,7 @@ import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
 import { api } from "@/lib/api";
 import { daysAgo, qty, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
+import { StatusPill } from "./Pill";
 
 type Row = {
   txId: number;
@@ -147,7 +148,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
       <p className="mb-3 text-sm font-semibold text-ink-soft">แก้จำนวน / ลบรายการสแกน — ยอดคลังปรับย้อนให้อัตโนมัติ รายการที่ลบยังเก็บไว้ (CANCELLED) พร้อมหมายเหตุ</p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox className="min-w-[220px] flex-1" value={key} onChange={setKey} placeholder="ค้นหา รหัส / ชื่อ / ผู้ใช้" />
-        <select className="field w-auto" value={stkId} onChange={(e) => setStkId(e.target.value)}>
+        <select className="field !h-10 !w-auto" value={stkId} onChange={(e) => setStkId(e.target.value)}>
           <option value="">ALL STOCKS</option>
           {data?.stocks.map((s) => (
             <option key={s.stkId} value={s.stkId}>
@@ -155,7 +156,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
             </option>
           ))}
         </select>
-        <select className="field w-auto" value={type} onChange={(e) => setType(e.target.value)}>
+        <select className="field !h-10 !w-auto" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">ALL TYPES</option>
           <option>IN</option>
           <option>OUT</option>
@@ -166,9 +167,9 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
       {!data ? (
         <Loading />
       ) : (
-        <div className="overflow-auto rounded-xl border border-line">
+        <div className="overflow-auto rounded-2xl border border-[#e7e4ef]">
           <table className="data-table w-full">
-            <thead className="sticky top-0">
+            <thead className="sticky top-0 z-[1]">
               <tr>
                 <th>
                   <input
@@ -190,7 +191,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.txId} className={r.isCancel ? "text-ink-soft line-through" : ""}>
+                <tr key={r.txId} className={`${r.isCancel ? "text-ink-soft line-through" : ""} ${sel.includes(r.txId) ? "!bg-[#f3eefd]" : ""}`}>
                   <td>
                     <input
                       type="checkbox"
@@ -199,14 +200,18 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
                       onChange={(e) => setSel((s) => (e.target.checked ? [...s, r.txId] : s.filter((x) => x !== r.txId)))}
                     />
                   </td>
-                  <td className="whitespace-nowrap text-xs">{r.date}</td>
-                  <td>{r.stockCode}</td>
-                  <td>{r.txType}</td>
+                  <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
                   <td>
-                    <div>{r.partCode}</div>
+                    <span className="sc-tag whitespace-nowrap">{r.stockCode}</span>
+                  </td>
+                  <td>
+                    <StatusPill status={r.txType} />
+                  </td>
+                  <td>
+                    <div className="font-extrabold text-primary">{r.partCode}</div>
                     <div className="text-[11px] font-medium text-ink-soft">{r.partName}</div>
                   </td>
-                  <td className="text-right">{qty(r.qty)}</td>
+                  <td className="text-right font-extrabold tabular-nums">{qty(r.qty)}</td>
                   <td className="whitespace-nowrap">{r.user}</td>
                   <td>{r.status && <Badge color={r.isCancel ? "var(--danger)" : "var(--warning)"}>{r.status}</Badge>}</td>
                   <td className="max-w-[240px] text-xs">{r.note}</td>

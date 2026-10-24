@@ -117,12 +117,23 @@ export function Badge({ children, color = "var(--primary)" }: { children: React.
 // ช่องค้นหาแบบมีไอคอน
 export function SearchBox({ value, onChange, placeholder = "ค้นหา...", className = "" }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
   return (
-    <div className={`relative ${className}`}>
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft">🔍</span>
-      <input className="field pl-9" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    <div className={`group relative ${className}`}>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-ink-soft transition-colors group-focus-within:text-accent" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
+      </svg>
+      <input
+        className="field !h-10 !pl-10 !pr-9"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && value && (e.stopPropagation(), onChange(""))}
+      />
       {value && (
-        <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 text-ink-soft hover:bg-surface-2" onClick={() => onChange("")} aria-label="Clear">
-          ×
+        <button type="button" className="search-x absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full bg-[#eeecf3] text-ink-soft transition hover:bg-accent hover:text-white" onClick={() => onChange("")} aria-label="Clear">
+          <svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" aria-hidden>
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
         </button>
       )}
     </div>

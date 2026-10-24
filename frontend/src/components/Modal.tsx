@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 // หน้าต่างกลางจอ (แทน Window.ShowDialog ของ WPF) - Esc = ปิด
+//   พื้นหลังเบลอ · การ์ดเด้งเข้า / จางออกตอนปิด · หัวไล่สีเข้ม + เส้นม่วง · มือถือ = แผ่นเลื่อนขึ้นจากล่าง
 export function Modal({
   open,
   title,
@@ -18,6 +19,18 @@ export function Modal({
   footer?: React.ReactNode;
   wide?: boolean;
 }) {
+  // ปิดแล้วยังวาดค้างไว้ 180 ms ให้เล่นอนิเมชันจางออก (เนื้อหาเดิมจำไว้ระหว่างนั้น)
+  const [shown, setShown] = useState(open);
+  const [last, setLast] = useState({ title, children, footer });
+  if (open && !shown) setShown(true);
+  if (open && (last.title !== title || last.children !== children || last.footer !== footer)) setLast({ title, children, footer });
+
+  useEffect(() => {
+    if (open || !shown) return;
+    const t = setTimeout(() => setShown(false), 180);
+    return () => clearTimeout(t);
+  }, [open, shown]);
+
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -25,23 +38,26 @@ export function Modal({
     return () => window.removeEventListener("keydown", k);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!shown) return null;
+  const view = open ? { title, children, footer } : last;
   return (
-    <div className="modal-bg fixed inset-0 z-[90] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" onMouseDown={onClose}>
+    <div className={`modal-bg fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-4 ${open ? "" : "is-leaving pointer-events-none"}`} onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
-        className={`modal-in flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-2xl sm:rounded-2xl ${wide ? "sm:max-w-6xl" : "sm:max-w-lg"}`}
+        className={`modal-in flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[22px] bg-surface sm:rounded-[22px] ${wide ? "sm:max-w-6xl" : "sm:max-w-lg"}`}
       >
-        <div className="flex items-center justify-between bg-primary px-5 py-3 text-white">
-          <div className="text-base font-extrabold uppercase tracking-wide">{title}</div>
-          <button onClick={onClose} className="rounded-md px-2 text-xl font-bold hover:bg-white/15" aria-label="Close">
-            ×
+        <div className="modal-head flex items-center justify-between gap-3 px-5 py-3.5 text-white">
+          <div className="min-w-0 truncate text-base font-extrabold uppercase tracking-wide">{view.title}</div>
+          <button onClick={onClose} className="modal-x shrink-0" aria-label="Close">
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden>
+              <path d="M7 7l10 10M17 7L7 17" />
+            </svg>
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-5">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-surface-2 px-5 py-3">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">{view.children}</div>
+        {view.footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#eeecf3] bg-[#faf9fd] px-4 py-3 sm:px-5">{view.footer}</div>}
       </div>
     </div>
   );

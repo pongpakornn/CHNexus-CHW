@@ -55,15 +55,32 @@ body {
   font-family: var(--font-sans);
 }
 
-/* ตารางในหน้าระบบ: ตัวหนาแบบเดิม อ่านง่ายบนจอหน้างาน */
+/* ตารางในหน้าระบบ: ตัวหนาแบบเดิม อ่านง่ายบนจอหน้างาน · หัวไล่สีเข้ม + เส้นม่วงด้านล่าง (ชุดเดียวกับหน้าคลัง) · ชี้แถว = ม่วงจาง */
 .data-table th {
-  @apply bg-primary text-white text-xs font-bold uppercase tracking-wide px-3 py-2 text-left whitespace-nowrap;
+  height: 46px;
+  padding: 0 14px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #55515e 0%, #3f3c47 100%);
+  box-shadow: inset 0 -3px 0 var(--accent);
 }
 .data-table td {
-  @apply px-3 py-2 text-sm font-semibold border-b border-line align-middle;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-bottom: 1px solid #eeecf3;
+  vertical-align: middle;
+}
+.data-table tbody tr {
+  transition: background-color 0.2s ease;
 }
 .data-table tbody tr:hover {
-  @apply bg-surface-2;
+  background: #f8f6fd;
 }
 /* หัวตารางหน้าคลัง: สูงขึ้น ตัวอักษรใหญ่ขึ้น ไล่สีเข้ม + เส้นม่วงด้านล่าง */
 .store-table th {
@@ -77,14 +94,60 @@ body {
   text-shadow: 0 1px 0 rgb(0 0 0 / 0.25);
 }
 
+/* ปุ่ม / ช่องกรอก ทั้งระบบ: มุมมน · ชี้แล้วลอยขึ้น · โฟกัสมีวงแสงม่วง */
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold tracking-wide text-white disabled:opacity-50 disabled:pointer-events-none;
+  box-shadow: 0 6px 14px -8px rgb(20 20 40 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
+  transition: translate 0.2s ease, filter 0.2s ease, box-shadow 0.25s ease, background-color 0.25s ease, scale 0.15s ease;
+}
+.btn:hover {
+  translate: 0 -1px;
+  filter: brightness(1.07);
+  box-shadow: 0 10px 20px -10px rgb(20 20 40 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+.btn:active {
+  scale: 0.97;
 }
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm font-bold text-ink transition hover:bg-surface-2 disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#e2e4f0] bg-surface px-4 py-2 text-sm font-extrabold text-ink disabled:opacity-50 disabled:pointer-events-none;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease, translate 0.2s ease, scale 0.15s ease;
+}
+.btn-ghost:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+  background: #faf8ff;
+  translate: 0 -1px;
+}
+.btn-ghost:active {
+  scale: 0.97;
 }
 .field {
-  @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft;
+  @apply w-full rounded-xl border border-[#e2e4f0] bg-surface px-3.5 py-2 text-sm font-semibold text-ink outline-none;
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease;
+}
+.field:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, #e2e4f0);
+}
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(103 80 164 / 0.12);
+}
+select.field {
+  appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236750a4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 16px;
+}
+input[type="date"].field::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+input[type="date"].field:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
 }
 
 /* 🔔 ปุ่มกระดิ่ง: วงกลมเทาเข้ม · ชี้แล้วกระดิ่งแกว่ง · กดแล้วยุบ */
@@ -1079,6 +1142,505 @@ div.swap-in:has(> .show-strip) {
   z-index: 10;
 }
 
+/* 📷 MULTI-SCANNER: การ์ดเข้าทีละใบ · ปุ่มโหมด (ขอบสี -> พื้นสีเต็มตอนเปิด) · ปุ่มเครื่องมือขาวไอคอนสี · ช่องสแกนเรืองตามสีโหมด
+   --tone = สีโหมดปัจจุบัน (IN เขียว / OUT ม่วงเข้ม / RETURN / REMAINDER / TEST ส้ม) */
+@keyframes sc-in {
+  from { opacity: 0; transform: translateY(12px); }
+}
+@keyframes sc-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+@keyframes sc-pop {
+  0% { transform: scale(0.985); box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone) 45%, transparent); }
+  45% { transform: scale(1.006); }
+  100% { transform: scale(1); box-shadow: 0 0 0 14px transparent; }
+}
+@keyframes sc-num {
+  0% { transform: translateY(14px) scale(0.8); opacity: 0; }
+  60% { transform: translateY(-3px) scale(1.06); opacity: 1; }
+}
+@keyframes sc-banner {
+  from { opacity: 0; transform: translateY(-8px); clip-path: inset(0 0 100% 0 round 14px); }
+  to { clip-path: inset(0 0 0 0 round 14px); }
+}
+@keyframes sc-row {
+  from { opacity: 0; transform: translateX(-10px); background: color-mix(in srgb, var(--tone) 16%, transparent); }
+}
+@keyframes sc-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.sc-card {
+  border-radius: 22px;
+  border: 1px solid #e7e4ef;
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 14px 30px -22px rgb(40 45 110 / 0.32);
+}
+.sc-in {
+  animation: sc-in 0.45s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+.sc-logo {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 60%, white), var(--accent));
+  box-shadow: 0 10px 20px -10px var(--accent);
+  transition: rotate 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.sc-card:hover .sc-logo {
+  rotate: -6deg;
+  scale: 1.06;
+}
+.sc-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: sc-pulse 1.4s ease-in-out infinite;
+}
+.sc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 3px 11px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 13%, transparent);
+  animation: sc-num 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sc-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft, #6b6880);
+}
+.sc-sep {
+  width: 1px;
+  margin: 4px 2px;
+  background: #e7e4ef;
+}
+.sc-mode,
+.sc-tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.3s ease, translate 0.2s ease, scale 0.15s ease;
+}
+.sc-mode {
+  border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent);
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 7%, white);
+}
+.sc-mode.is-on:hover:not(:disabled) {
+  translate: 0 -1px;
+  filter: brightness(1.06);
+}
+.sc-mode:not(.is-on):hover:not(:disabled) {
+  translate: 0 -1px;
+  background: color-mix(in srgb, var(--c) 14%, white);
+  box-shadow: 0 8px 16px -10px var(--c);
+}
+.sc-mode.is-on {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 75%, white), var(--c));
+  box-shadow: 0 10px 22px -10px var(--c), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.sc-tool {
+  border: 1px solid #e4e1ee;
+  color: var(--primary);
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(20 25 60 / 0.05);
+  padding-left: 6px;
+}
+.sc-tool-ic {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  transition: background-color 0.25s ease, color 0.25s ease, rotate 0.3s ease;
+}
+.sc-tool:hover:not(:disabled) {
+  translate: 0 -1px;
+  border-color: color-mix(in srgb, var(--c) 45%, transparent);
+  color: var(--c);
+  box-shadow: 0 10px 18px -12px var(--c);
+}
+.sc-tool:hover:not(:disabled) .sc-tool-ic {
+  color: #fff;
+  background: var(--c);
+  rotate: -8deg;
+}
+.sc-mode:active,
+.sc-tool:active {
+  scale: 0.96;
+}
+.sc-mode:disabled,
+.sc-tool:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sc-badge {
+  min-width: 22px;
+  border-radius: 9999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+  color: #fff;
+  background: var(--c);
+}
+.sc-badge.is-alert {
+  animation: sc-pulse 1.4s ease-in-out infinite;
+}
+.sc-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 70%, white));
+  box-shadow: 0 10px 20px -14px var(--c);
+  animation: sc-banner 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+.sc-banner-ic {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.22);
+}
+.sc-scan {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  border-radius: 16px;
+  border: 2px solid color-mix(in srgb, var(--tone) 55%, #e2e4f0);
+  background: #fff;
+  transition: border-color 0.25s ease, box-shadow 0.3s ease;
+  overflow: hidden;
+}
+.sc-scan:focus-within {
+  border-color: var(--tone);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--tone) 16%, transparent);
+}
+.sc-scan.is-busy::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--tone), transparent);
+  background-size: 200% 100%;
+  animation: sc-shimmer 1s linear infinite;
+}
+.sc-scan.is-off {
+  border-color: color-mix(in srgb, var(--danger) 45%, #e2e4f0);
+  background: #fff7f8;
+}
+.sc-scan-ic {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-left: 14px;
+  color: var(--tone);
+}
+.sc-scan-input {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  padding: 0 12px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink, #1f1d24);
+}
+.sc-ready {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+  border-radius: 9999px;
+  padding: 3px 10px;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 11%, transparent);
+}
+.sc-scan.is-off .sc-ready {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+}
+.sc-stock {
+  display: flex;
+  width: 100%;
+  height: 56px;
+  align-items: center;
+  gap: 12px;
+  border-radius: 16px;
+  padding: 0 14px 0 8px;
+  text-align: left;
+  color: #fff;
+  background: linear-gradient(120deg, #4a4655, #34313b 70%, #45386a);
+  box-shadow: 0 10px 22px -14px rgb(30 25 50 / 0.7), inset 0 -3px 0 var(--accent);
+  transition: translate 0.2s ease, box-shadow 0.3s ease;
+}
+.sc-stock.is-click {
+  cursor: pointer;
+}
+.sc-stock.is-click:hover {
+  translate: 0 -1px;
+  box-shadow: 0 14px 26px -14px rgb(30 25 50 / 0.8), inset 0 -3px 0 var(--accent);
+}
+.sc-stock.is-off {
+  background: linear-gradient(120deg, #e11d48, #be123c);
+  box-shadow: 0 10px 22px -14px #e11d48;
+}
+.sc-stock-ic {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.14);
+}
+.sc-stock-chev {
+  opacity: 0.7;
+  transition: translate 0.25s ease, opacity 0.25s ease;
+}
+.sc-stock.is-click:hover .sc-stock-chev {
+  translate: 3px 0;
+  opacity: 1;
+}
+.sc-last {
+  animation: sc-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+.sc-last.has-scan {
+  animation: sc-pop 0.7s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+.sc-photo {
+  background: linear-gradient(145deg, #f7f5fc, #eeebf6);
+  border: 1px solid #ebe7f4;
+}
+.sc-tag {
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+.sc-qty {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 6%, white), color-mix(in srgb, var(--tone) 14%, white));
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, transparent);
+}
+.sc-qty-num {
+  color: var(--tone);
+}
+.sc-last.has-scan .sc-qty-num {
+  animation: sc-num 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sc-tbl-head {
+  color: var(--primary);
+  border-bottom: 1px solid #eeecf3;
+}
+.sc-card.is-test .sc-tbl-head {
+  color: #fff;
+  background: linear-gradient(90deg, var(--warning), color-mix(in srgb, var(--warning) 70%, white));
+}
+.sc-tbl-ic {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.sc-card.is-test .sc-tbl-ic {
+  color: #fff;
+  background: rgb(255 255 255 / 0.22);
+}
+.sc-count {
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink-soft, #6b6880);
+  background: #f1eff6;
+}
+.sc-row {
+  animation: sc-row 0.5s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+.sc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
+}
+.sc-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+@media (max-width: 640px) {
+  .sc-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    margin-left: 0;
+  }
+  .sc-tools > * {
+    justify-content: center;
+    min-width: 0;
+  }
+  .sc-mode,
+  .sc-tool {
+    height: 38px;
+    padding: 0 11px;
+    font-size: 11.5px;
+  }
+}
+
+/* 🗂️ การ์ดตัวเลือกในหน้าต่าง (เลือกคลังสแกน / วิธี EXPORT / คลัง RPA): ชี้ = ยกขึ้น ขอบม่วง · เลือกอยู่ = พื้นม่วงอ่อน */
+.pick-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: 16px;
+  border: 1.5px solid #e7e4ef;
+  background: #fff;
+  padding: 14px;
+  text-align: left;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.25s ease, translate 0.2s ease;
+}
+.pick-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 12px 24px -18px var(--accent);
+  translate: 0 -1px;
+}
+.pick-card.is-on {
+  border-color: var(--accent);
+  background: linear-gradient(145deg, #faf8ff, #f1ecfc);
+  box-shadow: 0 0 0 3px rgb(103 80 164 / 0.1);
+}
+.pick-card.is-bad {
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: #fff5f6;
+}
+/* ป้ายเล็กบนช่องวันที่ (FROM / TO) */
+.hist-cap {
+  position: absolute;
+  left: 14px;
+  top: 3px;
+  z-index: 1;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+/* 📅 ช่วงวันที่ (DateRange): กล่องเดียว ปฏิทิน + จาก → ถึง · ปุ่มลัดแบบแถบเลือก */
+.dr-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid #e2e4f0;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.25s ease;
+}
+.dr-box:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, #e2e4f0);
+}
+.dr-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(103 80 164 / 0.12);
+}
+.dr-input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #1f1d24);
+}
+.dr-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.5;
+}
+.dr-chips {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: #f1eff6;
+}
+.dr-chip {
+  border-radius: 9px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft, #6b6880);
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease;
+}
+.dr-chip:hover {
+  color: var(--accent);
+}
+.dr-chip.is-on {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 6px 12px -6px var(--accent);
+}
+
+/* Checkbox ธรรมดาในตาราง / หน้าต่าง: สีม่วงของระบบ */
+.data-table input[type="checkbox"],
+.pick-card input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
 /* 🔽 รายการหมวดหน้าคลัง: เลื่อนลงจากปุ่ม (เผยจากบนลงล่าง) + รายการทยอยเข้า (หน่วงด้วย --d) */
 .cat-drop {
   opacity: 0;
@@ -1248,10 +1810,36 @@ div.swap-in:has(> .show-strip) {
   from { opacity: 0; transform: translateY(24px) scale(0.96); }
 }
 .modal-bg {
+  background: rgb(15 18 30 / 0.42);
+  backdrop-filter: blur(5px);
   animation: modal-bg-in 0.25s ease-out both;
 }
 .modal-in {
-  animation: modal-in 0.35s cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
+  box-shadow: 0 30px 70px -20px rgb(20 20 50 / 0.45);
+  animation: modal-in 0.38s cubic-bezier(0.2, 0.9, 0.25, 1.12) both;
+}
+.modal-bg.is-leaving {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.modal-bg.is-leaving .modal-in {
+  animation: dlg-out 0.18s ease both;
+}
+.modal-head {
+  background: linear-gradient(120deg, #4a4655 0%, #3a3742 60%, #4b3d73 100%);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.modal-x {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  transition: background-color 0.2s ease, rotate 0.3s ease;
+}
+.modal-x:hover {
+  background: rgb(255 255 255 / 0.16);
+  rotate: 90deg;
 }
 
 /* Checkbox: กรอบค่อยๆ หายแล้ววาดเครื่องหมายถูกสีฟ้า */
@@ -1467,6 +2055,15 @@ div.swap-in:has(> .show-strip) {
   .pg-btn,
   .pg-btn::before,
   .pg-btn::after,
+  .sc-in,
+  .sc-last,
+  .sc-last.has-scan,
+  .sc-last.has-scan .sc-qty-num,
+  .sc-row,
+  .sc-banner,
+  .sc-chip,
+  .sc-dot,
+  .sc-badge.is-alert,
   .stk-head,
   .back-btn:hover .back-ic svg,
   .dlg-bg,
