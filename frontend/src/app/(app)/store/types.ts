@@ -88,9 +88,6 @@ export function cardTone(s: string) {
   const green = s === "NORMAL_GOOD" || s === "OVER_MAX" || s === "NORMAL";
   return {
     bg: red ? "#ffebee" : green ? "#e8f5e9" : "#faf9fc",
-    // พื้นจาง ๆ ไล่สี (โทนเดียวกับการ์ด MAX / MIN ด้านบน)
-    soft: red ? "#ffedf0" : green ? "#ebf6ec" : "#f4f2f7",
-    soft2: red ? "#fffafa" : green ? "#f9fcf9" : "#fcfbfd",
     line: red ? "#e53935" : s === "OVER_MAX" ? "#2e7d32" : green ? "#43a047" : "#c9c3d3",
     label: red ? "LOW STOCK" : s === "OVER_MAX" ? "OVER MAX" : green ? "NORMAL" : "NO MAX-MIN",
   };

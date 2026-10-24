@@ -129,7 +129,7 @@ function Gauge({ p, look }: { p: Product; look: Look }) {
   const c = STATUS_COLOR(p.stockStatus);
   return (
     <div className="mt-2 pr-[118px]" title={`STOCK ${cur.toLocaleString()} / MIN ${min.toLocaleString()} / MAX ${max.toLocaleString()}`}>
-      <div className="relative h-2 overflow-hidden rounded-full bg-white/80 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.04)]">
+      <div className="relative h-2 overflow-hidden rounded-full bg-[#eef0f6]">
         <div className="gauge-fill absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(pct, cur > 0 ? 3 : 0)}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${c} 55%, white), ${c})` }} />
         {min > 0 && min < max && <span className="absolute inset-y-0 w-0.5 bg-[#2d2a32]/45" style={{ left: `${(min / max) * 100}%` }} />}
       </div>
@@ -150,10 +150,13 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
       className="show-card relative flex h-[244px] shrink-0 flex-col overflow-hidden rounded-[22px] p-4"
       style={{
         width: look.width,
-        background: `linear-gradient(135deg, #ffffff 0%, ${tone.soft2} 45%, ${tone.soft} 100%)`,
-        borderColor: `color-mix(in srgb, ${tone.line} 30%, #ece6f5)`,
-      }}
+        // พื้นขาว + แสงจาง ๆ สีสถานะที่มุมขวาบน (ใต้สัญญาณไฟ) + แถบสีสถานะด้านบน
+        background: `radial-gradient(90% 75% at 100% 0%, color-mix(in srgb, ${tone.line} 11%, transparent), transparent 70%), #ffffff`,
+        borderColor: "#e7e4ef",
+        "--tone": tone.line,
+      } as React.CSSProperties}
     >
+      <div className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${tone.line}, color-mix(in srgb, ${tone.line} 35%, white))` }} />
       {/* ภาพประจำการ์ด: รูปสินค้า (แบบ IMAGE) หรือภาพตามประเภทคลัง */}
       <div className="show-art pointer-events-none absolute right-3 top-6 grid h-[112px] w-[112px] place-items-center">
         {photo ? (
@@ -196,15 +199,19 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
             const [main, sub] = splitLabel(st.label);
             const t = TILE[st.kind];
             return (
-              <div key={st.kind} className="show-tile min-w-0 rounded-[14px] bg-white/90 px-2 pb-1.5 pt-2 shadow-[0_6px_16px_-12px_rgb(60_40_120/0.45)]">
-                <div className="flex items-center gap-1.5">
+              <div
+                key={st.kind}
+                className="show-tile flex min-w-0 flex-col items-center rounded-[14px] px-2 pb-2 pt-2"
+                style={{ background: `linear-gradient(180deg, #ffffff, ${t.soft})`, border: `1px solid color-mix(in srgb, ${t.color} 14%, transparent)` }}
+              >
+                <div className="flex max-w-full items-center justify-center gap-1.5">
                   <TileIcon kind={st.kind} coil={look.coil} unit={look.unit} />
-                  <span className="flex min-w-0 flex-col text-[10.5px] font-extrabold leading-[1.15]" style={{ color: t.color }} title={st.label}>
+                  <span className="flex min-w-0 flex-col text-center text-[10.5px] font-extrabold leading-[1.15]" style={{ color: t.color }} title={st.label}>
                     <span className="truncate">{main}</span>
                     {sub && <span className="truncate text-[9px] font-bold opacity-75">{sub}</span>}
                   </span>
                 </div>
-                <div className="mt-1 truncate text-center text-[21px] font-black tabular-nums leading-none" style={{ color: t.color }}>
+                <div className="mt-1.5 w-full truncate text-center text-[21px] font-black tabular-nums leading-none" style={{ color: t.color }}>
                   {st.get(p) || "-"}
                 </div>
               </div>

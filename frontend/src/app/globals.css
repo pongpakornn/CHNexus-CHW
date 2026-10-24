@@ -419,7 +419,7 @@ body {
 }
 .show-card:hover {
   translate: 0 -4px;
-  box-shadow: 0 2px 4px rgb(40 30 90 / 0.06), 0 22px 36px -22px rgb(60 40 130 / 0.5);
+  box-shadow: 0 2px 4px rgb(40 30 90 / 0.06), 0 22px 36px -22px color-mix(in srgb, var(--tone, #6d4fd1) 55%, transparent);
 }
 .show-card:hover::after {
   translate: 110% 0;
