@@ -37,7 +37,7 @@ const TILE: Record<Kind, { color: string; soft: string }> = {
 };
 
 function TileIcon({ kind, coil, unit }: { kind: Kind; coil: boolean; unit: string }) {
-  const img = coil && kind === "MAX" ? "coil-max" : coil && kind === "MIN" ? "coil-min" : kind === "QTY" && unit === "KG" ? "kg" : "";
+  const img = coil && kind === "MAX" ? "coil-max" : coil && kind === "MIN" ? "coil-min" : coil && kind === "BOX" ? "coil-stock" : kind === "QTY" && unit === "KG" ? "kg" : "";
   // eslint-disable-next-line @next/next/no-img-element
   if (img) return <img src={IMG + img + ".webp"} alt="" className="tile-ic h-[26px] w-[26px] shrink-0 object-contain" draggable={false} />;
   const d: Record<Kind, React.ReactNode> = {
@@ -82,7 +82,6 @@ type Look = {
   coil: boolean;
   pic: boolean;
   art: string;
-  artTile: string | null;
   tint: string;
   unit: string;
   basis: Kind | null;
@@ -94,7 +93,7 @@ type Look = {
   colName: boolean;
 };
 
-// หน้าตาการ์ดตามประเภทคลัง (STOCK TYPE) - Material = ภาพม้วน Coil + ไอคอน Coil · ประเภทอื่น = ไอคอนประเภทในกรอบสีประจำคลัง
+// หน้าตาการ์ดตามประเภทคลัง (STOCK TYPE) - ภาพใหญ่ = ไอคอนประเภทคลังไล่สีประจำคลัง (แบบการ์ดคลังหน้า Store) · Material = ไอคอนช่องเป็นม้วน Coil
 function lookOf(s: Stock): Look {
   const stats = statsOf(s);
   const coil = s.stockType === "MATERIAL" || (!s.stockType && s.countCoil);
@@ -106,8 +105,7 @@ function lookOf(s: Stock): Look {
     stats,
     coil,
     pic: s.cardStyle === "IMAGE",
-    art: coil ? IMG + "coil-art.webp" : (type?.icon ?? typeIcon),
-    artTile: coil ? null : tint,
+    art: type?.icon ?? typeIcon,
     tint,
     unit,
     basis,
@@ -131,7 +129,7 @@ function Gauge({ p, look }: { p: Product; look: Look }) {
   const c = STATUS_COLOR(p.stockStatus);
   return (
     <div className="mt-2 pr-[118px]" title={`STOCK ${cur.toLocaleString()} / MIN ${min.toLocaleString()} / MAX ${max.toLocaleString()}`}>
-      <div className="relative h-2 overflow-hidden rounded-full bg-[#ebe6f3]">
+      <div className="relative h-2 overflow-hidden rounded-full bg-white/80 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.04)]">
         <div className="gauge-fill absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(pct, cur > 0 ? 3 : 0)}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${c} 55%, white), ${c})` }} />
         {min > 0 && min < max && <span className="absolute inset-y-0 w-0.5 bg-[#2d2a32]/45" style={{ left: `${(min / max) * 100}%` }} />}
       </div>
@@ -152,7 +150,7 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
       className="show-card relative flex h-[244px] shrink-0 flex-col overflow-hidden rounded-[22px] p-4"
       style={{
         width: look.width,
-        background: `linear-gradient(135deg, #ffffff 0%, color-mix(in srgb, ${look.tint} 9%, white) 52%, color-mix(in srgb, #ec4899 7%, white) 100%)`,
+        background: `linear-gradient(135deg, #ffffff 0%, ${tone.soft2} 45%, ${tone.soft} 100%)`,
         borderColor: `color-mix(in srgb, ${tone.line} 30%, #ece6f5)`,
       }}
     >
@@ -161,14 +159,17 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.imageUrl!} alt="" loading="lazy" decoding="async" className="h-[104px] w-[104px] rounded-2xl bg-white object-contain p-1 shadow-[0_8px_20px_-12px_rgb(60_40_120/0.5)]" draggable={false} />
-        ) : look.artTile ? (
-          <span className="grid h-[84px] w-[84px] place-items-center rounded-[24px] opacity-90" style={{ background: `linear-gradient(145deg, color-mix(in srgb, ${look.artTile} 55%, white), ${look.artTile})`, boxShadow: `0 14px 26px -14px ${look.artTile}` }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={look.art} alt="" className="h-[52px] w-[52px] object-contain" draggable={false} />
-          </span>
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={look.art} alt="" className="h-[112px] w-[112px] object-contain opacity-80" draggable={false} />
+          <span
+            aria-hidden
+            className="h-[100px] w-[100px] opacity-85"
+            style={{
+              background: `linear-gradient(145deg, color-mix(in srgb, ${look.tint} 55%, white), ${look.tint})`,
+              WebkitMask: `url(${look.art}) center / contain no-repeat`,
+              mask: `url(${look.art}) center / contain no-repeat`,
+              filter: `drop-shadow(0 8px 10px color-mix(in srgb, ${look.tint} 35%, transparent))`,
+            }}
+          />
         )}
       </div>
       {look.useMaxMin && <StatusLamp status={p.stockStatus} size={22} className="!absolute right-3 top-3 z-[1]" />}
