@@ -7,6 +7,7 @@ import { Badge, Empty, Loading, PageBody, PageHeader } from "@/components/ui/Pag
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { StatCards, type CoilSum } from "./StatCards";
+import { ActionMenu, type MenuAction } from "./ActionMenu";
 import { ShowCards } from "./ShowCards";
 import { StatusLamp } from "./StatusLamp";
 import { CategoryPicker, SearchField } from "./Toolbar";
@@ -72,6 +73,9 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const [closing, setClosing] = useState<Set<number>>(new Set());
   const [loop, setLoop] = useState(false);
   const [busy, setBusy] = useState(false);
+  // เปลี่ยนตัวกรอง (การ์ด MAX / MIN / ... / หมวด / ค้นหา): ระหว่างโหลด = ตารางจางลง (out) -> ได้ข้อมูล = แถวทยอยเลื่อนเข้า (in)
+  const [swap, setSwap] = useState<"idle" | "out" | "in">("idle");
+  const swapT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const k = useDebounced(key, 500);
   const tokenRef = useRef<string | null>(null);
   const liveRef = useRef<Live | null>(null);
@@ -118,10 +122,19 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     async (keep = 0) => {
       const v = ++verRef.current;
       const take = loadAll ? 100000 : Math.max(PAGE, keep);
+      if (!keep && rowsRef.current) {
+        clearTimeout(swapT.current);
+        setSwap("out");
+      }
       try {
         const r = await query(0, take);
         if (v !== verRef.current) return;
         setRows(r.rows);
+        if (!keep) {
+          setSwap("in");
+          clearTimeout(swapT.current);
+          swapT.current = setTimeout(() => setSwap("idle"), 900);
+        }
         setMore(!loadAll && r.rows.length >= take);
         tokenRef.current = r.token;
       } catch (e) {
@@ -643,6 +656,50 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
       </Fragment>
     ));
 
+  const menu: MenuAction[] = [
+    {
+      key: "export",
+      title: "EXPORT EXCEL",
+      detail: `ส่งออกรายการสินค้าของคลัง ${s.code} เป็นไฟล์ Excel ตามที่กรองอยู่ตอนนี้ (สถานะ / ${meta.groupLabel} / คำค้นหา)`,
+      color: "#16a34a",
+      icon: "export",
+      onClick: () => download(`/store/${stkId}/export`, { key: k, cat, filter }).catch((e) => toast.show("ERROR", e.message, "error")),
+    },
+    ...(meta.canImport
+      ? ([
+          {
+            key: "import",
+            title: busy ? "IMPORTING..." : "IMPORT EXCEL",
+            detail: `นำเข้าไฟล์ Excel (.xlsx) เพื่อเพิ่ม / แก้ไขสินค้า${s.countCoil && meta.hasCoilRegister ? " หรือ COIL LIST" : ""} ของคลัง ${s.code} · ระบบแสดงสรุปให้ยืนยันก่อนบันทึกทุกครั้ง`,
+            color: "#2563eb",
+            icon: "import",
+            busy,
+            onClick: () => fileRef.current?.click(),
+          },
+          {
+            key: "template",
+            title: "TEMPLATE",
+            detail: `สร้างไฟล์ Template สำหรับ IMPORT EXCEL ของคลัง ${s.code} · คอลัมน์ตามที่หน้านี้แสดง พร้อมข้อมูลสินค้าปัจจุบัน`,
+            color: "#7c3aed",
+            icon: "template",
+            onClick: () => template(false),
+          },
+          ...(s.countCoil && meta.hasCoilRegister
+            ? [
+                {
+                  key: "coil",
+                  title: "COIL TEMPLATE",
+                  detail: `สร้างไฟล์ Template สำหรับนำเข้า COIL LIST ของคลัง ${s.code} · กรอก PRODUCT CODE / MASTER COIL / COIL NO / WEIGHT (KG.) ของ Coil ลูกแต่ละม้วน`,
+                  color: "#ea580c",
+                  icon: "coil",
+                  onClick: () => template(true),
+                },
+              ]
+            : []),
+        ] as MenuAction[])
+      : []),
+  ];
+
   const filterBtn = (f: string) => () => setFilter((cur) => (cur === f ? "" : f));
   const info = `${s.code} • ${s.name} • UNIT : ${s.unitDisplay}`;
 
@@ -668,34 +725,19 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         }
         actions={
           <>
-            <button className="btn bg-success" onClick={() => download(`/store/${stkId}/export`, { key: k, cat, filter }).catch((e) => toast.show("ERROR", e.message, "error"))}>
-              📤 EXPORT EXCEL
-            </button>
+            <ActionMenu actions={menu} />
             {meta.canImport && (
-              <>
-                <button className="btn bg-info" disabled={busy} onClick={() => fileRef.current?.click()}>
-                  {busy ? "⏳ IMPORTING..." : "📥 IMPORT EXCEL"}
-                </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (f) doImport(f);
-                  }}
-                />
-                <button className="btn-ghost" onClick={() => template(false)}>
-                  📄 TEMPLATE
-                </button>
-                {s.countCoil && meta.hasCoilRegister && (
-                  <button className="btn-ghost" onClick={() => template(true)}>
-                    📄 COIL TEMPLATE
-                  </button>
-                )}
-              </>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) doImport(f);
+                }}
+              />
             )}
           </>
         }
@@ -738,11 +780,15 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         </div>
       </div>
 
-      {cards && rows && rows.length > 0 && <ShowCards rows={rows} stock={s} speed={speed} />}
+      {cards && rows && rows.length > 0 && (
+        <div className={`swap-${swap}`}>
+          <ShowCards rows={rows} stock={s} speed={speed} />
+        </div>
+      )}
 
       <div
         ref={scrollRef}
-        className={`overflow-auto rounded-2xl border border-line/60 bg-surface shadow-sm ${production ? "max-h-[75vh] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "max-h-[calc(100dvh-330px)] min-h-[320px]"}`}
+        className={`swap-${swap} overflow-auto rounded-2xl border border-line/60 bg-surface shadow-sm ${production ? "max-h-[75vh] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "max-h-[calc(100dvh-330px)] min-h-[320px]"}`}
       >
         {!rows ? (
           <Loading />

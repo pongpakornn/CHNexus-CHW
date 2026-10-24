@@ -530,6 +530,228 @@ body {
   box-shadow: inset 0 0 0 1px #e2d9f7;
 }
 
+/* 🔀 เปลี่ยนตัวกรองหน้าคลัง: ระหว่างโหลดจางลง -> ข้อมูลใหม่ทยอยเลื่อนเข้า (เฉพาะ 30 แถวแรก ที่เหลืออยู่นอกจอ ไม่ต้องเสียแรง) */
+.swap-out {
+  opacity: 0.45;
+  filter: saturate(0.6);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+.swap-in {
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+@keyframes swap-row {
+  from { opacity: 0; transform: translateY(10px); }
+}
+@keyframes swap-fade {
+  from { opacity: 0; transform: translateY(8px); }
+}
+.swap-in tbody tr:nth-child(-n + 30) {
+  animation: swap-row 0.42s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+.swap-in tbody tr:nth-child(2) { animation-delay: 44ms; }
+.swap-in tbody tr:nth-child(3) { animation-delay: 66ms; }
+.swap-in tbody tr:nth-child(4) { animation-delay: 88ms; }
+.swap-in tbody tr:nth-child(5) { animation-delay: 110ms; }
+.swap-in tbody tr:nth-child(6) { animation-delay: 132ms; }
+.swap-in tbody tr:nth-child(7) { animation-delay: 154ms; }
+.swap-in tbody tr:nth-child(8) { animation-delay: 176ms; }
+.swap-in tbody tr:nth-child(9) { animation-delay: 198ms; }
+.swap-in tbody tr:nth-child(10) { animation-delay: 220ms; }
+.swap-in tbody tr:nth-child(11) { animation-delay: 242ms; }
+.swap-in tbody tr:nth-child(12) { animation-delay: 264ms; }
+.swap-in tbody tr:nth-child(13) { animation-delay: 286ms; }
+.swap-in tbody tr:nth-child(14) { animation-delay: 308ms; }
+.swap-in tbody tr:nth-child(15) { animation-delay: 330ms; }
+.swap-in tbody tr:nth-child(16) { animation-delay: 352ms; }
+.swap-in tbody tr:nth-child(17) { animation-delay: 374ms; }
+.swap-in tbody tr:nth-child(18) { animation-delay: 396ms; }
+.swap-in tbody tr:nth-child(19) { animation-delay: 418ms; }
+.swap-in tbody tr:nth-child(20) { animation-delay: 440ms; }
+.swap-in tbody tr:nth-child(21) { animation-delay: 462ms; }
+.swap-in tbody tr:nth-child(22) { animation-delay: 484ms; }
+.swap-in tbody tr:nth-child(23) { animation-delay: 506ms; }
+.swap-in tbody tr:nth-child(24) { animation-delay: 528ms; }
+.swap-in tbody tr:nth-child(25) { animation-delay: 550ms; }
+.swap-in tbody tr:nth-child(26) { animation-delay: 572ms; }
+.swap-in tbody tr:nth-child(27) { animation-delay: 594ms; }
+.swap-in tbody tr:nth-child(28) { animation-delay: 616ms; }
+.swap-in tbody tr:nth-child(29) { animation-delay: 638ms; }
+.swap-in tbody tr:nth-child(30) { animation-delay: 660ms; }
+div.swap-in:has(> .show-strip) {
+  animation: swap-fade 0.45s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+/* 🎛️ เมนูวงกลม Excel (EXPORT / IMPORT / TEMPLATE / COIL TEMPLATE): กางเป็นเสี้ยววงกลมซ้าย-ล่าง · ชี้รายการ = ยกออก + การ์ดดำอธิบาย */
+.rm-caption {
+  transition: opacity 0.25s ease, translate 0.3s ease;
+}
+.rm.is-open .rm-caption {
+  opacity: 0;
+  translate: 8px 0;
+}
+.rm-fab {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 8px 18px -6px rgb(29 78 216 / 0.55);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.3s ease;
+}
+.rm-fab:hover {
+  box-shadow: 0 10px 22px -6px rgb(29 78 216 / 0.65);
+}
+.rm-fab:active {
+  transform: scale(0.92);
+}
+.rm.is-open .rm-fab {
+  transform: scale(0.92);
+  background: linear-gradient(145deg, #1d4ed8, #1e3a8a);
+}
+.rm-fab-ic {
+  width: 30px;
+  height: 30px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.rm-fab:hover .rm-fab-ic {
+  transform: scale(1.1);
+}
+.rm-item {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 50px;
+  height: 50px;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(0, 0) scale(0.4);
+  transition: transform 0.3s ease, opacity 0.2s ease, visibility 0s linear 0.3s;
+}
+.rm.is-open .rm-item {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(var(--dx), var(--dy)) scale(1);
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d), opacity 0.25s ease var(--d), visibility 0s linear 0s;
+}
+.rm.is-open .rm-item:hover,
+.rm.is-open .rm-item:focus-within {
+  z-index: 5;
+  transform: translate(calc(var(--dx) * 1.18), calc(var(--dy) * 1.18)) scale(1.15);
+  transition-delay: 0s;
+}
+.rm.is-open:has(.rm-item:hover) .rm-item:not(:hover) {
+  opacity: 0.45;
+}
+.rm-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: #fff;
+  color: var(--c);
+  box-shadow: 2px 2px 10px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(15 30 60 / 0.06);
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+.rm-item:hover .rm-btn,
+.rm-btn:focus-visible {
+  background: var(--c);
+  color: #fff;
+  box-shadow: 0 12px 22px -4px color-mix(in srgb, var(--c) 55%, transparent);
+  outline: none;
+}
+.rm-btn:disabled {
+  opacity: 0.6;
+}
+.rm-ic {
+  width: 20px;
+  height: 20px;
+}
+.rm-tray {
+  width: 18px;
+  height: 5px;
+  border: 2px solid currentColor;
+  border-top: 0;
+}
+.rm-item:hover .rm-ic {
+  animation: rm-slide 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+@keyframes rm-slide {
+  from { translate: 0 -10px; opacity: 0; }
+}
+.rm-tip {
+  position: absolute;
+  width: 250px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #0f1115;
+  color: #fff;
+  text-align: left;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 0.28), 0 0 0 1px rgb(255 255 255 / 0.08);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.rm-tip::before {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #0f1115;
+  rotate: 45deg;
+}
+.rm-tip b {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--c) 45%, white);
+}
+.rm-tip p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #c3c9d2;
+}
+.rm-item.is-left .rm-tip {
+  right: calc(100% + 16px);
+  top: 50%;
+  transform: translate(10px, -50%);
+}
+.rm-item.is-left .rm-tip::before {
+  right: -5px;
+  top: calc(50% - 5px);
+}
+.rm-item.is-bottom .rm-tip {
+  top: calc(100% + 16px);
+  right: -2px;
+  transform: translate(0, -10px);
+}
+.rm-item.is-bottom .rm-tip::before {
+  top: -5px;
+  right: 22px;
+}
+.rm-item:hover .rm-tip,
+.rm-item:focus-within .rm-tip {
+  opacity: 1;
+}
+.rm-item.is-left:hover .rm-tip,
+.rm-item.is-left:focus-within .rm-tip {
+  transform: translate(0, -50%);
+}
+.rm-item.is-bottom:hover .rm-tip,
+.rm-item.is-bottom:focus-within .rm-tip {
+  transform: translate(0, 0);
+}
+
 /* 🔽 รายการหมวดหน้าคลัง: เลื่อนลงจากปุ่ม (เผยจากบนลงล่าง) + รายการทยอยเข้า (หน่วงด้วย --d) */
 .cat-drop {
   opacity: 0;
@@ -914,6 +1136,20 @@ body {
   .coil-slide,
   .coil-slide.is-closing {
     animation-duration: 1ms;
+  }
+  .swap-in tbody tr,
+  div.swap-in:has(> .show-strip),
+  .rm-item:hover .rm-ic {
+    animation: none;
+  }
+  .rm-item,
+  .rm.is-open .rm-item,
+  .rm-tip,
+  .rm-btn,
+  .rm-fab,
+  .rm-fab-ic {
+    transition-duration: 0.01s;
+    transition-delay: 0s;
   }
   .cat-drop {
     transition: none;
