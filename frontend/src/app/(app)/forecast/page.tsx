@@ -8,6 +8,7 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { useLive } from "@/lib/live";
 
 type Month = { key: string; label: string };
 type Row = { customer: string; partA: string; partNo: string; productName: string; forecast: number; order: number; delivery: number; month: string };
@@ -116,23 +117,20 @@ export default function ForecastPage() {
   }, [more, rows, tableMonth, k]);
 
   // ⚡ เรียลไทม์ (8 วินาที): เครื่องอื่น Import -> โหลดใหม่ (กำลังเลื่อนอ่าน = รอ)
-  useEffect(() => {
-    const t = setInterval(async () => {
-      if (document.hidden || (scrollRef.current?.scrollTop ?? 0) > 2) return;
-      try {
-        const r = await api<{ token: string }>("/forecast/token");
-        if (tokenRef.current && r.token !== tokenRef.current) {
-          await loadMonths();
-          loadRows();
-          loadTop();
-        }
-        tokenRef.current = r.token;
-      } catch {
-        /* รอบหน้า */
+  useLive(
+    ["data"],
+    async () => {
+      if ((scrollRef.current?.scrollTop ?? 0) > 2) return;
+      const r = await api<{ token: string }>("/forecast/token");
+      if (tokenRef.current && r.token !== tokenRef.current) {
+        await loadMonths();
+        loadRows();
+        loadTop();
       }
-    }, 8000);
-    return () => clearInterval(t);
-  }, [loadMonths, loadRows, loadTop]);
+      tokenRef.current = r.token;
+    },
+    15000,
+  );
 
   const groups = useMemo(() => {
     const g: { key: string; items: Row[] }[] = [];

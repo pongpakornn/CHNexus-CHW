@@ -6,12 +6,13 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { Empty, Loading, PageBody } from "@/components/ui/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { useLive } from "@/lib/live";
 import { StatCards, type CoilSum } from "./StatCards";
 import { ActionMenu, type MenuAction } from "./ActionMenu";
 import { ShowCards } from "./ShowCards";
 import { StockHeader } from "./StockHeader";
 import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg } from "./TableRows";
-import { CategoryPicker, SearchField } from "./Toolbar";
+import { CategoryPicker, Pager, SearchField } from "./Toolbar";
 import { type Counts, type Product, type Stock } from "./types";
 
 type Meta = {
@@ -58,7 +59,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [rows, setRows] = useState<Product[] | null>(null);
-  const [more, setMore] = useState(true);
+  const [page, setPage] = useState(0); // หน้าที่แสดง (ละ PAGE รายการ)
   const [key, setKey] = useState("");
   const [cat, setCat] = useState("");
   const [filter, setFilter] = useState(["OVER_MAX", "UNDER_MIN", "NO_ORDER"].includes(initialFilter) ? initialFilter : "");
@@ -83,8 +84,6 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const pauseUntil = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
-  const sentinel = useRef<HTMLDivElement>(null);
-  const loadingMore = useRef(false);
   const verRef = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const rowsRef = useRef<Product[] | null>(null);
@@ -111,39 +110,36 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     }
   }, [stkId, toast, onBack]);
 
+  // ข้อมูลทั้งคลังตามตัวกรองโหลดครั้งเดียว -> ตารางแสดงทีละหน้า (PAGE รายการ) · SHOW CARD / SHOW PRODUCTION วนครบทุกรายการ
   const query = useCallback(
-    (skip: number, take: number) => api<{ token: string | null; rows: Product[] }>(`/store/${stkId}/products`, { query: { key: k, cat, filter, skip, take } }),
+    () => api<{ token: string | null; rows: Product[] }>(`/store/${stkId}/products`, { query: { key: k, cat, filter, skip: 0, take: 100000 } }),
     [stkId, k, cat, filter],
   );
 
-  // SHOW PRODUCTION / SHOW CARD = โหลดทุกรายการ (วนครบทั้งคลัง) · ปกติ = ทีละหน้า
-  const loadAll = production || cards;
-
-  // โหลดใหม่ทั้งชุด (keep = จำนวนแถวที่แสดงอยู่ ใช้ตอนเรียลไทม์โหลดโครงตารางใหม่)
+  // โหลดใหม่ทั้งชุด (keep > 0 = เรียลไทม์โหลดโครงตารางใหม่: อยู่หน้าเดิม ไม่เล่นอนิเมชันเปลี่ยนตัวกรอง)
   const reload = useCallback(
     async (keep = 0) => {
       const v = ++verRef.current;
-      const take = loadAll ? 100000 : Math.max(PAGE, keep);
       if (!keep && rowsRef.current) {
         clearTimeout(swapT.current);
         setSwap("out");
       }
       try {
-        const r = await query(0, take);
+        const r = await query();
         if (v !== verRef.current) return;
         setRows(r.rows);
         if (!keep) {
+          setPage(0);
           setSwap("in");
           clearTimeout(swapT.current);
           swapT.current = setTimeout(() => setSwap("idle"), 900);
         }
-        setMore(!loadAll && r.rows.length >= take);
         tokenRef.current = r.token;
       } catch (e) {
         if (v === verRef.current) toast.show("ERROR", "โหลดข้อมูลคลังไม่สำเร็จ\n" + (e as Error).message, "error");
       }
     },
-    [query, loadAll, toast],
+    [query, toast],
   );
 
   useEffect(() => {
@@ -179,27 +175,6 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     return () => clearTimeout(t);
   }, [showCoils, refreshCoils]);
 
-  // เลื่อนถึงท้ายตาราง -> โหลดเพิ่ม
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !more) return;
-    const io = new IntersectionObserver(async ([e]) => {
-      if (!e.isIntersecting || loadingMore.current || !rows) return;
-      loadingMore.current = true;
-      const v = verRef.current;
-      try {
-        const r = await query(rows.length, PAGE);
-        if (v !== verRef.current) return;
-        setRows((cur) => [...(cur ?? []), ...r.rows]);
-        setMore(r.rows.length >= PAGE);
-      } finally {
-        loadingMore.current = false;
-      }
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [more, rows, query]);
-
   // ⚡ ตัวเลขล่าสุด (ยอด / MAX / MIN / REMARK / สถานะ) - ไม่ทับช่องที่กำลังแก้
   const pullNumbers = useCallback(async () => {
     const r = await api<{ token: string; changed: boolean; counts: Counts; coilSum: CoilSum; rows?: Partial<Product>[] }>(`/store/${stkId}/numbers`, {
@@ -208,40 +183,55 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     tokenRef.current = r.token;
     if (!r.changed || !r.rows) return;
     const map = new Map(r.rows.map((x) => [x.partId, x]));
-    setRows((cur) => cur?.map((p) => (map.has(p.partId) ? { ...p, ...map.get(p.partId) } : p)) ?? cur);
-    setMeta((m) => (m ? { ...m, counts: r.counts, coilSum: r.coilSum } : m));
+    // แทนเฉพาะแถวที่ค่าเปลี่ยนจริง (แถวอื่นคงอ็อบเจกต์เดิม = ไม่วาดใหม่)
+    setRows((cur) => {
+      if (!cur) return cur;
+      let dirty = false;
+      const next = cur.map((p) => {
+        const u = map.get(p.partId);
+        if (!u) return p;
+        for (const f of Object.keys(u) as (keyof Product)[])
+          if (p[f] !== u[f]) {
+            dirty = true;
+            return { ...p, ...u };
+          }
+        return p;
+      });
+      return dirty ? next : cur;
+    });
+    setMeta((m) => (m && (JSON.stringify(m.counts) !== JSON.stringify(r.counts) || JSON.stringify(m.coilSum) !== JSON.stringify(r.coilSum)) ? { ...m, counts: r.counts, coilSum: r.coilSum } : m));
   }, [stkId]);
 
-  // ⚡ เรียลไทม์ทุก 3 วินาที: ตัวเลข + ตั้งค่าคลัง / โครงตาราง / ทะเบียน Coil (StoreMaxMinView.AttachLiveStructure)
-  useEffect(() => {
-    const t = setInterval(async () => {
-      if (document.hidden || editingRef.current || !rowsRef.current) return;
-      try {
-        await pullNumbers();
-        const now = await api<Live>(`/store/${stkId}/live`);
-        const was = liveRef.current;
-        liveRef.current = now;
-        if (!now.stock) return onBack(); // คลังถูกลบ -> กลับหน้าการ์ดคลัง
-        if (!was) return;
-        if (now.settings !== was.settings) {
-          await loadMeta(); // ตั้งค่าคลังเปลี่ยน -> ใช้ค่าล่าสุด (คอลัมน์ / หน่วย / ชื่อ ...)
-          await reload(rowsRef.current?.length ?? 0);
-        } else if (now.structure !== was.structure && !editingRef.current) await reload(rowsRef.current?.length ?? 0);
-        if (now.coils !== was.coils) await refreshCoils();
-      } catch {
-        /* รอบหน้าลองใหม่ */
-      }
-    }, 3000);
-    return () => clearInterval(t);
+  // ⚡ เรียลไทม์ทันที: เซิร์ฟเวอร์แจ้ง "store:{คลัง}" เมื่อตัวเลข / ตั้งค่าคลัง / โครงตาราง / ทะเบียน Coil เปลี่ยน (สแกน / แก้ / ตัด Coil / STORE-PC)
+  //    -> ดึงเฉพาะที่เปลี่ยน (StoreMaxMinView.AttachLiveStructure) · กำลังแก้ช่องอยู่ = รอแก้เสร็จแล้วค่อยดึง (ไม่ทับค่าที่พิมพ์)
+  const liveTick = useCallback(async () => {
+    if (!rowsRef.current) return;
+    // กำลังแก้ช่องอยู่ = รอให้แก้เสร็จก่อน (สูงสุด 60 วินาที) แล้วค่อยดึง -> ไม่พลาดการเปลี่ยนที่เข้ามาระหว่างพิมพ์
+    for (let i = 0; editingRef.current && i < 120; i++) await new Promise((ok) => setTimeout(ok, 500));
+    await pullNumbers();
+    const now = await api<Live>(`/store/${stkId}/live`);
+    const was = liveRef.current;
+    liveRef.current = now;
+    if (!now.stock) return onBack(); // คลังถูกลบ -> กลับหน้าการ์ดคลัง
+    if (!was) return;
+    if (now.settings !== was.settings) {
+      await loadMeta(); // ตั้งค่าคลังเปลี่ยน -> ใช้ค่าล่าสุด (คอลัมน์ / หน่วย / ชื่อ ...)
+      await reload(1);
+    } else if (now.structure !== was.structure && !editingRef.current) await reload(1);
+    if (now.coils !== was.coils) await refreshCoils();
   }, [stkId, pullNumbers, loadMeta, reload, refreshCoils, onBack]);
+  useLive([`store:${stkId}`], liveTick, 10000);
 
-  // 🔁 SHOW PRODUCTION: เลื่อนตารางขึ้นวนไปเรื่อย ๆ แบบป้ายโฆษณา (ไม่กระโดดกลับบนสุด - แถวที่พ้นด้านบนต่อท้ายใหม่)
-  //    หยุดชั่วคราว 5 วินาทีเมื่อผู้ใช้เลื่อน / คลิกตาราง และระหว่างแก้ไขช่อง · ตารางสั้นกว่าหน้าจอ = ไม่เลื่อน
+  // 🔁 SHOW PRODUCTION: เลื่อนตารางขึ้นวนไปเรื่อย ๆ แบบป้ายโฆษณา
+  //    หน้าเดียว = วนต่อเนื่อง (แถวที่พ้นด้านบนต่อท้ายใหม่) · หลายหน้า = เลื่อนจนสุดหน้า -> ไปหน้าถัดไป -> หน้าสุดท้ายแล้วกลับหน้าแรก (ครบทุกรายการ)
+  //    หยุดชั่วคราว 5 วินาทีเมื่อผู้ใช้เลื่อน / คลิกตาราง และระหว่างแก้ไขช่อง
+  const pagesRef = useRef(1);
   useEffect(() => {
     if (!production) return;
     let raf = 0;
     let last = performance.now();
     let pos = -1;
+    let endAt = 0;
     const el = scrollRef.current;
     const touch = () => (pauseUntil.current = performance.now() + 5000);
     el?.addEventListener("wheel", touch, { passive: true });
@@ -250,7 +240,25 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
       const dt = Math.min(0.034, (now - last) / 1000);
       last = now;
       const body = bodyRef.current;
-      if (el && body) {
+      if (el && body && pagesRef.current > 1) {
+        setLoop((cur) => (cur ? false : cur));
+        const max = el.scrollHeight - el.clientHeight;
+        if (!editingRef.current && now > pauseUntil.current) {
+          if (pos < 0 || Math.abs(el.scrollTop - pos) > 2) pos = el.scrollTop;
+          if (max <= 1 || pos >= max - 1) {
+            endAt ||= now;
+            if (now - endAt > (max <= 1 ? 6000 : 1500)) {
+              endAt = 0;
+              pos = 0;
+              el.scrollTop = 0;
+              setPage((cur) => (cur + 1) % pagesRef.current);
+            }
+          } else {
+            pos = Math.min(max, pos + speed * dt);
+            el.scrollTop = pos;
+          }
+        }
+      } else if (el && body) {
         const h = body.offsetHeight;
         const head = (body.previousElementSibling as HTMLElement | null)?.offsetHeight ?? 0;
         const shouldLoop = h + head > el.clientHeight;
@@ -272,16 +280,36 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     };
   }, [production, speed]);
 
+  const pages = Math.max(1, Math.ceil((rows?.length ?? 0) / PAGE));
+  const curPage = Math.min(page, pages - 1);
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
+  const pageRows = useMemo(() => rows?.slice(curPage * PAGE, (curPage + 1) * PAGE) ?? null, [rows, curPage]);
+  // เปลี่ยนหน้า: ขึ้นบนสุดของตาราง + แถวทยอยเลื่อนเข้า
+  const goPage = useCallback((n: number) => {
+    setPage(n);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    clearTimeout(swapT.current);
+    setSwap("in");
+    swapT.current = setTimeout(() => setSwap("idle"), 900);
+  }, []);
+  // จำนวนสินค้าทั้งหมวด (ทุกหน้า) - ป้าย ITEMS ของหัวหมวดไม่ลดตามหน้า
+  const groupTotal = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of rows ?? []) m.set(p.groupKey || "-", (m.get(p.groupKey || "-") ?? 0) + 1);
+    return m;
+  }, [rows]);
   const groups = useMemo(() => {
     const g: { key: string; items: Product[] }[] = [];
-    for (const p of rows ?? []) {
+    for (const p of pageRows ?? []) {
       const gk = p.groupKey || "-";
       const last = g[g.length - 1];
       if (last && last.key === gk) last.items.push(p);
       else g.push({ key: gk, items: [p] });
     }
     return g;
-  }, [rows]);
+  }, [pageRows]);
 
   // ⚡ ค่าคงที่ของแถว: เปลี่ยนเฉพาะตอนตั้งค่าคลังเปลี่ยน (ตัวเลขเรียลไทม์ทุก 3 วินาทีไม่ทำให้ทุกแถววาดใหม่)
   const mStock = meta?.stock;
@@ -488,7 +516,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
               <img src="/images/store/warehouse.webp" alt="" className="size-7" draggable={false} />
               <span className="text-sm font-bold">{meta.groupLabel} :</span>
               <span className="text-[15px] font-extrabold">{g.key}</span>
-              <span className="ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{g.items.length.toLocaleString()} ITEMS</span>
+              <span className="ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{(groupTotal.get(g.key) ?? g.items.length).toLocaleString()} ITEMS</span>
               <span className={`group-chev ml-auto mr-4 ${collapsed.has(g.key) ? "" : "is-open"}`} aria-hidden>
                 <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6 3.5L10.5 8 6 12.5" />
@@ -649,8 +677,9 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
             {production && loop && <tbody aria-hidden>{body(true)}</tbody>}
           </table>
         )}
-        {more && !loadAll && <div ref={sentinel} className="py-4 text-center text-xs text-ink-soft">⏳ LOADING MORE...</div>}
       </div>
+
+      {rows && rows.length > PAGE && <Pager page={curPage} pages={pages} total={rows.length} size={PAGE} onPage={goPage} />}
     </PageBody>
   );
 }

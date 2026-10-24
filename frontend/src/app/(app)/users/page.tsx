@@ -11,6 +11,7 @@ import { PermissionModal } from "./PermissionModal";
 import { SetupModal } from "./SetupModal";
 import type { Can, User } from "./types";
 import { UserEditModal } from "./UserEditModal";
+import { useLive } from "@/lib/live";
 
 const LEVEL_TONE: Record<number, string> = { 1: "var(--danger)", 2: "var(--accent)", 3: "var(--info)" };
 
@@ -51,19 +52,15 @@ export default function UsersPage() {
   }, [load]);
 
   // ⚡ เรียลไทม์ 3 วินาที (คงคำค้นไว้)
-  useEffect(() => {
-    const t = setInterval(async () => {
-      if (document.hidden) return;
-      try {
-        const r = await api<{ token: string }>("/users/token");
-        if (tokenRef.current && r.token !== tokenRef.current) load(true);
-        tokenRef.current = r.token;
-      } catch {
-        /* รอบหน้า */
-      }
-    }, 3000);
-    return () => clearInterval(t);
-  }, [load]);
+  useLive(
+    ["data"],
+    async () => {
+      const r = await api<{ token: string }>("/users/token");
+      if (tokenRef.current && r.token !== tokenRef.current) load(true);
+      tokenRef.current = r.token;
+    },
+    10000,
+  );
 
   // ตรงที่สุดขึ้นก่อน: USER ID ตรงเป๊ะ > ขึ้นต้นด้วยคำค้น > มีคำค้นอยู่ข้างใน
   const list = useMemo(() => {

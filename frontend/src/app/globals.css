@@ -937,6 +937,100 @@ div.swap-in:has(> .show-strip) {
   outline-offset: 2px;
 }
 
+/* 📄 ปุ่มเปลี่ยนหน้า (ดีไซน์ tabs ของนนท์): หน้าที่เลือก = พื้นน้ำเงินเด้งลงมา + จุดลอยใต้ปุ่ม */
+.pg-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding-bottom: 14px;
+}
+.pg-btn {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #cccccc;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--primary);
+  font-weight: 700;
+  line-height: 1.6;
+  transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.pg-btn::before,
+.pg-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  z-index: -1;
+  opacity: 0;
+  scale: 0;
+  transform-origin: 0 0;
+  background-color: #0a3cff;
+}
+.pg-btn::before {
+  top: -24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  transform: translate(-50%, -50%);
+  transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.pg-btn::after {
+  bottom: -32px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  transition: all 0.48s 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.pg-btn:hover:not(:disabled):not(.is-on) {
+  border-color: #0a3cff;
+  color: #0a3cff;
+}
+.pg-btn.is-on {
+  border-color: transparent;
+  color: #fff;
+  scale: 1.1;
+}
+.pg-btn.is-on::before {
+  top: 50%;
+  opacity: 1;
+  scale: 1;
+  box-shadow: 0 6px 13px rgb(10 60 255 / 0.1), 0 24px 24px rgb(10 60 255 / 0.09), 0 55px 33px rgb(10 60 255 / 0.05);
+}
+.pg-btn.is-on::after {
+  bottom: -16px;
+  opacity: 1;
+  scale: 1;
+  box-shadow: 0 6px 13px rgb(10 60 255 / 0.1), 0 24px 24px rgb(10 60 255 / 0.09);
+}
+.pg-nav {
+  font-size: 22px;
+  font-weight: 800;
+}
+.pg-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pg-gap {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 48px;
+  color: var(--ink-soft, #7a7492);
+  font-weight: 800;
+}
+@media (max-width: 480px) {
+  .pg-tabs { gap: 6px; }
+  .pg-btn, .pg-btn::before { width: 38px; height: 38px; border-radius: 10px; }
+  .pg-gap { height: 38px; width: 16px; }
+}
+
 /* 🔽 รายการหมวดหน้าคลัง: เลื่อนลงจากปุ่ม (เผยจากบนลงล่าง) + รายการทยอยเข้า (หน่วงด้วย --d) */
 .cat-drop {
   opacity: 0;
@@ -1322,6 +1416,9 @@ div.swap-in:has(> .show-strip) {
   .coil-slide.is-closing {
     animation-duration: 1ms;
   }
+  .pg-btn,
+  .pg-btn::before,
+  .pg-btn::after,
   .stk-head,
   .back-btn:hover .back-ic svg,
   .dlg-bg,

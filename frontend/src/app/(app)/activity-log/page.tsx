@@ -7,6 +7,7 @@ import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/
 import { api, download } from "@/lib/api";
 import { today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
+import { useLive } from "@/lib/live";
 
 type Row = { date: string; user: string; action: string; detail: string; refCode: string; computer: string };
 type Page = { total: number; page: number; pageSize: number; rows: Row[] };
@@ -64,20 +65,17 @@ export default function ActivityLogPage() {
     return () => clearTimeout(t);
   }, [load]);
 
-  // ⚡ เรียลไทม์: เฉพาะตอนอยู่หน้าแรกและอยู่บนสุด (กำลังเลื่อนอ่าน = ไม่ดึงทับ)
-  useEffect(() => {
-    const t = setInterval(async () => {
-      if (document.hidden || page !== 0 || (scrollRef.current?.scrollTop ?? 0) > 2) return;
-      try {
-        const r = await api<{ token: string }>("/activity/token");
-        if (tokenRef.current && r.token !== tokenRef.current) load(0);
-        tokenRef.current = r.token;
-      } catch {
-        /* รอบหน้าลองใหม่ */
-      }
-    }, 3000);
-    return () => clearInterval(t);
-  }, [page, load]);
+  // ⚡ เรียลไทม์ทันที (มีการบันทึกที่ไหนก็ตาม = มี Log ใหม่) + เช็คเองทุก 10 วินาที: เฉพาะตอนอยู่หน้าแรกและอยู่บนสุด (กำลังเลื่อนอ่าน = ไม่ดึงทับ)
+  useLive(
+    ["data"],
+    async () => {
+      if (page !== 0 || (scrollRef.current?.scrollTop ?? 0) > 2) return;
+      const r = await api<{ token: string }>("/activity/token");
+      if (tokenRef.current && r.token !== tokenRef.current) load(0);
+      tokenRef.current = r.token;
+    },
+    10000,
+  );
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
   const first = data && data.total > 0 ? page * data.pageSize + 1 : 0;

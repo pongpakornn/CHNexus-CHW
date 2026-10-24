@@ -10,6 +10,7 @@ import { QrImage } from "@/components/ui/QrImage";
 import { api, download } from "@/lib/api";
 import { today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
+import { useLive } from "@/lib/live";
 
 type PickCard = {
   ticketNo: string;
@@ -66,9 +67,10 @@ export default function PickListPage() {
 
   useEffect(() => {
     const t = setTimeout(load, 0);
-    const live = setInterval(() => !document.hidden && load(), 5000);
-    return () => (clearTimeout(t), clearInterval(live));
+    return () => clearTimeout(t);
   }, [load]);
+  // ⚡ อัพเดททันทีเมื่อมีการบันทึก + เช็คเองทุก 15 วินาที (ข้อมูลจาก ERP)
+  useLive(["data"], load, 15000);
 
   const shown = useMemo(() => {
     const q = k.trim().toLowerCase();

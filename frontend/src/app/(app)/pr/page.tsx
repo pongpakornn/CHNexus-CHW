@@ -9,6 +9,7 @@ import { api, download } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { ApprovedModal } from "./ApprovedModal";
 import { STATUS_COLOR, type Pr } from "./types";
+import { useLive } from "@/lib/live";
 
 
 type Meta = {
@@ -74,9 +75,10 @@ export default function PrPage() {
 
   useEffect(() => {
     const t = setTimeout(() => load(), 0);
-    const live = setInterval(() => !document.hidden && load(true), 5000);
-    return () => (clearTimeout(t), clearInterval(live));
+    return () => clearTimeout(t);
   }, [load]);
+  // ⚡ อัพเดททันทีเมื่อมีการบันทึก + เช็คเองทุก 15 วินาที
+  useLive(["data"], () => load(true), 15000);
 
   useEffect(() => {
     if (!codeK.trim() || part) {

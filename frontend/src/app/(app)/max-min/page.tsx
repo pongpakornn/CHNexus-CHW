@@ -10,6 +10,7 @@ import { useDebounced } from "@/lib/useDebounced";
 import { FormulaModal } from "./FormulaModal";
 import type { CalcData, CalcRow, Stock } from "./types";
 import { WorkdayModal } from "./WorkdayModal";
+import { useLive } from "@/lib/live";
 
 const FIRST_PAGE = 20;
 const NEXT_PAGE = 10;
@@ -98,20 +99,18 @@ export default function MaxMinPage() {
 
   // ⚡ เรียลไทม์ 8 วินาที: กำลังแก้แถวอยู่ = รอจนเสร็จ
   useEffect(() => {
-    if (!stk) return;
     tokenRef.current = "";
-    const t = setInterval(async () => {
-      if (document.hidden || editingRef.current) return;
-      try {
-        const r = await api<{ token: string }>("/maxmin/token", { query: { stk } });
-        if (tokenRef.current && r.token !== tokenRef.current) load(true);
-        tokenRef.current = r.token;
-      } catch {
-        /* รอบหน้า */
-      }
-    }, 8000);
-    return () => clearInterval(t);
-  }, [stk, load]);
+  }, [stk]);
+  useLive(
+    stk ? ["data", `store:${stk}`] : [],
+    async () => {
+      if (!stk || editingRef.current) return;
+      const r = await api<{ token: string }>("/maxmin/token", { query: { stk } });
+      if (tokenRef.current && r.token !== tokenRef.current) load(true);
+      tokenRef.current = r.token;
+    },
+    15000,
+  );
 
   // เลื่อนใกล้ล่างสุด -> แสดงเพิ่มอีก 10 แถว
   const total = data?.rows.length ?? 0;

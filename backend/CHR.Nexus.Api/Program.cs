@@ -63,6 +63,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddControllers();
+builder.Services.AddHostedService<LiveWatcher>(); // ⚡ เฝ้าคลังที่มีคนเปิดดู -> แจ้งจอทันทีที่ข้อมูลเปลี่ยน
 builder.Services.AddResponseCaching();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? new[] { "http://localhost:3000" })
@@ -75,6 +76,7 @@ app.UseCors();
 app.UseResponseCaching();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<LivePublishMiddleware>(); // ⚡ บันทึกสำเร็จ -> แจ้งจอที่เปิดอยู่
 app.MapControllers();
 app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTime.Now }));
 

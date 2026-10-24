@@ -9,6 +9,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { Card, Loading, PageBody, PageHeader } from "@/components/ui/Page";
 import { api } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
+import { useLive } from "@/lib/live";
 
 type StockRow = { stkId: number; code: string; name: string; stockType: string | null; items: number; maxCount: number; minCount: number };
 type Cards = { stocks: StockRow[]; totals: { stocks: number; items: number; max: number; min: number }; time: string; canStore: boolean };
@@ -74,10 +75,11 @@ export default function DashboardPage() {
   useEffect(() => {
     loadCharts().catch((e) => toast.show("ERROR", e.message, "error"));
     const t0 = setTimeout(loadCards, 0);
-    const t = setInterval(() => !document.hidden && loadCards(), 3000);
     const c = setInterval(() => !document.hidden && loadCharts().catch(() => {}), 60_000);
-    return () => (clearTimeout(t0), clearInterval(t), clearInterval(c));
+    return () => (clearTimeout(t0), clearInterval(c));
   }, [loadCards, loadCharts, toast]);
+  // ⚡ การ์ดตัวเลข: อัพเดททันทีเมื่อมีการบันทึก / คลังที่มีคนเปิดดูเปลี่ยน + เช็คเองทุก 10 วินาที (STORE-PC / ERP)
+  useLive(["data", "store"], loadCards, 10000);
 
   const valueOf = (k: Kind) => (!cards ? "-" : k === "STOCK" ? cards.totals.stocks : k === "PRODUCT" ? cards.totals.items : k === "MAX" ? cards.totals.max : cards.totals.min);
   const rowValue = (k: Kind, s: StockRow) => (k === "MAX" ? s.maxCount : k === "MIN" ? s.minCount : s.items);

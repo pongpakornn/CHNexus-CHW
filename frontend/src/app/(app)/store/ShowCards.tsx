@@ -119,7 +119,7 @@ function lookOf(s: Stock): Look {
 }
 
 // 📊 แถบระดับสต็อก: ยอดคงเหลือเทียบ MAX + ขีด MIN (หน่วยเดียวกับ MAX-MIN ของคลัง)
-function Gauge({ p, look }: { p: Product; look: Look }) {
+function Gauge({ p, look, compact }: { p: Product; look: Look; compact: boolean }) {
   const max = num(p.max);
   if (!look.basis || max <= 0) return null;
   const st = look.stats.find((x) => x.kind === look.basis);
@@ -128,7 +128,7 @@ function Gauge({ p, look }: { p: Product; look: Look }) {
   const pct = Math.min(100, (cur / max) * 100);
   const c = STATUS_COLOR(p.stockStatus);
   return (
-    <div className="mt-2 pr-[118px]" title={`STOCK ${cur.toLocaleString()} / MIN ${min.toLocaleString()} / MAX ${max.toLocaleString()}`}>
+    <div className={`mt-2 ${compact ? "pr-[78px]" : "pr-[118px]"}`} title={`STOCK ${cur.toLocaleString()} / MIN ${min.toLocaleString()} / MAX ${max.toLocaleString()}`}>
       <div className="relative h-2 overflow-hidden rounded-full bg-[#eef0f6]">
         <div className="gauge-fill absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(pct, cur > 0 ? 3 : 0)}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${c} 55%, white), ${c})` }} />
         {min > 0 && min < max && <span className="absolute inset-y-0 w-0.5 bg-[#2d2a32]/45" style={{ left: `${(min / max) * 100}%` }} />}
@@ -142,14 +142,16 @@ function Gauge({ p, look }: { p: Product; look: Look }) {
 }
 
 // 🃏 การ์ดสินค้า 1 ใบ (memo: เลื่อนแถบแล้วการ์ดเดิมไม่วาดใหม่)
-const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look }) {
+// width = กว้างตามจอ (มือถือแคบกว่าการ์ดปกติ -> ย่อพอดีจอ) · compact = ภาพเล็กลงให้ชื่อสินค้ามีที่
+const ShowCard = memo(function ShowCard({ p, look, width }: { p: Product; look: Look; width: number }) {
+  const compact = width < 400;
   const tone = cardTone(p.stockStatus);
   const photo = look.pic && p.imageUrl;
   return (
     <div
       className="show-card relative flex h-[244px] shrink-0 flex-col overflow-hidden rounded-[22px] p-4"
       style={{
-        width: look.width,
+        width,
         // พื้นขาว + แสงจาง ๆ สีสถานะที่มุมขวาบน (ใต้สัญญาณไฟ) + แถบสีสถานะด้านบน
         background: `radial-gradient(90% 75% at 100% 0%, color-mix(in srgb, ${tone.line} 11%, transparent), transparent 70%), #ffffff`,
         borderColor: "#e7e4ef",
@@ -158,7 +160,7 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
     >
       <div className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${tone.line}, color-mix(in srgb, ${tone.line} 35%, white))` }} />
       {/* ภาพประจำการ์ด: รูปสินค้า (แบบ IMAGE) หรือภาพตามประเภทคลัง */}
-      <div className="show-art pointer-events-none absolute right-3 top-6 grid h-[112px] w-[112px] place-items-center">
+      <div className={`show-art pointer-events-none absolute right-3 grid place-items-center ${compact ? "top-8 size-[72px] [&>*]:!size-[68px]" : "top-6 size-[112px]"}`}>
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.imageUrl!} alt="" loading="lazy" decoding="async" className="h-[104px] w-[104px] rounded-2xl bg-white object-contain p-1 shadow-[0_8px_20px_-12px_rgb(60_40_120/0.5)]" draggable={false} />
@@ -177,7 +179,7 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
       </div>
       {look.useMaxMin && <StatusLamp status={p.stockStatus} size={22} className="!absolute right-3 top-3 z-[1]" />}
 
-      <div className="relative min-w-0 pr-[118px]">
+      <div className={`relative min-w-0 ${compact ? "pr-[80px]" : "pr-[118px]"}`}>
         <div className="flex items-center gap-1.5">
           <span className="max-w-[45%] truncate rounded-full bg-[#4c8df6] px-2.5 py-0.5 text-[11px] font-extrabold text-white shadow-[0_4px_10px_-6px_#4c8df6]">{p.groupKey || "-"}</span>
           {look.useMaxMin && (
@@ -191,27 +193,27 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
         <div className="mt-1 truncate text-[22px] font-black leading-tight text-[#1e2a5a]">{look.title(p) || "-"}</div>
         {look.colName && <div className="truncate text-[13px] font-semibold text-[#6f7590]">{p.partName}</div>}
       </div>
-      <Gauge p={p} look={look} />
+      <Gauge p={p} look={look} compact={compact} />
 
       {look.stats.length > 0 && (
-        <div className="mt-auto grid gap-2 pt-2" style={{ gridTemplateColumns: `repeat(${look.stats.length}, minmax(0, 1fr))` }}>
+        <div className={`mt-auto grid pt-2 ${compact ? "gap-1.5" : "gap-2"}`} style={{ gridTemplateColumns: `repeat(${look.stats.length}, minmax(0, 1fr))` }}>
           {look.stats.map((st) => {
             const [main, sub] = splitLabel(st.label);
             const t = TILE[st.kind];
             return (
               <div
                 key={st.kind}
-                className="show-tile flex min-w-0 flex-col items-center rounded-[14px] px-2 pb-2 pt-2"
+                className={`show-tile flex min-w-0 flex-col items-center rounded-[14px] pb-2 pt-2 ${compact ? "px-1" : "px-2"}`}
                 style={{ background: `linear-gradient(180deg, #ffffff, ${t.soft})`, border: `1px solid color-mix(in srgb, ${t.color} 14%, transparent)` }}
               >
-                <div className="flex max-w-full items-center justify-center gap-1.5">
+                <div className={`flex max-w-full items-center justify-center ${compact ? "flex-col gap-0.5" : "gap-1.5"}`}>
                   <TileIcon kind={st.kind} coil={look.coil} unit={look.unit} />
                   <span className="flex min-w-0 flex-col text-center text-[10.5px] font-extrabold leading-[1.15]" style={{ color: t.color }} title={st.label}>
                     <span className="truncate">{main}</span>
                     {sub && <span className="truncate text-[9px] font-bold opacity-75">{sub}</span>}
                   </span>
                 </div>
-                <div className="mt-1.5 w-full truncate text-center text-[21px] font-black tabular-nums leading-none" style={{ color: t.color }}>
+                <div className={`mt-1.5 w-full truncate text-center font-black tabular-nums leading-none ${compact ? "text-[15px]" : "text-[21px]"}`} style={{ color: t.color }}>
                   {st.get(p) || "-"}
                 </div>
               </div>
@@ -228,7 +230,6 @@ const ShowCard = memo(function ShowCard({ p, look }: { p: Product; look: Look })
 //    เมาส์ชี้ = ค่อย ๆ ชะลอจนหยุด (ออก = ค่อย ๆ เร่งกลับ) · พ้นจอ / แท็บซ่อน = ไม่คำนวณ (ไม่กินเครื่องตอนทำงานอื่น)
 export const ShowCards = memo(function ShowCards({ rows, stock: s, speed }: { rows: Product[]; stock: Stock; speed: number }) {
   const look = useMemo(() => lookOf(s), [s]);
-  const slot = look.width + 14;
 
   const wrap = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
@@ -238,6 +239,9 @@ export const ShowCards = memo(function ShowCards({ rows, stock: s, speed }: { ro
   const startRef = useRef(0);
   const [start, setStart] = useState(0);
   const [w, setW] = useState(0);
+  // กว้างการ์ด: ปกติตามจำนวนช่อง · จอแคบ = พอดีความกว้างแถบ
+  const cardW = w > 0 ? Math.min(look.width, Math.max(260, Math.floor(w) - 8)) : look.width;
+  const slot = cardW + 14;
 
   useEffect(() => {
     const el = wrap.current;
@@ -295,7 +299,7 @@ export const ShowCards = memo(function ShowCards({ rows, stock: s, speed }: { ro
     >
       <div ref={track} className="absolute top-2 flex gap-[14px] will-change-transform">
         {items.map(({ n, p }) => (
-          <ShowCard key={n} p={p} look={look} />
+          <ShowCard key={n} p={p} look={look} width={cardW} />
         ))}
       </div>
     </div>

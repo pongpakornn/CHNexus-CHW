@@ -11,6 +11,7 @@ import { DisplayModal } from "./DisplayModal";
 import { HistoryModal } from "./HistoryModal";
 import { ScopeModal } from "./ScopeModal";
 import { qtyText, type ScanFormat, type ScannerContext, type ScanResult, type ScanRow, type Today } from "./types";
+import { useLive } from "@/lib/live";
 
 // 📷 MULTI-SCANNER (ScanInView + ScanInViewModel) - เงื่อนไขทั้งหมดอยู่ที่ API (ScanProcessor) หน้านี้ส่งบาร์โค้ด + โหมด แล้วแสดงผล
 const SCOPE_KEY = "chr-scanner-scope"; // ฐานที่ยังไม่ให้ Admin กำหนดคลัง = จำคลังไว้ที่ Browser (แทนไฟล์ scanner_stock.txt)
@@ -116,24 +117,18 @@ export default function ScannerPage() {
   }, [loadContext, loadToday, focusScan, toast]);
 
   // 🔄 เรียลไทม์: ทุก 3 วินาทีดึงรายการวันนี้ (ไม่ดึงระหว่าง TEST MODE หรือภายใน 3 วินาทีหลังสแกน) + Admin เปลี่ยนคลังให้ -> ใช้เลย
-  useEffect(() => {
-    let busyTick = false;
-    const t = setInterval(async () => {
-      if (busyTick || Date.now() - lastScanAt.current < 3000 || document.hidden) return;
-      busyTick = true;
-      try {
-        const before = ctxRef.current;
-        const c = await loadContext();
-        if (before && before.scope.notAssigned && !c.scope.notAssigned) toast.show("MULTI-SCANNER", "Admin กำหนดคลังสแกนให้แล้ว ใช้งานได้เลย", "ok");
-        if (!modesRef.current.test && !c.scope.notAssigned) await loadToday(true);
-      } catch {
-        /* เครือข่ายสะดุด - รอบถัดไปลองใหม่ */
-      } finally {
-        busyTick = false;
-      }
-    }, 3000);
-    return () => clearInterval(t);
-  }, [loadContext, loadToday, toast]);
+  //    (ทันทีเมื่อมีการบันทึกจากเครื่องไหนก็ได้ + เช็คเองทุก 10 วินาที)
+  useLive(
+    ["data"],
+    async () => {
+      if (Date.now() - lastScanAt.current < 1500) return;
+      const before = ctxRef.current;
+      const c = await loadContext();
+      if (before && before.scope.notAssigned && !c.scope.notAssigned) toast.show("MULTI-SCANNER", "Admin กำหนดคลังสแกนให้แล้ว ใช้งานได้เลย", "ok");
+      if (!modesRef.current.test && !c.scope.notAssigned) await loadToday(true);
+    },
+    10000,
+  );
 
   // 🎯 ตัวอักษรที่ยิงเข้ามาตอนโฟกัสไม่อยู่ในช่องพิมพ์ใด ๆ -> ส่งเข้าช่องสแกน (ป้ายไม่ขาดหัว)
   useEffect(() => {

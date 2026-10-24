@@ -20,12 +20,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(true);
   const [mobile, setMobile] = useState(false);
+  const [narrow, setNarrow] = useState(false); // จอมือถือ (< 768) = เมนูเลื่อนออกด้านซ้าย
   const items = MENU.filter((m) => me?.can[m.can]);
   const current = MENU.find((m) => path === m.href || path.startsWith(m.href + "/"));
 
   // หน้าต่างแคบกว่า 1500 -> พับ Sidebar ให้เหลือแต่ไอคอนเอง (เหมือน SidebarAutoWidth ของ WPF)
   useEffect(() => {
-    const fit = () => setOpen(window.innerWidth >= 1500);
+    const fit = () => {
+      setOpen(window.innerWidth >= 1500);
+      setNarrow(window.innerWidth < 768);
+    };
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
@@ -96,7 +100,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  const menuOpen = mobile || open;
+  // มือถือ: เมนูปิด = สามขีด, เปิด = ลูกศร · จอใหญ่: กาง = สามขีด, พับ = ลูกศร
+  const menuOpen = narrow ? mobile : open;
+  const arrow = narrow ? mobile : !open;
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -124,7 +130,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => (window.innerWidth < 768 ? setMobile((v) => !v) : setOpen((o) => !o))}
-            className={`menu-toggle ${menuOpen ? "" : "is-arrow"}`}
+            className={`menu-toggle ${arrow ? "is-arrow" : ""}`}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
           >

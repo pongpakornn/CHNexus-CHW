@@ -10,6 +10,7 @@ import { COIL_ICON, stockIcon, tileStyle } from "@/lib/stockIcons";
 import { Icon } from "@/components/icons";
 import { FormatsModal } from "./FormatsModal";
 import { StockEditor } from "./StockEditor";
+import { useLive } from "@/lib/live";
 
 type Card = {
   stkId: number;
@@ -42,9 +43,10 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
 
   useEffect(() => {
     const t = setTimeout(load, 0);
-    const live = setInterval(() => !document.hidden && load(), 10_000);
-    return () => (clearTimeout(t), clearInterval(live));
+    return () => clearTimeout(t);
   }, [load]);
+  // ⚡ ยอดของแต่ละคลังอัพเดททันทีเมื่อมีการบันทึก + เช็คเองทุก 15 วินาที
+  useLive(["data", "store"], load, 15000);
 
   async function remove(c: Card) {
     const reason = await dlg.prompt({
@@ -163,7 +165,7 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={COIL_ICON} alt="" className="size-4 object-contain" />
                       </span>
-                      <span className="truncate">
+                      <span className="min-w-0 truncate max-sm:whitespace-normal">
                         COIL NO {c.coil.totalCount.toLocaleString()}
                         <span className="mx-1.5 opacity-35">|</span>
                         {qty(c.coil.totalKg)} KG
