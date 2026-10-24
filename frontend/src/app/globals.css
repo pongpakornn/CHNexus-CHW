@@ -453,6 +453,35 @@ body {
   transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
+/* 🧲 แถวสินค้าคลัง Material: กดทั้งแถวเปิด Coil · ลูกศรหมุนเมื่อเปิด · แถวที่เปิดไฮไลต์ม่วงอ่อน + แถบซ้าย */
+.row-chev {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: #f1ecfc;
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+  transition: rotate 0.3s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s ease;
+}
+.row-chev.is-open {
+  rotate: 90deg;
+  background: var(--accent);
+  color: #fff;
+}
+.mat-row {
+  transition: background-color 0.2s ease;
+}
+.mat-row:hover {
+  background: #faf8ff;
+}
+.mat-row.is-open {
+  background: #f6f2fe;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 /* 🔽 รายการหมวดหน้าคลัง: เลื่อนลงจากปุ่ม (เผยจากบนลงล่าง) + รายการทยอยเข้า (หน่วงด้วย --d) */
 .cat-drop {
   opacity: 0;
@@ -826,7 +855,9 @@ body {
   }
   .show-card,
   .show-card::after,
-  .show-tile {
+  .show-tile,
+  .row-chev,
+  .mat-row {
     transition: none;
   }
   .cat-drop {

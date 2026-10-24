@@ -274,6 +274,9 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ?? c;
   const width = cols.reduce((a, c) => a + (c === "MAXMIN" ? 2 : 1), 0);
   const coilsOn = s.showCoilRows && meta.hasCoilRegister;
+  // คลังประเภท Material: หัวหมวดไอคอนคลังสินค้า + กดทั้งแถวเพื่อเปิด / ปิด Coil (ตาราง / คอลัมน์เหมือนเดิม เปลี่ยนแค่หน้าตา)
+  const mat = s.stockType === "MATERIAL" || (!s.stockType && s.countCoil);
+  const rowToggle = mat && coilsOn;
 
   async function save(p: Product, field: Field, value: string) {
     const original = { partCode: p.partCode, remark: p.remark, max: p.max, min: p.min, qty: p.qty, stockBox: p.stockBox, stockPcs: p.stockPcs };
@@ -404,7 +407,20 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const cell = (p: Product, col: string, no: number) => {
     switch (col) {
       case "NO":
-        return <td key={col} className="text-center font-bold text-ink-soft">{no}</td>;
+        return (
+          <td key={col} className="text-center font-bold text-ink-soft">
+            {rowToggle ? (
+              <span className="inline-flex items-center gap-2">
+                <span className={`row-chev ${coils[p.partId] ? "is-open" : ""}`} aria-hidden>
+                  ›
+                </span>
+                {no}
+              </span>
+            ) : (
+              no
+            )}
+          </td>
+        );
       case "IMAGE":
         return (
           <td key={col} className="w-20">
@@ -475,8 +491,8 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     const list = coils[p.partId];
     return (
       <tr className="hover:!bg-transparent">
-        <td colSpan={width} className="!p-0">
-          <div className="view-in mb-2.5 border-l-4 border-accent bg-[#fcfaff]">
+        <td colSpan={width} className="!border-0 !px-3 !pb-3 !pt-1">
+          <div className="view-in overflow-hidden rounded-2xl border border-[#e4def3] bg-white shadow-[0_10px_26px_-20px_rgb(60_40_130/0.5)]">
             {list === "loading" ? (
               <div className="p-3 text-center text-xs font-bold text-ink-soft">⏳ LOADING COILS...</div>
             ) : !list || !list.some((r) => !r.isMother) ? (
@@ -484,9 +500,9 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
             ) : (
               <table className="w-full table-fixed text-[13px]">
                 <thead>
-                  <tr className="bg-accent text-white">
+                  <tr>
                     {coilKeys.map((kk) => (
-                      <th key={kk} className={`h-[42px] !bg-accent !px-1 !text-center !text-[13px] !normal-case !tracking-normal ${kk === "NO" ? "w-[6%]" : ""}`}>
+                      <th key={kk} className={`h-10 !border-b !border-[#ece8f6] !bg-[#f8f6fd] !px-1 !text-center !text-[12px] !font-extrabold !normal-case !tracking-normal !text-[#6b6585] ${kk === "NO" ? "w-[6%]" : ""}`}>
                         {coilHead(kk)}
                       </th>
                     ))}
@@ -495,18 +511,27 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
                 <tbody>
                   {list.map((r) =>
                     r.isMother ? (
-                      <tr key={"m" + r.motherCoil} className="h-9 border-b border-[#eeeaf4] bg-[#f1e8f8]">
-                        <td colSpan={coilKeys.length} className="!border-[#eeeaf4] !px-4 !py-0 !text-[13px] font-extrabold text-accent">
-                          🧲 MASTER COIL : {r.motherCoil || "-"}
-                          <span className="ml-5 font-semibold text-ink-soft">
-                            {r.coilNo} • {r.weight} {s.unitDisplay} • {r.ton} TON
-                          </span>
+                      <tr key={"m" + r.motherCoil}>
+                        <td colSpan={coilKeys.length} className="!border-y !border-[#ebe5f7] !p-0">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-[linear-gradient(90deg,#f1ecfc,#faf8fe)] px-4 py-2">
+                            <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-white shadow-[0_4px_10px_-6px_rgb(60_40_130/0.5)]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src="/images/store/master-coil.webp" alt="" className="size-6" draggable={false} />
+                            </span>
+                            <span className="text-[13px] font-extrabold text-accent">
+                              MASTER COIL <span className="text-[#2d2a32]">{r.motherCoil || "-"}</span>
+                            </span>
+                            <span className="text-[13px] font-bold text-ink-soft">
+                              {r.weight} {s.unitDisplay} <span className="mx-1.5 text-[#cfc8de]">|</span> {r.ton} TON
+                            </span>
+                            <span className="ml-auto rounded-full bg-[#ece6fb] px-3 py-0.5 text-[11px] font-extrabold text-accent">{r.coilNo}</span>
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      <tr key={r.coilId} className="h-12 border-b border-[#eeeaf4] transition-colors hover:bg-[#f6f0fd]">
+                      <tr key={r.coilId} className="h-11 transition-colors hover:bg-[#faf8ff]">
                         {coilKeys.map((kk) => (
-                          <td key={kk} className="break-words !border-[#eeeaf4] !px-1 !py-0 text-center !text-[13px] font-bold text-ink">
+                          <td key={kk} className="break-words !border-[#f1eef7] !px-1 !py-0 text-center !text-[13px] font-semibold text-[#3d3a4a]">
                             {coilCell(kk, r)}
                           </td>
                         ))}
@@ -533,18 +558,34 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
           return n;
         })}>
           <td colSpan={width} className="!px-0 !py-1">
+            {mat ? (
+              <div className="flex h-[42px] items-center gap-2 rounded-[10px] border border-[#dfe3fb] bg-[linear-gradient(90deg,#eef1ff,#f8f9ff_60%,#ffffff)] pl-3 text-[#3730a3]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/store/warehouse.webp" alt="" className="size-7" draggable={false} />
+                <span className="text-sm font-bold">{meta.groupLabel} :</span>
+                <span className="text-[15px] font-extrabold">{g.key}</span>
+                <span className="ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{g.items.length.toLocaleString()} ITEMS</span>
+                <span className="ml-auto pr-4 text-[10px] text-[#6b6fa8]">{collapsed.has(g.key) ? "▼" : "▲"}</span>
+              </div>
+            ) : (
             <div className="flex h-[38px] items-center gap-1.5 rounded-[5px] border-l-2 border-accent bg-[#f3e5f5] pl-4 text-accent">
               <span className="text-sm font-bold">👥 {meta.groupLabel} :</span>
               <span className="text-[15px] font-extrabold">{g.key}</span>
               <span className="ml-3 rounded-xl bg-accent px-3 py-1 text-[10px] font-bold text-white">{g.items.length.toLocaleString()} ITEMS</span>
               <span className="ml-auto pr-4 text-[10px] text-ink-soft">{collapsed.has(g.key) ? "▼" : "▲"}</span>
             </div>
+            )}
           </td>
         </tr>
         {!collapsed.has(g.key) &&
           g.items.map((p, i) => (
             <Fragment key={p.partId}>
-              <tr className={p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""}>{cols.map((col) => cell(p, col, i + 1))}</tr>
+              <tr
+                className={`${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${rowToggle ? "mat-row cursor-pointer" : ""} ${rowToggle && coils[p.partId] ? "is-open" : ""}`}
+                onClick={rowToggle ? (e) => !(e.target as HTMLElement).closest("input, button, [data-edit]") && toggleCoils(p) : undefined}
+              >
+                {cols.map((col) => cell(p, col, i + 1))}
+              </tr>
               {coils[p.partId] && coilPanel(p)}
             </Fragment>
           ))}
@@ -746,6 +787,7 @@ function Edit({
       className={`font-bold ${align === "right" ? "text-right" : ""} ${disabled ? "" : "cursor-text hover:bg-accent-soft/40"} ${strong ? "text-base font-extrabold" : ""} ${wide ? "min-w-[160px]" : "whitespace-nowrap"}`}
       style={color ? { color } : undefined}
       title={disabled ? undefined : "คลิกเพื่อแก้ไข"}
+      data-edit={disabled ? undefined : ""}
       onDoubleClick={() => disabled && onDenied?.()}
       onClick={() => {
         if (disabled) return;
