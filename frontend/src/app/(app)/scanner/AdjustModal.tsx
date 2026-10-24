@@ -128,7 +128,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
   return (
     <Modal
       open
-      wide
+      size="xl"
       title="✏️ ADJUST SCAN"
       onClose={onClose}
       footer={
@@ -146,8 +146,8 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
       }
     >
       <p className="mb-3 text-sm font-semibold text-ink-soft">แก้จำนวน / ลบรายการสแกน — ยอดคลังปรับย้อนให้อัตโนมัติ รายการที่ลบยังเก็บไว้ (CANCELLED) พร้อมหมายเหตุ</p>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <SearchBox className="min-w-[220px] flex-1" value={key} onChange={setKey} placeholder="ค้นหา รหัส / ชื่อ / ผู้ใช้" />
+      <div className="relative z-20 mb-3 flex flex-wrap items-center gap-2">
+        <SearchBox className="min-w-[220px] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา รหัส / ชื่อ / ผู้ใช้" />
         <select className="field !h-10 !w-auto" value={stkId} onChange={(e) => setStkId(e.target.value)}>
           <option value="">ALL STOCKS</option>
           {data?.stocks.map((s) => (
@@ -168,7 +168,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
         <Loading />
       ) : (
         <div className="overflow-auto rounded-2xl border border-[#e7e4ef]">
-          <table className="data-table w-full">
+          <table className="data-table hist-table w-full">
             <thead className="sticky top-0 z-[1]">
               <tr>
                 <th>

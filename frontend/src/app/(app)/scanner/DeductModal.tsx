@@ -131,7 +131,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
     <>
       <Modal
         open
-        wide
+        size="xl"
         title={deducted ? "✔ DEDUCTED" : "⚠ NOT DEDUCTED"}
         onClose={onClose}
         footer={
@@ -150,15 +150,15 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
             ? "What came in (PD CODE / coil) and what was cut from the source stock (source product / master coil before / source balance)"
             : "ป้ายที่ยังไม่รับเข้าคลัง (รอดำเนินการ) — APPROVE รับเข้า / ＋ PRODUCT ลงทะเบียนแล้วรับเข้า / DEL ลบ"}
         </p>
-        <div className="mb-3 flex flex-wrap items-center gap-3">
-          <SearchBox className="min-w-[240px] flex-1" value={key} onChange={setKey} placeholder="ค้นหา Coil / Master Coil / PD CODE / ผู้สแกน" />
+        <div className="relative z-20 mb-3 flex flex-wrap items-center gap-3">
+          <SearchBox className="min-w-[240px] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา Coil / Master Coil / PD CODE / ผู้สแกน" />
           <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
         </div>
         {!rows ? (
           <Loading />
         ) : (
           <div className="overflow-auto rounded-2xl border border-[#e7e4ef]">
-            <table className="data-table w-full">
+            <table className="data-table hist-table w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
                   <th>
@@ -188,35 +188,35 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                 </tr>
               </thead>
               <tbody>
-                {all.map((r) => (
-                  <tr key={r.missId}>
+                {all.map((r, i) => (
+                  <tr key={r.missId} className={`sc-row ${sel.includes(r.missId) ? "!bg-[#f3eefd]" : ""}`} style={{ animationDelay: `${Math.min(i, 20) * 14}ms` }}>
                     <td>
                       <input type="checkbox" checked={sel.includes(r.missId)} onChange={(e) => setSel((s) => (e.target.checked ? [...s, r.missId] : s.filter((x) => x !== r.missId)))} />
                     </td>
-                    <td className="whitespace-nowrap text-xs">{r.date}</td>
+                    <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
                     <td className="whitespace-nowrap">
-                      {r.stockCode} <span className="text-ink-soft">← {r.sourceCode}</span>
+                      <span className="sc-tag">{r.stockCode}</span> <span className="text-xs font-bold text-ink-soft">← {r.sourceCode}</span>
                     </td>
-                    <td>
-                      <div className={r.hasProduct ? "" : "text-danger"}>{r.partCode}</div>
+                    <td className="min-w-[150px]">
+                      <div className={`whitespace-nowrap font-extrabold ${r.hasProduct ? "text-primary" : "text-danger"}`}>{r.partCode}</div>
                       <div className="text-[11px] font-medium text-ink-soft">{r.partName}</div>
                     </td>
                     <td className="whitespace-nowrap">{r.coilNo}</td>
                     <td className="whitespace-nowrap">{r.motherCoil}</td>
-                    <td className="text-right">{qty(r.labelQty)}</td>
+                    <td className="font-extrabold tabular-nums">{qty(r.labelQty)}</td>
                     {deducted ? (
                       <>
-                        <td className="text-right text-danger">{qty(r.deducted)}</td>
-                        <td>
+                        <td className="font-extrabold tabular-nums text-danger">{qty(r.deducted)}</td>
+                        <td className="min-w-[160px]">
                           <div>{r.sourcePartCode || (r.how === "NONE" ? <Badge color="var(--warning)">NOT CUT YET</Badge> : "-")}</div>
                           <div className="text-[11px] font-medium text-ink-soft">{r.sourcePartName}</div>
                         </td>
-                        <td className="text-right">{r.motherBefore !== null ? `${qty(r.motherBefore)} KG` : "-"}</td>
-                        <td className="text-right">{qty(r.sourceAfter)}</td>
+                        <td className="whitespace-nowrap tabular-nums">{r.motherBefore !== null ? `${qty(r.motherBefore)} KG` : "-"}</td>
+                        <td className="tabular-nums">{qty(r.sourceAfter)}</td>
                       </>
                     ) : (
                       <>
-                        <td className="min-w-[220px]">
+                        <td className="min-w-[190px]">
                           <div className="text-xs font-bold">{r.statusText}</div>
                           <div className="text-[11px] font-medium text-danger">{r.reasonText}</div>
                         </td>
@@ -228,7 +228,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                     <td>{r.userId}</td>
                     {canAct && (
                       <td className="whitespace-nowrap">
-                        <div className="flex gap-1">
+                        <div className="flex justify-center gap-1">
                           <button className="btn bg-success px-2 py-1 text-xs" disabled={busy} onClick={() => approve(r)}>
                             ✔ APPROVE
                           </button>
