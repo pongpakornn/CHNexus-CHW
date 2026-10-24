@@ -11,6 +11,7 @@ export function Modal({
   children,
   footer,
   wide,
+  size,
 }: {
   open: boolean;
   title: React.ReactNode;
@@ -18,6 +19,8 @@ export function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   wide?: boolean;
+  /** xl = กว้างเกือบเต็มจอ (ตารางหลายคอลัมน์) */
+  size?: "xl";
 }) {
   // ปิดแล้วยังวาดค้างไว้ 180 ms ให้เล่นอนิเมชันจางออก (เนื้อหาเดิมจำไว้ระหว่างนั้น)
   const [shown, setShown] = useState(open);
@@ -46,7 +49,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
-        className={`modal-in flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[22px] bg-surface sm:rounded-[22px] ${wide ? "sm:max-w-6xl" : "sm:max-w-lg"}`}
+        className={`modal-in flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[22px] bg-surface sm:rounded-[22px] ${size === "xl" ? "sm:max-w-[min(1680px,96vw)]" : wide ? "sm:max-w-6xl" : "sm:max-w-lg"}`}
       >
         <div className="modal-head flex items-center justify-between gap-3 px-5 py-3.5 text-white">
           <div className="min-w-0 truncate text-base font-extrabold uppercase tracking-wide">{view.title}</div>
@@ -56,7 +59,7 @@ export function Modal({
             </svg>
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">{view.children}</div>
+        <div className="modal-body min-h-0 flex-1 overflow-auto p-4 sm:p-5">{view.children}</div>
         {view.footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#eeecf3] bg-[#faf9fd] px-4 py-3 sm:px-5">{view.footer}</div>}
       </div>
     </div>

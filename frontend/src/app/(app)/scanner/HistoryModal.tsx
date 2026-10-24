@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SearchBox } from "@/components/ui/Page";
+import { DateField } from "@/components/ui/DateField";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Pager } from "../store/Toolbar";
 import { StatusPill } from "./Pill";
 import { useToast } from "@/components/Toasts";
@@ -42,6 +44,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState("");
   const [page, setPage] = useState(0);
   const [data, setData] = useState<HistoryPage | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [exportChoice, setExportChoice] = useState(false);
   const [rpa, setRpa] = useState<RpaPreview | null>(null);
@@ -60,6 +63,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
         const r = await api<HistoryPage>("/scanner/history", { query: { key, from, to, stkId: stkId || undefined, type: type || undefined, page: p } });
         setData(r);
         setPage(p);
+        topRef.current?.closest(".modal-body")?.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) {
         toast.show("History", "โหลดประวัติการสแกนไม่สำเร็จ: " + (e as Error).message, "error");
       } finally {
@@ -145,7 +149,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
     <>
       <Modal
         open
-        wide
+        size="xl"
         title="🕘 SCAN HISTORY"
         onClose={onClose}
         footer={
@@ -160,33 +164,30 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
           </>
         }
       >
-        <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
-          <SearchBox className="col-span-2" value={key} onChange={setKey} placeholder="ค้นหา รหัส / ชื่อ / บาร์โค้ด / ผู้ใช้ / EMP ID" />
-          <label className="relative">
-            <span className="hist-cap">FROM</span>
-            <input type="date" className="field !h-10 !pt-3.5 !pb-1" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label className="relative">
-            <span className="hist-cap">TO</span>
-            <input type="date" className="field !h-10 !pt-3.5 !pb-1" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-          <select className="field !h-10" value={stkId} onChange={(e) => setStkId(e.target.value)}>
-            <option value="">ALL STOCKS</option>
-            {data?.stocks.map((s) => (
-              <option key={s.stkId} value={s.stkId}>
-                {s.code}
-              </option>
-            ))}
-          </select>
-          <select className="field !h-10" value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="">ALL TYPES</option>
-            <option>IN</option>
-            <option>OUT</option>
-            <option>RETURN</option>
-          </select>
+        <div ref={topRef} className="relative z-20 mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,2fr)_1fr_1fr_1fr_1fr]">
+          <SearchBox className="sm:col-span-2 xl:col-span-1" fancy value={key} onChange={setKey} placeholder="ค้นหา รหัส / ชื่อ / บาร์โค้ด / ผู้ใช้ / EMP ID" />
+          <DateField label="FROM" value={from} onChange={setFrom} />
+          <DateField label="TO" value={to} onChange={setTo} />
+          <MenuSelect
+            label="STOCK"
+            value={stkId}
+            onChange={setStkId}
+            options={[{ value: "", label: "ALL STOCKS" }, ...(data?.stocks ?? []).map((s) => ({ value: String(s.stkId), label: s.code }))]}
+          />
+          <MenuSelect
+            label="TYPE"
+            value={type}
+            onChange={setType}
+            options={[
+              { value: "", label: "ALL TYPES" },
+              { value: "IN", label: "IN", color: "var(--success)" },
+              { value: "OUT", label: "OUT", color: "var(--scanout)" },
+              { value: "RETURN", label: "RETURN", color: "var(--return)" },
+            ]}
+          />
         </div>
         <div className={`overflow-auto rounded-2xl border border-[#e7e4ef] transition-opacity ${loading ? "opacity-60" : ""}`}>
-          <table className="data-table w-full">
+          <table className="data-table hist-table w-full">
             <thead className="sticky top-0 z-[1]">
               <tr>
                 <th>DATE TIME</th>
@@ -203,7 +204,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             </thead>
             <tbody>
               {data?.rows.map((r, i) => (
-                <tr key={i} className={`sc-row ${r.isCancelled ? "text-ink-soft line-through" : ""}`} style={{ animationDelay: `${Math.min(i, 20) * 14}ms` }}>
+                <tr key={`${page}-${i}`} className={`sc-row ${r.isCancelled ? "text-ink-soft line-through" : ""}`} style={{ animationDelay: `${Math.min(i, 20) * 14}ms` }}>
                   <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
                   <td>
                     <span className="sc-tag whitespace-nowrap">{r.stockCode}</span>
@@ -217,7 +218,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
                   <td className="whitespace-nowrap">{r.user}</td>
                   <td>{r.employeeId}</td>
                   <td>{r.department}</td>
-                  <td className="max-w-[260px] truncate font-mono text-xs" title={r.refNo}>
+                  <td className="min-w-[340px] max-w-[440px] break-all font-mono text-[11.5px] leading-snug" title={r.refNo}>
                     {r.refNo}
                   </td>
                 </tr>

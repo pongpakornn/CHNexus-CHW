@@ -1563,19 +1563,6 @@ div.swap-in:has(> .show-strip) {
   border-color: color-mix(in srgb, var(--danger) 35%, transparent);
   background: #fff5f6;
 }
-/* ป้ายเล็กบนช่องวันที่ (FROM / TO) */
-.hist-cap {
-  position: absolute;
-  left: 14px;
-  top: 3px;
-  z-index: 1;
-  font-size: 8.5px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-  pointer-events: none;
-}
-
 /* 📅 ช่วงวันที่ (DateRange): กล่องเดียว ปฏิทิน + จาก → ถึง · ปุ่มลัดแบบแถบเลือก */
 .dr-box {
   display: inline-flex;
@@ -1639,6 +1626,238 @@ div.swap-in:has(> .show-strip) {
   height: 16px;
   cursor: pointer;
   accent-color: var(--accent);
+}
+
+/* 🍔 MenuSelect: ปุ่มม่วง + ขีดสามขีดหมุนเป็นกากบาท · รายการเผยจากกลางปุ่ม (clip-path) แล้วทยอยเลื่อนขึ้นทีละแถว · พับกลับแบบนุ่ม */
+.ms {
+  position: relative;
+}
+.ms-btn {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 0 14px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent) 60%, #563f93);
+  box-shadow: 0 8px 18px -10px var(--accent), inset 0 1px 0 rgb(255 255 255 / 0.2);
+  transition: translate 0.2s ease, box-shadow 0.3s ease, filter 0.2s ease;
+}
+.ms-btn:hover {
+  translate: 0 -1px;
+  filter: brightness(1.06);
+  box-shadow: 0 12px 22px -10px var(--accent), inset 0 1px 0 rgb(255 255 255 / 0.2);
+}
+.ms-btn:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 2px;
+}
+.ms-cap {
+  margin-right: 8px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  background: rgb(255 255 255 / 0.2);
+}
+.ms-bars {
+  display: flex;
+  width: 18px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.ms-bars > span {
+  display: block;
+  height: 2.5px;
+  border-radius: 50px;
+  background: #fff;
+  transition: transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s ease;
+}
+.ms.is-open .ms-bars > span:nth-child(1) {
+  transform: translateY(5.5px) rotate(45deg);
+}
+.ms.is-open .ms-bars > span:nth-child(2) {
+  transform: translateX(-50%);
+  opacity: 0;
+}
+.ms.is-open .ms-bars > span:nth-child(3) {
+  transform: translateY(-5.5px) rotate(-45deg);
+}
+.ms-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  min-width: 100%;
+  overflow: hidden;
+  padding: 6px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 22px 44px -18px rgb(40 30 90 / 0.45), 0 0 0 1px rgb(103 80 164 / 0.12);
+  clip-path: inset(10% 50% 90% 50% round 14px);
+  opacity: 0;
+  pointer-events: none;
+  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+.ms-menu.is-long {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.ms.is-open .ms-menu {
+  clip-path: inset(0 0 0 0 round 14px);
+  opacity: 1;
+  pointer-events: auto;
+}
+.ms-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  color: var(--accent);
+  white-space: nowrap;
+  transform: translateY(26px);
+  opacity: 0;
+  transition: transform 0.25s ease, opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+.ms-item + .ms-item {
+  box-shadow: inset 0 1px 0 #f1eef7;
+}
+.ms.is-open .ms-item {
+  transform: none;
+  opacity: 1;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.12s + var(--i) * 0.06s), opacity 0.4s ease calc(0.12s + var(--i) * 0.06s), background-color 0.2s ease, color 0.2s ease;
+}
+.ms-item:hover,
+.ms-item:focus-visible {
+  outline: none;
+  background: #f4f0fd;
+}
+.ms-item.is-on {
+  color: #fff;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent));
+  box-shadow: 0 8px 16px -10px var(--accent);
+}
+.ms-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--c, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--accent)) 20%, transparent);
+}
+.ms-item.is-on .ms-dot {
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.35);
+}
+
+/* 📅 DateField: ป้าย FROM / TO + ไอคอนปฏิทินในกรอบ + วันที่ "01 OCT 2026 · WED" · ช่องจริงซ่อนไว้ (กดตรงไหนก็เปิดปฏิทิน) */
+.df {
+  position: relative;
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  border: 1px solid #e2e4f0;
+  background: #fff;
+  padding: 0 12px 0 5px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, translate 0.2s ease;
+}
+.df:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, #e2e4f0);
+  translate: 0 -1px;
+  box-shadow: 0 10px 18px -14px var(--accent);
+}
+.df:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(103 80 164 / 0.12);
+}
+.df-ic {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(145deg, #8b6fd6, var(--accent));
+  box-shadow: 0 6px 12px -6px var(--accent);
+  transition: rotate 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.df:hover .df-ic {
+  rotate: -10deg;
+}
+.df-cap {
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+.df-val {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink, #1f1d24);
+}
+.df-day {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--ink-soft, #7a7492);
+}
+.df-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 🔎 ช่องค้นหาแบบมีลูกเล่น: ไอคอนเด้งเป็นสีม่วง + เส้นแสงวิ่งใต้ช่องตอนโฟกัส */
+.sb-fancy svg:first-child {
+  transition: color 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), rotate 0.35s ease;
+}
+.sb-fancy:focus-within svg:first-child {
+  scale: 1.18;
+  rotate: -12deg;
+}
+.sb-fancy::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), #ec4899, transparent);
+  background-size: 200% 100%;
+  transform: scaleX(0);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.sb-fancy:focus-within::after {
+  transform: scaleX(1);
+  animation: sc-shimmer 1.6s linear infinite;
+}
+
+/* 🕘 ตาราง HISTORY: ทุกคอลัมน์อยู่กึ่งกลาง (หัว + ข้อมูล) */
+.hist-table th,
+.hist-table td {
+  text-align: center !important;
 }
 
 /* 🔽 รายการหมวดหน้าคลัง: เลื่อนลงจากปุ่ม (เผยจากบนลงล่าง) + รายการทยอยเข้า (หน่วงด้วย --d) */
@@ -1807,7 +2026,10 @@ div.swap-in:has(> .show-strip) {
   from { opacity: 0; }
 }
 @keyframes modal-in {
-  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  0% { transform: translateY(28px) scale(0.9); clip-path: inset(42% 18% 42% 18% round 26px); }
+  55% { clip-path: inset(0 0 0 0 round 22px); }
+  75% { transform: translateY(-4px) scale(1.012); }
+  100% { transform: none; clip-path: inset(0 0 0 0 round 22px); }
 }
 .modal-bg {
   background: rgb(15 18 30 / 0.42);
@@ -1816,7 +2038,13 @@ div.swap-in:has(> .show-strip) {
 }
 .modal-in {
   box-shadow: 0 30px 70px -20px rgb(20 20 50 / 0.45);
-  animation: modal-in 0.38s cubic-bezier(0.2, 0.9, 0.25, 1.12) both;
+  animation: modal-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.modal-in .modal-head > * {
+  animation: modal-head-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.18s backwards;
+}
+@keyframes modal-head-in {
+  from { transform: translateY(-8px); opacity: 0; }
 }
 .modal-bg.is-leaving {
   opacity: 0;
@@ -2064,6 +2292,8 @@ div.swap-in:has(> .show-strip) {
   .sc-chip,
   .sc-dot,
   .sc-badge.is-alert,
+  .modal-in .modal-head > *,
+  .sb-fancy:focus-within::after,
   .stk-head,
   .back-btn:hover .back-ic svg,
   .dlg-bg,

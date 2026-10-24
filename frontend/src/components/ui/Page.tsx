@@ -115,9 +115,9 @@ export function Badge({ children, color = "var(--primary)" }: { children: React.
 }
 
 // ช่องค้นหาแบบมีไอคอน
-export function SearchBox({ value, onChange, placeholder = "ค้นหา...", className = "" }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
+export function SearchBox({ value, onChange, placeholder = "ค้นหา...", className = "", fancy = false }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string; fancy?: boolean }) {
   return (
-    <div className={`group relative ${className}`}>
+    <div className={`group relative ${fancy ? "sb-fancy" : ""} ${className}`}>
       <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-ink-soft transition-colors group-focus-within:text-accent" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />
