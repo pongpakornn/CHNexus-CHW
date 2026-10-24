@@ -722,13 +722,14 @@ div.swap-in:has(> .show-strip) {
   color: #c3c9d2;
 }
 .rm-item.is-left .rm-tip {
+  /* ชิดขอบบนของปุ่มแล้วยาวลงล่าง: การ์ดไม่ล้นขึ้นไปโดนขอบบนของหน้า */
   right: calc(100% + 16px);
-  top: 50%;
-  transform: translate(10px, -50%);
+  top: -2px;
+  transform: translate(10px, 0);
 }
 .rm-item.is-left .rm-tip::before {
   right: -5px;
-  top: calc(50% - 5px);
+  top: 20px;
 }
 .rm-item.is-bottom .rm-tip {
   top: calc(100% + 16px);
@@ -745,7 +746,7 @@ div.swap-in:has(> .show-strip) {
 }
 .rm-item.is-left:hover .rm-tip,
 .rm-item.is-left:focus-within .rm-tip {
-  transform: translate(0, -50%);
+  transform: translate(0, 0);
 }
 .rm-item.is-bottom:hover .rm-tip,
 .rm-item.is-bottom:focus-within .rm-tip {
