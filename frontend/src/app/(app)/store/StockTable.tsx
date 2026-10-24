@@ -3,12 +3,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
-import { Badge, Empty, Loading, PageBody, PageHeader } from "@/components/ui/Page";
+import { Empty, Loading, PageBody } from "@/components/ui/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { StatCards, type CoilSum } from "./StatCards";
 import { ActionMenu, type MenuAction } from "./ActionMenu";
 import { ShowCards } from "./ShowCards";
+import { StockHeader } from "./StockHeader";
 import { StatusLamp } from "./StatusLamp";
 import { CategoryPicker, SearchField } from "./Toolbar";
 import { STATUS_COLOR, type Counts, type Product, type Stock } from "./types";
@@ -701,28 +702,13 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   ];
 
   const filterBtn = (f: string) => () => setFilter((cur) => (cur === f ? "" : f));
-  const info = `${s.code} • ${s.name} • UNIT : ${s.unitDisplay}`;
 
   return (
     <PageBody>
-      <PageHeader
-        icon="/icons/StoreMaxMin.png"
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            <button className="rounded-lg px-2 text-base text-ink-soft hover:bg-surface-2" onClick={onBack} title="ALL STOCKS">
-              ←
-            </button>
-            {s.code}
-            {s.isMain && <Badge>MAIN</Badge>}
-            {s.isLiveView && <Badge color="var(--danger)">🔴 LIVE (READ ONLY)</Badge>}
-          </span>
-        }
-        subtitle={
-          <span title={info}>
-            {info}
-            {meta.canEdit || s.isLiveView ? "" : " • ดู / แก้ REMARK เท่านั้น"}
-          </span>
-        }
+      <StockHeader
+        stock={s}
+        onBack={onBack}
+        readOnlyNote={meta.canEdit || s.isLiveView ? undefined : "ดู / แก้ REMARK เท่านั้น"}
         actions={
           <>
             <ActionMenu actions={menu} />
