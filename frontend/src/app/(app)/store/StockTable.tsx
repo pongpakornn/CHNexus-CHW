@@ -749,7 +749,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         ) : rows.length === 0 ? (
           <Empty />
         ) : (
-          <table className="data-table w-full">
+          <table className="data-table store-table w-full">
             <thead className="sticky top-0 z-10">
               <tr>
                 {cols.map((col) =>
