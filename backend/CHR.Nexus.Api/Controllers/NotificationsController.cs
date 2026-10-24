@@ -12,6 +12,14 @@ namespace CHR.Nexus.Api.Controllers;
 [Route("api/notifications")]
 public sealed class NotificationsController : AppController
 {
+    private static string TopicText(string topic) => topic switch
+    {
+        "PROBLEM" => "รายงานปัญหาการใช้งานระบบ",
+        "UPDATE" => "แจ้งอัพเดทระบบ",
+        "PERMISSION" => "ขอสิทธิ์การใช้งานระบบ",
+        _ => topic
+    };
+
     [HttpGet]
     public IActionResult Get()
     {
@@ -54,6 +62,34 @@ public sealed class NotificationsController : AppController
                     key = "DEDUCT", tone = "info", title = "NOT DEDUCTED รอดำเนินการ", count = n,
                     detail = "ป้ายที่ยังตัดสต็อกไม่ได้",
                     rows = new[] { new { label = "เปิด Multi-Scanner", sub = "ปุ่ม NOT DEDUCTED", count = n, href = "/scanner" } }
+                });
+        }
+
+        // 💬 แชทแจ้ง Admin: Admin = เรื่องที่ผู้ใช้ส่งมายังไม่ได้อ่าน · ผู้ใช้ = Admin ตอบแล้วยังไม่ได้อ่าน
+        if (global::Nexus.Helpers.DbSchema.HasSupport)
+        {
+            bool admin = Me.IsMasterAdmin || Me.CanSetPermissions;
+            var unread = new SupportService().Threads(Me.UserId, admin)
+                .Where(t => SupportService.Unread(t, admin && t.UserId != Me.UserId)).ToList();
+            if (unread.Count > 0)
+                items.Add(new
+                {
+                    key = "SUPPORT", tone = "accent", title = admin ? "ข้อความแจ้ง Admin ใหม่" : "Admin ตอบกลับแล้ว", count = unread.Count,
+                    detail = "แชทแจ้ง Admin",
+                    rows = unread.Take(5).Select(t => new { label = admin ? t.UserName : TopicText(t.Topic), sub = t.LastBody.Length > 40 ? t.LastBody[..40] + "…" : t.LastBody, count = 1, href = $"#support:{t.ThreadId}" })
+                });
+        }
+
+        // 💬 แชทระหว่างผู้ใช้: ข้อความที่ส่งถึงฉันแล้วยังไม่ได้อ่าน
+        if (global::Nexus.Helpers.DbSchema.HasChat)
+        {
+            var convs = new ChatService().Conversations(Me.UserId).Where(c => c.Unread > 0).ToList();
+            if (convs.Count > 0)
+                items.Add(new
+                {
+                    key = "CHAT", tone = "info", title = "ข้อความแชทใหม่", count = convs.Sum(c => c.Unread),
+                    detail = $"{convs.Count} คน",
+                    rows = convs.Take(5).Select(c => new { label = c.Name, sub = c.Last.Length > 40 ? c.Last[..40] + "…" : c.Last, count = c.Unread, href = $"#chat:{c.UserId}" })
                 });
         }
 

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { NOTIFY_REFRESH, openChat, openSupport } from "@/lib/support";
 import { Icon, type IconName } from "./icons";
 import { SlideDetail, SlideMenu, SlideRow, type Tone } from "./SlideMenu";
 
@@ -11,7 +12,7 @@ type Row = { label: string; sub?: string; count: number; href: string };
 type Item = { key: string; tone: Tone; title: string; count: number; detail: string; rows: Row[] };
 type Data = { total: number; items: Item[]; time: string };
 
-const ICON: Record<string, IconName> = { MIN: "triangle", PR: "docCheck", DEDUCT: "sync" };
+const ICON: Record<string, IconName> = { MIN: "triangle", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
 const POLL_MS = 30000;
 
 export function NotificationBell() {
@@ -27,9 +28,12 @@ export function NotificationBell() {
   useEffect(() => {
     const first = setTimeout(load, 0);
     const t = setInterval(() => document.visibilityState === "visible" && load(), POLL_MS);
+    // มีข้อความใหม่ / ส่งแล้ว / อ่านแล้ว = โหลดใหม่ทันที
+    window.addEventListener(NOTIFY_REFRESH, load);
     return () => {
       clearTimeout(first);
       clearInterval(t);
+      window.removeEventListener(NOTIFY_REFRESH, load);
     };
   }, [load]);
 
@@ -48,6 +52,9 @@ export function NotificationBell() {
 
   const go = (href: string) => {
     setOpen(false);
+    // #support:ID = เปิดแชทแจ้ง Admin ที่เรื่องนั้น
+    if (href.startsWith("#support")) return openSupport(Number(href.split(":")[1]) || undefined);
+    if (href.startsWith("#chat:")) return openChat(href.slice(6));
     router.push(href);
   };
   const total = data?.items.reduce((s, i) => s + i.count, 0) ?? 0;

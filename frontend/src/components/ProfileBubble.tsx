@@ -11,6 +11,7 @@ import {
   type Corner,
 } from "@/lib/profileCorner";
 import { ProfileModal } from "./ProfileModal";
+import { openChat, openSupport } from "@/lib/support";
 import { SlideDetail, SlideMenu, SlideRow, type SlideItem } from "./SlideMenu";
 
 // 👤 วงกลมโปรไฟล์ลอยมุมจอ: ลากไปมุมไหนก็ได้ ปล่อยแล้วเด้งเข้ามุมที่ใกล้ที่สุด (จำไว้ในเครื่อง) - กดแล้วเมนูสไลด์ออกมา
@@ -175,6 +176,22 @@ export function ProfileBubble() {
           <SlideRow title="เครื่องนี้" value={deviceName() || "-"} />
         </SlideDetail>
       ),
+    },
+    {
+      key: "support",
+      icon: "chat",
+      label: "ติดต่อ / แจ้ง Admin",
+      hint: "แจ้งปัญหา · อัพเดทระบบ · ขอสิทธิ์",
+      tone: "info",
+      onSelect: () => (setOpen(false), openSupport()),
+    },
+    {
+      key: "chat",
+      icon: "user",
+      label: "แชท",
+      hint: "คุยกับผู้ใช้คนอื่นแบบหนึ่งต่อหนึ่ง",
+      tone: "accent",
+      onSelect: () => (setOpen(false), openChat()),
     },
     ...(me.can.activityLog
       ? [

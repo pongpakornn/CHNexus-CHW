@@ -19,6 +19,29 @@ namespace Nexus.Helpers
         public static bool HasUserScanStocks => _userScanStocks ?? (_userScanStocks = TableExists("Nexus.UserScanStocks")) ?? false;
         public static bool HasAdminContacts => _adminContacts ?? (_adminContacts = TableExists("Nexus.AdminContacts")) ?? false;
 
+        // database/nexus/03_Add_Support.sql: แชทแจ้ง Admin (Nexus.SupportThreads + Nexus.SupportMessages)
+        private static bool? _support;
+        public static bool HasSupport => _support ?? (_support = TableExists("Nexus.SupportMessages") == true && MsgEditExists()) ?? false;
+
+        // database/nexus/04_Add_Chat.sql: แชทระหว่างผู้ใช้ (Nexus.ChatMessages)
+        private static bool? _chat;
+        public static bool HasChat => _chat ?? (_chat = TableExists("Nexus.ChatMessages") == true && MsgEditExists()) ?? false;
+
+        // database/nexus/05_Chat_EditDelete.sql + 06_Chat_Attach_React.sql: แก้ไข / ลบ / แนบไฟล์ / อีโมจิ (ต้องมีก่อนเปิดแชท / แจ้ง Admin)
+        private static bool MsgEditExists()
+        {
+            try
+            {
+                using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+                using (var cmd = new SqlCommand("SELECT CASE WHEN COL_LENGTH('Nexus.ChatMessages', 'EditedAt') IS NOT NULL AND COL_LENGTH('Nexus.SupportMessages', 'EditedAt') IS NOT NULL AND COL_LENGTH('Nexus.ChatMessages', 'AttachName') IS NOT NULL AND COL_LENGTH('Nexus.SupportMessages', 'AttachName') IS NOT NULL AND OBJECT_ID('Nexus.ChatReactions', 'U') IS NOT NULL THEN 1 ELSE 0 END", conn))
+                {
+                    conn.Open();
+                    return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+                }
+            }
+            catch { return false; }
+        }
+
         // Update_20261016.sql: Nexus.UserScanStocks.ShowDeduct (ปุ่ม DEDUCTED / NOT DEDUCTED ตาม UserID + คลัง)
         private static bool? _scanDeduct;
         public static bool HasScanDeduct

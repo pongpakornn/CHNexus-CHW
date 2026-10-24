@@ -18,7 +18,7 @@ type Kind = "STOCK" | "PRODUCT" | "MAX" | "MIN";
 // badge = ไอคอนขาวบนกรอบสี่เหลี่ยมมนไล่สี (สีอ่อน -> เข้ม)
 const CARD: Record<Kind, { title: string; tone: string; icon: IconName; pick: string; badge: [string, string, string]; art?: string; filter?: string }> = {
   STOCK: { title: "STOCK", tone: "var(--accent)", icon: "home", pick: "Select a stock", badge: ["/images/dashboard/ic-stock.png", "#8b7cf6", "#5b47e0"], art: "/images/dashboard/warehouse.webp" },
-  PRODUCT: { title: "PRODUCT ALL", tone: "var(--info)", icon: "cube", pick: "Products by stock", badge: ["/images/dashboard/ic-product.png", "#38bdf8", "#2563eb"], art: "/images/dashboard/box.webp" },
+  PRODUCT: { title: "PRODUCT ALL", tone: "var(--info)", icon: "cube", pick: "Products by stock", badge: ["/images/dashboard/ic-product.png", "#38bdf8", "#2563eb"], art: "/images/dashboard/boxes.webp" },
   MAX: { title: "MAX PRODUCT", tone: "var(--success)", icon: "cube", pick: "Over MAX by stock", badge: ["/images/dashboard/ic-max.png", "#4ade80", "#15803d"], art: "/images/dashboard/box-green.webp", filter: "OVER_MAX" },
   MIN: { title: "MIN PRODUCT", tone: "var(--danger)", icon: "triangle", pick: "Under MIN by stock", badge: ["/images/dashboard/ic-min.png", "#fb7185", "#e11d48"], art: "/images/dashboard/warning.webp", filter: "UNDER_MIN" },
 };

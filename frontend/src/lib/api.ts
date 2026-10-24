@@ -33,15 +33,17 @@ function url(path: string, query?: Options["query"]) {
 
 export async function api<T = unknown>(path: string, opt: Options = {}): Promise<T> {
   const { body, query, headers, ...rest } = opt;
+  // FormData (อัปโหลดไฟล์) = ให้ Browser ใส่ Content-Type / boundary เอง
+  const form = typeof FormData !== "undefined" && body instanceof FormData;
   const res = await fetch(url(path, query), {
     ...rest,
     credentials: "same-origin",
     headers: {
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}),
       "X-Client-Device": deviceName(),
       ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) {
     // นอก React: โหลดหน้า Login ใหม่ทั้งหน้า (ล้างข้อมูลของผู้ใช้เดิมที่ค้างอยู่ใน State)

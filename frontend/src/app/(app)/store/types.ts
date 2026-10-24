@@ -20,6 +20,19 @@ export type Stock = {
   cardStyle: string;
   coilRowColumns: string | null;
   columnOrder: string | null;
+  colNo: boolean;
+  colImage: boolean;
+  colCustomer: boolean;
+  colCode: boolean;
+  colPartA: boolean;
+  colPartB: boolean;
+  colPartNo: boolean;
+  colModel: boolean;
+  colName: boolean;
+  colQty: boolean;
+  colStockBox: boolean;
+  colStockPcs: boolean;
+  colRemark: boolean;
   groupBy: string;
   maxMinBasis: string;
   maxMinUnit: string;
@@ -65,8 +78,20 @@ export type Product = {
 
 export type Counts = { total: number; max: number; min: number; noOrder: number } | null;
 
+// สีสถานะ (StatusToColorConverter): ยังไม่ตั้ง MAX-MIN = เทา · ต่ำกว่า MIN = แดง · หมด = แดงเข้ม · เกิน MAX = เขียวแก่ · ปกติ = เขียว
 export const STATUS_COLOR = (s: string) =>
-  s === "OVER_MAX" || s === "NORMAL_GOOD" ? "var(--success)" : s === "UNDER_MIN" || s === "OUT_OF_STOCK" ? "var(--danger)" : "#9e9aa3";
+  ({ UNDER_MIN: "#dc143c", OUT_OF_STOCK: "#8b0000", OVER_MAX: "#2f8247", NORMAL_GOOD: "#4caf50", NORMAL: "#4caf50" })[s?.trim() ?? ""] ?? "#d3d3d3";
+
+// สี / ป้ายของการ์ดสินค้าตามสถานะ (StoreMaxMinView.CardTone)
+export function cardTone(s: string) {
+  const red = s === "UNDER_MIN" || s === "OUT_OF_STOCK";
+  const green = s === "NORMAL_GOOD" || s === "OVER_MAX" || s === "NORMAL";
+  return {
+    bg: red ? "#ffebee" : green ? "#e8f5e9" : "#faf9fc",
+    line: red ? "#e53935" : s === "OVER_MAX" ? "#2e7d32" : green ? "#43a047" : "#c9c3d3",
+    label: red ? "LOW STOCK" : s === "OVER_MAX" ? "OVER MAX" : green ? "NORMAL" : "NO MAX-MIN",
+  };
+}
 
 // ชื่อคอลัมน์ตามรหัส (StockModel.ColumnOrder)
 export const COLUMN_LABEL: Record<string, string> = {

@@ -25,6 +25,30 @@ public sealed class StoreController : AppController
         return s != null && Me.CanViewStock(s) ? s : null;
     }
 
+    // คอลัมน์ที่แสดงจริง (StoreMaxMinView.ApplyColumnSettings): เปิด / ปิดตาม Col* ของคลัง เรียงตาม ColumnOrder
+    //   BOX / COIL = ช่องเดียวกัน (STOCK (BOX) / STOCK (COIL)) · MAX / MIN / STATUS ตาม USE MAX-MIN · STATUS อยู่ท้ายสุดเสมอ
+    private static List<string> VisibleColumns(StockModel s)
+    {
+        bool On(string k) => k switch
+        {
+            "NO" => s.ColNo, "IMAGE" => s.ColImage, "CUSTOMER" => s.ColCustomer, "CODE" => s.ColCode, "PARTA" => s.ColPartA, "PARTB" => s.ColPartB,
+            "PARTNO" => s.ColPartNo, "MODEL" => s.ColModel, "NAME" => s.ColName, "MAXMIN" => s.UseMaxMin, "QTY" => s.ColQty,
+            "BOX" or "COIL" => s.ShowBoxColumn, "PCS" => s.ColStockPcs, "REMARK" => s.ColRemark, _ => false
+        };
+        var list = new List<string>();
+        foreach (string k in s.ColumnOrderList())
+        {
+            string key = k == "COIL" ? "BOX" : k;
+            if (On(k) && !list.Contains(key)) list.Add(key);
+        }
+        if (s.UseMaxMin) list.Add("STATUS");
+        return list;
+    }
+
+    // 🧲 MASTER COIL / COIL NO (จำนวน / KG / TON) ของคลังที่นับ Coil (RefreshCountsAsync) + แยกตามการ์ด MAX / MIN / ยังไม่ตั้ง
+    private static object CoilSum(StockModel s, bool split) =>
+        !s.CountCoil || !DbSchema.HasCoilRegister ? null : StoreCoils.Get(s.StkId, split);
+
     private static string AllLabel(StockModel s) => s.GroupByCustomer ? "ALL CUSTOMERS" : s.GroupBySupplier ? "ALL SUPPLIERS" : "ALL CATEGORIES";
 
     // ---------------------------------------------------------------- การ์ดคลัง
@@ -165,8 +189,9 @@ public sealed class StoreController : AppController
         return Ok(new
         {
             stock = s,
-            columns = s.ColumnOrderList(),
+            columns = VisibleColumns(s),
             coilRowOrder = s.CoilRowOrder(),
+            coilSum = CoilSum(s, counts != null),
             allLabel = AllLabel(s), groupLabel = s.GroupCode, categories = cats,
             counts = counts == null ? null : new { counts.Value.Total, counts.Value.Max, counts.Value.Min, counts.Value.NoOrder },
             canEdit = !s.IsLiveView && Me.CanEditStock(s),
@@ -207,6 +232,7 @@ public sealed class StoreController : AppController
         {
             token = now, changed = true,
             counts = counts == null ? null : new { counts.Value.Total, counts.Value.Max, counts.Value.Min, counts.Value.NoOrder },
+            coilSum = CoilSum(s, counts != null),
             rows = _products.GetStockNumbers(s).Select(p => new { p.PartId, p.PartCode, p.Qty, p.Max, p.Min, p.Remark, p.StockStatus, p.StockBox, p.StockPcs })
         });
     }
@@ -278,16 +304,57 @@ public sealed class StoreController : AppController
         catch (Exception ex) { return Fail("ไม่สามารถบันทึกข้อมูลได้\n" + ex.Message); }
     }
 
-    // 🧲 แถว Coil ย่อยของสินค้า (คลิก PD CODE)
+    // 🧲 แถว Coil ย่อยของสินค้า (คลิก PD CODE) - แถบ Master Coil + Coil ลูก ข้อความตาม CoilRowsView (น้ำหนักทศนิยมตามคลัง)
+    private static object CoilRow(CoilRowModel c, StockModel s) => new
+    {
+        c.CoilId, c.PartId, c.IsMother, no = c.NoText, c.CoilNo,
+        motherCoil = string.IsNullOrWhiteSpace(c.MotherCoil) || c.MotherCoil == "-" ? "-" : c.MotherCoil,
+        weight = Qty.Text(c.WeightKG, s.AllowDecimal), ton = c.WeightTonText,
+        received = c.ReceivedDate?.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "-"
+    };
+
+    // Coil ดิบของทั้งคลัง -> จัดกลุ่มต่อ Master Coil แบบ CoilService.GetCoilRows (CoilRowsView.Grouped)
+    private static List<CoilRowModel> Grouped(IEnumerable<CoilRowModel> coils)
+    {
+        var rows = new List<CoilRowModel>();
+        foreach (var g in coils.GroupBy(c => string.IsNullOrWhiteSpace(c.MotherCoil) ? "-" : c.MotherCoil))
+        {
+            var items = g.ToList();
+            rows.Add(new CoilRowModel { IsMother = true, MotherCoil = g.Key, CoilNo = $"{items.Count} COIL", WeightKG = items.Sum(c => c.WeightKG) });
+            int no = 1;
+            foreach (var c in items) { c.No = no++; rows.Add(c); }
+        }
+        return rows;
+    }
+
     [HttpGet("{stkId:int}/coils/{partId:int}")]
     public IActionResult Coils(int stkId, int partId)
     {
         if (Me?.CanViewStore != true) return Deny();
-        if (VisibleStock(stkId) == null) return Deny();
-        return Ok(new CoilService().GetCoilRows(stkId, partId).Select(c => new
-        {
-            c.CoilId, c.IsMother, c.No, c.CoilNo, c.MotherCoil, c.WeightKG, ton = c.WeightKG / 1000m, c.LabelDate, received = c.DateText
-        }));
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny();
+        return Ok(new CoilService().GetCoilRows(stkId, partId).Select(c => CoilRow(c, s)));
+    }
+
+    // SHOW COILS / รอบเรียลไทม์: Coil ทั้งคลังครั้งเดียว แยกตามสินค้า (PartID -> แถว)
+    [HttpGet("{stkId:int}/coils")]
+    public IActionResult AllCoils(int stkId)
+    {
+        if (Me?.CanViewStore != true) return Deny();
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny();
+        return Ok(new CoilService().GetCoils(stkId, 0).GroupBy(c => c.PartId)
+            .ToDictionary(g => g.Key.ToString(), g => Grouped(g).Select(c => CoilRow(c, s)).ToList()));
+    }
+
+    // ⚡ เรียลไทม์ของโครงตาราง / ตั้งค่าคลัง / ทะเบียน Coil (ทุก 3 วินาที) - ไม่มีคลัง (ถูกลบ) = stock: false
+    [HttpGet("{stkId:int}/live")]
+    public IActionResult Live(int stkId)
+    {
+        if (Me?.CanViewStore != true) return Deny();
+        var s = VisibleStock(stkId);
+        if (s == null) return Ok(new { stock = false });
+        return Ok(new { stock = true, settings = StoreLive.Settings(stkId), structure = StoreLive.Structure(s), coils = StoreLive.Coils(s) });
     }
 
     // ---------------------------------------------------------------- 📤 Export / Template

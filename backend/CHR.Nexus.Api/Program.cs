@@ -33,6 +33,8 @@ Storage.Init(builder.Configuration["Storage:Root"] ?? Path.Combine(builder.Envir
              builder.Configuration["Storage:ImageFallback:Stock"],
              builder.Configuration["Storage:ImageFallback:Legacy"],
              builder.Configuration["Storage:ImageFallback:StorePc"]);
+// 📎 ไฟล์ / รูปที่แนบในแชท
+CHR.Nexus.Api.Web.ChatFiles.Init(builder.Configuration["Storage:ChatFiles"], builder.Configuration["Storage:ChatImages"]);
 
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 if (string.IsNullOrWhiteSpace(jwt.Key) || jwt.Key.Length < 32)

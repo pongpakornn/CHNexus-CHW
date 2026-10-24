@@ -5,10 +5,11 @@ import { useBubbleCorner } from "@/lib/profileCorner";
 import { Icon, type IconName } from "./icons";
 
 // 🔔 แจ้งเตือนมุมขวาล่าง + เสียง (แทน NotificationManager + SystemSounds ของ WPF) - ไม่เด้ง Popup ค้าง สแกนต่อได้เลย
-//    หลอดเวลาทางขวาค่อยๆ ลดลง หมดแล้วค่อยๆ จางหาย · ชี้ค้าง = หยุดเวลา · กด = ปิดทันที
-type Kind = "ok" | "error" | "warn" | "info";
-type Toast = { id: number; title: string; message: string; kind: Kind; ms: number; leaving: boolean };
-type Ctx = { show: (title: string, message: string, kind?: Kind) => void };
+//    หลอดเวลาแนวนอนติดขอบล่างค่อยๆ หดลง หมดแล้วค่อยๆ จางหาย · ชี้ค้าง = หยุดเวลา · กด = ปิด (หรือทำตาม onClick เช่น เปิดแชท)
+type Kind = "ok" | "error" | "warn" | "info" | "chat";
+type Opts = { onClick?: () => void; ms?: number };
+type Toast = { id: number; title: string; message: string; kind: Kind; ms: number; leaving: boolean; onClick?: () => void };
+type Ctx = { show: (title: string, message: string, kind?: Kind, opts?: Opts) => void };
 
 const ToastCtx = createContext<Ctx | null>(null);
 
@@ -16,7 +17,7 @@ function beep(kind: Kind) {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC();
-    const tones = kind === "error" ? [220, 180] : kind === "warn" ? [520, 420] : [880];
+    const tones = kind === "error" ? [220, 180] : kind === "warn" ? [520, 420] : kind === "chat" ? [660, 990] : [880];
     tones.forEach((f, i) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
@@ -33,19 +34,19 @@ function beep(kind: Kind) {
   }
 }
 
-const TONE: Record<Kind, string> = { ok: "#4ade80", error: "#d65563", warn: "#f0b04a", info: "#6aa6f8" };
-const ICON: Record<Kind, IconName> = { ok: "check", error: "error", warn: "triangle", info: "info" };
+const TONE: Record<Kind, string> = { ok: "#4ade80", error: "#d65563", warn: "#f0b04a", info: "#6aa6f8", chat: "#60a5fa" };
+const ICON: Record<Kind, IconName> = { ok: "check", error: "error", warn: "triangle", info: "info", chat: "chat" };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [list, setList] = useState<Toast[]>([]);
   const seq = useRef(0);
   const bubble = useBubbleCorner();
 
-  const show = useCallback((title: string, message: string, kind: Kind = "info") => {
+  const show = useCallback((title: string, message: string, kind: Kind = "info", opts?: Opts) => {
     const id = ++seq.current;
     if (kind !== "info") beep(kind);
-    const ms = kind === "error" || kind === "warn" ? 9000 : 4500;
-    setList((l) => [{ id, title, message, kind, ms, leaving: false }, ...l].slice(0, 4));
+    const ms = opts?.ms ?? (kind === "error" || kind === "warn" ? 9000 : kind === "chat" ? 7000 : 4500);
+    setList((l) => [{ id, title, message, kind, ms, leaving: false, onClick: opts?.onClick }, ...l].slice(0, 4));
   }, []);
 
   const leave = (id: number) => setList((l) => l.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
@@ -62,9 +63,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             role={t.kind === "error" ? "alert" : "status"}
-            onClick={() => leave(t.id)}
+            onClick={() => (t.onClick?.(), leave(t.id))}
             onTransitionEnd={(e) => e.propertyName === "opacity" && t.leaving && remove(t.id)}
-            className={`toast-card pointer-events-auto flex w-full cursor-pointer items-center gap-2.5 rounded-lg bg-[#232531] px-2.5 py-2 shadow-xl shadow-black/30 transition-[opacity,transform] duration-300 ${
+            className={`toast-card pointer-events-auto relative flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg bg-[#232531] px-2.5 pb-3 pt-2 shadow-xl shadow-black/30 transition-[opacity,transform] duration-300 ${
               t.leaving ? "translate-x-4 opacity-0" : "opacity-100"
             }`}
           >
@@ -75,10 +76,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <p className="text-xs font-semibold text-white sm:text-sm">{t.title}</p>
               {t.message && <p className="whitespace-pre-line break-words text-[11px] text-gray-400 sm:text-xs">{t.message}</p>}
             </div>
-            <div className="relative h-9 w-1.5 shrink-0 self-center overflow-hidden rounded-full bg-white/10" aria-hidden="true">
+            {/* หลอดเวลาแนวนอนติดขอบล่าง */}
+            <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/10" aria-hidden="true">
               <div
-                className="toast-tube absolute inset-0 rounded-full"
-                style={{ background: TONE[t.kind], animationDuration: `${t.ms}ms` }}
+                className="toast-tube absolute inset-0"
+                style={{ background: TONE[t.kind], boxShadow: `0 0 8px ${TONE[t.kind]}`, animationDuration: `${t.ms}ms` }}
                 onAnimationEnd={() => leave(t.id)}
               />
             </div>
