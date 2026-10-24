@@ -309,6 +309,42 @@ body {
 }
 
 /* เมนู Sidebar ที่เลือก: แสงวิ่งผ่านหนึ่งครั้งตอนเลือก */
+/* 🟣 Sidebar: แถบเมนูที่เลือก (glider) - กล่องเดียวเลื่อนไปหาเมนูที่เลือกแบบเด้งนิด ๆ
+   เต็มความกว้าง Sidebar · พื้นไล่ม่วงจางไปทางขวา · ขีดขาวชิดขอบซ้าย + แสงม่วงเรือง */
+.sb-glider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 44px;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--accent) 0%, #8d72d8 55%, rgb(141 114 216 / 0.55) 100%);
+  box-shadow: 0 10px 24px -12px rgb(103 80 164 / 0.95), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  transition: transform 0.55s cubic-bezier(0.34, 1.45, 0.64, 1), height 0.3s ease, opacity 0.3s ease;
+}
+.sb-glider::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 62%;
+  translate: 0 -50%;
+  border-radius: 0 3px 3px 0;
+  background: #fff;
+  box-shadow: 0 0 10px 1px rgb(255 255 255 / 0.85), 0 0 22px 4px rgb(159 61 255 / 0.65);
+}
+.sb-glider::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  width: 46px;
+  height: 70%;
+  background: rgb(159 61 255 / 0.45);
+  filter: blur(14px);
+}
 @keyframes sb-sheen {
   from { transform: translateX(-120%) skewX(-18deg); }
   to { transform: translateX(260%) skewX(-18deg); }
@@ -1457,6 +1493,7 @@ div.swap-in:has(> .show-strip) {
   .stat-card:hover::after {
     transition: none;
   }
+  .sb-glider,
   .sb-panel,
   .sb-text,
   .sb-drawer,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { MENU } from "@/lib/menu";
@@ -43,27 +43,37 @@ export function Shell({ children }: { children: React.ReactNode }) {
   // ตัวหนังสือในเมนู: วาดไว้ตลอด แค่จาง / เลื่อนออกตอนพับ = กาง-พับลื่น ไม่กระตุกจากการสร้าง / ลบ element
   const hide = (compact: boolean) => (compact ? "pointer-events-none -translate-x-2 opacity-0" : "translate-x-0 opacity-100");
 
+  // 🟣 แถบเมนูที่เลือก (glider): กล่องเดียวเลื่อนไหลไปหาเมนูที่เลือก (เด้งนิด ๆ) · เต็มความกว้าง Sidebar + ขีดขาวชิดขอบซ้ายมีแสงเรือง
+  const navBox = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    navBox.current?.querySelectorAll<HTMLElement>(".sb-nav").forEach((nav) => {
+      const g = nav.querySelector<HTMLElement>(".sb-glider");
+      const a = nav.querySelector<HTMLElement>("[data-active='true']");
+      if (!g) return;
+      if (!a) return void (g.style.opacity = "0");
+      g.style.height = `${a.offsetHeight}px`;
+      g.style.transform = `translateY(${a.offsetTop}px)`;
+      g.style.opacity = "1";
+    });
+  }, [path, items.length, open, mobile]);
+
   const nav = (compact: boolean) => (
-    <nav className="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-3 py-2">
+    <nav className="sb-nav relative flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden py-2">
+      <span className="sb-glider" aria-hidden />
       {items.map((m) => {
         const active = current?.href === m.href;
         return (
           <Link
             key={m.href}
             href={m.href}
+            data-active={active}
             title={compact ? m.label : undefined}
-            className={`group relative flex items-center gap-3 overflow-hidden rounded-xl py-2.5 pl-[14px] pr-3 text-sm font-bold transition-all duration-300 ${
-              active
-                ? "sb-sheen bg-gradient-to-r from-accent to-[#8d72d8] text-white shadow-[0_10px_24px_-10px_rgba(103,80,164,.95)] ring-1 ring-white/15"
-                : `text-white/65 hover:bg-white/[.08] hover:text-white ${compact ? "" : "hover:pl-4"}`
+            className={`group relative z-[1] flex items-center gap-3 overflow-hidden py-2.5 pl-[26px] pr-4 text-sm font-bold transition-all duration-300 ${
+              active ? "sb-sheen text-white" : `text-white/65 hover:bg-white/[.06] hover:text-white ${compact ? "" : "hover:pl-[30px]"}`
             }`}
           >
-            {/* แถบซ้าย: โผล่ตอนชี้ ยาวขึ้นตอนเลือก */}
-            <span
-              className={`absolute left-1 top-1/2 w-[3px] -translate-y-1/2 rounded-full bg-white transition-all duration-300 ${
-                active ? "h-6 opacity-100" : "h-0 opacity-0 group-hover:h-4 group-hover:opacity-70"
-              }`}
-            />
+            {/* ขีดซ้ายชิดขอบ: โผล่ตอนชี้ (เมนูที่เลือกใช้ขีดของแถบ glider) */}
+            {!active && <span className="absolute left-0 top-1/2 h-0 w-[3px] -translate-y-1/2 rounded-r-full bg-white opacity-0 transition-all duration-300 group-hover:h-4 group-hover:opacity-70" />}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={m.icon}
@@ -105,7 +115,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const arrow = narrow ? mobile : !open;
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div ref={navBox} className="flex h-dvh overflow-hidden">
       {/* Sidebar จอใหญ่: กล่องนอกเลื่อนกว้าง 80 <-> 260 ส่วนข้างในกว้าง 260 ตลอด (ซ่อนส่วนเกิน) = ไอคอนอยู่ที่เดิม ตัวหนังสือไม่ถูกบีบ */}
       <aside className="sb-panel hidden shrink-0 overflow-hidden bg-sidebar shadow-xl backdrop-blur md:flex" style={{ width: open ? 260 : 80 }}>
         <div className="flex h-full w-[260px] shrink-0 flex-col">
