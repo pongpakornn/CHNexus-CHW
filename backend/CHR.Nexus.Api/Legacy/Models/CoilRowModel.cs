@@ -14,6 +14,7 @@ namespace Nexus.Models
         public decimal WeightKG { get; set; }
         public string LabelDate { get; set; }
         public DateTime? ReceivedDate { get; set; }
+        public string Remark { get; set; }
 
         public string NoText => IsMother ? "" : No.ToString();
         public string WeightKGText => WeightKG.ToString("#,##0.###");

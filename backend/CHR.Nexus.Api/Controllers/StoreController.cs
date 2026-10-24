@@ -196,7 +196,8 @@ public sealed class StoreController : AppController
             counts = counts == null ? null : new { counts.Value.Total, counts.Value.Max, counts.Value.Min, counts.Value.NoOrder },
             canEdit = !s.IsLiveView && Me.CanEditStock(s),
             canImport = !s.IsLiveView && Me.CanImportStock(s),
-            hasCoilRegister = DbSchema.HasCoilRegister
+            hasCoilRegister = DbSchema.HasCoilRegister,
+            coilRemark = DbSchema.HasCoilRegister && DbSchema.HasCoilRemark
         });
     }
 
@@ -310,7 +311,8 @@ public sealed class StoreController : AppController
         c.CoilId, c.PartId, c.IsMother, no = c.NoText, c.CoilNo,
         motherCoil = string.IsNullOrWhiteSpace(c.MotherCoil) || c.MotherCoil == "-" ? "-" : c.MotherCoil,
         weight = Qty.Text(c.WeightKG, s.AllowDecimal), ton = c.WeightTonText,
-        received = c.ReceivedDate?.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "-"
+        received = c.ReceivedDate?.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "-",
+        remark = c.IsMother ? null : c.Remark ?? ""
     };
 
     // Coil ดิบของทั้งคลัง -> จัดกลุ่มต่อ Master Coil แบบ CoilService.GetCoilRows (CoilRowsView.Grouped)
@@ -334,6 +336,30 @@ public sealed class StoreController : AppController
         var s = VisibleStock(stkId);
         if (s == null) return Deny();
         return Ok(new CoilService().GetCoilRows(stkId, partId).Select(c => CoilRow(c, s)));
+    }
+
+    // 💬 REMARK ของ Coil ลูก (แถว Coil ใต้สินค้า) - แก้ได้ทุกคนที่ดูคลังได้ แบบ REMARK ของสินค้า · คลังดูสด = ดูอย่างเดียว
+    public sealed class CoilRemarkRequest { public string Remark { get; set; } }
+
+    [HttpPut("{stkId:int}/coils/{coilId:int}/remark")]
+    public IActionResult CoilRemark(int stkId, int coilId, [FromBody] CoilRemarkRequest p)
+    {
+        if (Me?.CanViewStore != true) return Deny();
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        if (s.IsLiveView) return Fail(StockModel.LiveViewMessage);
+        if (!DbSchema.HasCoilRemark) return Fail("ยังไม่ได้รัน Script database/nexus/07_Coil_Remark.sql");
+        var remark = (p?.Remark ?? "").Trim();
+        if (remark.Length > 500) return Fail("REMARK ยาวเกิน 500 ตัวอักษร");
+        try
+        {
+            var r = new CoilService().UpdateRemark(stkId, coilId, remark);
+            if (r == null) return Fail("ไม่พบ Coil นี้ในคลัง");
+            if (r.Value.Old != remark)
+                LogService.WriteLog(Uid, "UPDATE_COIL_REMARK", $"| Stock: {s.Code} | Coil: {r.Value.CoilNo} | Remark: {r.Value.Old} -> {remark}", r.Value.CoilNo);
+            return Ok();
+        }
+        catch (Exception ex) { return Fail("ไม่สามารถบันทึก REMARK ได้\n" + ex.Message); }
     }
 
     // SHOW COILS / รอบเรียลไทม์: Coil ทั้งคลังครั้งเดียว แยกตามสินค้า (PartID -> แถว)

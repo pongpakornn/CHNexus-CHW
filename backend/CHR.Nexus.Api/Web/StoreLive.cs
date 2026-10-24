@@ -28,7 +28,7 @@ public static class StoreLive
 
     public static string Coils(StockModel s) =>
         s.ShowCoilRows && DbSchema.HasCoilRegister && !s.IsLiveView
-            ? Token("SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(CoilID, PartID, Status, WeightKG, MotherCoil)) FROM Nexus.Coils WHERE StockID = @stk", null, s.StkId)
+            ? Token($"SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(CoilID, PartID, Status, WeightKG, MotherCoil{(DbSchema.HasCoilRemark ? ", Remark" : "")})) FROM Nexus.Coils WHERE StockID = @stk", null, s.StkId)
             : null;
 
     private static string Token(string sql1, string sql2, int stkId)

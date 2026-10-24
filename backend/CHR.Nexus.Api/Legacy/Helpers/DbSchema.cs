@@ -151,6 +151,9 @@ namespace Nexus.Helpers
         // Update_20261020b.sql: EMPLOYEE ID / DEPARTMENT ที่หน้า Multi-Scanner (Nexus.UserScanStocks.AskEmployee / AskDepartment +
         //   Nexus.ScanTransactions.EmployeeID / Department) · Nexus.ScanDepartments (Dropdown แผนก) · Nexus.ScanRpaLayouts (EXPORT RPA)
         private static bool? _scanWho, _scanDepartments, _scanRpa;
+        // database/nexus/07_Coil_Remark.sql: Nexus.Coils.Remark (หมายเหตุของ Coil ลูก)
+        private static bool? _coilRemark;
+        public static bool HasCoilRemark => _coilRemark ?? (_coilRemark = ColumnIn("Nexus.Coils", "Remark")) ?? false;
         public static bool HasScanWho => _scanWho ?? (_scanWho = ColumnIn("Nexus.ScanTransactions", "EmployeeID")) ?? false;
         public static bool HasScanDepartments => _scanDepartments ?? (_scanDepartments = TableExists("Nexus.ScanDepartments")) ?? false;
         public static bool HasScanRpa => _scanRpa ?? (_scanRpa = TableExists("Nexus.ScanRpaLayouts")) ?? false;

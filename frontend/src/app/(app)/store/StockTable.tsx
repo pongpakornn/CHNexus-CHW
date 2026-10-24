@@ -24,8 +24,9 @@ type Meta = {
   canEdit: boolean;
   canImport: boolean;
   hasCoilRegister: boolean;
+  coilRemark?: boolean;
 };
-type CoilRow = { coilId: number; partId: number; isMother: boolean; no: string; coilNo: string; motherCoil: string; weight: string; ton: string; received: string };
+type CoilRow = { coilId: number; partId: number; isMother: boolean; no: string; coilNo: string; motherCoil: string; weight: string; ton: string; received: string; remark?: string | null };
 type Field = "max" | "min" | "qty" | "stockBox" | "stockPcs" | "remark";
 type Live = { stock: boolean; settings?: string; structure?: string | null; coils?: string | null };
 
@@ -68,6 +69,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const [speedText, setSpeedText] = useState(String(speed));
   const [coils, setCoils] = useState<Record<number, CoilRow[] | "loading">>({});
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [closing, setClosing] = useState<Set<number>>(new Set());
   const [loop, setLoop] = useState(false);
   const [busy, setBusy] = useState(false);
   const k = useDebounced(key, 500);
@@ -270,6 +272,10 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const s = meta.stock;
   const cols = meta.columns;
   const coilKeys = ["NO", ...meta.coilRowOrder];
+  const iCoil = coilKeys.indexOf("COILNO");
+  const iMother = coilKeys.indexOf("MOTHER");
+  if (iCoil >= 0 && iMother > iCoil) [coilKeys[iCoil], coilKeys[iMother]] = ["MOTHER", "COILNO"];
+  if (meta.coilRemark) coilKeys.push("REMARK");
   const header = (c: string) =>
     ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ?? c;
   const width = cols.reduce((a, c) => a + (c === "MAXMIN" ? 2 : 1), 0);
@@ -301,9 +307,11 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   async function toggleCoils(p: Product) {
     if (!coilsOn) return;
     if (coils[p.partId]) {
-      setCoils((c) => {
-        const n = { ...c };
-        delete n[p.partId];
+      // กดซ้ำระหว่างกำลังพับ = กางกลับ
+      setClosing((cur) => {
+        const n = new Set(cur);
+        if (n.has(p.partId)) n.delete(p.partId);
+        else n.add(p.partId);
         return n;
       });
       return;
@@ -322,10 +330,42 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     }
   }
 
+  // พับเสร็จ (จบอนิเมชัน) -> เอาแถว Coil ออก
+  function finishClose(partId: number) {
+    setCoils((c) => {
+      const n = { ...c };
+      delete n[partId];
+      return n;
+    });
+    setClosing((cur) => {
+      const n = new Set(cur);
+      n.delete(partId);
+      return n;
+    });
+  }
+
+  // 💬 REMARK ของ Coil ลูก: แสดงทันที แล้วบันทึก (ไม่สำเร็จ = โหลด Coil ใหม่)
+  async function saveCoilRemark(r: CoilRow, v: string) {
+    if ((r.remark ?? "") === v) return;
+    setCoils((c) => {
+      const list = c[r.partId];
+      return Array.isArray(list) ? { ...c, [r.partId]: list.map((x) => (x.coilId === r.coilId ? { ...x, remark: v } : x)) } : c;
+    });
+    try {
+      await api(`/store/${stkId}/coils/${r.coilId}/remark`, { method: "PUT", body: { remark: v } });
+    } catch (e) {
+      toast.show("ERROR", "ไม่สามารถบันทึก REMARK ได้\n" + (e as Error).message, "error");
+      refreshCoils();
+    }
+  }
+
   function toggleShowCoils(on: boolean) {
     setShowCoils(on);
     pref.set("ShowCoils." + s.code, on ? "1" : "0");
-    if (!on) setCoils({});
+    if (!on) {
+      setCoils({});
+      setClosing(new Set());
+    }
   }
 
   function toggleCards(on: boolean) {
@@ -411,8 +451,10 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
           <td key={col} className="text-center font-bold text-ink-soft">
             {rowToggle ? (
               <span className="inline-flex items-center gap-2">
-                <span className={`row-chev ${coils[p.partId] ? "is-open" : ""}`} aria-hidden>
-                  ›
+                <span className={`row-chev ${isOpen(p) ? "is-open" : ""}`} aria-hidden>
+                  <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 3.5L10.5 8 6 12.5" />
+                  </svg>
                 </span>
                 {no}
               </span>
@@ -441,7 +483,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
               title={coilsOn ? "กดเพื่อดู Master Coil / Coil ลูก" : undefined}
             >
               {p.partCode}
-              {coilsOn && <span className="text-[10px]">{coils[p.partId] ? "▲" : "▼"}</span>}
+              {coilsOn && !rowToggle && <span className="text-[10px]">{coils[p.partId] ? "▲" : "▼"}</span>}
             </button>
           </td>
         );
@@ -483,64 +525,78 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     }
   };
 
-  // 🧲 แถว Coil ใต้สินค้า (CoilRowsView): หัวคอลัมน์ -> แถบ Master Coil (จำนวน + น้ำหนัก + TON) -> Coil ลูกแถวละ 1 ม้วน
+  // 🧲 แถว Coil ใต้สินค้า (CoilRowsView): ต่อ Master Coil 1 กลุ่ม = แถบ MASTER COIL (น้ำหนัก + TON + จำนวน) -> หัวคอลัมน์ -> Coil ลูกแถวละ 1 ม้วน
+  //    กางออก / พับเก็บ = เลื่อนนุ่ม ๆ (coil-slide) · พับเสร็จแล้วค่อยเอาแถวออก
   const coilHead = (key: string) =>
-    ({ NO: "NO.", COILNO: "COIL NO.", MOTHER: "MASTER COIL", WEIGHT: `WEIGHT (${s.unitDisplay}.)`, COIL: "STOCK (COIL)", TON: "WEIGHT (TON)", RECEIVED: "RECEIVED" })[key] ?? "";
+    ({ NO: "NO.", COILNO: "COIL NO.", MOTHER: "MASTER COIL", WEIGHT: `WEIGHT (${s.unitDisplay}.)`, COIL: "STOCK (COIL)", TON: "WEIGHT (TON)", RECEIVED: "RECEIVED", REMARK: "REMARK" })[key] ?? "";
   const coilCell = (key: string, r: CoilRow) => ({ NO: r.no, COILNO: r.coilNo, MOTHER: r.motherCoil, WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[key] ?? "";
+  const isOpen = (p: Product) => !!coils[p.partId] && !closing.has(p.partId);
+  const coilHeadRow = (k: string) => (
+    <tr key={"h" + k}>
+      {coilKeys.map((kk) => (
+        <td key={kk} className={`h-9 !border-b !border-[#ece8f6] bg-[#faf9fd] !px-1 !py-0 text-center !text-[11.5px] font-extrabold tracking-wide text-[#7a7492] ${kk === "NO" ? "w-[6%]" : ""} ${kk === "REMARK" ? "w-[16%]" : ""}`}>
+          {coilHead(kk)}
+        </td>
+      ))}
+    </tr>
+  );
   const coilPanel = (p: Product) => {
     const list = coils[p.partId];
     return (
       <tr className="hover:!bg-transparent">
-        <td colSpan={width} className="!border-0 !px-3 !pb-3 !pt-1">
-          <div className="view-in overflow-hidden rounded-2xl border border-[#e4def3] bg-white shadow-[0_10px_26px_-20px_rgb(60_40_130/0.5)]">
-            {list === "loading" ? (
-              <div className="p-3 text-center text-xs font-bold text-ink-soft">⏳ LOADING COILS...</div>
-            ) : !list || !list.some((r) => !r.isMother) ? (
-              <div className="py-3.5 text-center text-[13px] font-bold text-ink-soft">ยังไม่มี Coil ในคลังของสินค้านี้ (สแกนรับเข้า หรือ Import COIL LIST)</div>
-            ) : (
-              <table className="w-full table-fixed text-[13px]">
-                <thead>
-                  <tr>
-                    {coilKeys.map((kk) => (
-                      <th key={kk} className={`h-10 !border-b !border-[#ece8f6] !bg-[#f8f6fd] !px-1 !text-center !text-[12px] !font-extrabold !normal-case !tracking-normal !text-[#6b6585] ${kk === "NO" ? "w-[6%]" : ""}`}>
-                        {coilHead(kk)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((r) =>
-                    r.isMother ? (
-                      <tr key={"m" + r.motherCoil}>
-                        <td colSpan={coilKeys.length} className="!border-y !border-[#ebe5f7] !p-0">
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-[linear-gradient(90deg,#f1ecfc,#faf8fe)] px-4 py-2">
-                            <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-white shadow-[0_4px_10px_-6px_rgb(60_40_130/0.5)]">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src="/images/store/master-coil.webp" alt="" className="size-6" draggable={false} />
-                            </span>
-                            <span className="text-[13px] font-extrabold text-accent">
-                              MASTER COIL <span className="text-[#2d2a32]">{r.motherCoil || "-"}</span>
-                            </span>
-                            <span className="text-[13px] font-bold text-ink-soft">
-                              {r.weight} {s.unitDisplay} <span className="mx-1.5 text-[#cfc8de]">|</span> {r.ton} TON
-                            </span>
-                            <span className="ml-auto rounded-full bg-[#ece6fb] px-3 py-0.5 text-[11px] font-extrabold text-accent">{r.coilNo}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={r.coilId} className="h-11 transition-colors hover:bg-[#faf8ff]">
-                        {coilKeys.map((kk) => (
-                          <td key={kk} className="break-words !border-[#f1eef7] !px-1 !py-0 text-center !text-[13px] font-semibold text-[#3d3a4a]">
-                            {coilCell(kk, r)}
-                          </td>
-                        ))}
-                      </tr>
-                    ),
+        <td colSpan={width} className="!border-0 !p-0">
+          <div className={`coil-slide ${closing.has(p.partId) ? "is-closing" : ""}`} onAnimationEnd={(e) => e.target === e.currentTarget && e.animationName === "coil-close" && finishClose(p.partId)}>
+            <div>
+              <div className="px-3 pb-3 pt-1">
+                <div className="overflow-hidden rounded-2xl border border-[#e4def3] bg-white shadow-[0_10px_26px_-20px_rgb(60_40_130/0.5)]">
+                  {list === "loading" ? (
+                    <div className="p-3 text-center text-xs font-bold text-ink-soft">⏳ LOADING COILS...</div>
+                  ) : !list || !list.some((r) => !r.isMother) ? (
+                    <div className="py-3.5 text-center text-[13px] font-bold text-ink-soft">ยังไม่มี Coil ในคลังของสินค้านี้ (สแกนรับเข้า หรือ Import COIL LIST)</div>
+                  ) : (
+                    <table className="w-full table-fixed text-[13px]">
+                      <tbody>
+                        {!list[0]?.isMother && coilHeadRow("top")}
+                        {list.map((r, i) =>
+                          r.isMother ? (
+                            <Fragment key={"m" + r.motherCoil}>
+                              <tr>
+                                <td colSpan={coilKeys.length} className={`!border-0 !p-0 ${i > 0 ? "border-t border-[#ebe5f7]" : ""}`}>
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-[linear-gradient(90deg,#f1ecfc,#faf8fe_70%)] px-4 py-2">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src="/images/store/master-coil.webp" alt="" className="size-7 shrink-0" draggable={false} />
+                                    <span className="text-[13px] font-extrabold text-accent">
+                                      MASTER COIL <span className="text-[#2d2a32]">{r.motherCoil || "-"}</span>
+                                    </span>
+                                    <span className="text-[13px] font-bold text-ink-soft">
+                                      {r.weight} {s.unitDisplay} <span className="mx-1.5 text-[#cfc8de]">|</span> {r.ton} TON
+                                    </span>
+                                    <span className="ml-auto rounded-full bg-[#ece6fb] px-3 py-0.5 text-[11px] font-extrabold text-accent">{r.coilNo}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                              {coilHeadRow(r.motherCoil)}
+                            </Fragment>
+                          ) : (
+                            <tr key={r.coilId} className="h-11 transition-colors hover:bg-[#faf8ff]">
+                              {coilKeys.map((kk) => (
+                                <td key={kk} className="break-words !border-[#f1eef7] !px-1 !py-0 text-center !text-[13px] font-semibold text-[#3d3a4a]">
+                                  {kk === "REMARK" ? (
+                                    <CoilRemark value={r.remark ?? ""} disabled={s.isLiveView} onEditing={(v) => (editingRef.current = v)} onSave={(v) => saveCoilRemark(r, v)} />
+                                  ) : (
+                                    coilCell(kk, r)
+                                  )}
+                                </td>
+                              ))}
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
                   )}
-                </tbody>
-              </table>
-            )}
+                </div>
+              </div>
+            </div>
           </div>
         </td>
       </tr>
@@ -557,31 +613,26 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
           else n.add(g.key);
           return n;
         })}>
-          <td colSpan={width} className="!px-0 !py-1">
-            {mat ? (
-              <div className="flex h-[42px] items-center gap-2 rounded-[10px] border border-[#dfe3fb] bg-[linear-gradient(90deg,#eef1ff,#f8f9ff_60%,#ffffff)] pl-3 text-[#3730a3]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/images/store/warehouse.webp" alt="" className="size-7" draggable={false} />
-                <span className="text-sm font-bold">{meta.groupLabel} :</span>
-                <span className="text-[15px] font-extrabold">{g.key}</span>
-                <span className="ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{g.items.length.toLocaleString()} ITEMS</span>
-                <span className="ml-auto pr-4 text-[10px] text-[#6b6fa8]">{collapsed.has(g.key) ? "▼" : "▲"}</span>
-              </div>
-            ) : (
-            <div className="flex h-[38px] items-center gap-1.5 rounded-[5px] border-l-2 border-accent bg-[#f3e5f5] pl-4 text-accent">
-              <span className="text-sm font-bold">👥 {meta.groupLabel} :</span>
+          <td colSpan={width} className="!p-0">
+            <div className="flex h-[44px] items-center gap-2 border-y border-[#dfe3fb] bg-[linear-gradient(90deg,#eef1ff,#f7f8ff_55%,#ffffff)] pl-4 text-[#3730a3]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/store/warehouse.webp" alt="" className="size-7" draggable={false} />
+              <span className="text-sm font-bold">{meta.groupLabel} :</span>
               <span className="text-[15px] font-extrabold">{g.key}</span>
-              <span className="ml-3 rounded-xl bg-accent px-3 py-1 text-[10px] font-bold text-white">{g.items.length.toLocaleString()} ITEMS</span>
-              <span className="ml-auto pr-4 text-[10px] text-ink-soft">{collapsed.has(g.key) ? "▼" : "▲"}</span>
+              <span className="ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{g.items.length.toLocaleString()} ITEMS</span>
+              <span className={`group-chev ml-auto mr-4 ${collapsed.has(g.key) ? "" : "is-open"}`} aria-hidden>
+                <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 3.5L10.5 8 6 12.5" />
+                </svg>
+              </span>
             </div>
-            )}
           </td>
         </tr>
         {!collapsed.has(g.key) &&
           g.items.map((p, i) => (
             <Fragment key={p.partId}>
               <tr
-                className={`${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${rowToggle ? "mat-row cursor-pointer" : ""} ${rowToggle && coils[p.partId] ? "is-open" : ""}`}
+                className={`${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${rowToggle ? "mat-row cursor-pointer" : ""} ${rowToggle && isOpen(p) ? "is-open" : ""}`}
                 onClick={rowToggle ? (e) => !(e.target as HTMLElement).closest("input, button, [data-edit]") && toggleCoils(p) : undefined}
               >
                 {cols.map((col) => cell(p, col, i + 1))}
@@ -734,6 +785,46 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
         <span className={`absolute top-0.5 h-6 w-7 rounded bg-[#f3f3f3] transition-all ${on ? "left-[calc(100%-30px)]" : "left-0.5"}`} />
         <span className={on ? "ml-1.5" : "ml-auto mr-1"}>{on ? "ON" : "OFF"}</span>
       </span>
+    </button>
+  );
+}
+
+// 💬 REMARK ของ Coil ลูก: คลิก -> พิมพ์ -> Enter / ออกจากช่อง = บันทึก, Esc = ยกเลิก · ดูอย่างเดียว = แสดงเฉย ๆ
+function CoilRemark({ value, disabled, onSave, onEditing }: { value: string; disabled?: boolean; onSave: (v: string) => void; onEditing: (v: boolean) => void }) {
+  const [edit, setEdit] = useState<string | null>(null);
+  const done = (commit: boolean) => {
+    if (edit !== null && commit) onSave(edit.trim());
+    setEdit(null);
+    onEditing(false);
+  };
+  if (edit !== null)
+    return (
+      <input
+        autoFocus
+        maxLength={500}
+        className="field !py-1 text-center !text-[13px] font-semibold"
+        value={edit}
+        placeholder="REMARK"
+        onChange={(e) => setEdit(e.target.value)}
+        onBlur={() => done(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") done(true);
+          if (e.key === "Escape") done(false);
+        }}
+      />
+    );
+  if (disabled) return <span title={value}>{value || "-"}</span>;
+  return (
+    <button
+      type="button"
+      className="coil-remark w-full truncate rounded-lg px-2 py-1 text-center"
+      title={value ? `${value}\n(คลิกเพื่อแก้ไข)` : "คลิกเพื่อเพิ่ม REMARK"}
+      onClick={() => {
+        onEditing(true);
+        setEdit(value);
+      }}
+    >
+      {value || <span className="text-[11px] font-bold text-[#c2bcd2]">+ REMARK</span>}
     </button>
   );
 }

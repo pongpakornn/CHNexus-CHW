@@ -40,8 +40,8 @@ namespace Nexus.Services
             if (!DbSchema.HasCoilRegister || stockId <= 0 || partId < 0) return list;
 
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
-            using (var cmd = new SqlCommand(@"
-                SELECT CoilID, PartID, CoilNo, MotherCoil, WeightKG, LabelDate, ReceivedDate
+            using (var cmd = new SqlCommand($@"
+                SELECT CoilID, PartID, CoilNo, MotherCoil, WeightKG, LabelDate, ReceivedDate, {(DbSchema.HasCoilRemark ? "Remark" : "CAST(NULL AS NVARCHAR(500)) AS Remark")}
                 FROM Nexus.Coils
                 WHERE StockID = @stk AND (@pt = 0 OR PartID = @pt) AND Status = 'IN'
                 ORDER BY PartID, ISNULL(MotherCoil, N''), CoilNo", conn))
@@ -61,12 +61,32 @@ namespace Nexus.Services
                             MotherCoil = rdr["MotherCoil"] == DBNull.Value ? null : rdr["MotherCoil"].ToString(),
                             WeightKG = rdr["WeightKG"] == DBNull.Value ? 0 : Convert.ToDecimal(rdr["WeightKG"]),
                             LabelDate = rdr["LabelDate"] == DBNull.Value ? null : rdr["LabelDate"].ToString(),
-                            ReceivedDate = rdr["ReceivedDate"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(rdr["ReceivedDate"])
+                            ReceivedDate = rdr["ReceivedDate"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(rdr["ReceivedDate"]),
+                            Remark = rdr["Remark"] == DBNull.Value ? null : rdr["Remark"].ToString()
                         });
                     }
                 }
             }
             return list;
+        }
+
+        // 💬 หมายเหตุของ Coil ลูก 1 ม้วน (เฉพาะ Coil ที่อยู่ในคลังนั้น) -> คืน CoilNo / หมายเหตุเดิม ไว้ลง Log · ไม่พบ = null
+        public (string CoilNo, string Old)? UpdateRemark(int stockId, int coilId, string remark)
+        {
+            if (!DbSchema.HasCoilRemark) return null;
+            using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+            using (var cmd = new SqlCommand(@"
+                UPDATE Nexus.Coils SET Remark = @r, UpdatedDate = GETDATE()
+                OUTPUT inserted.CoilNo, deleted.Remark
+                WHERE CoilID = @id AND StockID = @stk", conn))
+            {
+                cmd.Parameters.AddWithValue("@r", string.IsNullOrWhiteSpace(remark) ? (object)DBNull.Value : remark.Trim());
+                cmd.Parameters.AddWithValue("@id", coilId);
+                cmd.Parameters.AddWithValue("@stk", stockId);
+                conn.Open();
+                using (var rdr = cmd.ExecuteReader())
+                    return rdr.Read() ? (rdr.GetString(0), rdr.IsDBNull(1) ? "" : rdr.GetString(1)) : null;
+            }
         }
 
         // จำนวน Coil ที่ลงทะเบียนไว้ต่อสินค้า (ใช้บอกว่าแถวไหนกดดู Coil ได้)
