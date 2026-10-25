@@ -9,6 +9,7 @@ import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";
 import { StatCards, type CoilSum } from "./StatCards";
 import { ActionMenu, type MenuAction } from "./ActionMenu";
+import { ProductCard, useMobile, type CardLabels } from "./MobileCards";
 import { ShowCards } from "./ShowCards";
 import { StockHeader } from "./StockHeader";
 import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg } from "./TableRows";
@@ -83,7 +84,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const editingRef = useRef(false);
   const pauseUntil = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const bodyRef = useRef<HTMLDivElement & HTMLTableSectionElement>(null);
   const verRef = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const rowsRef = useRef<Product[] | null>(null);
@@ -226,6 +227,29 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   //    หน้าเดียว = วนต่อเนื่อง (แถวที่พ้นด้านบนต่อท้ายใหม่) · หลายหน้า = เลื่อนจนสุดหน้า -> ไปหน้าถัดไป -> หน้าสุดท้ายแล้วกลับหน้าแรก (ครบทุกรายการ)
   //    หมุนล้อเมาส์ = เลื่อนเองได้ + หยุดอัตโนมัติ 5 วินาที · คลิกตาราง / แก้ไขช่อง = หยุดชั่วคราว
   const pagesRef = useRef(1);
+  // 📐 กว้างพื้นที่ตาราง (ไว้ตัดสินว่าตารางแสดงครบทุกคอลัมน์ได้ไหม)
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [boxW, setBoxW] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setBoxW(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [meta]);
+  const mobile = useMobile();
+  // ตารางล้นพื้นที่จริง (วัดจากตารางที่วาดอยู่) -> จำความกว้างที่ตารางต้องใช้ของคลังนี้ แล้วสลับเป็นการ์ดจนกว่าพื้นที่จะกว้างพอ
+  const [tableMin, setTableMin] = useState<{ code: string; w: number } | null>(null);
+  useEffect(() => {
+    if (mobile) return;
+    const id = requestAnimationFrame(() => {
+      const sc = scrollRef.current;
+      const code = metaRef.current?.stock.code;
+      if (!sc || !code || !sc.querySelector("table.store-table")) return;
+      if (sc.scrollWidth > sc.clientWidth + 2) setTableMin({ code, w: sc.scrollWidth + 4 });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [boxW, rows, meta, mobile]);
   const pageRef = useRef(0);
   useEffect(() => {
     const el = scrollRef.current;
@@ -236,7 +260,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     let pos = 0;
     let endAt = 0;
     let seenPage = pageRef.current;
-    const bodies = () => el.querySelectorAll<HTMLElement>("tbody[data-slide]");
+    const bodies = () => el.querySelectorAll<HTMLElement>("[data-slide]");
     const apply = () => {
       const y = `translate3d(0,${-pos}px,0)`;
       bodies().forEach((b) => (b.style.transform = y));
@@ -520,6 +544,40 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   }
 
   const c = meta.counts;
+  // 📱 การ์ดแทนตาราง: จอมือถือ หรือพื้นที่แคบกว่าที่ตารางต้องใช้ (คอลัมน์จะล้น ต้องเลื่อนซ้าย-ขวา) · จอกว้างพอ = ตารางแบบเดิม
+  const need = tableMin?.code === s.code ? tableMin.w : 0;
+  const asCards = mobile || (need > 0 && boxW > 0 && boxW < need);
+  const labels: CardLabels = { max: s.maxHeader, min: s.minHeader, qty: s.qtyHeader, box: s.boxHeader };
+  const toggleGroup = (k: string) =>
+    setCollapsed((cur) => {
+      const n = new Set(cur);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  // การ์ดทั้งชุด (SHOW PRODUCTION วาดซ้ำต่อท้ายอีกชุดเพื่อวนต่อเนื่อง)
+  const cardsBody = (copy: boolean) =>
+    groups.map((g) => (
+      <Fragment key={(copy ? "c-" : "") + g.key}>
+        <button type="button" className="mc-group" onClick={() => toggleGroup(g.key)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/store/warehouse.webp" alt="" className="size-6" draggable={false} />
+          <span className="min-w-0 truncate text-[13px] font-bold">
+            {meta.groupLabel} : <b className="text-[15px] font-extrabold">{g.key}</b>
+          </span>
+          <span className="ml-auto shrink-0 rounded-full bg-[#4f46e5] px-2.5 py-0.5 text-[10px] font-bold text-white">{(groupTotal.get(g.key) ?? g.items.length).toLocaleString()} ITEMS</span>
+          <span className={`group-chev shrink-0 ${collapsed.has(g.key) ? "" : "is-open"}`} aria-hidden>
+            <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 3.5L10.5 8 6 12.5" />
+            </svg>
+          </span>
+        </button>
+        {!collapsed.has(g.key) &&
+          g.items.map((p, i) => (
+            <ProductCard key={p.partId} p={p} no={i + 1} cfg={cfg} labels={labels} coil={coils[p.partId]} closing={closing.has(p.partId)} anim={animOpen.has(p.partId)} act={act} />
+          ))}
+      </Fragment>
+    ));
   // ตารางทั้งชุด (SHOW PRODUCTION วาดซ้ำต่อท้ายอีกชุดเพื่อวนต่อเนื่อง)
   const body = (copy: boolean) =>
     groups.map((g) => (
@@ -667,14 +725,26 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         </div>
       )}
 
+      <div ref={wrapRef}>
       <div
         ref={scrollRef}
-        className={`swap-${swap} rounded-2xl border border-line/60 bg-surface shadow-sm ${production ? "prod-scroll max-h-[75vh] overflow-hidden" : "max-h-[calc(100dvh-330px)] min-h-[320px] overflow-auto"}`}
+        className={`swap-${swap} ${asCards ? "mc-wrap" : "rounded-2xl border border-line/60 bg-surface shadow-sm"} ${production ? "prod-scroll max-h-[75vh] overflow-hidden" : asCards ? "" : "max-h-[calc(100dvh-330px)] min-h-[320px] overflow-auto"}`}
       >
         {!rows ? (
           <Loading />
         ) : rows.length === 0 ? (
           <Empty />
+        ) : asCards ? (
+          <>
+            <div ref={bodyRef} data-slide className="mc-list">
+              {cardsBody(false)}
+            </div>
+            {production && loop && (
+              <div aria-hidden data-slide className="mc-list pt-3">
+                {cardsBody(true)}
+              </div>
+            )}
+          </>
         ) : (
           <table className="data-table store-table w-full">
             <thead className="sticky top-0 z-10">
@@ -697,6 +767,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
             {production && loop && <tbody aria-hidden data-slide>{body(true)}</tbody>}
           </table>
         )}
+      </div>
       </div>
 
       {rows && rows.length > PAGE && <Pager page={curPage} pages={pages} total={rows.length} size={PAGE} onPage={goPage} />}

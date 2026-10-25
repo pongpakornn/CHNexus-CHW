@@ -123,7 +123,7 @@ export const ProductRow = memo(function ProductRow({
       case "MODEL":
         return <td key={col} className="font-bold">{p.model}</td>;
       case "NAME":
-        return <td key={col} className="min-w-[240px] font-bold">{p.partName}</td>;
+        return <td key={col} className="min-w-[200px] font-bold">{p.partName}</td>;
       case "MAXMIN":
         return (
           <Fragment key={col}>
@@ -241,7 +241,7 @@ function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; 
 }
 
 // 💬 REMARK ของ Coil ลูก: คลิก -> พิมพ์ -> Enter / ออกจากช่อง = บันทึก, Esc = ยกเลิก · ดูอย่างเดียว = แสดงเฉย ๆ
-function CoilRemark({ value, disabled, onSave, onEditing }: { value: string; disabled?: boolean; onSave: (v: string) => void; onEditing: (v: boolean) => void }) {
+export function CoilRemark({ value, disabled, onSave, onEditing }: { value: string; disabled?: boolean; onSave: (v: string) => void; onEditing: (v: boolean) => void }) {
   const [edit, setEdit] = useState<string | null>(null);
   const done = (commit: boolean) => {
     if (edit !== null && commit) onSave(edit.trim());
@@ -326,7 +326,7 @@ function Edit({
     );
   return (
     <td
-      className={`font-bold ${align === "right" ? "text-right" : ""} ${disabled ? "" : "cursor-text hover:bg-accent-soft/40"} ${strong ? "text-base font-extrabold" : ""} ${wide ? "min-w-[160px]" : "whitespace-nowrap"}`}
+      className={`font-bold ${align === "right" ? "text-right" : ""} ${disabled ? "" : "cursor-text hover:bg-accent-soft/40"} ${strong ? "text-base font-extrabold" : ""} ${wide ? "min-w-[130px]" : "whitespace-nowrap"}`}
       style={color ? { color } : undefined}
       title={disabled ? undefined : "คลิกเพื่อแก้ไข"}
       data-edit={disabled ? undefined : ""}

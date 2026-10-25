@@ -148,6 +148,7 @@ export function MonthChart({
   }, [view]);
 
   const W = Math.max(300, width || 760);
+  const narrow = W / Math.max(1, data.length) < 44; // ช่องต่อเดือนแคบกว่า 44px
   const H = fill && height > 0 ? Math.max(260, height) : W < 520 ? 280 : W < 800 ? 320 : 360;
   const m = { t: 22, r: W < 520 ? 10 : 18, b: 34, l: W < 520 ? 44 : 56 };
   const n = Math.max(1, data.length);
@@ -273,7 +274,38 @@ export function MonthChart({
       </div>
 
       {view === "table" ? (
-        <div className="view-in overflow-x-auto">
+        <>
+        {/* มือถือ: การ์ดรายเดือน (ไม่ต้องเลื่อนซ้าย-ขวา) */}
+        <div className="view-in grid gap-2 p-3 sm:hidden">
+          {data.map((d) => {
+            const p = d.forecast > 0 ? ((d.order - d.forecast) / d.forecast) * 100 : null;
+            return (
+              <div key={d.label} className="rounded-2xl border border-[#e7e4ef] bg-white p-3 shadow-[0_8px_18px_-16px_rgb(40_45_110/0.4)]">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-extrabold text-primary">{d.label}</span>
+                  {hasData(d) && (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${p === null ? "bg-surface-2 text-ink-soft" : p >= 0 ? "bg-[#e8f5e9] text-success" : "bg-[#ffebee] text-danger"}`}>
+                      {p === null ? "-" : `${p >= 0 ? "+" : ""}${p.toFixed(1)}%`}
+                    </span>
+                  )}
+                </div>
+                {hasData(d) ? (
+                  <div className="mt-2 grid grid-cols-3 gap-1.5 text-center tabular-nums">
+                    {([["FORECAST", d.forecast], ["ORDER", d.order], ["DELIVERY", d.delivery]] as const).map(([l, v]) => (
+                      <div key={l} className="rounded-xl bg-[#faf9fd] px-1 py-1.5">
+                        <div className="text-[9.5px] font-black tracking-wide text-ink-soft">{l}</div>
+                        <div className="truncate text-[13px] font-extrabold text-ink">{fmt.format(v)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs font-semibold text-ink-soft">ยังไม่มีข้อมูล</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="view-in hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[520px] border-collapse text-sm tabular-nums">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-ink-soft">
@@ -310,6 +342,7 @@ export function MonthChart({
             </tbody>
           </table>
         </div>
+        </>
       ) : (
         <div ref={stage} className={`fc-chart view-in relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
           <svg
@@ -351,8 +384,9 @@ export function MonthChart({
               );
             })}
             {data.map((d, i) => (
-              <text key={d.label} x={sx(i)} y={H - 10} textAnchor="middle" className={`text-[12.5px] transition-[fill] ${hover === i ? "fill-ink font-extrabold" : "fill-ink-soft font-semibold"}`}>
-                {d.label}
+              <text key={d.label} x={sx(i)} y={H - 10} textAnchor="middle" className={`${narrow ? "text-[10.5px]" : "text-[12.5px]"} transition-[fill] ${hover === i ? "fill-ink font-extrabold" : "fill-ink-soft font-semibold"}`}>
+                {/* จอแคบ: ชื่อเดือนย่อ 1 ตัวอักษร (ไม่ซ้อนกัน) - ชี้ / แตะแท่งยังเห็นชื่อเต็มใน Tooltip */}
+                {narrow ? d.label.slice(0, 1) : d.label}
               </text>
             ))}
 
