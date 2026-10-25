@@ -1,5 +1,6 @@
 "use client";
 
+import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -134,6 +135,7 @@ export default function ForecastPage() {
     15000,
   );
 
+  const [collapsed, toggleGroup] = useCollapsed();
   const groups = useMemo(() => {
     const g: { key: string; items: Row[] }[] = [];
     for (const r of rows ?? []) {
@@ -324,12 +326,8 @@ export default function ForecastPage() {
               <tbody>
                 {groups.map((g, gi) => (
                   <Fragment key={`${g.key}-${gi}`}>
-                    <tr>
-                      <td colSpan={all ? 8 : 7} className="bg-surface-2 text-xs font-extrabold uppercase text-accent">
-                        CUSTOMER : {g.key} <span className="text-ink-soft">({g.items.length} ITEMS)</span>
-                      </td>
-                    </tr>
-                    {g.items.map((r, i) => (
+                    <GroupRow colSpan={all ? 8 : 7} label="CUSTOMER" value={g.key} count={g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />
+                    {!collapsed.has(g.key) && g.items.map((r, i) => (
                       <tr key={`${r.partA}-${r.month}-${i}`}>
                         <td className="text-ink-soft">{i + 1}</td>
                         {all && <td className="whitespace-nowrap text-xs">{r.month}</td>}

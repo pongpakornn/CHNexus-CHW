@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type MenuIcon = "export" | "import" | "template" | "coil" | "qr" | "approve" | "delete" | "alert" | "contact" | "setup" | "user" | "formula" | "calendar" | "calc";
+export type MenuIcon = "export" | "import" | "template" | "coil" | "qr" | "approve" | "delete" | "alert" | "contact" | "setup" | "user" | "formula" | "calendar" | "calc" | "admin";
 
 export type MenuAction = {
   key: string;
@@ -67,6 +67,7 @@ const PATHS: Partial<Record<MenuIcon, React.ReactNode>> = {
       <path d="M3.5 9.5h17M8 3v4M16 3v4M8 13.5h2M14 13.5h2M8 16.5h2" />
     </>
   ),
+  admin: <path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.5 1.5 0 0 0 2.1 2.1l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.3-.5-.5-2.3z" />,
   calc: <path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12z" />,
   user: (
     <>
@@ -130,12 +131,14 @@ export function ActionMenu({
 
   if (actions.length === 0) return null;
 
-  // วางรายการบนเสี้ยววงกลม 90° เว้นเท่า ๆ กัน: ซ้าย 180° -> ล่าง 270° · ขวา 360° -> ล่าง 270°
+  // วางรายการบนเสี้ยววงกลมรอบมุมซ้าย-ล่าง (225°) / ขวา-ล่าง (315°) ระยะห่างระหว่างปุ่มเท่ากันทุกเมนู
+  //   2 รายการ = ชิดกัน (ไม่กางกว้างจนดูห่าง) · 3-4 รายการ = กางเต็มเสี้ยว 90° · รัศมีเล็กลงพอให้ปุ่มไม่ชนกัน
   const n = actions.length;
-  const R = n > 3 ? 132 : 120;
+  const R = n >= 4 ? 108 : n === 3 ? 92 : 84;
+  const span = Math.min(90, (n - 1) * 42);
   const at = (i: number) => {
     const t = n === 1 ? 0.5 : i / (n - 1);
-    const deg = dir === "left" ? 180 + 90 * t : 360 - 90 * t;
+    const deg = dir === "left" ? 225 - span / 2 + span * t : 315 + span / 2 - span * t;
     const rad = (deg * Math.PI) / 180;
     const side = dir === "left" ? (deg < 250 ? "left" : "bottom") : deg > 290 ? "right" : "bottom-r";
     return { dx: Math.round(Math.cos(rad) * R), dy: Math.round(-Math.sin(rad) * R), side };

@@ -1,5 +1,6 @@
 "use client";
 
+import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -137,6 +138,7 @@ export default function InventoryPage() {
     };
   }, [codeKey, editId]);
 
+  const [collapsed, toggleGroup] = useCollapsed();
   const groups = useMemo(() => {
     const g: { key: string; items: Part[] }[] = [];
     const none = layout?.groupBy === "NONE";
@@ -398,7 +400,7 @@ export default function InventoryPage() {
         actions={
           <>
             <ActionMenu
-              caption={["EXCEL · QR", "TEMPLATE · IMPORT · QR"]}
+              caption={["EXCEL · QR", can.admin ? "TEMPLATE · IMPORT · QR · ADMIN" : "TEMPLATE · IMPORT · QR"]}
               actions={[
                 ...(can.add
                   ? [
@@ -432,6 +434,9 @@ export default function InventoryPage() {
                   icon: "qr" as const,
                   onClick: openExport,
                 },
+                ...(can.admin
+                  ? [{ key: "admin", title: "ADMIN", detail: "จัดการขั้นสูง (Admin Level 1): ลบสินค้าตามคลัง / ตั้งคอลัมน์ตาราง / รูปแบบ QR CODE", color: "#334155", icon: "admin" as const, onClick: () => setAdmin(true) }]
+                  : []),
               ]}
             />
             {can.add && (
@@ -448,11 +453,6 @@ export default function InventoryPage() {
                   }}
                 />
               </>
-            )}
-            {can.admin && (
-              <button className="btn bg-primary-dark" onClick={() => setAdmin(true)}>
-                🛠 ADMIN
-              </button>
             )}
           </>
         }
@@ -618,14 +618,8 @@ export default function InventoryPage() {
                 <tbody>
                   {groups.map((g) => (
                     <Fragment key={g.key || "_"}>
-                      {g.key && (
-                        <tr>
-                          <td colSpan={ncols} className="bg-surface-2 text-xs font-extrabold uppercase text-accent">
-                            {layout?.groupBy} : {g.key} <span className="text-ink-soft">({g.items.length} ITEMS)</span>
-                          </td>
-                        </tr>
-                      )}
-                      {g.items.map((p) => (
+                      {g.key && <GroupRow colSpan={ncols} label={layout?.groupBy ?? ""} value={g.key} count={g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />}
+                      {!collapsed.has(g.key) && g.items.map((p) => (
                         <Fragment key={p.ptId}>
                           <tr className={`${viewId === p.ptId ? "bg-accent-soft/40" : ""} ${p.isShow ? "" : "opacity-50"}`}>
                             <td>

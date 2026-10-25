@@ -24,6 +24,7 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
   });
   const [dir, setDir] = useState(0); // ทิศเลื่อนเดือน (-1 ก่อน / 1 ถัดไป) สำหรับอนิเมชัน
   const [mode, setMode] = useState<"day" | "month" | "year">("day"); // หน้าที่แสดงในปฏิทิน
+  const [right, setRight] = useState(false); // ชิดขวาจอ / หน้าต่าง = กางปฏิทินไปทางซ้ายแทน (ไม่ถูกตัด)
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +40,19 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
   }, [open]);
 
   const toggle = () => {
+    if (!open && box.current) {
+      // ขอบขวาที่ปฏิทินห้ามเกิน: กล่องที่ตัดเนื้อหา (หน้าต่าง / การ์ด) ที่ใกล้ที่สุด หรือขอบจอ
+      const r = box.current.getBoundingClientRect();
+      let limit = window.innerWidth - 8;
+      for (let el = box.current.parentElement; el; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        if (cs.overflowX !== "visible" || cs.overflowY !== "visible") {
+          limit = Math.min(limit, el.getBoundingClientRect().right - 8);
+          break;
+        }
+      }
+      setRight(r.left + 300 > limit && r.right - 300 >= 8);
+    }
     if (!open && sel) setView(new Date(sel.getFullYear(), sel.getMonth(), 1)); // เปิด = ไปเดือนของวันที่เลือกอยู่
     setDir(0);
     setMode("day");
@@ -61,7 +75,7 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
   const todayIso = iso(new Date());
 
   return (
-    <div ref={box} className={`dp ${open ? "is-open" : ""} ${className}`}>
+    <div ref={box} className={`dp ${open ? "is-open" : ""} ${right ? "is-right" : ""} ${className}`}>
       <button type="button" className="df" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}>
         <span className="df-ic">
           <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

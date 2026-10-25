@@ -1,5 +1,6 @@
 "use client";
 
+import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -124,6 +125,7 @@ export default function MaxMinPage() {
     return () => io.disconnect();
   }, [shown, total]);
 
+  const [collapsed, toggleGroup] = useCollapsed();
   const groups = useMemo(() => {
     const g: { key: string; items: CalcRow[] }[] = [];
     for (const r of (data?.rows ?? []).slice(0, shown)) {
@@ -453,12 +455,8 @@ export default function MaxMinPage() {
               <tbody>
                 {groups.map((g, gi) => (
                   <Fragment key={`${g.key}-${gi}`}>
-                    <tr>
-                      <td colSpan={9} className="bg-surface-2 text-xs font-extrabold uppercase text-accent">
-                        CUSTOMER : {g.key}
-                      </td>
-                    </tr>
-                    {g.items.map((r) => (
+                    <GroupRow colSpan={9} label="CUSTOMER" value={g.key} count={g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />
+                    {!collapsed.has(g.key) && g.items.map((r) => (
                       <tr key={r.ptId} className={editing?.ptId === r.ptId ? "bg-accent-soft" : ""}>
                         <td className="text-center text-ink-soft">{r.no}</td>
                         <td className="whitespace-nowrap">{r.partNo}</td>
