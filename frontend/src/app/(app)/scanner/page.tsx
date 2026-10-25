@@ -492,11 +492,11 @@ export default function ScannerPage() {
             <span className="sc-count">{(modes.test ? testRows : rows).length.toLocaleString()} รายการ</span>
           </div>
           <div className="max-h-[520px] overflow-auto">
-            <table className="data-table w-full">
+            <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
                   <th>{codeHeader}</th>
-                  <th className="!text-right">QTY</th>
+                  <th>QTY</th>
                   <th>STATUS</th>
                   <th>DATETIME</th>
                 </tr>
@@ -549,15 +549,15 @@ export default function ScannerPage() {
             )}
           </div>
           <div className="max-h-[520px] overflow-auto">
-            <table className="data-table w-full">
+            <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
                   <th>{summaryStk != null ? ctx.stocks.find((s) => s.stkId === summaryStk)?.codeHeader : codeHeader}</th>
-                  <th className="!text-right">IN (FREQ.)</th>
-                  <th className="!text-right">OUT (FREQ.)</th>
-                  <th className="!text-right">IN (QTY)</th>
-                  <th className="!text-right">OUT (QTY)</th>
-                  <th className="!text-right">INVENTORY BALANCE</th>
+                  <th>IN (FREQ.)</th>
+                  <th>OUT (FREQ.)</th>
+                  <th>IN (QTY)</th>
+                  <th>OUT (QTY)</th>
+                  <th>INVENTORY BALANCE</th>
                 </tr>
               </thead>
               <tbody>

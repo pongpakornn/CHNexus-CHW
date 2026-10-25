@@ -154,6 +154,19 @@ body {
   height: 44px;
 }
 
+/* ⊟ ตารางจัดกึ่งกลาง (หัวตาราง + ข้อมูล): Multi-Scanner / Product Control / Pick List / Max-Min / Forecast / PR / Activity Log
+   ปุ่ม / ป้ายในช่องที่เรียงแบบ flex ก็อยู่กลางช่องด้วย */
+.t-center th,
+.t-center td {
+  text-align: center !important;
+}
+.t-center td > .flex,
+.t-center td > .inline-flex,
+.t-center th > .flex,
+.t-center th > label {
+  justify-content: center;
+}
+
 /* 📱 ตารางที่แสดงไม่ครบคอลัมน์ (FitTables ใส่ .is-stacked): แถวละ 1 การ์ด · ซ้าย = ชื่อคอลัมน์ ขวา = ค่า */
 .data-table.is-stacked {
   display: block;
@@ -1005,6 +1018,34 @@ div.swap-in:has(> .show-strip) {
 .rm-item.is-bottom .rm-tip::before {
   top: -5px;
   right: 22px;
+}
+/* กางไปทางขวา (ปุ่มชิดซ้ายของหน้า): การ์ดอธิบายอยู่ขวา / ใต้ปุ่ม ชิดซ้าย */
+.rm-right.is-open .rm-caption {
+  translate: -8px 0;
+}
+.rm-item.is-right .rm-tip {
+  left: calc(100% + 16px);
+  top: -2px;
+  transform: translate(-10px, 0);
+}
+.rm-item.is-right .rm-tip::before {
+  left: -5px;
+  top: 20px;
+}
+.rm-item.is-bottom-r .rm-tip {
+  top: calc(100% + 16px);
+  left: -2px;
+  transform: translate(0, -10px);
+}
+.rm-item.is-bottom-r .rm-tip::before {
+  top: -5px;
+  left: 22px;
+}
+.rm-item.is-right:hover .rm-tip,
+.rm-item.is-right:focus-within .rm-tip,
+.rm-item.is-bottom-r:hover .rm-tip,
+.rm-item.is-bottom-r:focus-within .rm-tip {
+  transform: translate(0, 0);
 }
 .rm-item:hover .rm-tip,
 .rm-item:focus-within .rm-tip {
@@ -1920,6 +1961,10 @@ div.swap-in:has(> .show-strip) {
 }
 .ms.is-open .ms-bars > span:nth-child(3) {
   transform: translateY(-5.5px) rotate(-45deg);
+}
+.ms-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .ms-menu {
   position: absolute;

@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionMenu } from "@/components/ui/ActionMenu";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -210,26 +212,62 @@ export default function PrPage() {
         actions={
           <>
             {meta.hasPrStock && meta.stocks.length > 0 && (
-              <select
-                className="field w-auto"
-                value={stk ?? ""}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
+              <MenuSelect
+                className="w-[190px]"
+                label="STOCK"
+                value={stk == null ? "" : String(stk)}
+                options={meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))}
+                onChange={(x) => {
+                  const v = Number(x);
                   setStk(v);
                   clear();
                   api("/pr/stock", { method: "POST", body: v }).catch(() => {});
                 }}
-              >
-                {meta.stocks.map((s) => (
-                  <option key={s.stkId} value={s.stkId}>
-                    {s.code}
-                  </option>
-                ))}
-              </select>
+              />
             )}
-            <button className="btn bg-success" onClick={() => setApprovedOpen(true)}>
-              ✔ APPROVED LIST
-            </button>
+            <ActionMenu
+              caption={["PR", can.deleteAll ? "APPROVE · EXPORT · DELETE" : "APPROVE · EXPORT"]}
+              fab={
+                <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M8 4h8l3 3v13H5V4zM9 12.5l2 2 4-4.5" />
+                </svg>
+              }
+              label="เมนู PR"
+              actions={[
+                {
+                  key: "approved",
+                  title: "APPROVED LIST",
+                  detail: "รายการ PR ที่อนุมัติแล้ว ดูย้อนหลัง / ค้นหา / ส่งออก",
+                  color: "#16a34a",
+                  icon: "approve" as const,
+                  onClick: () => setApprovedOpen(true),
+                },
+                ...(can.approve
+                  ? [
+                      {
+                        key: "export",
+                        title: `EXPORT${sel.length > 0 ? ` (${sel.length})` : ""}`,
+                        detail: "ส่งออก PR ที่ติ๊กเลือกไว้ในรายการเป็นไฟล์ Excel",
+                        color: "#0284c7",
+                        icon: "export" as const,
+                        onClick: exportSelected,
+                      },
+                    ]
+                  : []),
+                ...(can.deleteAll
+                  ? [
+                      {
+                        key: "delete",
+                        title: "DELETE ALL",
+                        detail: "ลบ PR ทั้งหมดของคลังนี้ (เฉพาะ Admin) มีหน้าต่างยืนยันก่อนลบ",
+                        color: "#dc2626",
+                        icon: "delete" as const,
+                        onClick: deleteAll,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </>
         }
       />
@@ -307,18 +345,6 @@ export default function PrPage() {
 
         <Card
           title={`PR LIST • ${all.length.toLocaleString()}`}
-          actions={
-            <>
-              <button className="btn bg-success py-1.5" onClick={exportSelected} disabled={!can.approve}>
-                📤 EXPORT {sel.length > 0 ? `(${sel.length})` : ""}
-              </button>
-              {can.deleteAll && (
-                <button className="btn bg-danger py-1.5" onClick={deleteAll}>
-                  🗑 DELETE ALL
-                </button>
-              )}
-            </>
-          }
         >
           <div className="border-b border-line/60 p-3">
             <SearchBox value={key} onChange={setKey} placeholder="ค้นหา PR NO / รหัส / ชื่อสินค้า / ผู้ขอ" />
@@ -329,7 +355,7 @@ export default function PrPage() {
             ) : all.length === 0 ? (
               <Empty />
             ) : (
-              <table className="data-table w-full">
+              <table className="data-table t-center w-full">
                 <thead className="sticky top-0">
                   <tr>
                     <th>

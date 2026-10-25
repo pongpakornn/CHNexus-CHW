@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionMenu } from "@/components/ui/ActionMenu";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -278,32 +280,58 @@ export default function MaxMinPage() {
         subtitle={data ? `${(data.order ? "ORDER : " + data.order : "NO ORDER IMPORTED") + "   •   LAST CALC : " + (data.setting.lastCalc ?? "-")}` : "LOADING..."}
         actions={
           <>
-            {canEdit && (
-              <button className="btn-ghost" onClick={() => setFormulaOpen(true)}>
-                ⚙ FORMULAS
-              </button>
-            )}
-            <button className="btn-ghost" onClick={() => setWorkdayOpen(true)}>
-              📅 WORKDAYS
-            </button>
-            {canEdit && (
-              <button className="btn-ghost" disabled={!!busy} onClick={() => pickFile("DAYS")}>
-                📥 IMPORT SET MAX MIN
-              </button>
-            )}
-            <button className="btn-ghost" disabled={!data || !!busy} onClick={() => setTemplateOpen(true)} title="Files to fill in for IMPORT SET MAX MIN / IMPORT FORECAST & ORDER">
-              📄 TEMPLATE EXCEL
-            </button>
-            {canEdit && (
-              <>
-                <button className="btn bg-info" disabled={!!busy} onClick={startForecastImport}>
-                  📊 IMPORT FORECAST &amp; ORDER
-                </button>
-                <button className="btn bg-accent" disabled={!!busy || !data} onClick={calculate}>
-                  {busy === "calc" ? "⏳ CALCULATING..." : "⚡ CALCULATE NOW"}
-                </button>
-              </>
-            )}
+            <ActionMenu
+              caption={["MAX-MIN", "FORMULAS · WORKDAYS · CALC"]}
+              fab={
+                <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect x="5" y="3" width="14" height="18" rx="2.5" />
+                  <path d="M8.5 7h7M8.5 11.5h1M12 11.5h1M15.5 11.5h0M8.5 15h1M12 15h1M15.5 15v2.5" />
+                </svg>
+              }
+              fabColor="linear-gradient(145deg, #8b6fd6, #6750a4)"
+              label="เมนูคำนวณ Max-Min"
+              actions={[
+                ...(canEdit
+                  ? [{ key: "formula", title: "FORMULAS", detail: "ตั้งสูตรคำนวณ MAX / MIN (แหล่งยอด, จำนวนวัน, การปัดเศษ) เลือกใช้ต่อคลังได้", color: "#6750a4", icon: "formula" as const, onClick: () => setFormulaOpen(true) }]
+                  : []),
+                { key: "workdays", title: "WORKDAYS", detail: "ปฏิทินวันทำงานของแต่ละเดือน ใช้หาค่าเฉลี่ยต่อวันในการคำนวณ", color: "#0891b2", icon: "calendar" as const, onClick: () => setWorkdayOpen(true) },
+                ...(canEdit
+                  ? [
+                      {
+                        key: "calc",
+                        title: busy === "calc" ? "CALCULATING..." : "CALCULATE NOW",
+                        detail: "คำนวณ MAX / MIN ของคลังนี้ทันทีตามสูตรที่เลือก แล้วบันทึกเข้า Store (Max-Min)",
+                        color: "#e11d48",
+                        icon: "calc" as const,
+                        busy: busy === "calc",
+                        disabled: !!busy || !data,
+                        onClick: calculate,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <ActionMenu
+              caption={["EXCEL", "TEMPLATE · IMPORT"]}
+              label="เมนู Excel Max-Min"
+              actions={[
+                {
+                  key: "template",
+                  title: "TEMPLATE EXCEL",
+                  detail: "ไฟล์สำหรับกรอก IMPORT SET MAX MIN / IMPORT FORECAST & ORDER",
+                  color: "#7c3aed",
+                  icon: "template" as const,
+                  disabled: !data || !!busy,
+                  onClick: () => setTemplateOpen(true),
+                },
+                ...(canEdit
+                  ? [
+                      { key: "forecast", title: "IMPORT FORECAST & ORDER", detail: "นำเข้ายอด Forecast / Order จาก Excel เพื่อใช้คำนวณ MAX / MIN", color: "#0284c7", icon: "import" as const, disabled: !!busy, onClick: startForecastImport },
+                      { key: "setmm", title: "IMPORT SET MAX MIN", detail: "นำเข้าจำนวนวันของ MAX / MIN รายสินค้าจาก Excel (ตาม Template)", color: "#16a34a", icon: "import" as const, disabled: !!busy, onClick: () => pickFile("DAYS") },
+                    ]
+                  : []),
+              ]}
+            />
             <input
               ref={fileRef}
               type="file"
@@ -320,27 +348,15 @@ export default function MaxMinPage() {
       />
 
       {/* คลัง + สูตร + AUTO CALC */}
-      <Card bodyClass="grid gap-3 p-4 lg:grid-cols-[200px_1fr_auto] lg:items-end">
-        <label className="grid gap-1">
+      <Card clip={false} className="relative z-30" bodyClass="grid gap-3 p-4 lg:grid-cols-[200px_1fr_auto] lg:items-end">
+        <div className="grid gap-1">
           <span className="text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
-          <select className="field" value={stk} onChange={(e) => changeStock(Number(e.target.value))}>
-            {stocks.map((s) => (
-              <option key={s.stkId} value={s.stkId} title={s.name}>
-                {s.code}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1">
+          <MenuSelect value={String(stk)} options={stocks.map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))} onChange={(v) => changeStock(Number(v))} />
+        </div>
+        <div className="grid gap-1">
           <span className="text-[11px] font-extrabold uppercase text-ink-soft">FORMULA</span>
-          <select className="field" disabled={!canEdit || !data} value={pickFormula ?? ""} onChange={(e) => setPickFormula(Number(e.target.value))}>
-            {data?.formulas.map((f) => (
-              <option key={f.formulaId} value={f.formulaId} title={f.describe}>
-                {f.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
+          <MenuSelect disabled={!canEdit || !data} value={pickFormula == null ? "" : String(pickFormula)} options={(data?.formulas ?? []).map((f) => ({ value: String(f.formulaId), label: f.displayName, title: f.describe }))} onChange={(v) => setPickFormula(Number(v))} />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className={`flex cursor-pointer items-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-extrabold ${pickAuto ? "border-accent text-accent" : "border-line text-ink-soft"}`}>
             <input type="checkbox" disabled={!canEdit} checked={pickAuto} onChange={(e) => setPickAuto(e.target.checked)} /> AUTO CALC
@@ -420,7 +436,7 @@ export default function MaxMinPage() {
           ) : total === 0 ? (
             <Empty />
           ) : (
-            <table className="data-table w-full">
+            <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th className="w-14 text-center">NO.</th>

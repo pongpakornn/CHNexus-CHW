@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
@@ -130,24 +131,34 @@ export default function UsersPage() {
         subtitle="View, add, edit and delete users and set the permissions of every system"
         actions={
           <>
-            {can.contact && (
-              <button className="btn bg-danger" onClick={() => editContacts()}>
-                🔔 ALERT CONTACT
-              </button>
-            )}
-            {can.setup && (
-              <button className="btn bg-accent" onClick={() => setSetup(true)}>
-                ⚙ SETUP
-              </button>
-            )}
+            <ActionMenu
+              caption={["USERS", "ALERT · SETUP · ADD"]}
+              fab={
+                <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="9" cy="8" r="3.5" />
+                  <path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5a6.5 6.5 0 0 1 3 5.5" />
+                </svg>
+              }
+              fabColor="linear-gradient(145deg, #8b6fd6, #6750a4)"
+              label="เมนูผู้ใช้"
+              actions={[
+                ...(can.contact
+                  ? [{ key: "alert", title: "ALERT CONTACT", detail: "ผู้ติดต่อ Admin ที่แสดงให้ผู้ใช้ที่ยังไม่ได้กำหนดคลังสแกน / ไม่มีสิทธิ์ เห็นว่าต้องติดต่อใคร", color: "#dc2626", icon: "alert" as const, onClick: () => editContacts() }]
+                  : []),
+                ...(can.setup ? [{ key: "setup", title: "SETUP", detail: "ตั้งค่าระบบ (Admin): PR SETTINGS / EXCEL SETUP / DEPARTMENTS", color: "#6750a4", icon: "setup" as const, onClick: () => setSetup(true) }] : []),
+                ...(can.add ? [{ key: "add", title: "ADD USER", detail: "เพิ่มผู้ใช้ใหม่ กำหนดระดับ (Level) และสิทธิ์การใช้งานแต่ละหน้า", color: "#16a34a", icon: "user" as const, onClick: () => setEdit({ user: null }) }] : []),
+              ]}
+            />
             {can.import && (
               <>
-                <button className="btn-ghost" onClick={template} title="Excel template for importing users and permissions">
-                  📄 TEMPLATE
-                </button>
-                <button className="btn bg-info" disabled={busy} onClick={() => fileRef.current?.click()}>
-                  {busy ? "⏳ IMPORTING..." : "📥 IMPORT USER / PERMISSION"}
-                </button>
+                <ActionMenu
+                  caption={["EXCEL", "TEMPLATE · IMPORT"]}
+                  label="เมนู Excel ผู้ใช้"
+                  actions={[
+                    { key: "template", title: "TEMPLATE EXCEL", detail: "ไฟล์ต้นแบบสำหรับนำเข้าผู้ใช้และสิทธิ์ (User / Permission)", color: "#7c3aed", icon: "template", onClick: template },
+                    { key: "import", title: busy ? "IMPORTING..." : "IMPORT USER / PERMISSION", detail: "นำเข้าผู้ใช้และสิทธิ์จากไฟล์ Excel (.xlsx) ตามรูปแบบ Template", color: "#0284c7", icon: "import", busy, onClick: () => fileRef.current?.click() },
+                  ]}
+                />
                 <input
                   ref={fileRef}
                   type="file"
@@ -160,11 +171,6 @@ export default function UsersPage() {
                   }}
                 />
               </>
-            )}
-            {can.add && (
-              <button className="btn bg-success" onClick={() => setEdit({ user: null })}>
-                ＋ ADD USER
-              </button>
             )}
           </>
         }

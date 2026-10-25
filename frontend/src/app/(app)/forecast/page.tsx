@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionMenu } from "@/components/ui/ActionMenu";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -183,6 +185,8 @@ export default function ForecastPage() {
   if (!months) return <Loading />;
   const all = tableMonth === "ALL";
 
+  const monthOpts = [{ value: "ALL", label: "ALL MONTHS" }, ...months.map((m) => ({ value: m.key, label: m.label }))];
+
   return (
     <PageBody>
       <PageHeader
@@ -191,24 +195,48 @@ export default function ForecastPage() {
         subtitle={`${all ? "All months" : months.find((m) => m.key === tableMonth)?.label} • showing ${(rows ?? []).length.toLocaleString()} item(s)${more ? " - scroll down for more" : ""}`}
         actions={
           <>
-            <button
-              className="btn bg-success"
-              onClick={() => {
-                setPick(all ? months.map((m) => m.key) : [tableMonth]);
-                setExportOpen(true);
-              }}
-              disabled={months.length === 0}
-            >
-              📤 EXPORT
-            </button>
+            <ActionMenu
+              actions={[
+                ...(months.length > 0
+                  ? [
+                      {
+                        key: "export",
+                        title: "EXPORT EXCEL",
+                        detail: "ส่งออก Forecast / Order / Delivery เป็นไฟล์ Excel เลือกเดือนได้ (1 เดือน = 1 ชีท) ตามคำค้นหาที่กรองอยู่",
+                        color: "#16a34a",
+                        icon: "export" as const,
+                        onClick: () => {
+                          setPick(all ? months.map((m) => m.key) : [tableMonth]);
+                          setExportOpen(true);
+                        },
+                      },
+                    ]
+                  : []),
+                ...(canImport
+                  ? [
+                      {
+                        key: "template",
+                        title: "TEMPLATE EXCEL",
+                        detail: "ดาวน์โหลดไฟล์ต้นแบบสำหรับนำเข้า (มีรายการของเดือนที่เลือกอยู่ให้) กรอก / แก้ตัวเลขแล้วนำเข้ากลับด้วย IMPORT",
+                        color: "#7c3aed",
+                        icon: "template" as const,
+                        onClick: template,
+                      },
+                      {
+                        key: "import",
+                        title: busy ? "IMPORTING..." : "IMPORT EXCEL",
+                        detail: "นำเข้าไฟล์ Excel (.xlsx) ตามรูปแบบ Template ตรวจตัวอย่างก่อนยืนยัน คำนวณ MAX / MIN AUTO ได้",
+                        color: "#0284c7",
+                        icon: "import" as const,
+                        busy,
+                        onClick: startImport,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
             {canImport && (
               <>
-                <button className="btn-ghost" onClick={template}>
-                  📄 TEMPLATE
-                </button>
-                <button className="btn bg-info" disabled={busy} onClick={startImport}>
-                  {busy ? "⏳ IMPORTING..." : "📥 IMPORT"}
-                </button>
                 <input
                   ref={fileRef}
                   type="file"
@@ -233,14 +261,7 @@ export default function ForecastPage() {
         <Card
           title="TOP 5 ORDER"
           actions={
-            <select className="field w-auto py-1" value={topMonth} onChange={(e) => setTopMonth(e.target.value)}>
-              <option value="ALL">ALL MONTHS</option>
-              {months.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+            <MenuSelect className="w-[200px]" value={topMonth} options={monthOpts} onChange={setTopMonth} />
           }
           bodyClass="p-4"
         >
@@ -274,14 +295,7 @@ export default function ForecastPage() {
         title="ITEMS"
         actions={
           <>
-            <select className="field w-auto py-1" value={tableMonth} onChange={(e) => setTableMonth(e.target.value)}>
-              <option value="ALL">ALL MONTHS</option>
-              {months.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+            <MenuSelect className="w-[200px]" value={tableMonth} options={monthOpts} onChange={setTableMonth} />
           </>
         }
       >
@@ -294,7 +308,7 @@ export default function ForecastPage() {
           ) : rows.length === 0 ? (
             <Empty />
           ) : (
-            <table className="data-table w-full">
+            <table className="data-table t-center w-full">
               <thead className="sticky top-0">
                 <tr>
                   <th className="w-14">NO.</th>

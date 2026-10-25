@@ -1,5 +1,7 @@
 "use client";
 
+import { ActionMenu } from "@/components/ui/ActionMenu";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -395,20 +397,45 @@ export default function InventoryPage() {
         subtitle="ลงทะเบียนสินค้า / แก้ไข / QR CODE"
         actions={
           <>
+            <ActionMenu
+              caption={["EXCEL · QR", "TEMPLATE · IMPORT · QR"]}
+              actions={[
+                ...(can.add
+                  ? [
+                      {
+                        key: "template",
+                        title: "TEMPLATE EXCEL",
+                        detail: "ดาวน์โหลดไฟล์ต้นแบบสำหรับลงทะเบียนสินค้า เลือกคลังได้ คอลัมน์ตาม Store (Max-Min) ของคลังนั้น",
+                        color: "#7c3aed",
+                        icon: "template" as const,
+                        onClick: async () => {
+                          setTplOptions(await api("/products/template/options"));
+                          setTplOpen(true);
+                        },
+                      },
+                      {
+                        key: "import",
+                        title: busy ? "IMPORTING..." : "IMPORT EXCEL",
+                        detail: "นำเข้าไฟล์ Excel (.xlsx) ตามรูปแบบ Template ตรวจสรุปก่อนยืนยันลงทะเบียน",
+                        color: "#0284c7",
+                        icon: "import" as const,
+                        busy,
+                        onClick: () => fileRef.current?.click(),
+                      },
+                    ]
+                  : []),
+                {
+                  key: "qr",
+                  title: `EXPORT QR CODE${ticked.length > 0 ? ` (${ticked.length})` : ""}`,
+                  detail: "ส่งออกป้าย QR Code ของสินค้าที่ติ๊กไว้ หรือทั้งหมดในคลังที่เลือกอยู่",
+                  color: "#16a34a",
+                  icon: "qr" as const,
+                  onClick: openExport,
+                },
+              ]}
+            />
             {can.add && (
               <>
-                <button
-                  className="btn-ghost"
-                  onClick={async () => {
-                    setTplOptions(await api("/products/template/options"));
-                    setTplOpen(true);
-                  }}
-                >
-                  📄 TEMPLATE
-                </button>
-                <button className="btn bg-info" disabled={busy} onClick={() => fileRef.current?.click()}>
-                  📥 IMPORT EXCEL
-                </button>
                 <input
                   ref={fileRef}
                   type="file"
@@ -558,17 +585,12 @@ export default function InventoryPage() {
           title={`PRODUCTS • ${total.toLocaleString()}`}
           actions={
             <>
-              <select className="field w-auto py-1.5" value={filter ?? ""} onChange={(e) => changeFilter(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">ALL STOCKS</option>
-                {meta.stocks.map((s) => (
-                  <option key={s.stkId} value={s.stkId}>
-                    {s.code}
-                  </option>
-                ))}
-              </select>
-              <button className="btn bg-success py-1.5" onClick={openExport}>
-                ▣ EXPORT QR {ticked.length > 0 ? `(${ticked.length})` : ""}
-              </button>
+              <MenuSelect
+                className="w-[200px]"
+                value={filter == null ? "" : String(filter)}
+                options={[{ value: "", label: "ALL STOCKS" }, ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))]}
+                onChange={(v) => changeFilter(v ? Number(v) : null)}
+              />
             </>
           }
         >
@@ -581,7 +603,7 @@ export default function InventoryPage() {
             ) : rows.length === 0 ? (
               <Empty />
             ) : (
-              <table className="data-table w-full">
+              <table className="data-table t-center w-full">
                 <thead className="sticky top-0 z-10">
                   <tr>
                     <th>

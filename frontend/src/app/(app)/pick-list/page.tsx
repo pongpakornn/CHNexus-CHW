@@ -137,7 +137,7 @@ export default function PickListPage() {
             ) : shown.length === 0 ? (
               <Empty>ไม่มีรายการในช่วงวันที่นี้</Empty>
             ) : (
-              <table className="data-table w-full">
+              <table className="data-table t-center w-full">
                 <thead className="sticky top-0">
                   <tr>
                     <th>

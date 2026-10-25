@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type MenuOption = { value: string; label: string; color?: string };
+export type MenuOption = { value: string; label: string; color?: string; title?: string };
 
 // 🍔 Dropdown แบบปุ่มม่วง + ขีดสามขีดหมุนเป็นกากบาท (ดีไซน์ event-wrapper): กด = รายการเผยจากกลางปุ่มแล้วทยอยเลื่อนขึ้นทีละแถว
 //    กดอีกครั้ง / เลือก / กดนอกกล่อง / Esc = พับกลับแบบนุ่ม ๆ · ลูกศรขึ้น-ลง = เลื่อนตัวเลือก
-export function MenuSelect({ value, options, onChange, className = "", label }: { value: string; options: MenuOption[]; onChange: (v: string) => void; className?: string; label?: string }) {
+export function MenuSelect({ value, options, onChange, className = "", label, disabled = false }: { value: string; options: MenuOption[]; onChange: (v: string) => void; className?: string; label?: string; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value) ?? options[0];
@@ -36,6 +36,7 @@ export function MenuSelect({ value, options, onChange, className = "", label }: 
         className="ms-btn"
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => e.key === "ArrowDown" && (e.preventDefault(), setOpen(true), setTimeout(() => move(1), 30))}
       >
@@ -57,6 +58,7 @@ export function MenuSelect({ value, options, onChange, className = "", label }: 
             role="option"
             aria-selected={o.value === value}
             tabIndex={open ? 0 : -1}
+            title={o.title}
             className={`ms-item ${o.value === value ? "is-on" : ""}`}
             style={{ "--i": i, "--c": o.color } as React.CSSProperties}
             onClick={() => {

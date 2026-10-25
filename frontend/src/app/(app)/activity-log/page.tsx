@@ -1,5 +1,6 @@
 "use client";
 
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toasts";
 import { DateRange } from "@/components/ui/DateRange";
@@ -100,23 +101,24 @@ export default function ActivityLogPage() {
           </button>
         }
       />
-      <Card>
-        <div className="flex flex-wrap items-center gap-2 border-b border-line/60 p-3">
-          <SearchBox className="min-w-[220px] flex-1" value={key} onChange={setKey} placeholder="ค้นหา ประเภท / รายละเอียด / อ้างอิง / ผู้ใช้ / เครื่อง" />
-          <select className="field w-auto" value={user} onChange={(e) => setUser(e.target.value)}>
-            <option value="">ALL USERS</option>
-            {lookups.users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name ? `${u.id} - ${u.name}` : u.id}
-              </option>
-            ))}
-          </select>
-          <select className="field w-auto" value={action} onChange={(e) => setAction(e.target.value)}>
-            <option value="">ALL ACTIONS</option>
-            {lookups.actions.map((a) => (
-              <option key={a}>{a}</option>
-            ))}
-          </select>
+      <Card
+        title={`ACTIVITY • ${(data?.total ?? 0).toLocaleString()}`}
+        actions={
+          <>
+            <MenuSelect
+              className="w-[220px]"
+              label="USER"
+              value={user}
+              options={[{ value: "", label: "ALL USERS" }, ...lookups.users.map((u) => ({ value: u.id, label: u.name ? `${u.id} - ${u.name}` : u.id }))]}
+              onChange={setUser}
+            />
+            <MenuSelect className="w-[200px]" label="ACTION" value={action} options={[{ value: "", label: "ALL ACTIONS" }, ...lookups.actions.map((a) => ({ value: a, label: a }))]} onChange={setAction} />
+          </>
+        }
+      >
+        {/* ค้นหา + ช่วงวันที่ บรรทัดเดียวกัน (จอแคบ = ขึ้นบรรทัดใหม่เอง) */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-line/60 p-3 xl:flex-nowrap">
+          <SearchBox className="min-w-[240px] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา ประเภท / รายละเอียด / อ้างอิง / ผู้ใช้ / เครื่อง" />
           <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
         </div>
         <div ref={scrollRef} className="max-h-[calc(100dvh-300px)] min-h-[360px] overflow-auto">
@@ -125,7 +127,7 @@ export default function ActivityLogPage() {
           ) : data.rows.length === 0 ? (
             <Empty />
           ) : (
-            <table className="data-table w-full">
+            <table className="data-table t-center w-full">
               <thead className="sticky top-0">
                 <tr>
                   <th>DATE TIME</th>

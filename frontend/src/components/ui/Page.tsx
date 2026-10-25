@@ -37,22 +37,26 @@ export function Card({
   children,
   className = "",
   bodyClass = "",
+  clip = true,
 }: {
   title?: React.ReactNode;
   actions?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   bodyClass?: string;
+  /** false = เนื้อหาไม่ตัดขอบ (มี Dropdown / ปฏิทินในเนื้อการ์ดที่ต้องกางออกนอกการ์ด) */
+  clip?: boolean;
 }) {
   return (
-    <section className={`overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm ${className}`}>
+    // หัวการ์ดไม่ตัดขอบ: Dropdown บนหัวการ์ดกางออกนอกการ์ดได้ · เนื้อหาด้านล่างยังตัดตามมุมมน
+    <section className={`rounded-2xl border border-line/60 bg-surface shadow-sm ${className}`}>
       {(title || actions) && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3">
+        <div className="relative z-20 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 px-4 py-3">
           {title && <h3 className="text-sm font-extrabold uppercase tracking-wide text-primary">{title}</h3>}
           {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
-      <div className={bodyClass}>{children}</div>
+      <div className={`${clip ? "overflow-hidden" : ""} ${title || actions ? "rounded-b-2xl" : "rounded-2xl"} ${bodyClass}`}>{children}</div>
     </section>
   );
 }

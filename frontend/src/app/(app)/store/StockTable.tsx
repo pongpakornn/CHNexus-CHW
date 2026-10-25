@@ -8,7 +8,7 @@ import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";
 import { StatCards, type CoilSum } from "./StatCards";
-import { ActionMenu, type MenuAction } from "./ActionMenu";
+import { ActionMenu, type MenuAction } from "@/components/ui/ActionMenu";
 import { ProductCard, useMobile, type CardLabels } from "./MobileCards";
 import { ShowCards } from "./ShowCards";
 import { StockHeader } from "./StockHeader";
