@@ -238,7 +238,8 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     return () => ro.disconnect();
   }, [meta]);
   const mobile = useMobile();
-  // ตารางล้นพื้นที่จริง (วัดจากตารางที่วาดอยู่) -> จำความกว้างที่ตารางต้องใช้ของคลังนี้ แล้วสลับเป็นการ์ดจนกว่าพื้นที่จะกว้างพอ
+  // ตารางล้นพื้นที่จริง (วัดจากตารางที่วาดอยู่) -> ขั้นแรกตารางแบบกระชับ (tight) · ยังล้นอีก = จำความกว้างที่ต้องใช้ แล้วสลับเป็นการ์ดจนกว่าพื้นที่จะกว้างพอ
+  const [tight, setTight] = useState<string | null>(null);
   const [tableMin, setTableMin] = useState<{ code: string; w: number } | null>(null);
   useEffect(() => {
     if (mobile) return;
@@ -246,10 +247,12 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
       const sc = scrollRef.current;
       const code = metaRef.current?.stock.code;
       if (!sc || !code || !sc.querySelector("table.store-table")) return;
-      if (sc.scrollWidth > sc.clientWidth + 2) setTableMin({ code, w: sc.scrollWidth + 4 });
+      if (sc.scrollWidth <= sc.clientWidth + 2) return;
+      if (tight !== code) setTight(code);
+      else setTableMin({ code, w: sc.scrollWidth + (sc.offsetWidth - sc.clientWidth) + 4 }); // + ขอบ / แถบเลื่อน = เทียบกับความกว้างกล่องนอก (boxW) ได้ตรง
     });
     return () => cancelAnimationFrame(id);
-  }, [boxW, rows, meta, mobile]);
+  }, [boxW, rows, meta, mobile, tight]);
   const pageRef = useRef(0);
   useEffect(() => {
     const el = scrollRef.current;
@@ -544,10 +547,12 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   }
 
   const c = meta.counts;
-  // 📱 การ์ดแทนตาราง: จอมือถือ หรือพื้นที่แคบกว่าที่ตารางต้องใช้ (คอลัมน์จะล้น ต้องเลื่อนซ้าย-ขวา) · จอกว้างพอ = ตารางแบบเดิม
+  // 📱 การ์ดแทนตาราง: จอมือถือ หรือพื้นที่แคบกว่าที่ตารางต้องใช้ (แสดงไม่ครบทุกคอลัมน์ เช่น iPad แนวตั้ง / iPad mini) · ตารางพอดีจอ (iPad แนวนอน / Mac / PC) = ตารางแบบ Desktop
   const need = tableMin?.code === s.code ? tableMin.w : 0;
   const asCards = mobile || (need > 0 && boxW > 0 && boxW < need);
-  const labels: CardLabels = { max: s.maxHeader, min: s.minHeader, qty: s.qtyHeader, box: s.boxHeader };
+  // แถบระดับสต็อกบนการ์ด: ยอดคงเหลือช่องเดียวกับหน่วย MAX-MIN ของคลัง (BOX / PCS / QTY)
+  const basis: CardLabels["basis"] = !s.useMaxMin ? null : ["COIL", "BOX"].includes(s.maxMinBasis) && (s.colStockBox || s.countCoil) ? "stockBox" : s.maxMinBasis === "PCS" && s.colStockPcs ? "stockPcs" : "qty";
+  const labels: CardLabels = { max: s.maxHeader, min: s.minHeader, qty: s.qtyHeader, box: s.boxHeader, basis, basisLabel: basis === "stockBox" ? s.boxHeader : basis === "stockPcs" ? "STOCK (PCS)" : s.qtyHeader };
   const toggleGroup = (k: string) =>
     setCollapsed((cur) => {
       const n = new Set(cur);
@@ -746,7 +751,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
             )}
           </>
         ) : (
-          <table className="data-table store-table w-full">
+          <table className={`data-table store-table w-full ${tight === s.code ? "is-tight" : ""}`}>
             <thead className="sticky top-0 z-10">
               <tr>
                 {cols.map((col) =>

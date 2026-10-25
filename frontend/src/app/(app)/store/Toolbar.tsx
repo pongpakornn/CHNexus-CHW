@@ -47,6 +47,7 @@ function FunnelIcon() {
 
 export function CategoryPicker({ label, allLabel, options, value, onChange }: { label: string; allLabel: string; options: string[]; value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [right, setRight] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
@@ -80,7 +81,11 @@ export function CategoryPicker({ label, allLabel, options, value, onChange }: { 
     <div ref={box} className="relative shrink-0" onKeyDown={move}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={(e) => {
+          // ปุ่มชิดขวาจอ (จอแคบ / iPad) = กางรายการชิดขวาแทน ไม่ให้ล้นจอ
+          setRight(e.currentTarget.getBoundingClientRect().left + 280 > window.innerWidth - 12);
+          setOpen((o) => !o);
+        }}
         aria-haspopup="listbox"
         aria-expanded={open}
         className={`flex h-10 max-w-[260px] items-center gap-2 rounded-xl border-2 px-4 text-sm font-extrabold uppercase tracking-wide outline-none transition focus-visible:ring-4 focus-visible:ring-[#2563eb]/20 ${
@@ -97,7 +102,7 @@ export function CategoryPicker({ label, allLabel, options, value, onChange }: { 
         </svg>
       </button>
 
-      <div className={`cat-drop absolute left-0 top-[calc(100%+8px)] z-40 w-[280px] ${open ? "is-open" : ""}`} inert={!open}>
+      <div className={`cat-drop absolute ${right ? "right-0" : "left-0"} top-[calc(100%+8px)] z-40 w-[280px] max-w-[calc(100vw-24px)] ${open ? "is-open" : ""}`} inert={!open}>
         <div className="overflow-hidden rounded-2xl border border-[#e2e4f0] bg-surface shadow-[0_24px_48px_-20px_rgb(40_45_110/0.45)]">
           <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">
             {label}

@@ -193,9 +193,9 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                     <td>
                       <input type="checkbox" checked={sel.includes(r.missId)} onChange={(e) => setSel((s) => (e.target.checked ? [...s, r.missId] : s.filter((x) => x !== r.missId)))} />
                     </td>
-                    <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
-                    <td className="whitespace-nowrap">
-                      <span className="sc-tag">{r.stockCode}</span> <span className="text-xs font-bold text-ink-soft">← {r.sourceCode}</span>
+                    <td className="h-date whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
+                    <td>
+                      <span className="sc-tag whitespace-nowrap">{r.stockCode}</span> <span className="whitespace-nowrap text-xs font-bold text-ink-soft">← {r.sourceCode}</span>
                     </td>
                     <td className="min-w-[150px]">
                       <div className={`whitespace-nowrap font-extrabold ${r.hasProduct ? "text-primary" : "text-danger"}`}>{r.partCode}</div>
@@ -216,7 +216,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                       </>
                     ) : (
                       <>
-                        <td className="min-w-[190px]">
+                        <td className="min-w-[150px]">
                           <div className="text-xs font-bold">{r.statusText}</div>
                           <div className="text-[11px] font-medium text-danger">{r.reasonText}</div>
                         </td>
@@ -228,7 +228,8 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                     <td>{r.userId}</td>
                     {canAct && (
                       <td className="whitespace-nowrap">
-                        <div className="flex justify-center gap-1">
+                        {/* ปุ่มเรียงตั้ง: คอลัมน์แคบ ตารางพอดีจอ Mac / iPad */}
+                        <div className="flex flex-col items-stretch gap-1">
                           <button className="btn bg-success px-2 py-1 text-xs" disabled={busy} onClick={() => approve(r)}>
                             ✔ APPROVE
                           </button>

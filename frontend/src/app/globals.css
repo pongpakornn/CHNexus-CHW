@@ -97,6 +97,159 @@ body {
   box-shadow: inset 0 -3px 0 var(--accent);
   text-shadow: 0 1px 0 rgb(0 0 0 / 0.25);
 }
+/* 💻 iPad แนวนอน / MacBook (768-1439px): ตารางทั้งระบบช่องแคบลง ให้คอลัมน์ครบพอดีจอ (ยังล้น = FitTables สลับเป็นการ์ด) */
+@media (min-width: 768px) and (max-width: 1439px) {
+  .data-table th {
+    padding: 0 9px;
+  }
+  .data-table td {
+    padding: 9px;
+  }
+  /* ประวัติสแกน: ชื่อ / ผู้ใช้ / บาร์โค้ด ตัดบรรทัดในช่อง ให้ครบทุกคอลัมน์บน iPad แนวนอน */
+  .hist-table th {
+    white-space: normal;
+    line-height: 1.2;
+  }
+  .hist-table td.h-name {
+    min-width: 130px;
+  }
+  .hist-table td.h-user {
+    white-space: normal;
+  }
+  .hist-table td.h-bar {
+    min-width: 150px;
+  }
+  .hist-table td.h-date {
+    min-width: 88px;
+    white-space: normal;
+  }
+}
+
+/* 📐 ตารางหน้าคลังที่ล้นพื้นที่ (StockTable ใส่ .is-tight): กระชับก่อน - ช่องแคบลง · หัวคอลัมน์ขึ้นบรรทัดใหม่ได้ (MAX / (BOX))
+   ชื่อสินค้า / หมายเหตุ ตัดบรรทัดในช่อง · รูปเล็กลง -> ยังล้นอีกค่อยสลับเป็นการ์ด */
+.store-table.is-tight th {
+  height: 48px;
+  padding: 4px 6px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: normal;
+}
+.store-table.is-tight td {
+  padding: 8px 6px;
+  font-size: 13px;
+}
+.store-table.is-tight td.col-name {
+  min-width: 132px;
+  overflow-wrap: anywhere;
+}
+.store-table.is-tight td.col-wide {
+  min-width: 92px;
+}
+.store-table.is-tight td.col-img {
+  width: 60px;
+}
+.store-table.is-tight td.col-img > * {
+  width: 44px;
+  height: 44px;
+}
+
+/* 📱 ตารางที่แสดงไม่ครบคอลัมน์ (FitTables ใส่ .is-stacked): แถวละ 1 การ์ด · ซ้าย = ชื่อคอลัมน์ ขวา = ค่า */
+.data-table.is-stacked {
+  display: block;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.data-table.is-stacked > thead {
+  display: none;
+}
+.data-table.is-stacked > tbody {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 10px;
+  padding: 10px;
+}
+.data-table.is-stacked > tbody > tr {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #e7e4ef;
+  padding: 6px 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 10px 24px -20px rgb(40 45 110 / 0.35);
+}
+.data-table.is-stacked > tbody > tr::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 35%, white));
+}
+.data-table.is-stacked > tbody > tr:hover {
+  background: #fff;
+}
+.data-table.is-stacked > tbody > tr > td {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 6px 0 !important;
+  border-bottom: 1px dashed #eeebf4;
+  text-align: right !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+.data-table.is-stacked > tbody > tr > td:last-child {
+  border-bottom: 0;
+}
+.data-table.is-stacked > tbody > tr > td::before {
+  content: attr(data-label);
+  flex-shrink: 0;
+  max-width: 45%;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--ink-soft, #7a7492);
+}
+.data-table.is-stacked > tbody > tr > td[data-label=""]::before,
+.data-table.is-stacked > tbody > tr > td:not([data-label])::before {
+  display: none;
+}
+.data-table.is-stacked > tbody > tr > td[data-label=""] {
+  justify-content: center;
+}
+/* แถวเต็มความกว้าง (ข้อความว่าง / โหลด / หัวกลุ่ม) */
+.data-table.is-stacked > tbody > tr:has(> td[colspan]) {
+  grid-column: 1 / -1;
+}
+.data-table.is-stacked > tbody > tr > td[colspan] {
+  display: block;
+  text-align: center !important;
+  border: 0;
+}
+.data-table.is-stacked > tbody > tr:has(> td[colspan]) {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.data-table.is-stacked > tbody > tr:has(> td[colspan])::before {
+  display: none;
+}
+/* หน้าหลัก: การ์ดเลื่อนไปพร้อมทั้งหน้า (ไม่ซ้อนกล่องเลื่อนในกล่องเลื่อนบนมือถือ) */
+main :has(> .data-table.is-stacked) {
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
 
 /* ปุ่ม / ช่องกรอก ทั้งระบบ: มุมมน · ชี้แล้วลอยขึ้น · โฟกัสมีวงแสงม่วง */
 .btn {
@@ -2493,13 +2646,13 @@ div.swap-in:has(> .show-strip) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   color: var(--c, var(--ink, #1f1d24));
 }
 .mc-tile-val.is-strong {
-  font-size: 19px;
+  font-size: 17px;
 }
 .mc-tile-val.is-text {
   white-space: normal;
@@ -2527,6 +2680,46 @@ div.swap-in:has(> .show-strip) {
   font-size: 17px;
   font-weight: 900;
   color: var(--ink, #1f1d24);
+}
+.mc-level {
+  margin-top: 12px;
+  border-radius: 14px;
+  padding: 10px 12px 9px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 9%, white), #fff 70%);
+  border: 1px solid color-mix(in srgb, var(--c) 22%, white);
+}
+.mc-level-val {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--c);
+}
+.mc-level-val small {
+  font-size: 13px;
+  font-weight: 800;
+  color: #9a94a8;
+}
+.mc-bar {
+  position: relative;
+  height: 8px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #eceef5;
+}
+.mc-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, white), var(--c));
+}
+.mc-bar b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgb(45 42 50 / 0.45);
 }
 .mc-coil-btn {
   display: flex;
@@ -2588,13 +2781,23 @@ div.swap-in:has(> .show-strip) {
   transform: translateY(-6px);
   clip-path: inset(0 0 100% 0 round 16px);
   pointer-events: none;
-  transition: clip-path 0.38s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease, transform 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+  /* ปิดอยู่ = display:none (ไม่กินพื้นที่เลื่อนของหน้า) · ยังเล่นแอนิเมชันเปิด/ปิดได้ด้วย allow-discrete */
+  display: none;
+  transition: clip-path 0.38s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease, transform 0.38s cubic-bezier(0.25, 1, 0.5, 1), display 0.38s allow-discrete;
 }
 .cat-drop.is-open {
+  display: block;
   opacity: 1;
   transform: none;
   clip-path: inset(-20px -20px -40px -20px round 16px);
   pointer-events: auto;
+}
+@starting-style {
+  .cat-drop.is-open {
+    opacity: 0;
+    transform: translateY(-6px);
+    clip-path: inset(0 0 100% 0 round 16px);
+  }
 }
 @keyframes cat-item {
   from { opacity: 0; transform: translateY(-6px); }

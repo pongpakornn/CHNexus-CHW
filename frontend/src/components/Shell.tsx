@@ -12,6 +12,7 @@ import { ProfileBubble } from "./ProfileBubble";
 import { SupportButton } from "./SupportButton";
 import { SupportChat } from "./SupportChat";
 import { ChatFeed } from "./ChatFeed";
+import { FitTables } from "./FitTables";
 
 // 🧭 หน้าหลัก: Sidebar (กาง 260 / พับ 80 แบบเดิม) + แถบชื่อหน้า - จอเล็ก (มือถือ / แท็บเล็ต) = เมนูเลื่อนออกด้านซ้าย
 //   ปุ่มสามขีด: กางอยู่ = สามขีด · พับอยู่ = ขีดหมุนเป็นลูกศร
@@ -161,6 +162,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+        <FitTables />
       </div>
       <ProfileBubble />
       <SupportChat />

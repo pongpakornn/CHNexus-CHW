@@ -90,7 +90,7 @@ export const ProductRow = memo(function ProductRow({
         );
       case "IMAGE":
         return (
-          <td key={col} className="w-20">
+          <td key={col} className="col-img w-20">
             {p.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={p.imageUrl} alt="" loading="lazy" decoding="async" className="h-14 w-14 rounded-lg bg-white object-contain" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
@@ -123,7 +123,7 @@ export const ProductRow = memo(function ProductRow({
       case "MODEL":
         return <td key={col} className="font-bold">{p.model}</td>;
       case "NAME":
-        return <td key={col} className="min-w-[200px] font-bold">{p.partName}</td>;
+        return <td key={col} className="col-name min-w-[200px] font-bold">{p.partName}</td>;
       case "MAXMIN":
         return (
           <Fragment key={col}>
@@ -326,7 +326,7 @@ function Edit({
     );
   return (
     <td
-      className={`font-bold ${align === "right" ? "text-right" : ""} ${disabled ? "" : "cursor-text hover:bg-accent-soft/40"} ${strong ? "text-base font-extrabold" : ""} ${wide ? "min-w-[130px]" : "whitespace-nowrap"}`}
+      className={`font-bold ${align === "right" ? "text-right" : ""} ${disabled ? "" : "cursor-text hover:bg-accent-soft/40"} ${strong ? "text-base font-extrabold" : ""} ${wide ? "col-wide min-w-[130px]" : "whitespace-nowrap"}`}
       style={color ? { color } : undefined}
       title={disabled ? undefined : "คลิกเพื่อแก้ไข"}
       data-edit={disabled ? undefined : ""}

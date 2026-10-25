@@ -200,7 +200,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
                       onChange={(e) => setSel((s) => (e.target.checked ? [...s, r.txId] : s.filter((x) => x !== r.txId)))}
                     />
                   </td>
-                  <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
+                  <td className="h-date whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
                   <td>
                     <span className="sc-tag whitespace-nowrap">{r.stockCode}</span>
                   </td>

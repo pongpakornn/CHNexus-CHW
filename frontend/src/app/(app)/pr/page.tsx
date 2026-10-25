@@ -235,7 +235,7 @@ export default function PrPage() {
       />
       {meta.noStockText && <div className="rounded-xl bg-[#fff3e0] p-3 text-sm font-bold text-warning">{meta.noStockText}</div>}
 
-      <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+      <div className="grid gap-4 min-[1700px]:grid-cols-[380px_1fr]">
         <Card
           title={viewing ? `👁 ${viewing.prNumber}` : "＋ NEW PR"}
           actions={
@@ -246,7 +246,7 @@ export default function PrPage() {
             )
           }
           bodyClass="grid gap-3 p-4"
-          className="self-start xl:sticky xl:top-4"
+          className="self-start min-[1700px]:sticky min-[1700px]:top-4"
         >
           <label className="block">
             <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">PR DATE</span>

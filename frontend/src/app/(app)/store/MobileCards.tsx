@@ -19,7 +19,9 @@ export function useMobile() {
   );
 }
 
-export type CardLabels = { max: string; min: string; qty: string; box: string };
+export type CardLabels = { max: string; min: string; qty: string; box: string; basis: "qty" | "stockBox" | "stockPcs" | null; basisLabel: string };
+
+const num = (v: string) => Number((v ?? "").replace(/,/g, "")) || 0;
 
 // ช่องตัวเลขบนการ์ด: แตะ = แก้ (Enter / แตะที่อื่น = บันทึก, Esc = ยกเลิก) · ไม่มีสิทธิ์ = แสดงเฉย ๆ (แตะค้าง 2 ครั้ง = แจ้งเหตุผล)
 function Tile({ label, value, color, strong, wide, disabled, onSave, onEditing, onDenied }: { label: string; value: string; color?: string; strong?: boolean; wide?: boolean; disabled?: boolean; onSave: (v: string) => void; onEditing: (v: boolean) => void; onDenied: () => void }) {
@@ -66,6 +68,37 @@ function Tile({ label, value, color, strong, wide, disabled, onSave, onEditing, 
   );
 }
 
+// 📊 แผงยอดคงเหลือ: ตัวเลขใหญ่สีตามสถานะ + แถบเทียบ MAX (ขีด = MIN) ดูปราดเดียวรู้ว่าของพอไหม
+function Level({ p, labels, color }: { p: Product; labels: CardLabels; color: string }) {
+  const max = num(p.max);
+  const k = labels.basis;
+  if (!k || max <= 0) return null;
+  const cur = num(p[k] as string);
+  const min = num(p.min);
+  const pct = Math.min(100, (cur / max) * 100);
+  return (
+    <div className="mc-level" style={{ "--c": color } as React.CSSProperties}>
+      <div className="flex items-end justify-between gap-2">
+        <span className="mc-tile-cap">{labels.basisLabel}</span>
+        <span className="mc-level-val">
+          {(p[k] as string) || "0"}
+          <small> / {p.max}</small>
+        </span>
+      </div>
+      <div className="mc-bar">
+        <i style={{ width: `${Math.max(pct, cur > 0 ? 3 : 0)}%` }} />
+        {min > 0 && min < max && <b style={{ left: `${(min / max) * 100}%` }} />}
+      </div>
+      <div className="mt-1 flex justify-between text-[10.5px] font-bold text-[#8a8490]">
+        <span>{Math.round((cur / max) * 100)}% OF MAX</span>
+        <span>
+          MIN {p.min || "0"} · MAX {p.max}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const META: [string, keyof Product, string][] = [
   ["CUSTOMER", "customer", "CUSTOMER"],
   ["PARTA", "partA", "PART A"],
@@ -86,7 +119,12 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
   );
   const open = !!coil && !closing;
   const meta = META.filter(([c, k]) => has(c) && p[k]);
-  const title = has("CODE") ? p.partCode : p.partNo || p.partCode;
+  // หัวการ์ด = PD CODE (ว่าง -> PART NO) · ตัวที่ขึ้นเป็นหัวแล้วไม่ซ้ำในป้ายด้านล่าง
+  const val = (v: string) => (v && v.trim() !== "-" ? v : "");
+  const title = (has("CODE") && val(p.partCode)) || val(p.partNo) || p.partCode;
+  const metaShown = meta.filter(([, k]) => p[k] !== title && val(p[k] as string));
+  // ช่องตัวเลข: 4 ช่อง = 2x2 · อื่น ๆ = 3 คอลัมน์ (ไม่มีช่องเดี่ยวค้างแถวท้าย)
+  const nTiles = (has("MAXMIN") ? 2 : 0) + ["BOX", "QTY", "PCS"].filter(has).length;
 
   return (
     <article className={`mc-card ${off ? "is-off" : ""}`} style={{ "--tone": tone.line } as React.CSSProperties}>
@@ -116,9 +154,9 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
         {cfg.cols.includes("STATUS") && <StatusLamp status={p.stockStatus} size={24} className="shrink-0" />}
       </div>
 
-      {meta.length > 0 && (
+      {metaShown.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {meta.map(([c, k, l]) => (
+          {metaShown.map(([c, k, l]) => (
             <span key={c} className="mc-meta">
               <b>{l}</b> {p[k] as string}
             </span>
@@ -126,7 +164,9 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
         </div>
       )}
 
-      <div className="mt-3 grid grid-cols-2 gap-2 min-[400px]:grid-cols-3">
+      {!off && <Level p={p} labels={labels} color={color} />}
+
+      <div className={`mt-2.5 grid gap-2 ${nTiles === 4 || nTiles === 2 ? "grid-cols-2" : nTiles === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
         {has("MAXMIN") && tile("max", labels.max, { color: "#0552aa" })}
         {has("MAXMIN") && tile("min", labels.min, { color: "#10785c" })}
         {has("BOX") && tile("stockBox", labels.box, { color: "#6d4fd1" })}

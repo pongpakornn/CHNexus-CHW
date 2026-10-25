@@ -205,7 +205,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             <tbody>
               {data?.rows.map((r, i) => (
                 <tr key={`${page}-${i}`} className={`sc-row ${r.isCancelled ? "text-ink-soft line-through" : ""}`} style={{ animationDelay: `${Math.min(i, 20) * 14}ms` }}>
-                  <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
+                  <td className="h-date whitespace-nowrap text-xs font-bold text-ink-soft">{r.date}</td>
                   <td>
                     <span className="sc-tag whitespace-nowrap">{r.stockCode}</span>
                   </td>
@@ -213,12 +213,12 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
                     <StatusPill status={r.type} />
                   </td>
                   <td className="break-all font-extrabold text-primary">{r.code}</td>
-                  <td className="min-w-[200px]">{r.partName}</td>
+                  <td className="h-name min-w-[180px]">{r.partName}</td>
                   <td className="text-right font-extrabold tabular-nums">{qtyText(r.qty)}</td>
-                  <td className="whitespace-nowrap">{r.user}</td>
+                  <td className="h-user whitespace-nowrap">{r.user}</td>
                   <td>{r.employeeId}</td>
                   <td>{r.department}</td>
-                  <td className="min-w-[340px] max-w-[440px] break-all font-mono text-[11.5px] leading-snug" title={r.refNo}>
+                  <td className="h-bar min-w-[220px] max-w-[440px] break-all font-mono text-[11.5px] leading-snug" title={r.refNo}>
                     {r.refNo}
                   </td>
                 </tr>

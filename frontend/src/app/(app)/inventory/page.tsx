@@ -431,7 +431,7 @@ export default function InventoryPage() {
         }
       />
 
-      <div className="grid gap-4 2xl:grid-cols-[440px_1fr]">
+      <div className="grid gap-4 min-[1800px]:grid-cols-[440px_1fr]">
         {/* ฟอร์มลงทะเบียน / แก้ไข */}
         <Card
           title={editId ? "✏️ EDIT PRODUCT" : viewId ? "👁 VIEW PRODUCT" : "＋ REGISTER PRODUCT"}
@@ -443,7 +443,7 @@ export default function InventoryPage() {
             )
           }
           bodyClass="p-4"
-          className="self-start 2xl:sticky 2xl:top-4"
+          className="self-start min-[1800px]:sticky min-[1800px]:top-4"
         >
           <div className="flex gap-4">
             <div className="shrink-0">
