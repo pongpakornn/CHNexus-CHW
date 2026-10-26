@@ -8,6 +8,8 @@ import { DateRange } from "@/components/ui/DateRange";
 import { useDialogs } from "@/components/ui/Dialogs";
 import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
 import { api, download, upload } from "@/lib/api";
+import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
+import { stockIcon } from "@/lib/stockIcons";
 import { monthStart, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import type { Pr } from "./types";
@@ -111,8 +113,8 @@ export function ApprovedModal({
               {rows.length} APPROVED PR • {rows.filter((r) => !r.isExported).length} NOT EXPORTED YET • {sel.length} SELECTED
             </span>
             {can.approve && (
-              <button className="btn bg-success" disabled={sel.length === 0} onClick={() => setChoose("MODE")}>
-                📤 EXPORT
+              <button className="cta-btn is-green" disabled={sel.length === 0} onClick={() => setChoose("MODE")}>
+                📤 EXPORT EXCEL {sel.length > 0 ? `(${sel.length})` : ""}
               </button>
             )}
           </>
@@ -187,35 +189,57 @@ export function ApprovedModal({
       </Modal>
 
       {/* เลือกแบบ Export -> เลือกคลัง */}
-      <Modal open={choose !== null} title="📤 EXPORT PR" onClose={() => setChoose(null)}>
+      <Modal open={choose !== null} wide title="📤 EXPORT PR" onClose={() => setChoose(null)}>
         {choose === "MODE" && (
-          <div className="grid gap-2">
-            <p className="mb-1 text-sm font-semibold text-ink-soft">เลือกแบบการ Export PR ที่ติ๊กไว้ {sel.length} รายการ</p>
-            <button className="rounded-xl border-2 border-line p-4 text-left hover:border-accent" onClick={() => ((data?.exportStocks.length ?? 0) > 0 ? setChoose("FILE") : doExport("FILE", null))}>
-              <div className="font-extrabold text-primary">📤 EXPORT</div>
-              <div className="text-sm">สร้างไฟล์ใหม่ PR-{today()}.xlsx (ดาวน์โหลด)</div>
-            </button>
-            <button
-              className="rounded-xl border-2 border-line p-4 text-left hover:border-accent"
-              onClick={() => ((data?.pathStocks.length ?? 0) > 0 ? setChoose("PATH") : toast.show("WARNING", "ยังไม่มีคลังที่ตั้งไฟล์ Excel\nตั้งได้ที่ User Management -> ⚙ SETUP -> EXCEL SETUP (Admin)", "warn"))}
-            >
-              <div className="font-extrabold text-primary">📥 EXPORT PATH</div>
-              <div className="text-sm">ต่อข้อมูลลงไฟล์ Excel ของคลัง ตามช่องที่ตั้งไว้ (ไฟล์ของ CHR-Nexus)</div>
-              <div className="text-xs text-ink-soft">{data?.pathStocks.map((s) => s.code).join("  •  ")}</div>
-            </button>
+          <div className="grid gap-3">
+            <p className="text-sm font-semibold text-ink-soft">เลือกแบบการ Export PR ที่ติ๊กไว้ {sel.length} รายการ</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ChoiceCard
+                color="#16a34a"
+                icon={<Glyph d={GLYPH.download} />}
+                title="📤 EXPORT"
+                detail={`สร้างไฟล์ใหม่ PR-${today()}.xlsx (ดาวน์โหลด)`}
+                meta="NEW FILE"
+                onClick={() => ((data?.exportStocks.length ?? 0) > 0 ? setChoose("FILE") : doExport("FILE", null))}
+              />
+              <ChoiceCard
+                delay={1}
+                color="#0284c7"
+                icon={<Glyph d={GLYPH.sheet} />}
+                title="📥 EXPORT PATH"
+                detail="ต่อข้อมูลลงไฟล์ Excel ของคลัง ตามช่องที่ตั้งไว้ (ไฟล์ของ CHR-Nexus)"
+                meta={data?.pathStocks.map((s) => s.code).join("  •  ") || "ยังไม่มีคลังที่ตั้งไฟล์"}
+                onClick={() => ((data?.pathStocks.length ?? 0) > 0 ? setChoose("PATH") : toast.show("WARNING", "ยังไม่มีคลังที่ตั้งไฟล์ Excel\nตั้งได้ที่ User Management -> ⚙ SETUP -> EXCEL SETUP (Admin)", "warn"))}
+              />
+            </div>
           </div>
         )}
         {(choose === "FILE" || choose === "PATH") && (
-          <div className="grid gap-2">
-            <p className="mb-1 text-sm font-semibold text-ink-soft">{choose === "PATH" ? "เลือกคลัง: ระบบต่อรายการที่ติ๊กลงไฟล์ Excel ของคลังนั้น" : "เลือกคลัง"}</p>
-            {(choose === "PATH" ? data?.pathStocks ?? [] : data?.exportStocks ?? []).map((s) => (
-              <div key={s.stkId} className="flex items-center gap-2 rounded-xl border-2 border-line p-3">
-                <button className="flex-1 text-left" onClick={() => (choose === "PATH" && !(s as PathStock).fileFound ? toast.show("WARNING", "ยังไม่มีไฟล์ใน CHR-Nexus - กด UPLOAD ก่อน", "warn") : doExport(choose, s))}>
-                  <div className="font-extrabold text-primary">{s.code}</div>
-                  <div className="text-xs text-ink-soft">{choose === "PATH" ? `📊 ${(s as PathStock).file}${(s as PathStock).fileFound ? "" : " • ⚠ ยังไม่มีไฟล์"}` : s.name}</div>
-                </button>
+          <div className="grid gap-3">
+            <div className="flex items-center gap-2">
+              <button className="fill-btn is-sm" onClick={() => setChoose("MODE")}>
+                ← BACK
+              </button>
+              <p className="text-sm font-semibold text-ink-soft">{choose === "PATH" ? "เลือกคลัง: ระบบต่อรายการที่ติ๊กลงไฟล์ Excel ของคลังนั้น" : "เลือกคลัง"}</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+            {(choose === "PATH" ? data?.pathStocks ?? [] : data?.exportStocks ?? []).map((s, i) => {
+              const [ic, col] = stockIcon(s.code, i);
+              const missing = choose === "PATH" && !(s as PathStock).fileFound;
+              return (
+              <div key={s.stkId} className="relative">
+                <ChoiceCard
+                  delay={i}
+                  color={col}
+                  // eslint-disable-next-line @next/next/no-img-element
+                  icon={<img src={ic} alt="" className="size-6 object-contain" draggable={false} />}
+                  title={s.code}
+                  detail={choose === "PATH" ? `📊 ${(s as PathStock).file}` : s.name}
+                  meta={choose === "PATH" ? (missing ? "⚠ ยังไม่มีไฟล์ - กด UPLOAD ก่อน" : "✓ FILE READY") : undefined}
+                  onClick={() => (missing ? toast.show("WARNING", "ยังไม่มีไฟล์ใน CHR-Nexus - กด UPLOAD ก่อน", "warn") : doExport(choose, s))}
+                />
                 {choose === "PATH" && (
-                  <label className="btn-ghost cursor-pointer px-3 py-1 text-xs">
+                  <label className="fill-btn is-xs absolute bottom-3 right-12 cursor-pointer bg-surface">
                     📤 UPLOAD
                     <input
                       type="file"
@@ -237,7 +261,9 @@ export function ApprovedModal({
                   </label>
                 )}
               </div>
-            ))}
+              );
+            })}
+            </div>
           </div>
         )}
       </Modal>
@@ -286,11 +312,11 @@ function EditModal({ pr, onClose, onSaved }: { pr: Pr; onClose: () => void; onSa
       onClose={onClose}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="btn bg-accent" onClick={save}>
-            SAVE
+          <button className="cta-btn is-purple" onClick={save}>
+            💾 SAVE
           </button>
         </>
       }

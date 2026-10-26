@@ -132,15 +132,15 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
       onClose={onClose}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="cta-btn is-gray mr-auto" onClick={onClose}>
             CLOSE
           </button>
           {canEdit && (
             <>
-              <button className="btn bg-danger" disabled={!form.formulaId || form.isDefault} onClick={remove}>
+              <button className="cta-btn is-red" disabled={!form.formulaId || form.isDefault} onClick={remove}>
                 🗑 DELETE
               </button>
-              <button className="btn bg-accent" disabled={busy} onClick={save}>
+              <button className="cta-btn is-purple" disabled={busy} onClick={save}>
                 💾 SAVE
               </button>
             </>
@@ -151,20 +151,34 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
       {!list ? (
         <Loading />
       ) : (
-        <div className="grid gap-4 md:grid-cols-[240px_1fr]">
-          <div className="grid content-start gap-2">
+        <div className="grid gap-5 md:grid-cols-[260px_minmax(0,1fr)]">
+          {/* รายการสูตร = การ์ด (เลือกอยู่ = ขอบ + ติ๊กถูก) */}
+          <div className="grid content-start gap-2.5">
             {canEdit && (
-              <button className="btn-ghost w-full" onClick={() => setForm(toForm())}>
+              <button className={`fill-btn w-full ${form.formulaId === 0 ? "is-on" : ""}`} onClick={() => setForm(toForm())}>
                 ＋ NEW FORMULA
               </button>
             )}
-            {list.map((f) => (
+            {list.map((f, i) => (
               <button
                 key={f.formulaId}
+                type="button"
                 onClick={() => setForm(toForm(f))}
-                className={`rounded-xl border-2 px-3 py-2 text-left text-sm font-extrabold ${form.formulaId === f.formulaId ? "border-accent bg-surface-2 text-accent" : "border-line text-primary hover:border-accent/60"}`}
+                className={`adm-card ch-card fm-card ${form.formulaId === f.formulaId ? "is-on" : ""}`}
+                style={{ "--c": f.isDefault ? "#16a34a" : "#6750a4", animationDelay: `${i * 40}ms` } as React.CSSProperties}
               >
-                {f.displayName}
+                <span className="adm-bar" />
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-[13.5px] font-extrabold text-[#1f2350]">{f.displayName}</span>
+                  <span className="mt-0.5 block text-[10.5px] font-bold text-ink-soft">
+                    {f.qtySource} • MAX {f.defDayMax} / MIN {f.defDayMin} DAYS
+                  </span>
+                </span>
+                <span className="adm-check" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 12.5 4 4 8-9" />
+                  </svg>
+                </span>
               </button>
             ))}
           </div>
@@ -175,21 +189,33 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
                 <span className="text-[11px] font-extrabold uppercase text-ink-soft">FORMULA NAME</span>
                 <input className="field" value={form.name} readOnly={ro || (form.isDefault && form.formulaId > 0)} onChange={(e) => set("name", e.target.value)} />
               </label>
-              <label className="grid gap-1">
+              {/* ตัวเลือกเป็นปุ่ม (แทน Dropdown) */}
+              <div className="grid gap-1.5">
                 <span className="text-[11px] font-extrabold uppercase text-ink-soft">QUANTITY SOURCE</span>
-                <select className="field" disabled={ro} value={form.qtySource} onChange={(e) => set("qtySource", e.target.value as Form["qtySource"])}>
-                  <option value="ORDER">ORDER</option>
-                  <option value="FORECAST">FORECAST</option>
-                </select>
-              </label>
-              <label className="grid gap-1 sm:col-span-2">
+                <div className="flex flex-wrap gap-2">
+                  {(["ORDER", "FORECAST"] as const).map((v) => (
+                    <button key={v} type="button" disabled={ro} className={`fill-btn is-sm ${form.qtySource === v ? "is-on" : ""}`} onClick={() => set("qtySource", v)}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-1.5 sm:col-span-2">
                 <span className="text-[11px] font-extrabold uppercase text-ink-soft">ROUND</span>
-                <select className="field" disabled={ro} value={form.roundMode} onChange={(e) => set("roundMode", e.target.value as Form["roundMode"])}>
-                  <option value="UP">ROUND UP</option>
-                  <option value="NEAREST">ROUND (NEAREST)</option>
-                  <option value="DOWN">ROUND DOWN</option>
-                </select>
-              </label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["UP", "ROUND UP"],
+                      ["NEAREST", "ROUND (NEAREST)"],
+                      ["DOWN", "ROUND DOWN"],
+                    ] as const
+                  ).map(([v, t]) => (
+                    <button key={v} type="button" disabled={ro} className={`fill-btn is-sm ${form.roundMode === v ? "is-on" : ""}`} onClick={() => set("roundMode", v)}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {(
                 [
                   ["defDayMax", "DEFAULT MAX (DAYS)"],
@@ -204,10 +230,13 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
               ))}
             </div>
 
-            <div className="rounded-xl bg-surface-2 p-3 text-xs font-bold text-primary">{describe(form, inBox)}</div>
+            <div key={describe(form, inBox)} className="fm-formula">
+              <span className="fm-fx">ƒx</span>
+              {describe(form, inBox)}
+            </div>
 
             {/* ตัวอย่างสด (ไม่ได้บันทึก / ไม่ได้ใช้คำนวณจริง) */}
-            <div className="rounded-2xl border border-line/60 p-3">
+            <div className="adm-box">
               <div className="mb-2 text-[11px] font-extrabold uppercase text-ink-soft">EXAMPLE (NOT SAVED)</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 <label className="grid gap-1">
@@ -225,17 +254,21 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
               </div>
               <div className="mt-2 text-xs font-semibold text-ink-soft">{steps}</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-surface-2 p-2">
+                <div className="fm-res" style={{ "--c": "var(--success)" } as React.CSSProperties}>
                   <div className="text-[11px] font-extrabold text-ink-soft">
                     MAX ({unit}) = x {dmax} DAYS
                   </div>
-                  <div className="text-2xl font-extrabold text-success">{exMax}</div>
+                  <div key={String(exMax)} className="fm-num">
+                    {exMax}
+                  </div>
                 </div>
-                <div className="rounded-xl bg-surface-2 p-2">
+                <div className="fm-res" style={{ "--c": "var(--danger)" } as React.CSSProperties}>
                   <div className="text-[11px] font-extrabold text-ink-soft">
                     MIN ({unit}) = x {dmin} DAYS
                   </div>
-                  <div className="text-2xl font-extrabold text-danger">{exMin}</div>
+                  <div key={String(exMin)} className="fm-num">
+                    {exMin}
+                  </div>
                 </div>
               </div>
             </div>

@@ -340,11 +340,11 @@ export default function PrPage() {
           {lookInput("TARGET DEPT", "TARGET", "target")}
           <div className="flex items-end gap-2 min-[480px]:col-span-2 md:col-span-3 xl:col-span-1">
             {can.submit && !viewing && (
-              <button className="btn flex-1 whitespace-nowrap bg-success px-3" disabled={busy || (meta.hasPrStock && !stock)} onClick={submit}>
+              <button className="cta-btn is-green flex-1" disabled={busy || (meta.hasPrStock && !stock)} onClick={submit}>
                 📨 SUBMIT PR
               </button>
             )}
-            <button className="btn flex-1 whitespace-nowrap bg-info px-3" onClick={() => setApprovedOpen(true)}>
+            <button className="cta-btn flex-1" onClick={() => setApprovedOpen(true)}>
               📋 APPROVED LIST
             </button>
           </div>
@@ -409,11 +409,11 @@ export default function PrPage() {
                           <RowAction kind="view" active={viewing?.prNumber === p.prNumber} onClick={() => (viewing?.prNumber === p.prNumber ? clear() : (setViewing(p), setF({ requester: p.requester, dept: p.department, remark: p.remark, target: p.targetDept })))} />
                           {can.approve && p.status === "Waiting" && (
                             <>
-                              <button className="btn bg-success px-2 py-1 text-xs" onClick={() => setApprove(p)}>
-                                ✔
+                              <button className="cta-btn is-green is-sm" onClick={() => setApprove(p)}>
+                                ✔ APPROVE
                               </button>
-                              <button className="btn bg-danger px-2 py-1 text-xs" onClick={() => reject(p)}>
-                                ✖
+                              <button className="cta-btn is-red is-sm" onClick={() => reject(p)}>
+                                ✖ REJECT
                               </button>
                             </>
                           )}
@@ -485,11 +485,11 @@ function ApproveModal({ pr, onClose, onDone }: { pr: Pr; onClose: () => void; on
       onClose={onClose}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="btn bg-success" onClick={confirm}>
-            CONFIRM
+          <button className="cta-btn is-green" onClick={confirm}>
+            ✔ CONFIRM
           </button>
         </>
       }

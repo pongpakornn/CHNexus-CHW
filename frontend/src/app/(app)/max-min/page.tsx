@@ -3,6 +3,7 @@
 import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -360,17 +361,18 @@ export default function MaxMinPage() {
           <MenuSelect disabled={!canEdit || !data} value={pickFormula == null ? "" : String(pickFormula)} options={(data?.formulas ?? []).map((f) => ({ value: String(f.formulaId), label: f.displayName, title: f.describe }))} onChange={(v) => setPickFormula(Number(v))} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className={`flex cursor-pointer items-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-extrabold ${pickAuto ? "border-accent text-accent" : "border-line text-ink-soft"}`}>
-            <input type="checkbox" disabled={!canEdit} checked={pickAuto} onChange={(e) => setPickAuto(e.target.checked)} /> AUTO CALC
+          {/* AUTO CALC = สวิตช์ (คำนวณใหม่เองหลัง IMPORT FORECAST & ORDER) */}
+          <label className={`sw ${pickAuto ? "is-on" : ""}`} title="คำนวณ MAX / MIN ใหม่อัตโนมัติหลังนำเข้า Forecast / Order">
+            <input type="checkbox" className="sr-only" disabled={!canEdit} checked={pickAuto} onChange={(e) => setPickAuto(e.target.checked)} />
+            <span className="sw-track" />
+            AUTO CALC
           </label>
           {canEdit && (
-            <button className="btn bg-accent" disabled={!settingDirty || !!busy} onClick={saveSetting}>
+            <button className="cta-btn is-purple" disabled={!settingDirty || !!busy} onClick={saveSetting}>
               💾 SAVE
             </button>
           )}
-          <span className={`rounded-full px-3 py-1 text-xs font-extrabold text-white ${data?.setting.autoCalc ? "bg-accent" : "bg-[#9e9e9e]"}`}>
-            {data?.setting.autoCalc ? "AUTO CALC : ON" : "AUTO CALC : OFF"}
-          </span>
+          <span className={`sw-pill ${data?.setting.autoCalc ? "is-on" : ""}`}>{data?.setting.autoCalc ? "AUTO CALC : ON" : "AUTO CALC : OFF"}</span>
         </div>
         {data && (
           <div
@@ -421,10 +423,10 @@ export default function MaxMinPage() {
             />
           </label>
           <div className="flex gap-2">
-            <button className="btn-ghost" onClick={clearForm}>
+            <button className="fill-btn" onClick={clearForm}>
               CLEAR
             </button>
-            <button className="btn bg-accent" disabled={!editing || !!busy} onClick={saveDays}>
+            <button className="cta-btn is-purple" disabled={!editing || !!busy} onClick={saveDays}>
               💾 SAVE
             </button>
           </div>
@@ -492,47 +494,52 @@ export default function MaxMinPage() {
       <FormulaModal open={formulaOpen} stock={stock} selectId={data?.formula.formulaId} canEdit={canEdit} onClose={() => setFormulaOpen(false)} onChanged={() => load(true)} />
       <WorkdayModal open={workdayOpen} canEdit={canEdit} onClose={() => setWorkdayOpen(false)} onChanged={() => load(true)} />
 
-      {/* 📄 TEMPLATE EXCEL: เลือกก่อนว่าจะเตรียมไฟล์ของปุ่มไหน */}
-      <Modal open={templateOpen} title="📄 TEMPLATE EXCEL" onClose={() => setTemplateOpen(false)}>
-        <p className="mb-3 text-sm font-semibold text-ink-soft">Stock {stock?.code} • choose the import you want to prepare a file for</p>
-        <div className="grid gap-2">
-          <button className="rounded-xl border-2 border-line p-4 text-left hover:border-accent" onClick={() => template("DAYS")}>
-            <div className="font-extrabold text-primary">SET MAX / MIN</div>
-            <div className="mt-1 text-xs font-semibold text-ink-soft">
-              Products of the table ({total.toLocaleString()}) with current MAX (DAY) / MIN (DAY). Fill MAX / MIN (DAY) or (BOX), FORECAST / ORDER / DELIVERY in any column.
-            </div>
-            <div className="mt-2 text-[11px] font-extrabold text-accent">USE WITH: 📥 IMPORT SET MAX MIN</div>
-          </button>
-          <button className="rounded-xl border-2 border-line p-4 text-left hover:border-accent" onClick={() => template("FORECAST")}>
-            <div className="font-extrabold text-primary">FORECAST / ORDER / DELIVERY</div>
-            <div className="mt-1 text-xs font-semibold text-ink-soft">
-              One row per PART A + month (this month&apos;s rows already filled in). Products are checked by PART A only; CUSTOMER / PART NO / PRODUCT NAME come from the system.
-            </div>
-            <div className="mt-2 text-[11px] font-extrabold text-accent">USE WITH: 📊 IMPORT FORECAST &amp; ORDER (both choices)</div>
-          </button>
+      {/* 📄 TEMPLATE EXCEL: เลือกก่อนว่าจะเตรียมไฟล์ของปุ่มไหน (การ์ดแบบหน้า Store) */}
+      <Modal open={templateOpen} wide title="📄 TEMPLATE EXCEL" onClose={() => setTemplateOpen(false)}>
+        <p className="mb-4 text-sm font-semibold text-ink-soft">Stock {stock?.code} • choose the import you want to prepare a file for</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <ChoiceCard
+            color="#16a34a"
+            icon={<Glyph d={GLYPH.days} />}
+            title="SET MAX / MIN"
+            detail={`Products of the table (${total.toLocaleString()}) with current MAX (DAY) / MIN (DAY). Fill MAX / MIN (DAY) or (BOX), FORECAST / ORDER / DELIVERY in any column.`}
+            meta="USE WITH: 📥 IMPORT SET MAX MIN"
+            onClick={() => template("DAYS")}
+          />
+          <ChoiceCard
+            delay={1}
+            color="#0284c7"
+            icon={<Glyph d={GLYPH.chart} />}
+            title="FORECAST / ORDER / DELIVERY"
+            detail="One row per PART A + month (this month's rows already filled in). Products are checked by PART A only; CUSTOMER / PART NO / PRODUCT NAME come from the system."
+            meta="USE WITH: 📊 IMPORT FORECAST & ORDER (both choices)"
+            onClick={() => template("FORECAST")}
+          />
         </div>
       </Modal>
 
       {/* 📊 IMPORT FORECAST & ORDER: คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว */}
-      <Modal open={!!choice} title={choice?.title ?? ""} onClose={() => setChoice(null)}>
+      <Modal open={!!choice} wide title={choice?.title ?? ""} onClose={() => setChoice(null)}>
         <p className="mb-4 whitespace-pre-line text-sm font-semibold">{choice?.text}</p>
-        <div className="grid gap-2">
+        <div className="grid gap-3 md:grid-cols-2">
           {(
             [
-              ["CALC", choice?.calc],
-              ["ONLY", choice?.only],
+              ["CALC", choice?.calc, "#e11d48", GLYPH.calc, "IMPORT + CALCULATE"],
+              ["ONLY", choice?.only, "#0284c7", GLYPH.upload, "IMPORT ONLY"],
             ] as const
-          ).map(([mode, label]) => (
-            <button
+          ).map(([mode, label, col, d, tag], i) => (
+            <ChoiceCard
               key={mode}
-              className="rounded-xl border-2 border-line p-4 text-left font-extrabold text-primary hover:border-accent"
+              delay={i}
+              color={col}
+              icon={<Glyph d={d} />}
+              title={label}
+              meta={tag}
               onClick={() => {
                 setChoice(null);
                 pickFile(mode);
               }}
-            >
-              {label}
-            </button>
+            />
           ))}
         </div>
       </Modal>

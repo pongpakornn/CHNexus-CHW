@@ -28,7 +28,7 @@ export function PageHeader({
 }
 
 export function PageBody({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`mx-auto flex w-full max-w-[1800px] flex-col gap-4 p-3 md:p-5 ${className}`}>{children}</div>;
+  return <div className={`page-in mx-auto flex w-full max-w-[1800px] flex-col gap-4 p-3 md:p-5 ${className}`}>{children}</div>;
 }
 
 export function Card({

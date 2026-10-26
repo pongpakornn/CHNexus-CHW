@@ -48,11 +48,11 @@ export function ContactModal({ onClose, onSaved }: { onClose: () => void; onSave
       onClose={onClose}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="btn bg-success" disabled={busy || !rows} onClick={save}>
-            SAVE
+          <button className="cta-btn is-green" disabled={busy || !rows} onClick={save}>
+            💾 SAVE
           </button>
         </>
       }
@@ -60,36 +60,42 @@ export function ContactModal({ onClose, onSaved }: { onClose: () => void; onSave
       {!rows ? (
         err ? <p className="whitespace-pre-line text-sm font-bold text-danger">{err}</p> : <Loading />
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid content-start gap-3">
           {rows.map((r, i) => (
-            <div key={i} className="grid items-center gap-2 sm:grid-cols-[32px_2fr_1.3fr_1fr_auto]">
-              <span className="text-center font-extrabold text-ink-soft">{i + 1}</span>
+            <div key={i} className="ct-row grid items-center gap-2 sm:grid-cols-[36px_2fr_1.3fr_1fr_auto]" style={{ animationDelay: `${i * 40}ms` }}>
+              <span className="ct-no">{i + 1}</span>
               <input className="field" placeholder="FULL NAME *" value={r.fullName} onChange={(e) => set(i, "fullName", e.target.value)} />
               <input className="field" placeholder="PHONE *" inputMode="tel" value={r.phone} onChange={(e) => set(i, "phone", e.target.value)} />
               <input className="field" placeholder="NICKNAME" value={r.nickname} onChange={(e) => set(i, "nickname", e.target.value)} />
-              <div className="flex gap-1">
+              <div className="flex gap-1.5">
                 <button
-                  className="btn-ghost px-2 py-1"
+                  className="fill-btn is-xs"
                   disabled={i === 0}
                   aria-label="Move up"
                   onClick={() => setRows((rs) => (rs ? [...rs.slice(0, i - 1), rs[i], rs[i - 1], ...rs.slice(i + 1)] : rs))}
                 >
                   ▲
                 </button>
-                <button className="btn-ghost px-2 py-1 text-danger" aria-label="Remove" onClick={() => setRows((rs) => rs!.filter((_, j) => j !== i))}>
+                <button className="fill-btn is-xs is-danger" aria-label="Remove" onClick={() => setRows((rs) => rs!.filter((_, j) => j !== i))}>
                   ✕
                 </button>
               </div>
             </div>
           ))}
-          <button className="btn-ghost w-fit" onClick={() => setRows((rs) => [...(rs ?? []), { fullName: "", phone: "", nickname: "" }])}>
+          <button className="fill-btn is-add w-fit" onClick={() => setRows((rs) => [...(rs ?? []), { fullName: "", phone: "", nickname: "" }])}>
             ＋ ADD CONTACT
           </button>
-          <div className="rounded-xl bg-surface-2 p-3">
-            <div className="mb-1 text-[11px] font-extrabold text-ink-soft">PREVIEW (scan page)</div>
-            <div className="whitespace-pre-line text-sm font-bold">{"กรุณาติดต่อ Admin เพื่อขอความช่วยเหลือ\n" + (list.length ? list.map(line).join("\n") : "☎ Admin")}</div>
-          </div>
           {err && <p className="whitespace-pre-line rounded-lg bg-[#ffebee] px-3 py-2 text-sm font-bold text-danger">{err}</p>}
+          </div>
+          {/* ตัวอย่างที่ผู้ใช้เห็นในหน้าสแกน */}
+          <div className="ct-preview">
+            <div className="mb-2 text-[11px] font-extrabold tracking-wide text-white/70">PREVIEW (scan page)</div>
+            <div className="ct-bubble">
+              <span className="ct-bell">🔔</span>
+              <div className="whitespace-pre-line text-sm font-bold text-[#1f2350]">{"กรุณาติดต่อ Admin เพื่อขอความช่วยเหลือ\n" + (list.length ? list.map(line).join("\n") : "☎ Admin")}</div>
+            </div>
+          </div>
         </div>
       )}
     </Modal>

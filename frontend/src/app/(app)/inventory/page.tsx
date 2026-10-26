@@ -11,6 +11,8 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
 import { QrImage } from "@/components/ui/QrImage";
 import { RowAction, RowActions } from "@/components/ui/RowAction";
+import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
+import { stockIcon } from "@/lib/stockIcons";
 import { api, download, upload } from "@/lib/api";
 import { qty } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
@@ -678,46 +680,58 @@ export default function InventoryPage() {
         </Card>
       </div>
 
-      {/* 📄 TEMPLATE: เลือกคลัง -> คอลัมน์ตาม Store (Max-Min) ของคลังนั้น */}
-      <Modal open={tplOpen} wide title="📄 TEMPLATE EXCEL" onClose={() => setTplOpen(false)}>
-        <p className="mb-3 text-sm font-semibold text-ink-soft">เลือกคลัง: ระบบสร้าง Template ตามคอลัมน์ที่คลังนั้นแสดงใน Store (Max-Min)</p>
-        <div className="grid gap-2">
-          {[{ stkId: 0, code: "ALL COLUMNS (ทุกคลัง)", name: "", heads: "ทุกคอลัมน์ที่ระบบอ่านได้ ใส่รหัสคลังเองที่ STOCK1 - STOCK3", countCoil: false }, ...tplOptions].map((o) => (
-            <button
-              key={o.stkId}
-              className="rounded-xl border-2 border-line p-3 text-left hover:border-accent"
-              onClick={async () => {
-                setTplOpen(false);
-                try {
-                  await download("/products/template", { stkId: o.stkId || undefined });
-                } catch (e) {
-                  toast.show("ERROR", "สร้างไฟล์ Template ไม่สำเร็จ\n" + (e as Error).message, "error");
-                }
-              }}
-            >
-              <div className="font-extrabold text-primary">
-                {o.code} {o.name && <span className="text-ink-soft">• {o.name}</span>}
-              </div>
-              <div className="text-xs">{o.heads}</div>
-            </button>
-          ))}
+      {/* 📄 TEMPLATE: เลือกคลัง -> คอลัมน์ตาม Store (Max-Min) ของคลังนั้น (การ์ดแบบหน้า Store) */}
+      <Modal open={tplOpen} size="xl" title="📄 TEMPLATE EXCEL" onClose={() => setTplOpen(false)}>
+        <p className="mb-4 text-sm font-semibold text-ink-soft">เลือกคลัง: ระบบสร้าง Template ตามคอลัมน์ที่คลังนั้นแสดงใน Store (Max-Min)</p>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[{ stkId: 0, code: "ALL COLUMNS", name: "ทุกคลัง", heads: "ทุกคอลัมน์ที่ระบบอ่านได้ ใส่รหัสคลังเองที่ STOCK1 - STOCK3", countCoil: false }, ...tplOptions].map((o, i) => {
+            const [ic, col] = o.stkId === 0 ? ["", "#6750a4"] : stockIcon(o.code, i);
+            return (
+              <ChoiceCard
+                key={o.stkId}
+                delay={i}
+                color={col}
+                // eslint-disable-next-line @next/next/no-img-element
+                icon={o.stkId === 0 ? <Glyph d={GLYPH.grid} /> : <img src={ic} alt="" className="size-6 object-contain" draggable={false} />}
+                title={o.code}
+                detail={o.name}
+                meta={o.heads}
+                onClick={async () => {
+                  setTplOpen(false);
+                  try {
+                    await download("/products/template", { stkId: o.stkId || undefined });
+                  } catch (e) {
+                    toast.show("ERROR", "สร้างไฟล์ Template ไม่สำเร็จ\n" + (e as Error).message, "error");
+                  }
+                }}
+              />
+            );
+          })}
         </div>
       </Modal>
 
       {/* ▣ EXPORT QR: ที่ติ๊กไว้ / ทั้งหมดในคลัง */}
-      <Modal open={!!exportOpen} title="▣ EXPORT QR" onClose={() => setExportOpen(null)}>
-        <p className="mb-3 text-sm font-semibold text-ink-soft">QR CODE ตามรูปแบบที่ตั้งไว้ของ {filterStock?.code ?? "ALL STOCKS"} (ปุ่ม ADMIN &gt; QR CODE)</p>
-        <div className="grid gap-2">
-          <button className="rounded-xl border-2 border-line p-4 text-left hover:border-accent disabled:opacity-50" disabled={ticked.length === 0} onClick={() => exportQr("SELECTED")}>
-            <div className="font-extrabold text-primary">☑ EXPORT SELECTED ({ticked.length.toLocaleString()})</div>
-            <div className="text-xs">{ticked.length === 0 ? "ยังไม่ได้ติ๊กรายการในตาราง" : `เฉพาะ ${ticked.length} รายการที่ติ๊กไว้ในตาราง`}</div>
-          </button>
-          <button className="rounded-xl border-2 border-line p-4 text-left hover:border-accent" onClick={() => exportQr("ALL")}>
-            <div className="font-extrabold text-primary">
-              ▦ EXPORT ALL IN {filterStock?.code ?? "ALL STOCKS"} ({exportOpen?.all.toLocaleString()})
-            </div>
-            <div className="text-xs">สินค้าทั้งหมดในคลัง (ไม่ต้องติ๊ก / ไม่ขึ้นกับคำค้นหา)</div>
-          </button>
+      <Modal open={!!exportOpen} wide title="▣ EXPORT QR" onClose={() => setExportOpen(null)}>
+        <p className="mb-4 text-sm font-semibold text-ink-soft">QR CODE ตามรูปแบบที่ตั้งไว้ของ {filterStock?.code ?? "ALL STOCKS"} (ปุ่ม ADMIN &gt; QR CODE)</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ChoiceCard
+            color="#6750a4"
+            icon={<Glyph d={GLYPH.check} />}
+            title={`EXPORT SELECTED (${ticked.length.toLocaleString()})`}
+            detail={ticked.length === 0 ? "ยังไม่ได้ติ๊กรายการในตาราง" : `เฉพาะ ${ticked.length} รายการที่ติ๊กไว้ในตาราง`}
+            meta="PDF • QR CODE"
+            disabled={ticked.length === 0}
+            onClick={() => exportQr("SELECTED")}
+          />
+          <ChoiceCard
+            delay={1}
+            color="#16a34a"
+            icon={<Glyph d={GLYPH.qr} />}
+            title={`EXPORT ALL IN ${filterStock?.code ?? "ALL STOCKS"} (${exportOpen?.all.toLocaleString()})`}
+            detail="สินค้าทั้งหมดในคลัง (ไม่ต้องติ๊ก / ไม่ขึ้นกับคำค้นหา)"
+            meta="PDF • QR CODE"
+            onClick={() => exportQr("ALL")}
+          />
         </div>
       </Modal>
 

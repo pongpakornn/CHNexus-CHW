@@ -225,7 +225,7 @@ export default function UsersPage() {
                 <RowAction kind="view" title="VIEW PERMISSION" onClick={() => setPerm({ userId: u.userId, readOnly: true })} />
                 {can.edit && <RowAction kind="edit" title="EDIT USER" onClick={() => setEdit({ user: u })} />}
                 {can.perms && (
-                  <button className="btn bg-accent px-3 py-1 text-xs" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
+                  <button className="cta-btn is-purple is-sm" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
                     🔑 PERMISSION
                   </button>
                 )}
