@@ -45,6 +45,8 @@ export default function MaxMinPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const [pickFormula, setPickFormula] = useState<number | null>(null);
   const [pickAuto, setPickAuto] = useState(false);
+  const dataRef = useRef<CalcData | null>(null);
+  const pickRef = useRef<number | null>(null);
   const [editing, setEditing] = useState<CalcRow | null>(null);
   const [dayMax, setDayMax] = useState("");
   const [dayMin, setDayMin] = useState("");
@@ -86,8 +88,12 @@ export default function MaxMinPage() {
       try {
         const r = await api<CalcData>("/maxmin/rows", { query: { stk, key: k } });
         if (v !== verRef.current) return;
+        // รอบเรียลไทม์ไม่ทับสูตรที่เลือกค้างไว้แต่ยังไม่กด SAVE
+        const prev = dataRef.current;
+        const dirty = live && prev && pickRef.current !== null && pickRef.current !== prev.formula.formulaId;
         setData(r);
-        setPickFormula(r.formula.formulaId);
+        dataRef.current = r;
+        if (!dirty) setPickFormula(r.formula.formulaId);
         setPickAuto(r.setting.autoCalc);
         if (!live) setPage(0);
       } catch (e) {
@@ -174,6 +180,26 @@ export default function MaxMinPage() {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
       setBusy(null);
+    }
+  }
+
+  useEffect(() => {
+    pickRef.current = pickFormula;
+  }, [pickFormula]);
+
+  // 🔘 AUTO CALC: กดสวิตช์ = บันทึกทันที (สถานะเปลี่ยนเลย / บันทึกไม่ได้ = กลับค่าเดิม) ใช้สูตรที่บันทึกไว้ของคลัง
+  async function toggleAuto(v: boolean) {
+    if (!data) return;
+    const before = pickAuto;
+    setPickAuto(v);
+    setData((d) => (d ? { ...d, setting: { ...d.setting, autoCalc: v } } : d));
+    try {
+      const r = await api<{ message: string }>("/maxmin/setting", { method: "POST", body: { stk, formulaId: data.setting.formulaId ?? data.formula.formulaId, autoCalc: v } });
+      toast.show("AUTO CALC", r.message, "ok");
+    } catch (e) {
+      setPickAuto(before);
+      setData((d) => (d ? { ...d, setting: { ...d.setting, autoCalc: before } } : d));
+      toast.show("ERROR", (e as Error).message, "error");
     }
   }
 
@@ -363,7 +389,7 @@ export default function MaxMinPage() {
         <div className="flex flex-wrap items-center gap-2">
           {/* AUTO CALC = สวิตช์ (คำนวณใหม่เองหลัง IMPORT FORECAST & ORDER) */}
           <label className={`sw ${pickAuto ? "is-on" : ""}`} title="คำนวณ MAX / MIN ใหม่อัตโนมัติหลังนำเข้า Forecast / Order">
-            <input type="checkbox" className="sr-only" disabled={!canEdit} checked={pickAuto} onChange={(e) => setPickAuto(e.target.checked)} />
+            <input type="checkbox" className="sr-only" disabled={!canEdit} checked={pickAuto} onChange={(e) => toggleAuto(e.target.checked)} />
             <span className="sw-track" />
             AUTO CALC
           </label>
