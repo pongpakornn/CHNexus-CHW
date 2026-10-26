@@ -354,11 +354,11 @@ export default function MaxMinPage() {
       <Card clip={false} className="relative z-30" bodyClass="grid gap-3 p-4 lg:grid-cols-[200px_1fr_auto] lg:items-end">
         <div className="grid gap-1">
           <span className="text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
-          <MenuSelect value={String(stk)} options={stocks.map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))} onChange={(v) => changeStock(Number(v))} />
+          <MenuSelect compact value={String(stk)} options={stocks.map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))} onChange={(v) => changeStock(Number(v))} />
         </div>
         <div className="grid gap-1">
           <span className="text-[11px] font-extrabold uppercase text-ink-soft">FORMULA</span>
-          <MenuSelect disabled={!canEdit || !data} value={pickFormula == null ? "" : String(pickFormula)} options={(data?.formulas ?? []).map((f) => ({ value: String(f.formulaId), label: f.displayName, title: f.describe }))} onChange={(v) => setPickFormula(Number(v))} />
+          <MenuSelect compact disabled={!canEdit || !data} value={pickFormula == null ? "" : String(pickFormula)} options={(data?.formulas ?? []).map((f) => ({ value: String(f.formulaId), label: f.displayName, title: f.describe }))} onChange={(v) => setPickFormula(Number(v))} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* AUTO CALC = สวิตช์ (คำนวณใหม่เองหลัง IMPORT FORECAST & ORDER) */}
