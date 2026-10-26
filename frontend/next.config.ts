@@ -16,6 +16,8 @@ const devOrigins = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: devOrigins,
+  // ป้าย "N / Insight" มุมจอของ Next.js (แสดงเฉพาะตอน npm run dev) - ปิดไว้ไม่ให้ผู้ใช้เห็น · Error จริงยังแสดงตามปกติ
+  devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
