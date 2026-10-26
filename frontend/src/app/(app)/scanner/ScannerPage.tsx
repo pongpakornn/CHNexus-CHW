@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { hasThai, toEnglish } from "@/lib/thaiKeyboard";
 import { AdjustModal } from "./AdjustModal";
 import { DeductModal } from "./DeductModal";
+import { CameraScan } from "./CameraScan";
 import { DisplayModal } from "./DisplayModal";
 import { HistoryModal } from "./HistoryModal";
 import { ScopeModal } from "./ScopeModal";
@@ -71,6 +72,7 @@ export default function ScannerPage() {
   const [showScope, setShowScope] = useState(false);
   const [showDisplay, setShowDisplay] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [camOpen, setCamOpen] = useState(false); // 📷 สแกนด้วยกล้องมือถือ
   const [locked, setLocked] = useState<string | null>(null);
   const [deductView, setDeductView] = useState<"deducted" | "not" | null>(null);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -681,6 +683,18 @@ export default function ScannerPage() {
         />
       )}
       {showHistory && <HistoryModal onClose={() => (setShowHistory(false), focusScan())} />}
+      {/* 📷 ปุ่มกลมสแกนด้วยกล้อง (มือถือ / แท็บเล็ต) - อ่านได้ = บันทึกเหมือนยิงเครื่องสแกน */}
+      {!notAssigned && (
+        <button type="button" className="cam-fab lg:hidden" onClick={() => setCamOpen(true)} aria-label="สแกน QR ด้วยกล้อง" title="สแกน QR ด้วยกล้อง">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2" />
+            <rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2" />
+            <rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2" />
+            <path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />
+          </svg>
+        </button>
+      )}
+      {camOpen && <CameraScan onResult={(t) => commit(t)} onClose={() => (setCamOpen(false), focusScan())} />}
       {deductView && (
         <DeductModal
           deducted={deductView === "deducted"}
