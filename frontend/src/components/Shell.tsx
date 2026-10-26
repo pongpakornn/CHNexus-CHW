@@ -137,7 +137,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative z-30 flex h-[60px] shrink-0 items-center gap-3 border-b border-line bg-surface/95 px-3 text-ink md:px-5">
+        {/* แถบบน z-48: เมนูแจ้งเตือน / Support กางทับปุ่มในหน้า (เมนูวงกลม z-40) ได้ · ต่ำกว่าเมนูมือถือ (50) และหน้าต่าง (90+) */}
+        <header className="relative z-[48] flex h-[60px] shrink-0 items-center gap-3 border-b border-line bg-surface/95 px-3 text-ink md:px-5">
           <button
             type="button"
             onClick={() => (window.innerWidth < 768 ? setMobile((v) => !v) : setOpen((o) => !o))}
