@@ -253,7 +253,7 @@ export default function ForecastPage() {
         <Card
           title="TOP 5 ORDER"
           actions={
-            <MenuSelect className="w-[200px]" value={topMonth} options={monthOpts} onChange={setTopMonth} />
+            <MenuSelect compact className="w-[200px]" value={topMonth} options={monthOpts} onChange={setTopMonth} />
           }
           bodyClass="p-4"
         >
@@ -290,7 +290,7 @@ export default function ForecastPage() {
         title="ITEMS"
         actions={
           <>
-            <MenuSelect className="w-[200px]" value={tableMonth} options={monthOpts} onChange={(v) => (setTableMonth(v), setPage(0))} />
+            <MenuSelect compact className="w-[200px]" value={tableMonth} options={monthOpts} onChange={(v) => (setTableMonth(v), setPage(0))} />
           </>
         }
       >
