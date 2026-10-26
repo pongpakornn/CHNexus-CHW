@@ -191,15 +191,15 @@ export default function UsersPage() {
         {/* 🖥 Desktop: ตารางผู้ใช้ · 📱 Mobile: การ์ด (แบบเดิม) */}
         <Card className="hidden lg:block">
           <div className="max-h-[calc(100dvh-230px)] overflow-auto">
-            <table className="data-table um-table w-full">
+            <table className="data-table t-center um-table w-full">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  <th className="text-left">USER</th>
+                  <th>USER</th>
                   <th>LEVEL</th>
                   <th>STATUS</th>
-                  <th className="text-left max-[1440px]:hidden">POSITION / UNIT</th>
+                  <th className="max-[1440px]:hidden">POSITION / UNIT</th>
                   <th>SYSTEMS</th>
-                  <th className="text-left">SCAN STOCK</th>
+                  <th>SCAN STOCK</th>
                   <th className="max-[1180px]:hidden">LAST LOGIN</th>
                   <th>ACTION</th>
                 </tr>
@@ -209,7 +209,7 @@ export default function UsersPage() {
                   const tone = LEVEL_TONE[u.level] ?? "var(--primary)";
                   return (
                     <tr key={u.userId} className={`um-row ${u.isLocked ? "is-locked" : ""}`} style={{ animationDelay: `${Math.min(i, 15) * 25}ms` }}>
-                      <td className="text-left">
+                      <td className="um-user">
                         <div className="flex items-center gap-3">
                           <span className="relative shrink-0">
                             <span className="grid size-10 place-items-center rounded-full text-sm font-extrabold text-white" style={{ background: tone }}>
@@ -231,20 +231,20 @@ export default function UsersPage() {
                       <td>
                         <span className={`um-status ${u.isLocked ? "is-locked" : u.isOnline ? "is-on" : ""}`}>{u.statusText}</span>
                       </td>
-                      <td className="text-left text-xs font-semibold text-ink-soft max-[1440px]:hidden">
-                        <div className="max-w-[260px] truncate" title={u.subText}>
+                      <td className="text-xs font-semibold text-ink-soft max-[1440px]:hidden">
+                        <div className="mx-auto max-w-[260px] truncate" title={u.subText}>
                           {u.subText}
                         </div>
-                        <div className="max-w-[300px] truncate" title={u.subText2}>
+                        <div className="mx-auto max-w-[260px] truncate" title={u.subText2}>
                           {u.subText2}
                         </div>
                       </td>
                       <td>
                         <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[11px] font-extrabold text-primary">{u.permCount}</span>
                       </td>
-                      <td className="text-left text-xs">
+                      <td className="text-xs">
                         {u.showScanChip && (
-                          <div className={`max-w-[180px] truncate font-extrabold ${u.scanNotSet ? "text-danger" : "text-success"}`} title={u.scanChipText}>
+                          <div className={`mx-auto max-w-[180px] truncate font-extrabold ${u.scanNotSet ? "text-danger" : "text-success"}`} title={u.scanChipText}>
                             {u.scanChipText}
                           </div>
                         )}

@@ -5860,3 +5860,10 @@ div.swap-in:has(> .show-strip) {
 .um-status.is-locked::before {
   background: var(--danger);
 }
+/* USER: ชิดซ้าย (หัวคอลัมน์ยังอยู่กลาง) */
+.t-center td.um-user {
+  text-align: left !important;
+}
+.t-center td.um-user > .flex {
+  justify-content: flex-start;
+}
