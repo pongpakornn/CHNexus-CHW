@@ -2395,7 +2395,8 @@ div.swap-in:has(> .show-strip) {
   color: var(--ink, #1f1d24);
   transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease, scale 0.15s ease;
 }
-.dp.is-open .dp-day {
+.dp.is-open .dp-day,
+.dp-pop.is-open .dp-day {
   animation: dp-row 0.4s cubic-bezier(0.22, 1, 0.36, 1) calc(0.1s + var(--r) * 0.035s) backwards;
 }
 .dp-day:hover {
@@ -3380,6 +3381,7 @@ div.swap-in:has(> .show-strip) {
   .dp-title,
   .dp-cell,
   .dp.is-open .dp-day,
+  .dp-pop.is-open .dp-day,
   .sk-card.is-on,
   .sk-card.is-on .sk-check,
   .dr-chip.is-on,
@@ -5866,4 +5868,19 @@ div.swap-in:has(> .show-strip) {
 }
 .t-center td.um-user > .flex {
   justify-content: flex-start;
+}
+
+/* 📅 ปฏิทินลอยบน body (fixed) - ไม่ถูกหน้าต่าง / การ์ดตัด · กางขึ้นบนได้ */
+.dp-pop.is-float {
+  position: fixed;
+  right: auto;
+  z-index: 200;
+}
+.dp-pop.is-float.is-open {
+  clip-path: inset(0 0 0 0 round 18px);
+  opacity: 1;
+  pointer-events: auto;
+}
+.dp-pop.is-float.is-up:not(.is-open) {
+  clip-path: inset(94% 45% 6% 45% round 18px);
 }

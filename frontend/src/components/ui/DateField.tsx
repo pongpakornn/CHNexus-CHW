@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const MONTHS_FULL = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
@@ -26,16 +27,25 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
   const [mode, setMode] = useState<"day" | "month" | "year">("day"); // หน้าที่แสดงในปฏิทิน
   const [right, setRight] = useState(false); // ชิดขวาจอ / หน้าต่าง = กางปฏิทินไปทางซ้ายแทน (ไม่ถูกตัด)
   const box = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+  // ตำแหน่งปฏิทิน (fixed บน body) - ไม่ถูกตัดโดยหน้าต่าง / การ์ด · ด้านล่างไม่พอ = กางขึ้นบน
+  const [pos, setPos] = useState<{ top: number; left: number; up: boolean }>({ top: -9999, left: -9999, up: false });
 
   useEffect(() => {
     if (!open) return;
-    const down = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const down = (e: PointerEvent) => !box.current?.contains(e.target as Node) && !pop.current?.contains(e.target as Node) && setOpen(false);
+    // เลื่อนหน้า / หน้าต่าง (นอกปฏิทิน) หรือย่อขยายจอ = ปิด (ปฏิทินลอยอยู่กับที่)
+    const away = (e: Event) => !pop.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("scroll", away, true);
+    window.addEventListener("resize", away);
     const key = (e: KeyboardEvent) => e.key === "Escape" && (e.stopPropagation(), setOpen(false));
     document.addEventListener("pointerdown", down);
     document.addEventListener("keydown", key, true);
     return () => {
       document.removeEventListener("pointerdown", down);
       document.removeEventListener("keydown", key, true);
+      window.removeEventListener("scroll", away, true);
+      window.removeEventListener("resize", away);
     };
   }, [open]);
 
@@ -51,7 +61,16 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
           break;
         }
       }
-      setRight(r.left + 300 > limit && r.right - 300 >= 8);
+      const toRight = r.left + 300 > limit && r.right - 300 >= 8;
+      setRight(toRight);
+      const H = 390;
+      const below = window.innerHeight - r.bottom;
+      const up = below < H + 12 && r.top > below;
+      setPos({
+        top: up ? Math.max(8, r.top - 8 - H) : r.bottom + 8,
+        left: Math.min(Math.max(8, toRight ? r.right - 300 : r.left), window.innerWidth - 308),
+        up,
+      });
     }
     if (!open && sel) setView(new Date(sel.getFullYear(), sel.getMonth(), 1)); // เปิด = ไปเดือนของวันที่เลือกอยู่
     setDir(0);
@@ -101,7 +120,9 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
         </svg>
       </button>
 
-      <div className="dp-pop" role="dialog" aria-label={label}>
+      {typeof document !== "undefined" &&
+        createPortal(
+      <div ref={pop} className={`dp-pop is-float ${open ? "is-open" : ""} ${pos.up ? "is-up" : ""}`} style={{ top: pos.top, left: pos.left }} role="dialog" aria-label={label}>
         <div className="dp-head">
           <button type="button" className="dp-nav" onClick={() => shift(-1)} aria-label="Previous month" tabIndex={open ? 0 : -1}>
             <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -209,7 +230,9 @@ export function DateField({ label, value, onChange, className = "" }: { label: s
             CLOSE
           </button>
         </div>
-      </div>
+      </div>,
+          document.body,
+        )}
     </div>
   );
 }
