@@ -5887,13 +5887,11 @@ div.swap-in:has(> .show-strip) {
 
 /* 📷 Multi-Scanner: ปุ่มกลมสแกนด้วยกล้อง + หน้าจอกล้อง */
 .cam-fab {
-  position: fixed;
-  left: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 60;
+  position: relative;
   display: grid;
-  width: 62px;
-  height: 62px;
+  flex: none;
+  width: 54px;
+  height: 54px;
   place-items: center;
   border-radius: 999px;
   background: linear-gradient(145deg, #8c6fdc, #6750a4 60%, #4b3a80);
@@ -6056,4 +6054,8 @@ div.swap-in:has(> .show-strip) {
   font-size: 13px;
   font-weight: 800;
   animation: ord-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.cam-fab:disabled {
+  opacity: 0.4;
+  animation: none;
 }

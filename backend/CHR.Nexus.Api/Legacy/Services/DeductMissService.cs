@@ -302,6 +302,80 @@ namespace Nexus.Services
             return new ActionResult { Ok = true, Deduct = res };
         }
 
+        // + PRODUCT: เปลี่ยนคลังที่รับเข้าของป้าย (ก่อนรับเข้า)
+        public void MoveTarget(int missId, int stockId)
+        {
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand("UPDATE Nexus.DeductMisses SET StockID = @s WHERE MissID = @m", conn))
+            {
+                cmd.Parameters.AddWithValue("@s", stockId);
+                cmd.Parameters.AddWithValue("@m", missId);
+                conn.Open();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public sealed class PartPick { public int PartId; public string Note; public string Error; }
+
+        // + PRODUCT ด้วย PRODUCT CODE + NAME: รหัสตรงกับสินค้าที่มี = ใช้สินค้านั้น (ชื่อที่กรอกต่างจากเดิม = แก้ชื่อ) / ไม่มี = ลงทะเบียนใหม่
+        //   แล้วให้สินค้าอยู่ในคลังที่รับเข้า (คลังอื่นที่ไม่ใช่คลังหลัก = เพิ่มแถว PartStocks ยอด 0) - ลง Activity Log ทุกครั้ง
+        public PartPick FindOrCreatePart(string code, string name, string packSize, int stockId, string userId)
+        {
+            code = (code ?? "").Trim();
+            name = (name ?? "").Trim();
+            if (code.Length == 0) return new PartPick { Error = "กรุณากรอก PRODUCT CODE" };
+            string ps = (packSize ?? "").Trim();
+            if (ps.Length > 0 && !ps.All(char.IsDigit)) return new PartPick { Error = "PACKSIZE ต้องเป็นตัวเลข" };
+            var stock = new StockService().GetStocks().FirstOrDefault(s => s.StkId == stockId);
+            if (stock == null) return new PartPick { Error = "ไม่พบคลังที่รับเข้า" };
+            int id = 0; string oldName = null;
+            using (var conn = new SqlConnection(_cs))
+            {
+                conn.Open();
+                using (var cmd = new SqlCommand("SELECT TOP 1 PartID, Description FROM Nexus.Parts WHERE PartCode = @c AND IsActive = 1 ORDER BY PartID", conn))
+                {
+                    cmd.Parameters.AddWithValue("@c", code);
+                    using (var r = cmd.ExecuteReader())
+                        if (r.Read()) { id = r.GetInt32(0); oldName = r.IsDBNull(1) ? "" : r.GetString(1); }
+                }
+                string note;
+                if (id > 0)
+                {
+                    note = $"ใช้สินค้าเดิม {code}";
+                    if (name.Length > 0 && !string.Equals(name, oldName, StringComparison.Ordinal))
+                    {
+                        using (var cmd = new SqlCommand("UPDATE Nexus.Parts SET Description = @n WHERE PartID = @p", conn))
+                        {
+                            cmd.Parameters.AddWithValue("@n", name);
+                            cmd.Parameters.AddWithValue("@p", id);
+                            cmd.ExecuteNonQuery();
+                        }
+                        LogService.WriteLog(userId, "EDIT_PART", $" | Edited Details : PTNAME: {oldName}->{name} (NOT DEDUCTED + PRODUCT)", code);
+                        note += $" (แก้ชื่อเป็น {name})";
+                    }
+                }
+                else
+                {
+                    if (name.Length == 0) return new PartPick { Error = $"ไม่มี PRODUCT CODE {code} ในระบบ - กรอก PRODUCT NAME เพื่อลงทะเบียนใหม่" };
+                    int psz = int.TryParse(ps, out int p) ? p : 0;
+                    id = new ProductControlService().InsertNewPartAsync(code, name, psz, "", 0, 0, "GENERAL", null, null, "N/A").GetAwaiter().GetResult();
+                    if (id <= 0) return new PartPick { Error = "ลงทะเบียนสินค้าใหม่ไม่สำเร็จ" };
+                    LogService.WriteLog(userId, "REGISTER_PART", $"Registered New Part: PDCODE : {code}  | PDNAME: {name}  | PZ : {psz} (NOT DEDUCTED + PRODUCT -> {stock.Code})", code);
+                    note = $"ลงทะเบียนสินค้าใหม่ {code} แล้ว";
+                }
+                // สินค้าต้องอยู่ในคลังที่รับเข้า
+                if (!stock.IsMain)
+                    using (var cmd = new SqlCommand(@"IF NOT EXISTS (SELECT 1 FROM Nexus.PartStocks WHERE StockID = @s AND PartID = @p)
+                                                          INSERT INTO Nexus.PartStocks (StockID, PartID, Quantity) VALUES (@s, @p, 0)", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@s", stock.StkId);
+                        cmd.Parameters.AddWithValue("@p", id);
+                        cmd.ExecuteNonQuery();
+                    }
+                return new PartPick { PartId = id, Note = note };
+            }
+        }
+
         // MAX / MIN / Coil เพิ่ม (STOCK COIL มากกว่า 1 ม้วนของป้าย) ของสินค้าในคลังที่รับ (คลังหลัก = Nexus.Parts / คลังอื่น = Nexus.PartStocks)
         public void ApplyStockSetting(int stockId, int partId, decimal? max, decimal? min, int? extraCoils, string userId)
         {

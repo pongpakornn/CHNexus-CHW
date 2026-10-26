@@ -31,7 +31,13 @@ public sealed class ScannerActionsController : AppController
         if (t < f) (f, t) = (t, f);
         var svc = new DeductMissService();
         var rows = deducted ? svc.GetDeducted(key ?? "", f, t, sc.DeductStockIds) : svc.GetRows(key ?? "", f, t, sc.DeductStockIds);
-        return Ok(new { canAct = !deducted && Me.CanApproveScan && DbSchema.HasMissStatus, rows = rows.Select(Row) });
+        return Ok(new
+        {
+            canAct = !deducted && Me.CanApproveScan && DbSchema.HasMissStatus,
+            // + PRODUCT: คลังที่เลือกรับเข้าได้ (คลังที่ผู้ใช้เห็น)
+            stocks = sc.AllStocks.Where(s => Me.CanViewStock(s) && !s.IsLiveView).Select(s => new { s.StkId, s.Code, s.Name, s.CountCoil }),
+            rows = rows.Select(Row)
+        });
     }
 
     public sealed record ExportRequest(bool Deducted, string Key, DateTime? From, DateTime? To, List<int> Ids);
@@ -91,7 +97,10 @@ public sealed class ScannerActionsController : AppController
     }
 
     // ＋ PRODUCT: ลงทะเบียน / เลือกสินค้าที่มีแล้ว -> รับเข้าตามป้าย (MAX / MIN / STOCK COIL / STOCK ไม่บังคับ)
-    public sealed record RegisterRequest(int PartId, string MasterCoil, string CoilNo, decimal? Max, decimal? Min, decimal? CoilCount, decimal? Qty);
+    // PartId > 0 = สินค้าที่เลือกจากรายการ / PartId = 0 + PartCode (+ PartName) = PRODUCT CODE ตรงกับที่มี = ใช้สินค้านั้น (ชื่อต่าง = แก้ชื่อ) · ไม่มี = ลงทะเบียนใหม่
+    //   StkId = คลังที่รับเข้า (ว่าง = คลังของป้าย)
+    public sealed record RegisterRequest(int PartId, string MasterCoil, string CoilNo, decimal? Max, decimal? Min, decimal? CoilCount, decimal? Qty,
+                                         int? StkId = null, string PartCode = null, string PartName = null, string PackSize = null);
 
     [HttpPost("deduct/{missId:int}/register")]
     public IActionResult Register(int missId, [FromBody] RegisterRequest req)
@@ -100,7 +109,25 @@ public sealed class ScannerActionsController : AppController
         var r = FindMiss(missId);
         if (r == null) return NotFound(new { message = "ไม่พบรายการ (อาจถูกดำเนินการไปแล้ว)" });
         if (r.Status == "RECEIVED") return Fail($"รายการเดิมนี้รับเข้า {r.StockCode} ไปแล้ว (มี PD CODE แล้ว)\nใช้ ✔ APPROVE เพื่อตัด {r.SourceCode} ตามหลัง");
-        if (req.PartId <= 0) return Fail("ไม่พบสินค้าในระบบ");
+        // คลังที่รับเข้า: เลือกได้ (คลังที่ผู้ใช้เห็น)
+        if (req.StkId.HasValue && req.StkId.Value != r.StockId)
+        {
+            var to = new StockService().GetStocks().FirstOrDefault(s => s.StkId == req.StkId.Value);
+            if (to == null || !Me.CanViewStock(to) || to.IsLiveView) return Fail("ไม่พบคลังที่เลือก หรือไม่มีสิทธิ์รับเข้าคลังนี้");
+            new DeductMissService().MoveTarget(r.MissId, to.StkId);
+            r.StockId = to.StkId;
+            r.StockCode = to.Code;
+        }
+        int partId = req.PartId;
+        string note = null;
+        if (partId <= 0 && !string.IsNullOrWhiteSpace(req.PartCode))
+        {
+            var found = new DeductMissService().FindOrCreatePart(req.PartCode, req.PartName, req.PackSize, r.StockId, Uid);
+            if (found.Error != null) return Fail(found.Error);
+            partId = found.PartId;
+            note = found.Note;
+        }
+        if (partId <= 0) return Fail("กรุณาเลือกสินค้า หรือกรอก PRODUCT CODE + PRODUCT NAME");
         if (new[] { req.Max, req.Min, req.CoilCount, req.Qty }.Any(v => v < 0)) return Fail("MAX / MIN / STOCK ต้องเป็นตัวเลข (เว้นว่างได้)");
         if (!string.IsNullOrWhiteSpace(req.CoilNo)) r.CoilNo = req.CoilNo.Trim();
         if (!string.IsNullOrWhiteSpace(req.MasterCoil)) r.MotherCoil = req.MasterCoil.Trim();
@@ -108,14 +135,14 @@ public sealed class ScannerActionsController : AppController
         decimal qty = Qty.Round(req.Qty ?? r.LabelQty, stock?.AllowDecimal ?? true);
         if (qty <= 0) return Fail("จำนวนที่รับเข้าต้องมากกว่า 0");
         var svc = new DeductMissService();
-        var res = svc.Receive(r, req.PartId, qty, Uid, "REGISTERED");
+        var res = svc.Receive(r, partId, qty, Uid, "REGISTERED");
         if (!res.Ok) return Fail(res.Message);
         if (req.Max.HasValue || req.Min.HasValue || (req.CoilCount.HasValue && req.CoilCount.Value != 1))
-            svc.ApplyStockSetting(r.StockId, req.PartId, req.Max, req.Min, req.CoilCount.HasValue ? Math.Max(0, (int)req.CoilCount.Value - 1) : null, Uid);
+            svc.ApplyStockSetting(r.StockId, partId, req.Max, req.Min, req.CoilCount.HasValue ? Math.Max(0, (int)req.CoilCount.Value - 1) : null, Uid);
         var d = res.Deduct;
         return Ok(new
         {
-            message = $"รับเข้า {r.StockCode} แล้ว  {Qty.Plain(qty)}\n" +
+            message = (note != null ? note + "\n" : "") + $"รับเข้า {r.StockCode} แล้ว  {Qty.Plain(qty)}\n" +
                       (d != null && d.Deducted > 0 ? $"ตัด {d.SourceCode} {Qty.Plain(d.Deducted)} ({d.SourcePartCode} เหลือ {Qty.Plain(d.SourceAfter)})" : $"ยังไม่ได้ตัด {r.SourceCode} (ไม่มี Master Coil)") +
                       "\n\nรายการย้ายไปที่ DEDUCTED แล้ว"
         });

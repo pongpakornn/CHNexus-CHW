@@ -8,6 +8,7 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
 import { PartPicker, type PartOption } from "@/components/ui/PartPicker";
 import { api, download } from "@/lib/api";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { daysAgo, parseNum, qty, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 
@@ -49,6 +50,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
   const [to, setTo] = useState(today());
   const [rows, setRows] = useState<Row[] | null>(null);
   const [canAct, setCanAct] = useState(false);
+  const [stocks, setStocks] = useState<RegStock[]>([]);
   const [sel, setSel] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [reg, setReg] = useState<Row | null>(null);
@@ -56,7 +58,8 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
 
   const load = useCallback(async () => {
     try {
-      const r = await api<{ canAct: boolean; rows: Row[] }>("/scanner/deduct", { query: { deducted, key: k, from, to } });
+      const r = await api<{ canAct: boolean; stocks?: RegStock[]; rows: Row[] }>("/scanner/deduct", { query: { deducted, key: k, from, to } });
+      setStocks(r.stocks ?? []);
       setRows(r.rows);
       setCanAct(r.canAct);
       setSel((s) => s.filter((id) => r.rows.some((x) => x.missId === id)));
@@ -255,6 +258,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
       {reg && (
         <RegisterModal
           row={reg}
+          stocks={stocks}
           onClose={() => setReg(null)}
           onDone={async (msg) => {
             setReg(null);
@@ -268,18 +272,30 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
   );
 }
 
-// ＋ PRODUCT: เลือกสินค้า (ลงทะเบียนใหม่ได้ที่หน้า Inventory Registration) แล้วรับเข้าตามป้าย - MAX / MIN / STOCK ไม่บังคับ
-function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void; onDone: (msg: string) => void }) {
+type RegStock = { stkId: number; code: string; name: string; countCoil: boolean };
+
+// ＋ PRODUCT: เลือกคลังที่รับเข้า + สินค้า (เลือกจากรายการ หรือกรอก PRODUCT CODE + NAME) แล้วรับเข้าตามป้าย - MAX / MIN / STOCK ไม่บังคับ
+//   กรอก CODE ที่มีอยู่แล้ว = ใช้สินค้านั้น (ชื่อต่าง = แก้ชื่อให้) · ยังไม่มี = ลงทะเบียนใหม่ให้เลย (แบบหน้า Inventory Registration)
+function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: RegStock[]; onClose: () => void; onDone: (msg: string) => void }) {
   const toast = useToast();
   const dlg = useDialogs();
   const [part, setPart] = useState<PartOption | null>(null);
+  const [stk, setStk] = useState(row.stockId);
+  const [mode, setMode] = useState<"PICK" | "CODE">("PICK");
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [pack, setPack] = useState("");
+  const stockCode = stocks.find((s) => s.stkId === stk)?.code ?? row.stockCode;
   const [master, setMaster] = useState(row.motherCoil ?? "");
   const [coil, setCoil] = useState(row.coilNo ?? "");
   const [f, setF] = useState({ max: "", min: "", coilCount: "", qty: "" });
   const [busy, setBusy] = useState(false);
 
   async function save() {
-    if (!part) return toast.show("WARNING", "กรุณาเลือกสินค้า (ค้นหา PD CODE / ชื่อสินค้า)", "warn");
+    if (mode === "PICK" && !part) return toast.show("WARNING", "กรุณาเลือกสินค้า (ค้นหา PD CODE / ชื่อสินค้า)", "warn");
+    if (mode === "CODE" && !code.trim()) return toast.show("WARNING", "กรุณากรอก PRODUCT CODE", "warn");
+    if (mode === "CODE" && pack.trim() && !/^\d+$/.test(pack.trim())) return toast.show("WARNING", "PACKSIZE ต้องเป็นตัวเลข", "warn");
+    const pcode = mode === "PICK" ? part!.partCode : code.trim();
     const v = { max: parseNum(f.max), min: parseNum(f.min), coilCount: parseNum(f.coilCount), qty: parseNum(f.qty) };
     if (Object.values(v).some((x) => x !== null && (Number.isNaN(x) || x < 0))) return toast.show("WARNING", "MAX / MIN / STOCK ต้องเป็นตัวเลข (เว้นว่างได้)", "warn");
     const q = v.qty ?? row.labelQty;
@@ -287,7 +303,7 @@ function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void
     const ok = await dlg.confirm({
       title: "REGISTER & RECEIVE",
       message:
-        `รับเข้า ${row.stockCode}\n${part.partCode}\nจำนวน ${qty(q)}` +
+        `รับเข้า ${stockCode}\n${pcode}${mode === "CODE" && name.trim() ? ` • ${name.trim()}` : ""}\nจำนวน ${qty(q)}` +
         (v.coilCount !== null ? `  •  ${v.coilCount} Coil` : "") +
         (v.max !== null || v.min !== null ? `\nMAX ${qty(v.max)} / MIN ${qty(v.min)}` : "") +
         `\n\n${cut}\n\nยืนยันหรือไม่?`,
@@ -297,9 +313,9 @@ function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void
     try {
       const r = await api<{ message: string }>(`/scanner/deduct/${row.missId}/register`, {
         method: "POST",
-        body: { partId: part.partId, masterCoil: master, coilNo: coil, ...v },
+        body: { partId: mode === "PICK" ? part!.partId : 0, partCode: mode === "CODE" ? code.trim() : null, partName: mode === "CODE" ? name.trim() : null, packSize: mode === "CODE" ? pack.trim() : null, stkId: stk, masterCoil: master, coilNo: coil, ...v },
       });
-      onDone(`${part.partCode}\n${r.message}`);
+      onDone(`${pcode}\n${r.message}`);
     } catch (e) {
       toast.show("ERROR", "บันทึกไม่สำเร็จ\n" + (e as Error).message, "error");
     } finally {
@@ -321,10 +337,10 @@ function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void
       onClose={onClose}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="btn bg-success" onClick={save} disabled={busy}>
+          <button className="cta-btn is-green" onClick={save} disabled={busy}>
             {busy ? "⏳ SAVING..." : "REGISTER & RECEIVE"}
           </button>
         </>
@@ -336,13 +352,50 @@ function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void
         </div>
         <div className="mt-1 break-all font-mono">{row.barcode}</div>
         <div className="mt-2 font-extrabold text-primary">
-          RECEIVE INTO {row.stockCode} • CUT {row.sourceCode}
+          RECEIVE INTO {stockCode} • CUT {row.sourceCode}
         </div>
         <div>{row.motherNow !== null ? `Master coil ${row.motherCoil} now in ${row.sourceCode}: ${qty(row.motherNow)} KG` : `Master coil ${row.motherCoil} is not in ${row.sourceCode} yet`}</div>
       </div>
-      <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PRODUCT (มีในระบบแล้ว)</span>
-      <PartPicker value={part} onChange={setPart} stkId={row.stockId} />
-      <p className="mt-1 text-xs text-ink-soft">สินค้าใหม่: ลงทะเบียนที่หน้า Inventory Registration ก่อน แล้วกลับมาเลือกที่นี่</p>
+      {/* คลังที่รับเข้า */}
+      <div className="mb-4 grid gap-1">
+        <span className="text-xs font-extrabold uppercase text-ink-soft">RECEIVE INTO STOCK</span>
+        <MenuSelect compact value={String(stk)} options={(stocks.length ? stocks : [{ stkId: row.stockId, code: row.stockCode, name: "", countCoil: true }]).map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))} onChange={(v) => (setStk(Number(v)), setPart(null))} />
+      </div>
+      {/* สินค้า: เลือกจากรายการ / กรอก PRODUCT CODE + NAME */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-extrabold uppercase text-ink-soft">PRODUCT</span>
+        <span className="ml-auto" />
+        <button type="button" className={`fill-btn is-xs ${mode === "PICK" ? "is-on" : ""}`} onClick={() => setMode("PICK")}>
+          เลือกจากรายการ
+        </button>
+        <button type="button" className={`fill-btn is-xs ${mode === "CODE" ? "is-on" : ""}`} onClick={() => setMode("CODE")}>
+          กรอก CODE + NAME
+        </button>
+      </div>
+      {mode === "PICK" ? (
+        <>
+          <PartPicker key={stk} value={part} onChange={setPart} stkId={stk} />
+          <p className="mt-1 text-xs text-ink-soft">ไม่มีในรายการ: กด &quot;กรอก CODE + NAME&quot; เพื่อลงทะเบียนสินค้าใหม่ได้เลย</p>
+        </>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-[1fr_1.6fr_110px]">
+            <label className="block">
+              <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PRODUCT CODE *</span>
+              <input className="field" value={code} onChange={(e) => setCode(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PRODUCT NAME</span>
+              <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PACKSIZE</span>
+              <input className="field" inputMode="numeric" value={pack} onChange={(e) => setPack(e.target.value.replace(/\D/g, ""))} />
+            </label>
+          </div>
+          <p className="mt-1 text-xs text-ink-soft">PRODUCT CODE มีในระบบแล้ว = ใช้สินค้านั้น (กรอกชื่อใหม่ = แก้ชื่อให้) · ยังไม่มี = ลงทะเบียนใหม่ (ต้องกรอก PRODUCT NAME) แล้วเพิ่มเข้าคลัง {stockCode}</p>
+        </>
+      )}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">MASTER COIL</span>
@@ -353,7 +406,7 @@ function RegisterModal({ row, onClose, onDone }: { row: Row; onClose: () => void
           <input className="field" value={coil} onChange={(e) => setCoil(e.target.value)} />
         </label>
       </div>
-      <div className="mt-4 text-xs font-extrabold uppercase text-primary">{row.stockCode} • MAX / MIN / STOCK (optional)</div>
+      <div className="mt-4 text-xs font-extrabold uppercase text-primary">{stockCode} • MAX / MIN / STOCK (optional)</div>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {field("MAX", "max")}
         {field("MIN", "min")}
