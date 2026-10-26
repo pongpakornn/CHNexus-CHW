@@ -61,11 +61,11 @@ public sealed class ProductsController : AppController
         return Ok();
     }
 
-    private static object Row(ProductControlModel p) => new
+    private static object Row(ProductControlModel p, int masterCount = 0) => new
     {
         p.PtId, p.PartCode, p.PartName, p.PackSize, p.Category, p.Location, p.QRCodeData, p.Max, p.Min, p.Stock, supplier = p.CustomerCode,
         p.Customer, p.PartA, p.PartB, p.PartNo, p.Model, p.IsShow, p.IsShowMain, p.IsActive, p.ImageFileName,
-        p.MotherCoil, p.CoilNo, p.CoilCount, p.GroupKey,
+        p.MotherCoil, p.CoilNo, p.CoilCount, masterCount, p.GroupKey,
         imageUrl = string.IsNullOrWhiteSpace(p.ImageFileName) ? null : $"/api/images/file?name={Uri.EscapeDataString(p.ImageFileName)}"
     };
 
@@ -96,6 +96,7 @@ public sealed class ProductsController : AppController
         int? coilStk = stock != null && stock.ShowCoilRows && DbSchema.HasCoilRegister ? stock.StkId : null;
         bool needCoils = coilStk.HasValue || layout.Columns.Contains("MOTHER") || layout.Columns.Contains("COILNO");
         var coils = needCoils ? new ProductControlLayoutService().GetCoils(stkId) : null;
+        var masters = new Dictionary<int, int>();
         foreach (var p in rows)
         {
             p.GroupKey = GroupOf(p) is { Length: > 0 } g ? g : "-";
@@ -104,9 +105,10 @@ public sealed class ProductsController : AppController
                 p.MotherCoil = Short(c.Mothers, 3);
                 p.CoilNo = c.Coils.Count == 0 ? "" : $"{c.Coils.Count:N0} COIL\n" + Short(c.Coils, 2);
                 p.CoilCount = coilStk.HasValue ? c.Coils.Count : 0;
+                masters[p.PtId] = c.Mothers.Count;
             }
         }
-        return Ok(new { total = all.Count, layout, coilStkId = coilStk, groups = groupCounts, rows = rows.Select(Row) });
+        return Ok(new { total = all.Count, layout, coilStkId = coilStk, groups = groupCounts, rows = rows.Select(p => Row(p, masters.TryGetValue(p.PtId, out int n) ? n : 0)) });
     }
 
     // VIEW / EDIT สินค้า: คลังที่สินค้าอยู่ + Coil ในคลังตอนนี้ (แสดงอย่างเดียว)
@@ -128,6 +130,53 @@ public sealed class ProductsController : AppController
     {
         if (Me?.CanViewProductControl != true) return Deny();
         return Ok(new CoilService().GetCoilRows(stkId, ptId).Select(c => new { c.CoilId, c.IsMother, c.No, c.CoilNo, c.MotherCoil, c.WeightKG, ton = c.WeightKG / 1000m, received = c.DateText }));
+    }
+
+    // ✏️ แก้ / 🗑 ลบ Coil ที่ลงผิด · เปลี่ยนชื่อ Master Coil (สิทธิ์ EDIT / DEL ของ ProductControl) - ทุกครั้งลง Activity Log ค่าเดิม -> ค่าใหม่
+    public sealed record CoilEdit(string CoilNo, string MasterCoil, string WeightKg);
+    public sealed record MasterRename(int StkId, string From, string To);
+
+    [HttpPut("coils/{coilId:int}")]
+    public IActionResult EditCoil(int coilId, [FromBody] CoilEdit req)
+    {
+        if (Me?.CanEditProduct != true) return Deny("คุณไม่มีสิทธิ์แก้ไขสินค้า / Coil");
+        if (!Qty.TryParse((req?.WeightKg ?? "").Replace(",", "").Trim(), out decimal kg) || kg <= 0) return Fail("กรุณากรอกน้ำหนัก (KG) เป็นตัวเลขมากกว่า 0");
+        try
+        {
+            string log = new CoilService().EditCoil(coilId, req.CoilNo, req.MasterCoil, kg, _stocks.GetStocks(), Uid);
+            LogService.WriteLog(Uid, "EDIT_COIL", log, (req.CoilNo ?? "").Trim());
+            return Ok(new { message = "แก้ไข Coil แล้ว" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+        catch (Exception ex) { return Fail(ex, "แก้ไข Coil ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("coils/{coilId:int}/delete")]
+    public IActionResult DeleteCoil(int coilId)
+    {
+        if (Me?.CanDeleteProduct != true) return Deny("คุณไม่มีสิทธิ์ลบ Coil");
+        try
+        {
+            string log = new CoilService().DeleteCoil(coilId, _stocks.GetStocks());
+            LogService.WriteLog(Uid, "DELETE_COIL", log, "");
+            return Ok(new { message = "ลบ Coil แล้ว" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+        catch (Exception ex) { return Fail(ex, "ลบ Coil ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("{ptId:int}/coils/master")]
+    public IActionResult RenameMaster(int ptId, [FromBody] MasterRename req)
+    {
+        if (Me?.CanEditProduct != true) return Deny("คุณไม่มีสิทธิ์แก้ไขสินค้า / Coil");
+        try
+        {
+            var r = new CoilService().RenameMaster(req.StkId, ptId, req.From, req.To, _stocks.GetStocks());
+            LogService.WriteLog(Uid, "EDIT_COIL", $"{r.Stock} | MASTER: {req.From?.Trim()}->{req.To?.Trim()} | {r.Count} coil(s)", "");
+            return Ok(new { message = $"เปลี่ยนชื่อ MASTER COIL แล้ว ({r.Count} Coil)" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+        catch (Exception ex) { return Fail(ex, "เปลี่ยนชื่อ MASTER COIL ไม่สำเร็จ"); }
     }
 
     // ---------------------------------------------------------------- ลงทะเบียน / แก้ไข
@@ -174,7 +223,9 @@ public sealed class ProductsController : AppController
         string no = (f.CoilNo ?? "").Trim(), master = (f.MasterCoil ?? "").Trim(), kgText = (f.CoilKg ?? "").Replace(",", "").Trim();
         if (no.Length == 0 && master.Length == 0 && kgText.Length == 0) return null;
         if (!DbSchema.HasCoilRegister) return "ฐานข้อมูลยังไม่รองรับทะเบียน Coil";
-        if (no.Length == 0) return "กรุณากรอก COIL NO (เลข Coil ลูก)";
+        // กรอกแค่ MASTER COIL = รับ Master ทั้งม้วน (เลข Coil = เลข Master) - เดิมไม่ให้บันทึกถ้าไม่มี COIL NO
+        if (no.Length == 0 && master.Length > 0) { no = master; master = ""; }
+        if (no.Length == 0) return "กรุณากรอก COIL NO (เลข Coil ลูก) หรือ MASTER COIL";
         if (!Qty.TryParse(kgText, out decimal kg) || kg <= 0) return "กรุณากรอก COIL WEIGHT (KG) เป็นตัวเลขมากกว่า 0";
         var ticked = stocks.Where(s => s.CountCoil && ((s.IsMain && f.InMain) || f.OtherStockIds.Contains(s.StkId))).ToList();
         var stock = ticked.FirstOrDefault(s => s.StkId == f.FilterStkId) ?? ticked.FirstOrDefault();

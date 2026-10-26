@@ -14,13 +14,27 @@ import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
 import { stockIcon } from "@/lib/stockIcons";
 import { api, download, upload } from "@/lib/api";
-import { qty } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { AdminModal } from "./AdminModal";
+import { CoilPanel, type CoilRow } from "./CoilPanel";
 import { EMPTY_FORM, formOf, type Form, type Layout, type Meta, type Part } from "./types";
 
 const PAGE = 100;
-type CoilRow = { coilId: number; isMother: boolean; no: number; coilNo: string; motherCoil: string; weightKG: number; ton: number; received: string };
+
+// คอลัมน์ของคลัง (ADMIN > TABLE COLUMNS) -> ช่องกรอก · ALL FIELDS = ลำดับแบบ WPF
+const FIELDS: Record<string, [string, keyof Form, { list?: string; numeric?: boolean; placeholder?: string }?]> = {
+  SUPPLIER: ["SUPPLIER", "supplier", { list: "dl-sup" }],
+  CUSTOMER: ["CUSTOMER", "customer", { list: "dl-cus" }],
+  CATEGORY: ["CATEGORY", "category", { list: "dl-cat" }],
+  PARTA: ["PART A", "partA"],
+  PARTB: ["PART B", "partB"],
+  MODEL: ["MODEL", "model"],
+  PARTNO: ["PART NO", "partNo"],
+  PACKSIZE: ["PACKSIZE", "packSize", { numeric: true }],
+  BIN: ["BIN", "bin"],
+  QRCODE: ["QR CODE (SUPPLIER)", "qrCode"],
+};
+const ALL_FIELDS = ["SUPPLIER", "CUSTOMER", "CATEGORY", "PARTA", "PARTB", "MODEL", "PARTNO", "PACKSIZE", "BIN", "QRCODE"];
 
 // 🏷️ INVENTORY REGISTRATION (ProductControlView) - ฟอร์มลงทะเบียน / แก้ไข + ตารางสินค้าตามคลัง
 export default function InventoryPage() {
@@ -28,6 +42,7 @@ export default function InventoryPage() {
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [filter, setFilter] = useState<number | null>(null);
+  const [formStk, setFormStk] = useState<number | null>(null); // คลังที่ลงทะเบียน -> ช่องกรอกตามคอลัมน์ของคลังนั้น (null = ทุกช่อง)
   const [key, setKey] = useState("");
   const [page, setPage] = useState(0);
   const [groupCounts, setGroupCounts] = useState<Record<string, number>>({}); // จำนวนรายการทั้งหมดของแต่ละกลุ่ม (ทุกหน้า) // หน้าที่แสดง (ละ PAGE รายการ) · ค้นหา / เปลี่ยนคลัง = กลับหน้าแรก
@@ -80,7 +95,13 @@ export default function InventoryPage() {
       .then((m) => {
         setMeta(m);
         setFilter(m.savedFilter);
+        const fs = m.stocks.find((s) => s.stkId === m.savedFilter) ?? m.stocks.find((s) => s.isMain) ?? m.stocks[0];
+        setFormStk(fs?.stkId ?? null);
         applyDefaultStocks(m);
+        if (fs) {
+          setInMain(fs.isMain);
+          setOthers(fs.isMain ? [] : [fs.stkId]);
+        }
       })
       .catch((e) => toast.show("ERROR", e.message, "error"));
   }, [toast, applyDefaultStocks]);
@@ -153,6 +174,12 @@ export default function InventoryPage() {
   const can = meta.can;
   const filterStock = meta.stocks.find((s) => s.stkId === filter) ?? null;
   const cols = layout?.columns ?? [];
+  // ช่องกรอกของคลังที่เลือกในหัว REGISTER PRODUCT
+  const formStock = meta.stocks.find((s) => s.stkId === formStk) ?? null;
+  const formCols = formStk == null ? null : (meta.layouts.find((l) => l.stkId === formStk)?.layout.columns ?? null);
+  const fieldKeys = formCols ? formCols.filter((k) => FIELDS[k]) : ALL_FIELDS;
+  const showImage = !formCols || formCols.includes("IMAGE");
+  const showCoil = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
   const label = (k: string) => meta.columns.find((c) => c.key === k)?.label ?? k;
 
   function clear() {
@@ -162,6 +189,12 @@ export default function InventoryPage() {
     setOldCode(null);
     setCoilText(null);
     if (meta) applyDefaultStocks(meta);
+    // มีคลังที่เลือกไว้ในหัวฟอร์ม = ลงทะเบียนเข้าคลังนั้น
+    const fs = meta?.stocks.find((x) => x.stkId === formStk);
+    if (fs) {
+      setInMain(fs.isMain);
+      setOthers(fs.isMain ? [] : [fs.stkId]);
+    }
   }
 
   async function fill(p: Part, edit: boolean) {
@@ -184,10 +217,20 @@ export default function InventoryPage() {
   }
 
   async function changeFilter(v: number | null) {
+    if (!editId && !viewId && v != null) setFormStk(v);
     setFilter(v);
     setPage(0);
     setCoils({});
     api("/products/filter", { method: "POST", body: v }).catch(() => {});
+  }
+
+  function pickFormStock(v: number | null) {
+    setFormStk(v);
+    if (v == null || editId || viewId || !meta) return;
+    const s = meta.stocks.find((x) => x.stkId === v);
+    if (!s) return;
+    setInMain(s.isMain);
+    setOthers(s.isMain ? [] : [s.stkId]);
   }
 
   function toggleStock(id: number | "main") {
@@ -302,11 +345,15 @@ export default function InventoryPage() {
       return;
     }
     setCoils((c) => ({ ...c, [p.ptId]: "loading" }));
+    await loadCoils(p.ptId);
+  }
+
+  async function loadCoils(ptId: number) {
     try {
-      const r = await api<CoilRow[]>(`/products/${p.ptId}/coils`, { query: { stkId: coilStk } });
-      setCoils((c) => ({ ...c, [p.ptId]: r }));
+      const r = await api<CoilRow[]>(`/products/${ptId}/coils`, { query: { stkId: coilStk } });
+      setCoils((c) => ({ ...c, [ptId]: r }));
     } catch {
-      setCoils((c) => ({ ...c, [p.ptId]: [] }));
+      setCoils((c) => ({ ...c, [ptId]: [] }));
     }
   }
 
@@ -365,10 +412,34 @@ export default function InventoryPage() {
         return <td key={c} className="text-right">{p.packSize}</td>;
       case "BIN":
         return <td key={c}>{p.location}</td>;
+      // คลังที่นับ Coil: ป้ายสรุป (กด = กางรายการ Coil จัดกลุ่มตาม Master แก้ / ลบได้) · คลังอื่นแสดงข้อความเดิม
       case "MOTHER":
-        return <td key={c} className="whitespace-pre-line text-xs">{p.motherCoil}</td>;
+        return (
+          <td key={c} className="whitespace-pre-line text-xs">
+            {coilStk && p.coilCount > 0 ? (
+              <button type="button" className={`coil-chip ${coils[p.ptId] ? "is-open" : ""}`} onClick={() => toggleCoils(p)} title={p.motherCoil ?? ""}>
+                {p.masterCount.toLocaleString()} MASTER
+              </button>
+            ) : (
+              p.motherCoil
+            )}
+          </td>
+        );
       case "COILNO":
-        return <td key={c} className="whitespace-pre-line text-xs">{p.coilNo}</td>;
+        return (
+          <td key={c} className="whitespace-pre-line text-xs">
+            {coilStk && p.coilCount > 0 ? (
+              <button type="button" className={`coil-chip is-coil ${coils[p.ptId] ? "is-open" : ""}`} onClick={() => toggleCoils(p)}>
+                {p.coilCount.toLocaleString()} COIL
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            ) : (
+              p.coilNo
+            )}
+          </td>
+        );
       case "QRCODE":
         return <td key={c} className="max-w-[160px] truncate font-mono text-xs" title={p.qrCodeData}>{p.qrCodeData}</td>;
       default:
@@ -464,17 +535,26 @@ export default function InventoryPage() {
           <Card
             title={editId ? "✏️ EDIT PRODUCT" : viewId ? "👁 VIEW PRODUCT" : "＋ REGISTER PRODUCT"}
             actions={
-              (editId || viewId || form.partCode) && (
-                <button className="btn-ghost px-3 py-1 text-xs" onClick={clear}>
-                  CLEAR
-                </button>
-              )
+              <>
+                {(editId || viewId || form.partCode) && (
+                  <button className="fill-btn is-sm" onClick={clear}>
+                    CLEAR
+                  </button>
+                )}
+                <MenuSelect
+                  className="w-[230px]"
+                  label="STOCK"
+                  value={formStk == null ? "" : String(formStk)}
+                  options={[{ value: "", label: "ALL FIELDS", title: "แสดงทุกช่อง" }, ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))]}
+                  onChange={(v) => pickFormStock(v ? Number(v) : null)}
+                />
+              </>
             }
             bodyClass="p-4 md:p-5"
             clip={false}
           >
             <div className="flex flex-col gap-5 sm:flex-row">
-              <div className="flex shrink-0 flex-row items-start gap-3 sm:flex-col sm:items-center">
+              <div className={`flex shrink-0 flex-row items-start gap-3 sm:flex-col sm:items-center ${showImage ? "" : "hidden"}`}>
                 <button
                   type="button"
                   disabled={!(can.add || can.edit)}
@@ -513,14 +593,9 @@ export default function InventoryPage() {
               </div>
 
               <div className="min-w-0 flex-1">
-                {/* ลำดับช่องตาม WPF: SUPPLIER, CUSTOMER, CATEGORY, PART A, PART B / MODEL, PRODUCT CODE, PART NO, PRODUCT NAME, PACKSIZE / BIN, MASTER COIL, COIL NO, COIL WEIGHT, QR CODE */}
-                <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-                  {input("SUPPLIER", "supplier", { list: "dl-sup" })}
-                  {input("CUSTOMER", "customer", { list: "dl-cus" })}
-                  {input("CATEGORY", "category", { list: "dl-cat" })}
-                  {input("PART A", "partA")}
-                  {input("PART B", "partB")}
-                  {input("MODEL", "model")}
+                {/* ช่องกรอกตามคลังที่เลือก (ADMIN > TABLE COLUMNS ของคลังนั้น): PRODUCT CODE / NAME ทุกคลัง · ช่องอื่นตามลำดับคอลัมน์ · COIL เฉพาะคลังที่นับ Coil
+                    ALL FIELDS = ทุกช่องลำดับแบบ WPF · ช่องที่ซ่อนไม่ถูกล้างค่า (แก้สินค้าแล้วค่าเดิมยังอยู่) */}
+                <div key={formStk ?? "all"} className="reg-fields grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
                   <div className="relative">
                     {input("PRODUCT CODE", "partCode")}
                     {codeSuggest.length > 0 && !editId && (
@@ -546,18 +621,15 @@ export default function InventoryPage() {
                       </div>
                     )}
                   </div>
-                  {input("PART NO", "partNo")}
                   {input("PRODUCT NAME", "partName")}
-                  {input("PACKSIZE", "packSize", { numeric: true })}
-                  {input("BIN", "bin")}
-                  {meta.hasCoilRegister && (
+                  {fieldKeys.map((k) => FIELDS[k] && <Fragment key={k}>{input(FIELDS[k][0], FIELDS[k][1], FIELDS[k][2])}</Fragment>)}
+                  {showCoil && (
                     <>
-                      {input("MASTER COIL", "masterCoil")}
+                      {input("MASTER COIL", "masterCoil", { placeholder: "กรอกอย่างเดียว = Master ทั้งม้วน" })}
                       {input("COIL NO", "coilNo")}
                       {input("COIL WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}
                     </>
                   )}
-                  {input("QR CODE (SUPPLIER)", "qrCode")}
                 </div>
                 {meta.hasCoilRegister && coilText && <div className="mt-2 text-xs font-bold text-accent">🧲 {coilText}</div>}
                 <datalist id="dl-sup">{meta.suggestions.suppliers.map((s) => <option key={s} value={s} />)}</datalist>
@@ -649,18 +721,23 @@ export default function InventoryPage() {
                           </tr>
                           {coils[p.ptId] && (
                             <tr>
-                              <td colSpan={ncols} className="bg-[#f8f6fd] p-2 text-xs">
-                                {coils[p.ptId] === "loading"
-                                  ? "⏳ LOADING COILS..."
-                                  : (coils[p.ptId] as CoilRow[]).map((r) => (
-                                      <div key={r.coilId + (r.isMother ? "m" : "c")} className={`flex gap-4 px-2 py-1 ${r.isMother ? "font-extrabold text-accent" : "text-ink-soft"}`}>
-                                        <span className="w-8 text-right">{r.isMother ? "" : r.no}</span>
-                                        <span className="w-44">{r.isMother ? `MASTER ${r.coilNo}` : `↳ ${r.coilNo}`}</span>
-                                        <span className="w-28">{r.motherCoil || "-"}</span>
-                                        <span className="w-28 text-right">{qty(r.weightKG)} KG</span>
-                                        <span>{r.received}</span>
-                                      </div>
-                                    ))}
+                              <td colSpan={ncols} className="!p-0 text-left text-xs">
+                                {coils[p.ptId] === "loading" ? (
+                                  <div className="bg-[#f8f6fd] p-3">⏳ LOADING COILS...</div>
+                                ) : (
+                                  <CoilPanel
+                                    rows={coils[p.ptId] as CoilRow[]}
+                                    stkId={coilStk ?? 0}
+                                    ptId={p.ptId}
+                                    partCode={p.partCode}
+                                    canEdit={can.edit}
+                                    canDelete={can.delete}
+                                    onChanged={() => {
+                                      loadCoils(p.ptId);
+                                      reload();
+                                    }}
+                                  />
+                                )}
                               </td>
                             </tr>
                           )}

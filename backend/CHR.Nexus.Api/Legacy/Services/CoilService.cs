@@ -17,7 +17,8 @@ namespace Nexus.Services
         {
             var coils = GetCoils(stockId, partId);
             var rows = new List<CoilRowModel>();
-            foreach (var g in coils.GroupBy(c => string.IsNullOrWhiteSpace(c.MotherCoil) ? "-" : c.MotherCoil))
+            // Master ทั้งม้วน (ไม่มี MotherCoil) = กลุ่มของเลขตัวเอง (Coil ลูกที่ตัดจากม้วนนี้อยู่กลุ่มเดียวกัน)
+            foreach (var g in coils.GroupBy(c => string.IsNullOrWhiteSpace(c.MotherCoil) ? c.CoilNo : c.MotherCoil))
             {
                 var list = g.ToList();
                 rows.Add(new CoilRowModel
@@ -68,6 +69,168 @@ namespace Nexus.Services
                 }
             }
             return list;
+        }
+
+        // ✏️ แก้ / 🗑 ลบ Coil ที่ลงทะเบียนผิด (หน้า Inventory Registration)
+        //   - แก้: COIL NO (ห้ามซ้ำ) / MASTER COIL / น้ำหนัก -> ยอดคลังของสินค้าปรับตามส่วนต่างน้ำหนัก + CoilMoves "EDIT"
+        //   - ลบ: เฉพาะ Coil ที่ยังอยู่ในคลังและไม่เคยถูกสแกน (มีแค่ REGISTER / IMPORT / EDIT) -> ยอดคลังลดตามน้ำหนัก
+        //   คืนข้อความไว้ลง Log (ค่าเดิม -> ค่าใหม่) · ผิดเงื่อนไข = InvalidOperationException (ข้อความภาษาไทยแสดงผู้ใช้)
+        private static readonly string[] ManualMoves = { "REGISTER", "IMPORT", "EDIT" };
+
+        private sealed class CoilRec { public int Id, StockId, PartId; public string CoilNo, Mother, Status; public decimal Kg; }
+
+        private static CoilRec Lock(SqlConnection conn, SqlTransaction trans, int coilId)
+        {
+            using (var cmd = new SqlCommand("SELECT CoilID, StockID, PartID, CoilNo, MotherCoil, Status, WeightKG FROM Nexus.Coils WITH (UPDLOCK, HOLDLOCK) WHERE CoilID = @id", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", coilId);
+                using (var r = cmd.ExecuteReader())
+                    return r.Read()
+                        ? new CoilRec { Id = r.GetInt32(0), StockId = r.GetInt32(1), PartId = r.GetInt32(2), CoilNo = r.GetString(3), Mother = r.IsDBNull(4) ? null : r.GetString(4), Status = r.GetString(5), Kg = r.GetDecimal(6) }
+                        : null;
+            }
+        }
+
+        private static void AddStockQty(SqlConnection conn, SqlTransaction trans, StockModel stock, int ptId, decimal delta)
+        {
+            if (delta == 0) return;
+            using (var cmd = new SqlCommand(stock.IsMain
+                ? "UPDATE Nexus.Parts SET StockQuantity = ISNULL(StockQuantity, 0) + @q WHERE PartID = @p"
+                : "UPDATE Nexus.PartStocks SET Quantity = ISNULL(Quantity, 0) + @q, UpdatedDate = GETDATE() WHERE StockID = @s AND PartID = @p", conn, trans))
+            {
+                cmd.Parameters.Add(QtyParam.Of("@q", delta));
+                cmd.Parameters.AddWithValue("@s", stock.StkId);
+                cmd.Parameters.AddWithValue("@p", ptId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public string EditCoil(int coilId, string coilNo, string master, decimal kg, IList<StockModel> stocks, string userId)
+        {
+            if (!DbSchema.HasCoilRegister) throw new InvalidOperationException("ฐานข้อมูลยังไม่มีทะเบียน Coil");
+            coilNo = (coilNo ?? "").Trim();
+            master = string.IsNullOrWhiteSpace(master) ? null : master.Trim();
+            if (coilNo.Length == 0) throw new InvalidOperationException("กรุณากรอก COIL NO");
+            if (kg <= 0) throw new InvalidOperationException("น้ำหนัก (KG) ต้องมากกว่า 0");
+            if (master != null && string.Equals(master, coilNo, StringComparison.OrdinalIgnoreCase)) master = null; // Master ทั้งม้วน = ไม่อ้างถึงตัวเอง
+            using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    var c = Lock(conn, trans, coilId) ?? throw new InvalidOperationException("ไม่พบ Coil นี้ (อาจถูกลบไปแล้ว)");
+                    if (c.Status != "IN") throw new InvalidOperationException($"Coil {c.CoilNo} ไม่ได้อยู่ในคลังแล้ว (ถูกสแกนออก / ใช้ไปแล้ว) - แก้ไขไม่ได้");
+                    var stock = stocks.FirstOrDefault(s => s.StkId == c.StockId) ?? throw new InvalidOperationException("ไม่พบคลังของ Coil นี้");
+                    if (!string.Equals(coilNo, c.CoilNo, StringComparison.OrdinalIgnoreCase))
+                        using (var cmd = new SqlCommand("SELECT COUNT(*) FROM Nexus.Coils WHERE CoilNo = @c AND CoilID <> @id", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@c", coilNo);
+                            cmd.Parameters.AddWithValue("@id", coilId);
+                            if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) throw new InvalidOperationException($"COIL NO {coilNo} มีในทะเบียนแล้ว - ใช้เลขซ้ำไม่ได้");
+                        }
+                    using (var cmd = new SqlCommand("UPDATE Nexus.Coils SET CoilNo = @c, MotherCoil = @m, WeightKG = @w, UpdatedDate = GETDATE() WHERE CoilID = @id", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@c", coilNo);
+                        cmd.Parameters.AddWithValue("@m", (object)master ?? DBNull.Value);
+                        cmd.Parameters.Add(QtyParam.Of("@w", kg));
+                        cmd.Parameters.AddWithValue("@id", coilId);
+                        cmd.ExecuteNonQuery();
+                    }
+                    AddStockQty(conn, trans, stock, c.PartId, kg - c.Kg);
+                    using (var cmd = new SqlCommand(@"INSERT INTO Nexus.CoilMoves (CoilID, Action, FromStockID, FromPartID, FromStatus, FromWeightKG, ToStockID, ToPartID, ToStatus, WeightKG, UserID)
+                                                      VALUES (@id, 'EDIT', @s, @p, 'IN', @fw, @s, @p, 'IN', @w, @u)", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@id", coilId);
+                        cmd.Parameters.AddWithValue("@s", c.StockId);
+                        cmd.Parameters.AddWithValue("@p", c.PartId);
+                        cmd.Parameters.Add(QtyParam.Of("@fw", c.Kg));
+                        cmd.Parameters.Add(QtyParam.Of("@w", kg));
+                        cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                        cmd.ExecuteNonQuery();
+                    }
+                    CoilImportService.RecountCoils(conn, trans, c.PartId, c.StockId, stock.IsMain);
+                    trans.Commit();
+                    var d = new List<string>();
+                    if (!string.Equals(c.CoilNo, coilNo, StringComparison.Ordinal)) d.Add($"COIL NO: {c.CoilNo}->{coilNo}");
+                    if ((c.Mother ?? "") != (master ?? "")) d.Add($"MASTER: {c.Mother ?? "-"}->{master ?? "-"}");
+                    if (c.Kg != kg) d.Add($"KG: {Qty.Plain(c.Kg)}->{Qty.Plain(kg)}");
+                    return $"{stock.Code} | Coil {coilNo} | {(d.Count > 0 ? string.Join("  |  ", d) : "No changes")}";
+                }
+            }
+        }
+
+        public string DeleteCoil(int coilId, IList<StockModel> stocks)
+        {
+            if (!DbSchema.HasCoilRegister) throw new InvalidOperationException("ฐานข้อมูลยังไม่มีทะเบียน Coil");
+            using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    var c = Lock(conn, trans, coilId) ?? throw new InvalidOperationException("ไม่พบ Coil นี้ (อาจถูกลบไปแล้ว)");
+                    if (c.Status != "IN") throw new InvalidOperationException($"Coil {c.CoilNo} ไม่ได้อยู่ในคลังแล้ว - ลบไม่ได้");
+                    using (var cmd = new SqlCommand($"SELECT COUNT(*) FROM Nexus.CoilMoves WHERE CoilID = @id AND Action NOT IN ({string.Join(",", ManualMoves.Select(a => $"'{a}'"))})", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@id", coilId);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) > 0)
+                            throw new InvalidOperationException($"Coil {c.CoilNo} มีประวัติสแกนแล้ว - ลบไม่ได้ (แก้ไขได้)\nถ้าไม่ได้ใช้แล้วให้สแกนออก / ตัดยอดตามขั้นตอนปกติ");
+                    }
+                    var stock = stocks.FirstOrDefault(s => s.StkId == c.StockId) ?? throw new InvalidOperationException("ไม่พบคลังของ Coil นี้");
+                    using (var cmd = new SqlCommand("DELETE FROM Nexus.CoilMoves WHERE CoilID = @id; DELETE FROM Nexus.Coils WHERE CoilID = @id;", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@id", coilId);
+                        cmd.ExecuteNonQuery();
+                    }
+                    AddStockQty(conn, trans, stock, c.PartId, -c.Kg);
+                    CoilImportService.RecountCoils(conn, trans, c.PartId, c.StockId, stock.IsMain);
+                    trans.Commit();
+                    return $"{stock.Code} | Coil {c.CoilNo} | Master {c.Mother ?? "-"} | {Qty.Plain(c.Kg)} KG";
+                }
+            }
+        }
+
+        // เปลี่ยนชื่อ Master Coil ของสินค้าในคลัง: Coil ลูกทุกม้วนที่อ้างชื่อเดิม (+ ตัว Master ทั้งม้วนที่ใช้เลขเดิม) เปลี่ยนตาม · เลข Coil ลูกไม่เปลี่ยน
+        public (int Count, string Stock) RenameMaster(int stockId, int ptId, string from, string to, IList<StockModel> stocks)
+        {
+            if (!DbSchema.HasCoilRegister) throw new InvalidOperationException("ฐานข้อมูลยังไม่มีทะเบียน Coil");
+            from = (from ?? "").Trim();
+            to = (to ?? "").Trim();
+            if (from.Length == 0 || to.Length == 0) throw new InvalidOperationException("กรุณากรอกชื่อ MASTER COIL");
+            var stock = stocks.FirstOrDefault(s => s.StkId == stockId) ?? throw new InvalidOperationException("ไม่พบคลัง");
+            using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    int n;
+                    using (var cmd = new SqlCommand(@"UPDATE Nexus.Coils SET MotherCoil = @to, UpdatedDate = GETDATE()
+                                                      WHERE StockID = @s AND PartID = @p AND Status = 'IN' AND MotherCoil = @from", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@to", to);
+                        cmd.Parameters.AddWithValue("@from", from);
+                        cmd.Parameters.AddWithValue("@s", stockId);
+                        cmd.Parameters.AddWithValue("@p", ptId);
+                        n = cmd.ExecuteNonQuery();
+                    }
+                    // Master ทั้งม้วน (เลข Coil = ชื่อ Master เดิม) -> เปลี่ยนเลขด้วย (ห้ามซ้ำกับ Coil อื่น)
+                    using (var cmd = new SqlCommand(@"IF EXISTS (SELECT 1 FROM Nexus.Coils WHERE CoilNo = @to AND NOT (StockID = @s AND PartID = @p AND CoilNo = @from))
+                                                          AND EXISTS (SELECT 1 FROM Nexus.Coils WHERE StockID = @s AND PartID = @p AND Status = 'IN' AND MotherCoil IS NULL AND CoilNo = @from)
+                                                          THROW 50001, N'dup', 1;
+                                                      UPDATE Nexus.Coils SET CoilNo = @to, UpdatedDate = GETDATE()
+                                                      WHERE StockID = @s AND PartID = @p AND Status = 'IN' AND MotherCoil IS NULL AND CoilNo = @from", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@to", to);
+                        cmd.Parameters.AddWithValue("@from", from);
+                        cmd.Parameters.AddWithValue("@s", stockId);
+                        cmd.Parameters.AddWithValue("@p", ptId);
+                        try { n += cmd.ExecuteNonQuery(); }
+                        catch (SqlException ex) when (ex.Number == 50001) { throw new InvalidOperationException($"COIL NO {to} มีในทะเบียนแล้ว - ใช้ชื่อซ้ำไม่ได้"); }
+                    }
+                    if (n == 0) throw new InvalidOperationException($"ไม่พบ Coil ของ MASTER {from} ในคลัง {stock.Code}");
+                    trans.Commit();
+                    return (n, stock.Code);
+                }
+            }
         }
 
         // 💬 หมายเหตุของ Coil ลูก 1 ม้วน (เฉพาะ Coil ที่อยู่ในคลังนั้น) -> คืน CoilNo / หมายเหตุเดิม ไว้ลง Log · ไม่พบ = null

@@ -319,7 +319,7 @@ public sealed class StoreController : AppController
     private static List<CoilRowModel> Grouped(IEnumerable<CoilRowModel> coils)
     {
         var rows = new List<CoilRowModel>();
-        foreach (var g in coils.GroupBy(c => string.IsNullOrWhiteSpace(c.MotherCoil) ? "-" : c.MotherCoil))
+        foreach (var g in coils.GroupBy(c => string.IsNullOrWhiteSpace(c.MotherCoil) ? c.CoilNo : c.MotherCoil)) // Master ทั้งม้วน = กลุ่มของเลขตัวเอง
         {
             var items = g.ToList();
             rows.Add(new CoilRowModel { IsMother = true, MotherCoil = g.Key, CoilNo = $"{items.Count} COIL", WeightKG = items.Sum(c => c.WeightKG) });

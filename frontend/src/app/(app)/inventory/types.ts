@@ -33,6 +33,7 @@ export type Part = {
   motherCoil: string | null;
   coilNo: string | null;
   coilCount: number;
+  masterCount: number;
   groupKey: string;
   imageUrl: string | null;
 };

@@ -214,8 +214,9 @@ namespace Nexus.Services
                         int pid = Convert.ToInt32(r[0]);
                         if (!map.TryGetValue(pid, out var v)) map[pid] = v = (new List<string>(), new List<string>());
                         string m = r[1] == DBNull.Value ? "" : r[1].ToString().Trim();
-                        if (m.Length > 0 && !v.Item1.Contains(m)) v.Item1.Add(m);
                         string c = r[2] == DBNull.Value ? "" : r[2].ToString().Trim();
+                        if (m.Length == 0) m = c;   // Master ทั้งม้วน (ไม่มี MotherCoil) = Master Coil คือเลขของตัวเอง
+                        if (m.Length > 0 && !v.Item1.Contains(m)) v.Item1.Add(m);
                         if (c.Length > 0) v.Item2.Add(c);
                     }
             }

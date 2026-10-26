@@ -5270,3 +5270,163 @@ div.swap-in:has(> .show-strip) {
     animation: none;
   }
 }
+
+/* 🧲 Coil ในหน้า Inventory Registration: ป้ายสรุปในตาราง + แผงจัดกลุ่มตาม Master Coil (แก้ / ลบได้) */
+.coil-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 100px;
+  border: 1.5px solid color-mix(in srgb, #7c3aed 35%, transparent);
+  background: #f5f0ff;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #6d28d9;
+  transition: background-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.25s;
+}
+.coil-chip svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.3s;
+}
+.coil-chip.is-coil {
+  border-color: color-mix(in srgb, #0284c7 35%, transparent);
+  background: #eef7fd;
+  color: #0369a1;
+}
+.coil-chip:hover,
+.coil-chip.is-open {
+  background: #6d28d9;
+  color: #fff;
+  box-shadow: 0 6px 14px -8px #6d28d9;
+  transform: translateY(-1px);
+}
+.coil-chip.is-coil:hover,
+.coil-chip.is-coil.is-open {
+  background: #0284c7;
+  box-shadow: 0 6px 14px -8px #0284c7;
+}
+.coil-chip.is-open svg {
+  transform: rotate(180deg);
+}
+.cp {
+  display: grid;
+  gap: 8px;
+  background: linear-gradient(180deg, #f8f6fd, #fbfaff);
+  padding: 12px 14px;
+  animation: page-rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cp-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cp-sum span {
+  border-radius: 100px;
+  background: #ede9fe;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #5b21b6;
+}
+.cp-group {
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid #e6e1f7;
+  background: #fff;
+  animation: card-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.cp-master {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #efecf8;
+  background: linear-gradient(90deg, #f3eeff, #fff);
+  padding: 6px 10px;
+}
+.cp-tag {
+  border-radius: 6px;
+  background: #6d28d9;
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+.cp-mname {
+  font-size: 13px;
+  font-weight: 900;
+  color: #4c1d95;
+}
+.cp-meta {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.cp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #f4f2fa;
+  padding: 5px 10px 5px 14px;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+.cp-row:first-of-type {
+  border-top: 0;
+}
+.cp-row:hover {
+  background: #faf8ff;
+}
+.cp-row.is-edit {
+  align-items: flex-end;
+  background: #f5f9ff;
+  padding-block: 8px;
+}
+.cp-no {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 8px;
+  background: #f1eff7;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.cp-f {
+  display: grid;
+  gap: 2px;
+  width: 170px;
+}
+.cp-f > span {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.reg-fields > * {
+  animation: page-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.reg-fields > *:nth-child(2) {
+  animation-delay: 25ms;
+}
+.reg-fields > *:nth-child(3) {
+  animation-delay: 50ms;
+}
+.reg-fields > *:nth-child(4) {
+  animation-delay: 75ms;
+}
+.reg-fields > *:nth-child(n + 5) {
+  animation-delay: 100ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp,
+  .cp-group,
+  .reg-fields > * {
+    animation: none;
+  }
+}
