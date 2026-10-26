@@ -545,7 +545,8 @@ export default function InventoryPage() {
                   </button>
                 )}
                 <MenuSelect
-                  className="w-[230px]"
+                  compact
+                  className="w-[210px]"
                   label="STOCK"
                   value={formStk == null ? "" : String(formStk)}
                   options={[{ value: "", label: "ALL FIELDS", title: "แสดงทุกช่อง" }, ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))]}

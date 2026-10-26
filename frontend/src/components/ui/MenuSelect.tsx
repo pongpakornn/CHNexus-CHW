@@ -6,7 +6,24 @@ export type MenuOption = { value: string; label: string; color?: string; title?:
 
 // 🍔 Dropdown แบบปุ่มม่วง + ขีดสามขีดหมุนเป็นกากบาท (ดีไซน์ event-wrapper): กด = รายการเผยจากกลางปุ่มแล้วทยอยเลื่อนขึ้นทีละแถว
 //    กดอีกครั้ง / เลือก / กดนอกกล่อง / Esc = พับกลับแบบนุ่ม ๆ · ลูกศรขึ้น-ลง = เลื่อนตัวเลือก
-export function MenuSelect({ value, options, onChange, className = "", label, disabled = false }: { value: string; options: MenuOption[]; onChange: (v: string) => void; className?: string; label?: string; disabled?: boolean }) {
+//    compact = ปุ่มเล็กพื้นขาวขอบม่วง (ในแถว / หน้าต่าง) - รายการที่เลื่อนลงมาเหมือนเดิม
+export function MenuSelect({
+  value,
+  options,
+  onChange,
+  className = "",
+  label,
+  disabled = false,
+  compact = false,
+}: {
+  value: string;
+  options: MenuOption[];
+  onChange: (v: string) => void;
+  className?: string;
+  label?: string;
+  disabled?: boolean;
+  compact?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value) ?? options[0];
@@ -30,7 +47,7 @@ export function MenuSelect({ value, options, onChange, className = "", label, di
   };
 
   return (
-    <div ref={box} className={`ms ${open ? "is-open" : ""} ${className}`}>
+    <div ref={box} className={`ms ${compact ? "ms-compact" : ""} ${open ? "is-open" : ""} ${className}`}>
       <button
         type="button"
         className="ms-btn"

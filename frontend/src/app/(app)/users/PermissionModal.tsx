@@ -4,10 +4,13 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { Loading } from "@/components/ui/Page";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { api } from "@/lib/api";
 import type { PermData, PermRow, ScanStock } from "./types";
 
 const FLAGS = ["view", "add", "edit", "delete", "approve"] as const;
+type PTab = "PERM" | "SCAN" | "CONTACT" | "PROFILE";
+const SIDE_KEY = "inv-admin-side"; // ใช้ค่าพับเมนูเดียวกับหน้าต่าง ADMIN
 const HEAD: Record<(typeof FLAGS)[number], string> = { view: "VIEW", add: "ADD", edit: "EDIT", delete: "DEL", approve: "APPROVE" };
 
 // 🔑 PERMISSION / 👤 USER PROFILE (UserPermissionWindow) - สิทธิ์ทุกระบบ + ทุกคลัง
@@ -31,7 +34,26 @@ export function PermissionModal({
   const [data, setData] = useState<PermData | null>(null);
   const [rows, setRows] = useState<PermRow[]>([]);
   const [stocks, setStocks] = useState<ScanStock[]>([]);
-  const [open, setOpen] = useState(readOnly);
+  const open = false; // คลังสแกนอยู่แท็บ SCAN STOCKS แล้ว (ไม่กางในตาราง)
+  const [tab, setTab] = useState<PTab>(readOnly ? "PROFILE" : "PERM");
+  const [drawer, setDrawer] = useState(false);
+  const [mini, setMini] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SIDE_KEY) === "1") queueMicrotask(() => setMini(true));
+    } catch {
+      /* ไม่มี storage */
+    }
+  }, []);
+  const toggleMini = () =>
+    setMini((m) => {
+      try {
+        localStorage.setItem(SIDE_KEY, m ? "0" : "1");
+      } catch {
+        /* ไม่จำก็ได้ */
+      }
+      return !m;
+    });
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -154,13 +176,14 @@ export function PermissionModal({
           )}
           <label className="ml-auto flex items-center gap-1.5 text-[10px] font-extrabold text-ink-soft">
             DISPLAY
-            <select className="field w-auto py-1 text-xs" disabled={readOnly || !s.on} value={s.display} onChange={(e) => setStock(s.stkId, { display: e.target.value })}>
-              {s.options.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              compact
+              className="w-[240px] max-w-[60vw]"
+              disabled={readOnly || !s.on}
+              value={s.display}
+              options={s.options.map((o) => ({ value: o.key, label: o.label }))}
+              onChange={(v) => setStock(s.stkId, { display: v })}
+            />
           </label>
         </div>
       ))}
@@ -169,69 +192,100 @@ export function PermissionModal({
 
   const scanToggle = (
     <div className="mt-1.5 flex flex-wrap items-center gap-2">
-      <button className={`fill-btn is-xs ${open ? "is-on" : ""}`} onClick={() => setOpen((o) => !o)}>
-        {(open ? "▾" : "▸") + " SCAN STOCKS + DISPLAY"}
+      <button className="fill-btn is-xs" onClick={() => setTab("SCAN")}>
+        ▸ SCAN STOCKS + DISPLAY
       </button>
       <span className={`text-[11px] font-extrabold ${on.length ? "text-success" : "text-danger"}`}>{summary}</span>
     </div>
   );
 
-  return (
-    <Modal
-      open
-      size="xl"
-      title={readOnly ? "👤 USER PROFILE" : "🔑 PERMISSION"}
-      onClose={onClose}
-      footer={
-        <>
-          {!readOnly && (
-            <div className="mr-auto flex flex-wrap gap-2">
-              <button className="fill-btn is-sm" onClick={() => setAll((r) => ({ ...r, view: true }))}>
-                VIEW ALL
-              </button>
-              <button className="fill-btn is-sm" onClick={() => setAll((r) => ({ ...r, view: true, add: true, edit: true, delete: true, approve: true }))}>
-                SELECT ALL
-              </button>
-              <button className="fill-btn is-sm is-danger" onClick={() => setAll((r) => ({ ...r, view: false, add: false, edit: false, delete: false, approve: false }))}>
-                CLEAR
-              </button>
-            </div>
-          )}
-          <button className={readOnly ? "cta-btn is-gray" : "fill-btn"} onClick={onClose}>
-            {readOnly ? "CLOSE" : "CANCEL"}
-          </button>
-          {!readOnly && (
-            <button className="cta-btn is-green" disabled={busy || !data} onClick={save}>
-              💾 SAVE PERMISSION
-            </button>
-          )}
-        </>
-      }
-    >
-      {!data || !u ? (
-        <Loading />
-      ) : (
-        <div className="grid gap-4">
-          {/* ผู้ใช้ */}
-          <div className="pm-user">
-            <span className="pm-avatar">{u.name.trim().slice(0, 2).toUpperCase() || "?"}</span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-lg font-extrabold text-[#1f2350]">{u.name}</div>
-              <div className="text-xs font-bold text-ink-soft">
-                ID : {u.userId} <span className="pm-level">{u.levelText}</span>
-              </div>
-            </div>
-            {!readOnly && (
-              <div className="pm-count" title="จำนวนสิทธิ์ที่เปิด">
-                <b key={granted}>{granted}</b>
-                <span>/ {rows.length * FLAGS.length} GRANTED</span>
-              </div>
-            )}
-          </div>
-          {u.level === 1 && <div className="rounded-xl bg-[#fff3e0] px-3 py-2 text-xs font-bold text-[#e65100]">LEVEL 1 (ADMIN) can see and do everything without these settings.</div>}
+  // แท็บ (เมนูซ้าย): PERMISSIONS / SCAN STOCKS / ALERT CONTACT / PROFILE
+  const tabs: [PTab, string, string, React.ReactNode][] = [
+    ...(readOnly ? [] : [["PERM", "PERMISSIONS", "สิทธิ์ของแต่ละระบบ", <path key="p" d="M12 3.5 4.5 6.5v5.2c0 4.4 3.1 7.8 7.5 8.8 4.4-1 7.5-4.4 7.5-8.8V6.5zM9 12l2.2 2.2L15.5 10" />] as [PTab, string, string, React.ReactNode]]),
+    ...(data?.scanner ? [["SCAN", "SCAN STOCKS", "คลังที่สแกนได้ + DISPLAY", <path key="s" d="M4 6v12M7 6v12M10.5 6v12M13 6v12M16.5 6v12M20 6v12" />] as [PTab, string, string, React.ReactNode]] : []),
+    ...(data && data.contacts !== null && !readOnly ? [["CONTACT", "ALERT CONTACT", "ผู้ติดต่อ Admin", <path key="c" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />] as [PTab, string, string, React.ReactNode]] : []),
+    ["PROFILE", "USER PROFILE", "ข้อมูลผู้ใช้", <path key="u" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5a7.5 7.5 0 0 1 15 0" />],
+    ...(readOnly ? [["PERM", "PERMISSIONS", "สิทธิ์ของแต่ละระบบ", <path key="p" d="M12 3.5 4.5 6.5v5.2c0 4.4 3.1 7.8 7.5 8.8 4.4-1 7.5-4.4 7.5-8.8V6.5zM9 12l2.2 2.2L15.5 10" />] as [PTab, string, string, React.ReactNode]] : []),
+  ];
+  const tabName = tabs.find((x) => x[0] === tab)?.[1] ?? "";
+  const pick = (t: PTab) => {
+    setTab(t);
+    setDrawer(false);
+  };
+  const burger = (onClick: () => void, label: string) => (
+    <button type="button" className="adm-burger" onClick={onClick} aria-label={label} title={label}>
+      <span />
+      <span />
+      <span />
+    </button>
+  );
 
-          {readOnly && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+  return (
+    <Modal open size="xl" flush title={`${readOnly ? "👤" : "🔑"} ${tabName}`} onClose={onClose}>
+      {/* Sidebar ติดขอบซ้ายแบบเมนูหลัก (เหมือนหน้าต่าง ADMIN) · พับเหลือไอคอนได้ · มือถือ = เมนูเลื่อนออกจากซ้าย */}
+      <div className={`adm-shell ${mini ? "is-mini" : ""} ${drawer ? "is-drawer" : ""}`}>
+        <nav className="adm-nav">
+          <div className="adm-nav-head">
+            {burger(() => (window.matchMedia("(max-width: 767px)").matches ? setDrawer(false) : toggleMini()), mini ? "กางเมนู" : "พับเมนู")}
+            <span className="adm-nav-title">
+              {readOnly ? "PROFILE" : "PERMISSION"}
+              <small>USER MANAGEMENT</small>
+            </span>
+          </div>
+          {u && (
+            <div className="pm-nav-user" title={`${u.userId} • ${u.name}`}>
+              <span className="pm-avatar">{u.name.trim().slice(0, 2).toUpperCase() || "?"}</span>
+              <span className="adm-item-txt min-w-0">
+                <b className="block truncate text-[13px] text-white">{u.name}</b>
+                <span className="block truncate text-[10.5px] font-bold text-white/55">ID : {u.userId}</span>
+                <span className="pm-level !ml-0 mt-1">{u.levelText}</span>
+              </span>
+            </div>
+          )}
+          {tabs.map(([t, txt, hint, path]) => (
+            <button key={t} type="button" onClick={() => pick(t)} title={mini ? txt : undefined} className={`adm-item ${tab === t ? "is-on" : ""}`}>
+              <svg viewBox="0 0 24 24" className="adm-item-ic" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {path}
+              </svg>
+              <span className="adm-item-txt">
+                <span className="block truncate text-[13.5px] font-extrabold">{txt}</span>
+                <span className="adm-item-hint">{hint}</span>
+              </span>
+            </button>
+          ))}
+          {!readOnly && (
+            <div className="pm-nav-count adm-item-txt" title="จำนวนสิทธิ์ที่เปิด">
+              <b key={granted}>{granted}</b>
+              <span>/ {rows.length * FLAGS.length} GRANTED</span>
+            </div>
+          )}
+        </nav>
+        {drawer && <div className="adm-scrim" onClick={() => setDrawer(false)} />}
+
+        <section className="adm-main">
+          <div className="adm-main-head">
+            {burger(() => setDrawer(true), "เมนู")}
+            <b>{tabName}</b>
+          </div>
+          <div className="adm-scroll">
+            {!data || !u ? (
+              <Loading />
+            ) : (
+              <div key={tab} className="adm-pane grid content-start gap-4">
+                {u.level === 1 && tab === "PERM" && <div className="rounded-xl bg-[#fff3e0] px-3 py-2 text-xs font-bold text-[#e65100]">LEVEL 1 (ADMIN) can see and do everything without these settings.</div>}
+
+                {tab === "PROFILE" && (
+                  <>
+                    <div className="pm-user">
+                      <span className="pm-avatar">{u.name.trim().slice(0, 2).toUpperCase() || "?"}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-lg font-extrabold text-[#1f2350]">{u.name}</div>
+                        <div className="text-xs font-bold text-ink-soft">
+                          ID : {u.userId} <span className="pm-level">{u.levelText}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {(
                 [
                   ["USER ID", u.userId],
@@ -251,9 +305,10 @@ export function PermissionModal({
                 </div>
               ))}
             </div>
-          )}
+                  </>
+                )}
 
-          {data.contacts !== null && !readOnly && (
+                {tab === "CONTACT" && data.contacts !== null && (
             <div className="pm-contact">
               <span className="pm-bell" aria-hidden>
                 🔔
@@ -273,8 +328,17 @@ export function PermissionModal({
                 </button>
               )}
             </div>
-          )}
+                )}
 
+                {tab === "SCAN" && data.scanner && (
+                  <>
+                    <div className={`rounded-xl px-3 py-2 text-xs font-extrabold ${on.length ? "bg-[#e8f5e9] text-success" : "bg-[#ffebee] text-danger"}`}>{summary}</div>
+                    {scanBox}
+                  </>
+                )}
+
+                {tab === "PERM" && (
+                  <>
           {/* 🖥 Desktop: ตารางสิทธิ์ (กดหัวคอลัมน์ = ทั้งคอลัมน์ / ALL = ทั้งแถว) */}
           <div className="hidden overflow-auto rounded-2xl border border-line/60 md:block">
             <table className="data-table pm-table w-full">
@@ -373,8 +437,37 @@ export function PermissionModal({
               );
             })}
           </div>
-        </div>
-      )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="adm-foot">
+            {!readOnly && tab === "PERM" && (
+              <>
+                <button className="fill-btn is-sm" onClick={() => setAll((r) => ({ ...r, view: true }))}>
+                  VIEW ALL
+                </button>
+                <button className="fill-btn is-sm" onClick={() => setAll((r) => ({ ...r, view: true, add: true, edit: true, delete: true, approve: true }))}>
+                  SELECT ALL
+                </button>
+                <button className="fill-btn is-sm is-danger" onClick={() => setAll((r) => ({ ...r, view: false, add: false, edit: false, delete: false, approve: false }))}>
+                  CLEAR
+                </button>
+              </>
+            )}
+            <span className="ml-auto" />
+            <button className={readOnly ? "cta-btn is-gray" : "fill-btn"} onClick={onClose}>
+              {readOnly ? "CLOSE" : "CANCEL"}
+            </button>
+            {!readOnly && (
+              <button className="cta-btn is-green" disabled={busy || !data} onClick={save}>
+                💾 SAVE PERMISSION
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
     </Modal>
   );
 }

@@ -5663,3 +5663,154 @@ div.swap-in:has(> .show-strip) {
     padding: 10px 14px;
   }
 }
+
+/* 🎨 หน้าต่างทั้งระบบ: หัวหน้าต่างสีเดียวกับ Sidebar · ปุ่มในหน้าต่างเป็นทรงเม็ดยาแบบเดียวกัน */
+.modal-head {
+  background: #1c1c1e;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.modal-in .btn {
+  border-radius: 100px;
+  padding-inline: 18px;
+  transition: all 0.4s;
+}
+.modal-in .btn:hover:not(:disabled) {
+  translate: none;
+  filter: brightness(1.12) saturate(1.05);
+  box-shadow: 0 0 20px -4px rgb(103 80 164 / 0.45);
+  scale: 1.05;
+}
+.modal-in .btn:active:not(:disabled) {
+  scale: 0.97;
+  box-shadow: none;
+  transition: all 0.2s;
+}
+.modal-in .btn-ghost {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--accent);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.modal-in .btn-ghost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  margin: auto;
+  width: 40px;
+  height: 40px;
+  border-radius: inherit;
+  background: var(--accent);
+  scale: 0;
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.modal-in .btn-ghost:hover:not(:disabled) {
+  translate: none;
+  border-color: var(--accent);
+  background: transparent;
+  color: #fff;
+  box-shadow: 0 0 18px rgb(103 80 164 / 0.35);
+}
+.modal-in .btn-ghost:hover:not(:disabled)::before {
+  scale: 7;
+}
+.modal-in .btn-ghost.text-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.modal-in .btn-ghost.text-danger::before {
+  background: var(--danger);
+}
+
+/* 🍔 MenuSelect แบบเล็ก (compact): ปุ่มขาวขอบม่วง · รายการที่เลื่อนลงเหมือนเดิม */
+.ms-compact .ms-btn {
+  height: 34px;
+  gap: 8px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  border-radius: 100px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 12px;
+  box-shadow: 0 6px 14px -12px var(--accent);
+}
+.ms-compact .ms-btn:hover {
+  filter: none;
+  border-color: var(--accent);
+  background: #f7f3ff;
+  box-shadow: 0 8px 16px -12px var(--accent);
+}
+.ms-compact.is-open .ms-btn {
+  border-color: var(--accent);
+  background: #f4f0fd;
+}
+.ms-compact .ms-cap {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.ms-compact .ms-bars {
+  width: 14px;
+}
+.ms-compact .ms-bars > span {
+  height: 2px;
+  background: var(--accent);
+}
+.ms-compact.is-open .ms-bars > span:nth-child(1) {
+  transform: translateY(5px) rotate(45deg);
+}
+.ms-compact.is-open .ms-bars > span:nth-child(3) {
+  transform: translateY(-5px) rotate(-45deg);
+}
+.ms-compact .ms-btn:disabled {
+  opacity: 0.45;
+}
+
+/* 🔑 PERMISSION: ผู้ใช้ + จำนวนสิทธิ์ในเมนูซ้าย */
+.pm-nav-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 2px 8px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.06);
+  padding: 10px;
+}
+.pm-nav-user .pm-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  font-size: 14px;
+}
+.adm-shell.is-mini .pm-nav-user {
+  justify-content: center;
+  background: transparent;
+  padding: 4px 0;
+}
+.pm-nav-count {
+  margin-top: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.06);
+  padding: 10px 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.6);
+}
+.pm-nav-count b {
+  font-size: 22px;
+  font-weight: 900;
+  color: #c4b5fd;
+  animation: ord-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.adm-nav {
+  background: #1c1c1e;
+}
+.adm-shell .adm-nav-head {
+  border-bottom-color: rgb(255 255 255 / 0.07);
+}
