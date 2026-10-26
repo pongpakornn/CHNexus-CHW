@@ -273,7 +273,8 @@ export default function PrPage() {
       />
       {meta.noStockText && <div className="rounded-xl bg-[#fff3e0] p-3 text-sm font-bold text-warning">{meta.noStockText}</div>}
 
-      <div className="grid gap-4 min-[1700px]:grid-cols-[380px_1fr]">
+      <div className="flex flex-col gap-4">
+        {/* ฟอร์ม PR อยู่ด้านบนแบบ WPF: แถว 1 = DATE · REQUESTER · PRODUCT CODE · PRODUCT NAME · QTY / แถว 2 = DEPARTMENT · REMARK · TARGET DEPT · ปุ่ม */}
         <Card
           title={viewing ? `👁 ${viewing.prNumber}` : "＋ NEW PR"}
           actions={
@@ -283,13 +284,14 @@ export default function PrPage() {
               </button>
             )
           }
-          bodyClass="grid gap-3 p-4"
-          className="self-start min-[1700px]:sticky min-[1700px]:top-4"
+          bodyClass="grid grid-cols-1 gap-3 p-4 min-[480px]:grid-cols-2 md:grid-cols-3 md:p-5 xl:grid-cols-5"
+          clip={false}
         >
           <label className="block">
             <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">PR DATE</span>
             <input className="field bg-surface-2" readOnly value={viewing?.date ?? meta.today} />
           </label>
+          {lookInput("REQUESTER", "REQUESTER", "requester")}
           <div className="relative">
             <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">PRODUCT CODE</span>
             <input
@@ -303,7 +305,7 @@ export default function PrPage() {
               placeholder="พิมพ์รหัสแล้วเลือกจากรายการ"
             />
             {!viewing && !part && opts.length > 0 && (
-              <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-line bg-surface shadow-xl">
+              <div className="absolute z-30 mt-1 max-h-64 w-[min(360px,80vw)] overflow-auto rounded-xl border border-line bg-surface shadow-xl">
                 {opts.map((o) => (
                   <button
                     key={o.partId}
@@ -326,21 +328,25 @@ export default function PrPage() {
           </div>
           <label className="block">
             <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">PRODUCT NAME</span>
-            <input className="field bg-surface-2" readOnly value={viewing ? viewing.partName : part?.name ?? ""} />
+            <input className="field bg-surface-2" readOnly value={viewing ? viewing.partName : part?.name ?? ""} title={viewing ? viewing.partName : part?.name ?? ""} />
           </label>
           <label className="block">
             <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">QTY</span>
             <input className="field" inputMode="numeric" readOnly={!!viewing} value={viewing ? String(viewing.qty) : qtyText} onChange={(e) => setQtyText(e.target.value.replace(/\D/g, ""))} />
           </label>
-          {lookInput("REQUESTER", "REQUESTER", "requester")}
           {lookInput("DEPARTMENT", "DEPT", "dept")}
-          {lookInput("REMARK", "REMARK", "remark")}
+          <div className="md:col-span-1 xl:col-span-2">{lookInput("REMARK", "REMARK", "remark")}</div>
           {lookInput("TARGET DEPT", "TARGET", "target")}
-          {can.submit && !viewing && (
-            <button className="btn mt-1 bg-accent py-3" disabled={busy || (meta.hasPrStock && !stock)} onClick={submit}>
-              📨 SUBMIT PR
+          <div className="flex items-end gap-2 min-[480px]:col-span-2 md:col-span-3 xl:col-span-1">
+            {can.submit && !viewing && (
+              <button className="btn flex-1 whitespace-nowrap bg-success px-3" disabled={busy || (meta.hasPrStock && !stock)} onClick={submit}>
+                📨 SUBMIT PR
+              </button>
+            )}
+            <button className="btn flex-1 whitespace-nowrap bg-info px-3" onClick={() => setApprovedOpen(true)}>
+              📋 APPROVED LIST
             </button>
-          )}
+          </div>
         </Card>
 
         <Card

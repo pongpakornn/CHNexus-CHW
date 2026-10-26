@@ -167,6 +167,9 @@ export default function InventoryPage() {
     setEditId(edit ? p.ptId : null);
     setOldCode(edit ? p.partCode : null);
     setCoilText(null);
+    // ฟอร์มอยู่ด้านบน: กด VIEW / EDIT จากแถวที่เลื่อนลงไปแล้ว = เลื่อนขึ้นไปที่ฟอร์ม
+    const f = document.getElementById("reg-form");
+    if (f && f.getBoundingClientRect().top < 0) f.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
       const d = await api<{ stockIds: number[]; coilText: string | null }>(`/products/${p.ptId}/detail`, { query: { code: p.partCode, stkId: filter ?? undefined } });
       setInMain(p.isShowMain);
@@ -452,127 +455,139 @@ export default function InventoryPage() {
         }
       />
 
-      <div className="grid gap-4 min-[1800px]:grid-cols-[440px_1fr]">
-        {/* ฟอร์มลงทะเบียน / แก้ไข */}
-        <Card
-          title={editId ? "✏️ EDIT PRODUCT" : viewId ? "👁 VIEW PRODUCT" : "＋ REGISTER PRODUCT"}
-          actions={
-            (editId || viewId || form.partCode) && (
-              <button className="btn-ghost px-3 py-1 text-xs" onClick={clear}>
-                CLEAR
-              </button>
-            )
-          }
-          bodyClass="p-4"
-          className="self-start min-[1800px]:sticky min-[1800px]:top-4"
-        >
-          <div className="flex gap-4">
-            <div className="shrink-0">
-              <button
-                type="button"
-                disabled={!(can.add || can.edit)}
-                onClick={() => imgRef.current?.click()}
-                className="grid h-28 w-28 place-items-center overflow-hidden rounded-2xl border-2 border-dashed border-line bg-surface-2 text-xs font-bold text-ink-soft hover:border-accent"
-                title="เลือกรูปสินค้า"
-              >
-                {form.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={form.imageUrl} alt="" className="h-full w-full object-contain" />
-                ) : (
-                  "🖼 IMAGE"
-                )}
-              </button>
-              <input
-                ref={imgRef}
-                type="file"
-                accept=".png,.jpg,.jpeg"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) uploadImage(f);
-                }}
-              />
-              <div className="mt-3">
-                <QrImage text={form.partCode.trim()} size={112} />
+      <div className="flex flex-col gap-4">
+        {/* ฟอร์มลงทะเบียน / แก้ไข: อยู่ด้านบนแบบ WPF (รูป + QR ซ้าย · ช่องกรอก 5 คอลัมน์ · STOCK · ปุ่ม) ตารางอยู่ด้านล่าง */}
+        <div id="reg-form" className="scroll-mt-4">
+          <Card
+            title={editId ? "✏️ EDIT PRODUCT" : viewId ? "👁 VIEW PRODUCT" : "＋ REGISTER PRODUCT"}
+            actions={
+              (editId || viewId || form.partCode) && (
+                <button className="btn-ghost px-3 py-1 text-xs" onClick={clear}>
+                  CLEAR
+                </button>
+              )
+            }
+            bodyClass="p-4 md:p-5"
+            clip={false}
+          >
+            <div className="flex flex-col gap-5 sm:flex-row">
+              <div className="flex shrink-0 flex-row items-start gap-3 sm:flex-col sm:items-center">
+                <button
+                  type="button"
+                  disabled={!(can.add || can.edit)}
+                  onClick={() => imgRef.current?.click()}
+                  className="reg-img group grid size-[132px] place-items-center overflow-hidden rounded-2xl border-2 border-dashed border-line bg-surface-2 text-xs font-bold text-ink-soft transition hover:border-accent sm:size-[150px]"
+                  title="เลือกรูปสินค้า"
+                >
+                  {form.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={form.imageUrl} alt="" className="h-full w-full object-contain p-1.5 transition group-hover:scale-105" />
+                  ) : (
+                    <span className="grid place-items-center gap-1">
+                      <svg viewBox="0 0 24 24" className="size-8 text-line transition group-hover:text-accent" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                        <circle cx="9" cy="10" r="1.8" />
+                        <path d="m4.5 17.5 5-5 3.5 3.5 2.5-2.5 4 4" />
+                      </svg>
+                      SELECT IMAGE
+                    </span>
+                  )}
+                </button>
+                <input
+                  ref={imgRef}
+                  type="file"
+                  accept=".png,.jpg,.jpeg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) uploadImage(f);
+                  }}
+                />
+                <div className="rounded-xl border border-line/70 bg-white p-1.5" title="QR CODE = PRODUCT CODE">
+                  <QrImage text={form.partCode.trim()} size={96} />
+                </div>
               </div>
-            </div>
-            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="relative sm:col-span-2">
-                {input("PRODUCT CODE", "partCode")}
-                {codeSuggest.length > 0 && !editId && (
-                  <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-line bg-surface shadow-xl">
-                    {codeSuggest.map((p) => (
-                      <button
-                        key={p.ptId}
-                        type="button"
-                        className="block w-full border-b border-line/60 px-3 py-2 text-left hover:bg-surface-2"
-                        onClick={() => {
-                          setCodeSuggest([]);
-                          fill(p, can.edit);
-                          search(p.partCode);
-                          toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาแล้ว - แก้ / เพิ่ม Coil แล้วกด SAVE CHANGES`, "info");
-                        }}
-                      >
-                        <div className="text-sm font-extrabold text-primary">
-                          {p.partCode} {p.partA && <span className="text-ink-soft">• PART A {p.partA}</span>}
-                        </div>
-                        <div className="truncate text-xs">{p.partName}</div>
-                      </button>
-                    ))}
+
+              <div className="min-w-0 flex-1">
+                {/* ลำดับช่องตาม WPF: SUPPLIER, CUSTOMER, CATEGORY, PART A, PART B / MODEL, PRODUCT CODE, PART NO, PRODUCT NAME, PACKSIZE / BIN, MASTER COIL, COIL NO, COIL WEIGHT, QR CODE */}
+                <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                  {input("SUPPLIER", "supplier", { list: "dl-sup" })}
+                  {input("CUSTOMER", "customer", { list: "dl-cus" })}
+                  {input("CATEGORY", "category", { list: "dl-cat" })}
+                  {input("PART A", "partA")}
+                  {input("PART B", "partB")}
+                  {input("MODEL", "model")}
+                  <div className="relative">
+                    {input("PRODUCT CODE", "partCode")}
+                    {codeSuggest.length > 0 && !editId && (
+                      <div className="absolute z-30 mt-1 max-h-60 w-[min(360px,80vw)] overflow-auto rounded-xl border border-line bg-surface shadow-xl">
+                        {codeSuggest.map((p) => (
+                          <button
+                            key={p.ptId}
+                            type="button"
+                            className="block w-full border-b border-line/60 px-3 py-2 text-left hover:bg-surface-2"
+                            onClick={() => {
+                              setCodeSuggest([]);
+                              fill(p, can.edit);
+                              search(p.partCode);
+                              toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาแล้ว - แก้ / เพิ่ม Coil แล้วกด SAVE CHANGES`, "info");
+                            }}
+                          >
+                            <div className="text-sm font-extrabold text-primary">
+                              {p.partCode} {p.partA && <span className="text-ink-soft">• PART A {p.partA}</span>}
+                            </div>
+                            <div className="truncate text-xs">{p.partName}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                  {input("PART NO", "partNo")}
+                  {input("PRODUCT NAME", "partName")}
+                  {input("PACKSIZE", "packSize", { numeric: true })}
+                  {input("BIN", "bin")}
+                  {meta.hasCoilRegister && (
+                    <>
+                      {input("MASTER COIL", "masterCoil")}
+                      {input("COIL NO", "coilNo")}
+                      {input("COIL WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}
+                    </>
+                  )}
+                  {input("QR CODE (SUPPLIER)", "qrCode")}
+                </div>
+                {meta.hasCoilRegister && coilText && <div className="mt-2 text-xs font-bold text-accent">🧲 {coilText}</div>}
+                <datalist id="dl-sup">{meta.suggestions.suppliers.map((s) => <option key={s} value={s} />)}</datalist>
+                <datalist id="dl-cat">{meta.suggestions.categories.map((s) => <option key={s} value={s} />)}</datalist>
+                <datalist id="dl-cus">{meta.suggestions.customers.map((s) => <option key={s} value={s} />)}</datalist>
+
+                <div className="mt-4 flex flex-col gap-3 border-t border-line/60 pt-4 lg:flex-row lg:items-end">
+                  <div className="min-w-0 flex-1">
+                    <span className="mb-2 block text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
+                    <div className="flex flex-wrap gap-2">
+                      {meta.stocks.map((s) => (s.isMain ? stockChip("main", s.code, inMain, s.name) : stockChip(s.stkId, s.code, others.includes(s.stkId), s.name)))}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    {editId ? (
+                      can.edit && (
+                        <button className="btn bg-success min-w-[180px]" disabled={busy} onClick={() => save(true)}>
+                          💾 SAVE CHANGES
+                        </button>
+                      )
+                    ) : (
+                      can.add && (
+                        <button className="btn bg-accent min-w-[180px]" disabled={busy} onClick={() => save(false)}>
+                          ＋ PART REGISTRATION
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="sm:col-span-2">{input("PRODUCT NAME", "partName")}</div>
-              {input("SUPPLIER", "supplier", { list: "dl-sup" })}
-              {input("CATEGORY", "category", { list: "dl-cat" })}
-              {input("CUSTOMER", "customer", { list: "dl-cus" })}
-              {input("PACKSIZE", "packSize", { numeric: true })}
-              {input("BIN", "bin")}
-              {input("QR CODE (SUPPLIER)", "qrCode")}
-              {input("PART A", "partA")}
-              {input("PART B", "partB")}
-              {input("PART NO", "partNo")}
-              {input("MODEL", "model")}
             </div>
-          </div>
-          <datalist id="dl-sup">{meta.suggestions.suppliers.map((s) => <option key={s} value={s} />)}</datalist>
-          <datalist id="dl-cat">{meta.suggestions.categories.map((s) => <option key={s} value={s} />)}</datalist>
-          <datalist id="dl-cus">{meta.suggestions.customers.map((s) => <option key={s} value={s} />)}</datalist>
-
-          <div className="mt-4">
-            <span className="mb-2 block text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
-            <div className="flex flex-wrap gap-2">
-              {meta.stocks.map((s) => (s.isMain ? stockChip("main", s.code, inMain, s.name) : stockChip(s.stkId, s.code, others.includes(s.stkId), s.name)))}
-            </div>
-          </div>
-
-          {meta.hasCoilRegister && (
-            <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-[#f8f6fd] p-3">
-              <div className="col-span-3 text-[11px] font-extrabold uppercase text-accent">🧲 ADD COIL (คลังที่นับ Coil)</div>
-              {input("MASTER COIL", "masterCoil")}
-              {input("COIL NO", "coilNo")}
-              {input("WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}
-              {coilText && <div className="col-span-3 text-xs font-bold text-accent">{coilText}</div>}
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-wrap justify-end gap-2">
-            {editId ? (
-              can.edit && (
-                <button className="btn bg-success" disabled={busy} onClick={() => save(true)}>
-                  💾 SAVE CHANGES
-                </button>
-              )
-            ) : (
-              can.add && (
-                <button className="btn bg-accent" disabled={busy} onClick={() => save(false)}>
-                  ＋ REGISTER
-                </button>
-              )
-            )}
-          </div>
-        </Card>
+          </Card>
+        </div>
 
         {/* ตารางสินค้า */}
         <Card

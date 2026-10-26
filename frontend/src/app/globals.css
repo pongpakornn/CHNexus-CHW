@@ -3469,3 +3469,354 @@ div.swap-in:has(> .show-strip) {
     animation: none;
   }
 }
+
+/* 📦 PICK LIST: การ์ดเบิกแบบ WPF (พรีวิว / A4 / ฉลาก) + แถบสถานะ + ตัวเลือกรูปแบบพิมพ์ */
+.pk-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background: linear-gradient(90deg, #fff3e0, #fffaf3);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b45309;
+}
+.pk-note.is-error {
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: linear-gradient(90deg, #fdecec, #fff7f7);
+  color: var(--danger);
+}
+.pk-dot {
+  margin-top: 5px;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 99px;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 18%, transparent);
+}
+.pk-src {
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 0.18);
+}
+.pk-src.is-live {
+  background: #16a34a;
+  animation: pk-pulse 1.8s ease-out infinite;
+}
+@keyframes pk-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(22 163 74 / 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgb(22 163 74 / 0);
+  }
+}
+.pk-stat {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--c) 22%, #ebe9f2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 9%, #fff), #fff 70%);
+  padding: 10px 12px;
+}
+.pk-stat span {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.pk-stat b {
+  display: block;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: var(--c);
+}
+.pk-stat::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: -14px;
+  width: 46px;
+  height: 46px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+}
+
+.pk-preview {
+  position: relative;
+  width: min(100%, 440px);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.25s;
+  filter: drop-shadow(0 10px 18px rgb(55 48 107 / 0.12));
+}
+.pk-preview:hover {
+  transform: translateY(-3px);
+  filter: drop-shadow(0 16px 26px rgb(55 48 107 / 0.18));
+}
+.pk-preview.is-empty .pk-card {
+  opacity: 0.5;
+}
+.pk-empty-tip {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+/* การ์ด: 2 คอลัมน์ (เนื้อหา | QR) · QR กินความสูงหัวการ์ด + แถว Bill-Group */
+.pk-card {
+  --s: 1;
+  --qr: 54px;
+  --logo: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-auto-rows: auto;
+  row-gap: 7px;
+  border-radius: 12px;
+  border: 1.5px solid #e6e6e6;
+  background: #fff;
+  color: #111;
+  padding: 16px;
+  font-family: Arial, "Leelawadee UI", Tahoma, sans-serif;
+}
+.pk-logo {
+  grid-column: 1;
+  grid-row: 1;
+  height: var(--logo);
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+  align-self: center;
+}
+.pk-qr {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  width: var(--qr);
+  height: var(--qr);
+  margin-left: calc(7.5px * var(--s));
+  border: 0.8px solid #999;
+  padding: 1.5px;
+  background: #fff;
+}
+.pk-qr img,
+.pk-qr > div,
+.pk-qr-empty {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  image-rendering: pixelated;
+}
+.pk-qr-empty {
+  background: repeating-linear-gradient(45deg, #f1f1f1 0 4px, #fafafa 4px 8px);
+}
+.pk-div {
+  grid-column: 1;
+  grid-row: 2;
+  height: 1px;
+  background: #9e9e9e;
+  margin: calc(4px * var(--s)) 0 calc(1px * var(--s));
+}
+.pk-row {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(8px * var(--s));
+  min-width: 0;
+  grid-column: 1;
+}
+.pk-row.is-full {
+  grid-column: 1 / -1;
+}
+.pk-f {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+}
+.pk-l {
+  flex: none;
+  margin: 0 calc(6px * var(--s)) calc(2px * var(--s)) 0;
+  font-size: calc(13.5px * var(--s));
+  font-weight: 700;
+  line-height: 1.2;
+}
+.pk-u {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 1px solid #777;
+  text-align: center;
+}
+.pk-v {
+  display: block;
+  padding-bottom: calc(1.5px * var(--s));
+  font-size: calc(15px * var(--s));
+  font-weight: 700;
+  line-height: 1.25;
+  min-height: 1.25em;
+  overflow-wrap: anywhere;
+}
+/* A4 / ฉลาก: เต็มช่อง ความสูงแถวตามสัดส่วนแบบ WPF · ค่า 1 บรรทัด (ชื่อสินค้า / Part Name 2 บรรทัด) ยาวเกิน = ย่อตัวอักษร */
+.pk-card.is-a4,
+.pk-card.is-label {
+  height: 100%;
+  row-gap: 0;
+  border-radius: 3px;
+  border: 1.2px solid #000;
+  padding: calc(2.2mm * var(--s)) calc(3mm * var(--s)) calc(2mm * var(--s));
+  break-inside: avoid;
+}
+.pk-card.is-a4 {
+  grid-template-rows: auto auto 1fr 1fr 1.35fr 1fr 1.2fr 1fr;
+}
+.pk-card.is-label {
+  --s: 0.5;
+  --qr: 10.5mm;
+  --logo: 4.6mm;
+  grid-template-rows: auto auto 1fr 1fr 1.25fr 1fr;
+  border: 0;
+  padding: 0;
+}
+.pk-card.is-a4 .pk-qr,
+.pk-card.is-label .pk-qr {
+  align-self: start;
+  margin-left: 2mm;
+}
+.pk-card.is-a4 .pk-row,
+.pk-card.is-label .pk-row {
+  align-self: end;
+  margin-bottom: calc(0.6mm * var(--s));
+}
+.pk-card.is-a4 .pk-v,
+.pk-card.is-label .pk-v {
+  white-space: nowrap;
+  overflow: hidden;
+  overflow-wrap: normal;
+}
+.pk-card.is-a4 .pk-v[data-lines="2"],
+.pk-card.is-label .pk-v[data-lines="2"] {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+/* ฉลาก: QR ข้างหัวการ์ดอย่างเดียว - แถว Bill-Group ยาวเต็มดวง (ดวงเล็ก ตัวอักษรไม่ต้องย่อมาก) */
+.pk-card.is-label .pk-qr {
+  grid-row: 1 / span 2;
+  margin-bottom: 0.6mm;
+}
+.pk-card.is-label .pk-div {
+  align-self: end;
+}
+
+/* แผ่น A4: ตาราง cols × rows · เส้นประรอบช่อง = แนวตัด · เลขหน้าด้านล่าง */
+.pk-page {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  padding: 8mm 8mm 14mm;
+  background: #fff;
+  break-after: page;
+  overflow: hidden;
+}
+.pk-page.is-3 {
+  padding: 5mm 5mm 11mm;
+}
+.pk-page:last-child {
+  break-after: auto;
+}
+.pk-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+}
+.pk-cell {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  outline: 0.25mm dashed #9e9e9e;
+  outline-offset: -0.15mm;
+  padding: 1.8mm;
+}
+.pk-hold {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+.pk-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5mm;
+  text-align: center;
+  font: 9px Arial, sans-serif;
+  color: #888;
+}
+.pk-page.is-3 .pk-foot {
+  bottom: 3mm;
+}
+/* ฉลาก 62 × 40 mm: 1 ดวงต่อหน้า · ขอบตามค่าที่พิมพ์ได้จริงของ QL-800 */
+.pk-label-page {
+  width: 62mm;
+  height: 40mm;
+  padding: 1.6mm 3mm 1.5mm;
+  background: #fff;
+  overflow: hidden;
+  break-after: page;
+}
+.pk-label-page:last-child {
+  break-after: auto;
+}
+#print-area,
+#print-area * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ตัวเลือกรูปแบบพิมพ์ + แผ่นจำลอง */
+.pk-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  padding: 10px 12px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.pk-opt:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  transform: translateY(-1px);
+}
+.pk-opt.is-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(103 80 164 / 0.12);
+}
+.pk-mini {
+  display: grid;
+  flex: none;
+  width: 34px;
+  gap: 2px;
+  border-radius: 3px;
+  border: 1px solid #cfcbe0;
+  background: #fff;
+  padding: 3px;
+}
+.pk-mini i {
+  border-radius: 1px;
+  border: 1px dashed #b7b0d4;
+  background: #f4f1fb;
+}
+.pk-opt.is-on .pk-mini i {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, #fff);
+}

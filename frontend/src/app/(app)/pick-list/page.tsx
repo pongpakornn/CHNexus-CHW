@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { DateRange } from "@/components/ui/DateRange";
+import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
 import { QrImage } from "@/components/ui/QrImage";
 import { api, download } from "@/lib/api";
-import { today } from "@/lib/format";
+import { isoDate, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";
 
@@ -31,16 +33,56 @@ type PickCard = {
   lastPrintedBy: string | null;
   lastPrintedDate: string | null;
 };
-type Layout = "LABEL" | "A4";
+
+// 🖨 รูปแบบพิมพ์ (หน้าต่าง SELECT PRINTER ของ WPF): A4 หลายใบต่อแผ่น (cols × rows) หรือฉลาก 62 × 40 mm (Brother QL-800)
+type Layout = "A4-10" | "A4-12" | "A4-14" | "A4-21" | "LABEL";
+const LAYOUTS: { key: Layout; title: string; hint: string; cols: number; rows: number }[] = [
+  { key: "A4-10", title: "10 / PAGE", hint: "2 × 5 • large", cols: 2, rows: 5 },
+  { key: "A4-12", title: "12 / PAGE", hint: "2 × 6 • medium", cols: 2, rows: 6 },
+  { key: "A4-14", title: "14 / PAGE", hint: "2 × 7 • compact", cols: 2, rows: 7 },
+  { key: "A4-21", title: "21 / PAGE", hint: "3 × 7 • small", cols: 3, rows: 7 },
+  { key: "LABEL", title: "LABEL 62 × 40", hint: "Brother QL-800 • 1 ดวง / ใบ", cols: 1, rows: 1 },
+];
+const LAYOUT_KEY = "picklist-layout";
+// ขนาดการ์ด A4 ตามจำนวนใบต่อแผ่น (PackingCardPrintService.CardSizes): s = ตัวคูณขนาดตัวอักษร / QR mm / โลโก้ mm
+const sizes = (cols: number, rows: number) => (cols >= 3 ? { s: 0.56, qr: 13, logo: 6 } : rows >= 7 ? { s: 0.58, qr: 13.5, logo: 6.2 } : rows === 6 ? { s: 0.72, qr: 16, logo: 7.4 } : { s: 0.82, qr: 19, logo: 8.8 });
+const HISTORY_MONTHS = 2;
 
 const qtyNum = (q: number) => Number(q.toFixed(2)).toString();
+const qtyText = (c: PickCard) => `${qtyNum(c.qty)} ${c.unit ?? ""}`.trim();
 const keyOf = (c: PickCard) => `${c.ticketNo}|${c.itemNo}`;
 // QR เดียวกับ PackingCardModel.QrText: TicketNo | MaterialCode | WorkOrder | LotNo | JobName | Qty (หน้าสแกนอ่านได้)
 const qrText = (c: PickCard) => `${c.ticketNo} | ${c.materialCode} | ${c.workOrder ?? ""} | ${c.lotNo ?? ""} | ${c.jobName ?? ""} | ${qtyNum(c.qty)}`;
-const d = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB").replace(/\//g, "-") : "");
+// ปี ค.ศ. เสมอ (dd-MM-yyyy) ตรงกับการ์ด WPF
+const d = (s: string | null) => {
+  if (!s) return "";
+  const x = new Date(s);
+  return `${String(x.getDate()).padStart(2, "0")}-${String(x.getMonth() + 1).padStart(2, "0")}-${x.getFullYear()}`;
+};
 const stamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const minDate = () => {
+  const x = new Date();
+  x.setMonth(x.getMonth() - HISTORY_MONTHS);
+  return isoDate(x);
+};
 
-// 📦 PICK LIST (PackingCardView): การ์ดเบิกของ + QR / พิมพ์ (ฉลาก 62x40 mm หรือ A4) / Export Excel
+// ข้อความยาวเกินช่อง = ย่อตัวอักษรทีละนิดจนครบ (เล็กสุด 55%) แบบ FitA4Texts ของ WPF - ไม่ตัด "..."
+function fitTexts(root: HTMLElement | null) {
+  root?.querySelectorAll<HTMLElement>(".pk-v").forEach((el) => {
+    el.style.fontSize = "";
+    const base = parseFloat(getComputedStyle(el).fontSize);
+    const lines = el.dataset.lines === "2" ? 2 : 1;
+    const lh = base * 1.25;
+    for (let f = base; f >= base * 0.55; f -= base * 0.04) {
+      el.style.fontSize = `${f}px`;
+      const fits = lines === 1 ? el.scrollWidth <= el.clientWidth + 0.5 : el.scrollHeight <= lh * (f / base) * 2 + 1;
+      if (fits) break;
+    }
+  });
+}
+
+// 📦 PICK LIST (PackingCardView): ERP 192.168.10.10 อ่านอย่างเดียว -> การ์ดเบิก + QR / พิมพ์ A4 · ฉลาก / Export Excel
+//   บันทึกเฉพาะประวัติการพิมพ์ใน CHR-Nexus (Nexus.PickListPrintLogs) - ไม่เขียนอะไรกลับ ERP
 export default function PickListPage() {
   const toast = useToast();
   const [from, setFrom] = useState(today());
@@ -48,44 +90,107 @@ export default function PickListPage() {
   const [key, setKey] = useState("");
   const [rows, setRows] = useState<PickCard[] | null>(null);
   const [source, setSource] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
   const [preview, setPreview] = useState<PickCard | null>(null);
+  const [mobilePreview, setMobilePreview] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
-  const [layout, setLayout] = useState<Layout>("A4");
-  const [printing, setPrinting] = useState<PickCard[] | null>(null);
+  const [layout, setLayout] = useState<Layout>("A4-10");
+  const [printing, setPrinting] = useState<{ items: PickCard[]; layout: Layout } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [collapsed, toggleGroup] = useCollapsed();
+  const printRef = useRef<HTMLDivElement>(null);
   const k = useDebounced(key, 250);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(LAYOUT_KEY) as Layout | null;
+      if (v && LAYOUTS.some((l) => l.key === v)) queueMicrotask(() => setLayout(v));
+    } catch {
+      /* ไม่มี storage = ใช้ค่าเริ่มต้น */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const r = await api<{ source: string; rows: PickCard[] }>("/picklist", { query: { from, to } });
       setRows(r.rows);
       setSource(r.source);
+      setError(null);
     } catch (e) {
-      toast.show("ERROR", (e as Error).message, "error");
+      setRows((x) => x ?? []);
+      setError((e as Error).message);
     }
-  }, [from, to, toast]);
+  }, [from, to]);
 
   useEffect(() => {
     const t = setTimeout(load, 0);
     return () => clearTimeout(t);
   }, [load]);
-  // ⚡ อัพเดททันทีเมื่อมีการบันทึก + เช็คเองทุก 15 วินาที (ข้อมูลจาก ERP)
+  // ⚡ อัพเดททันทีเมื่อมีการพิมพ์ / บันทึก + เช็คเองทุก 15 วินาที (รายการใหม่จาก ERP)
   useLive(["data"], load, 15000);
 
   const shown = useMemo(() => {
     const q = k.trim().toLowerCase();
     const list = rows ?? [];
-    return q ? list.filter((c) => [c.ticketNo, c.materialCode, c.productName, c.workOrder, c.lotNo, c.jobName, c.groupCode].some((v) => (v ?? "").toLowerCase().includes(q))) : list;
+    return q ? list.filter((c) => [c.ticketNo, c.materialCode, c.productName, c.workOrder, c.lotNo, c.jobName, c.groupCode, c.fgName].some((v) => (v ?? "").toLowerCase().includes(q))) : list;
   }, [rows, k]);
+  const groups = useMemo(() => {
+    const m = new Map<string, PickCard[]>();
+    for (const c of shown) {
+      const g = c.groupCode || "-";
+      if (!m.has(g)) m.set(g, []);
+      m.get(g)!.push(c);
+    }
+    return [...m.entries()].map(([key, items]) => ({ key, items }));
+  }, [shown]);
   const picked = shown.filter((c) => sel.includes(keyOf(c)));
+  const printedN = shown.filter((c) => c.printedDate).length;
+  const allSel = shown.length > 0 && shown.every((c) => sel.includes(keyOf(c)));
+  const cur = preview ?? picked[0] ?? null;
 
-  async function print() {
+  function choose(c: PickCard) {
+    setPreview(c);
+    if (window.innerWidth < 1024) setMobilePreview(true);
+  }
+
+  function pickLayout(v: Layout) {
+    setLayout(v);
+    try {
+      localStorage.setItem(LAYOUT_KEY, v);
+    } catch {
+      /* ไม่จำก็พิมพ์ได้ */
+    }
+  }
+
+  async function exportExcel() {
+    if (picked.length === 0) return toast.show("WARNING", "กรุณาติ๊กเลือกรายการที่ต้องการ Export อย่างน้อย 1 รายการครับ", "warn");
+    setExporting(true);
+    try {
+      await download("/picklist/export", undefined, picked);
+      toast.show("EXPORT", `ส่งออก ${picked.length} รายการแล้ว`, "ok");
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function print() {
     setPrintOpen(false);
-    const items = picked;
-    setPrinting(items);
-    // รอวาด QR ก่อนสั่งพิมพ์
-    setTimeout(async () => {
+    setPrinting({ items: picked, layout });
+  }
+
+  // วาดการ์ด + QR ครบแล้วค่อยสั่งพิมพ์ -> บันทึกประวัติการพิมพ์ (CHR-Nexus) หลังปิดหน้าต่างพิมพ์
+  useLayoutEffect(() => {
+    if (!printing) return;
+    let done = false;
+    const go = async () => {
+      if (done) return;
+      done = true;
+      fitTexts(printRef.current);
       window.print();
+      const items = printing.items;
       setPrinting(null);
       try {
         const r = await api<{ saved: number; fails: string[] }>("/picklist/printed", { method: "POST", body: items });
@@ -96,8 +201,29 @@ export default function PickListPage() {
       } catch (e) {
         toast.show("ERROR", (e as Error).message, "error");
       }
-    }, 600);
-  }
+    };
+    // รอ QR (สร้างแบบ async) ทุกใบ หรือไม่เกิน 3 วินาที
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const box = printRef.current;
+      const ready = box && box.querySelectorAll("img.pk-qr-img").length >= printing.items.length;
+      const logos = box ? [...box.querySelectorAll<HTMLImageElement>("img.pk-logo")].every((i) => i.complete) : false;
+      if ((ready && logos) || Date.now() - started > 3000) {
+        clearInterval(tick);
+        go();
+      }
+    }, 80);
+    return () => clearInterval(tick);
+  }, [printing, load, toast]);
+
+  const L = LAYOUTS.find((l) => l.key === (printing?.layout ?? layout))!;
+  const pages = useMemo(() => {
+    if (!printing || L.key === "LABEL") return [];
+    const per = L.cols * L.rows;
+    const out: PickCard[][] = [];
+    for (let i = 0; i < printing.items.length; i += per) out.push(printing.items.slice(i, i + per));
+    return out;
+  }, [printing, L]);
 
   return (
     <PageBody>
@@ -106,93 +232,187 @@ export default function PickListPage() {
         title="PICK LIST"
         subtitle={`${shown.length.toLocaleString()} ITEM(S) • SOURCE: ${source || "-"}`}
         actions={
-          <>
-            <button className="btn bg-success" disabled={picked.length === 0} onClick={() => download("/picklist/export", undefined, picked).catch((e) => toast.show("ERROR", e.message, "error"))}>
-              📤 EXPORT EXCEL
-            </button>
-            <button className="btn bg-accent" disabled={picked.length === 0} onClick={() => setPrintOpen(true)}>
-              🖨 PRINT ({picked.length})
-            </button>
-          </>
+          <ActionMenu
+            caption={["PICK LIST", "EXPORT · PRINT"]}
+            label="เมนู Pick List"
+            actions={[
+              {
+                key: "select",
+                title: "SELECT NOT PRINTED",
+                detail: "ติ๊กเลือกทุกรายการที่ยังไม่เคยพิมพ์ (ตามคำค้นหา / ช่วงวันที่ที่แสดงอยู่)",
+                color: "#f59e0b",
+                icon: "check" as const,
+                disabled: shown.length === printedN,
+                onClick: () => setSel(shown.filter((c) => !c.printedDate).map(keyOf)),
+              },
+              {
+                key: "export",
+                title: `EXPORT EXCEL${picked.length ? ` (${picked.length})` : ""}`,
+                detail: "ส่งออกรายการที่ติ๊กไว้เป็นไฟล์ Excel (BILL / PD CODE / QTY / WORK ORDER / LOT / ประวัติการพิมพ์)",
+                color: "#16a34a",
+                icon: "export" as const,
+                busy: exporting,
+                onClick: exportExcel,
+              },
+              {
+                key: "print",
+                title: `PRINT${picked.length ? ` (${picked.length})` : ""}`,
+                detail: "พิมพ์การ์ดที่ติ๊กไว้: A4 10 / 12 / 14 / 21 ใบต่อแผ่น หรือฉลาก 62 × 40 mm - บันทึกว่าใครพิมพ์ เมื่อไหร่",
+                color: "#6750a4",
+                icon: "print" as const,
+                onClick: () => (picked.length === 0 ? toast.show("WARNING", "กรุณาติ๊กเลือกรายการที่ต้องการพิมพ์ก่อนครับ", "warn") : setPrintOpen(true)),
+              },
+            ]}
+          />
         }
       />
-      {source === "CHR-Nexus" && (
-        <div className="rounded-xl border border-warning/40 bg-[#fff3e0] p-3 text-sm font-semibold text-warning">
-          🔒 ยังไม่ได้ตั้งค่าการอ่านข้อมูลจาก ERP (192.168.10.10 อ่านอย่างเดียว) — รายการด้านล่างมาจากประวัติการพิมพ์ใน CHR-Nexus (ดู / พิมพ์ซ้ำ / Export ได้)
-        </div>
-      )}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <Card>
-          <div className="flex flex-wrap items-center gap-3 border-b border-line/60 p-3">
-            <SearchBox className="min-w-[220px] flex-1" value={key} onChange={setKey} placeholder="ค้นหา BILL / PD CODE / WORK ORDER / LOT" />
-            <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} quick={false} />
-            <button className="btn-ghost" onClick={() => (setFrom(today()), setTo(today()))}>
-              TODAY
-            </button>
+      {error ? (
+        <div className="pk-note is-error">
+          <span className="pk-dot" />
+          <span>{error}</span>
+        </div>
+      ) : source === "CHR-Nexus" ? (
+        <div className="pk-note">
+          <span className="pk-dot" />
+          <span>
+            🔒 ยังไม่ได้ตั้งค่าการอ่านข้อมูลจาก ERP (192.168.10.10 อ่านอย่างเดียว) — รายการด้านล่างมาจากประวัติการพิมพ์ใน CHR-Nexus (ดู / พิมพ์ซ้ำ / Export ได้)
+          </span>
+        </div>
+      ) : null}
+
+      {/* ด้านบนแบบ WPF: ค้นหา + ประวัติย้อนหลัง (ซ้าย) · พรีวิวการ์ด (ขวา) */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card title="SEARCH" bodyClass="grid content-start gap-4 p-4 md:p-5" clip={false}>
+          <SearchBox fancy value={key} onChange={setKey} placeholder="ค้นหา BILL / PD CODE / PRODUCT / WORK ORDER / LOT / PART NAME" />
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wide text-accent">
+              🕘 HISTORY <span className="font-bold text-ink-soft">(BACK {HISTORY_MONTHS} MONTHS)</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <DateRange
+                from={from}
+                to={to}
+                quick={false}
+                onChange={(f, t) => {
+                  const m = minDate();
+                  setFrom(f < m ? m : f);
+                  setTo(t < m ? m : t);
+                  setSel([]);
+                }}
+              />
+              <button className="btn-ghost" disabled={from === today() && to === today()} onClick={() => (setFrom(today()), setTo(today()), setSel([]))}>
+                TODAY
+              </button>
+            </div>
           </div>
-          <div className="max-h-[calc(100dvh-300px)] min-h-[360px] overflow-auto">
-            {!rows ? (
-              <Loading />
-            ) : shown.length === 0 ? (
-              <Empty>ไม่มีรายการในช่วงวันที่นี้</Empty>
-            ) : (
-              <table className="data-table t-center w-full">
-                <thead className="sticky top-0">
-                  <tr>
-                    <th>
-                      <input type="checkbox" checked={shown.length > 0 && shown.every((c) => sel.includes(keyOf(c)))} onChange={(e) => setSel(e.target.checked ? shown.map(keyOf) : [])} />
-                    </th>
-                    <th>BILL NO.</th>
-                    <th>GROUP</th>
-                    <th>PD CODE</th>
-                    <th>PRODUCT NAME</th>
-                    <th className="text-right">QTY</th>
-                    <th>WORKORDER</th>
-                    <th>LOT</th>
-                    <th>PRINTED</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((c) => (
-                    <tr key={keyOf(c)} onClick={() => setPreview(c)} className={`cursor-pointer ${preview && keyOf(preview) === keyOf(c) ? "bg-accent-soft/40" : ""}`}>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={sel.includes(keyOf(c))} onChange={(e) => (setSel((s) => (e.target.checked ? [...s, keyOf(c)] : s.filter((x) => x !== keyOf(c)))), setPreview(c))} />
-                      </td>
-                      <td className="whitespace-nowrap font-extrabold text-primary">{c.ticketNo}</td>
-                      <td>{c.groupCode}</td>
-                      <td className="whitespace-nowrap">{c.materialCode}</td>
-                      <td className="min-w-[180px]">{c.productName}</td>
-                      <td className="whitespace-nowrap text-right">
-                        {qtyNum(c.qty)} {c.unit}
-                      </td>
-                      <td className="whitespace-nowrap">{c.workOrder}</td>
-                      <td>{c.lotNo}</td>
-                      <td className="min-w-[150px] text-xs">
-                        {c.printedDate ? (
-                          <>
-                            <Badge color="var(--success)">PRINTED</Badge> {stamp(c.printedDate)} {c.printedBy}
-                            {c.printCount > 1 && c.lastPrintedDate && (
-                              <div className="text-ink-soft">
-                                ×{c.printCount} • {stamp(c.lastPrintedDate)} {c.lastPrintedBy}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <Badge color="var(--warning)">NOT YET</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <PkStat label="ITEMS" value={shown.length} tone="var(--primary)" />
+            <PkStat label="PRINTED" value={printedN} tone="var(--success)" />
+            <PkStat label="NOT YET" value={shown.length - printedN} tone="var(--warning)" />
+            <PkStat label="SELECTED" value={picked.length} tone="var(--accent)" />
+          </div>
+          <div className="flex items-center gap-2 text-xs font-bold text-ink-soft">
+            <span className={`pk-src ${source === "ERP" ? "is-live" : ""}`} />
+            {source === "ERP" ? "ERP 192.168.10.10 • READ ONLY • อัพเดททุก 15 วินาที" : source ? "CHR-Nexus • PRINT HISTORY" : "LOADING..."}
           </div>
         </Card>
-        <Card title="PREVIEW" bodyClass="p-4" className="self-start xl:sticky xl:top-4">
-          {preview ? <PickCardView c={preview} /> : <Empty>คลิกแถวในตารางเพื่อดูการ์ด</Empty>}
+
+        <Card title="LABEL PREVIEW" bodyClass="grid place-items-center p-4 md:p-5" className="max-lg:hidden">
+          {cur ? (
+            <div className="pk-preview">
+              <PickCardView c={cur} />
+            </div>
+          ) : (
+            <div className="pk-preview is-empty">
+              <PickCardView c={null} />
+              <div className="pk-empty-tip">คลิกแถวในตารางเพื่อดูการ์ด</div>
+            </div>
+          )}
         </Card>
       </div>
+
+      <Card title={`PICK LIST • ${shown.length.toLocaleString()}`} actions={sel.length > 0 && <button className="btn-ghost px-3 py-1 text-xs" onClick={() => setSel([])}>CLEAR SELECTION ({picked.length})</button>}>
+        <div className="max-h-[calc(100dvh-240px)] min-h-[360px] overflow-auto">
+          {!rows ? (
+            <Loading />
+          ) : shown.length === 0 ? (
+            <Empty>{error ? "อ่านข้อมูลไม่สำเร็จ" : "ไม่มีรายการในช่วงวันที่นี้"}</Empty>
+          ) : (
+            <table className="data-table t-center w-full">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th>
+                    <input type="checkbox" checked={allSel} onChange={(e) => setSel(e.target.checked ? shown.map(keyOf) : [])} />
+                  </th>
+                  <th>BILL NO.</th>
+                  <th>GROUP</th>
+                  <th>PD CODE</th>
+                  <th>PRODUCT NAME</th>
+                  <th>QTY</th>
+                  <th>WORKORDER</th>
+                  <th>LOT</th>
+                  <th>PART NAME</th>
+                  <th>PRINTED</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => (
+                  <Fragment key={g.key}>
+                    <GroupRow colSpan={10} label="GROUP" value={g.key} count={g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />
+                    {!collapsed.has(g.key) &&
+                      g.items.map((c) => {
+                        const on = sel.includes(keyOf(c));
+                        return (
+                          <tr key={keyOf(c)} onClick={() => choose(c)} className={`cursor-pointer ${cur && keyOf(cur) === keyOf(c) ? "bg-accent-soft/40" : on ? "bg-accent-soft/20" : ""}`}>
+                            <td onClick={(e) => e.stopPropagation()}>
+                              <input type="checkbox" checked={on} onChange={(e) => (setSel((s) => (e.target.checked ? [...s, keyOf(c)] : s.filter((x) => x !== keyOf(c)))), setPreview(c))} />
+                            </td>
+                            <td className="whitespace-nowrap font-extrabold text-primary">{c.ticketNo}</td>
+                            <td>{c.groupCode}</td>
+                            <td className="whitespace-nowrap">{c.materialCode}</td>
+                            <td className="min-w-[170px]">{c.productName}</td>
+                            <td className="whitespace-nowrap">
+                              {qtyNum(c.qty)} <span className="text-[11px] text-ink-soft">{c.unit}</span>
+                            </td>
+                            <td className="whitespace-nowrap">{c.workOrder}</td>
+                            <td>{c.lotNo}</td>
+                            <td className="min-w-[170px]">{c.fgName}</td>
+                            <td className="min-w-[150px] text-xs">
+                              {c.printedDate ? (
+                                <>
+                                  <div className="font-bold text-success">
+                                    {stamp(c.printedDate)} {c.printedBy}
+                                  </div>
+                                  {c.printCount > 1 && c.lastPrintedDate && (
+                                    <div className="font-semibold text-[#e65100]">
+                                      ×{c.printCount} • {stamp(c.lastPrintedDate)} {c.lastPrintedBy}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <Badge color="var(--warning)">NOT YET</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+
+      {/* 📱 จอเล็ก: กดแถว = ดูการ์ดในหน้าต่าง */}
+      <Modal open={mobilePreview && !!preview} title="LABEL PREVIEW" onClose={() => setMobilePreview(false)}>
+        {preview && (
+          <div className="pk-preview mx-auto">
+            <PickCardView c={preview} />
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={printOpen}
@@ -204,47 +424,58 @@ export default function PickListPage() {
               CANCEL
             </button>
             <button className="btn bg-accent" onClick={print}>
-              PRINT {picked.length} CARD(S)
+              🖨 PRINT {picked.length} CARD(S)
             </button>
           </>
         }
       >
-        <div className="grid gap-2">
-          {(
-            [
-              ["A4", "A4 • 8 CARDS / SHEET", "เครื่องพิมพ์ทั่วไป (Fuji ApeosPort ฯลฯ)"],
-              ["LABEL", "LABEL 62 × 40 mm", "เครื่องพิมพ์ฉลาก Brother QL-800 (ตั้งกระดาษ 62mm ใน Driver)"],
-            ] as [Layout, string, string][]
-          ).map(([v, t, h]) => (
-            <label key={v} className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 ${layout === v ? "border-accent" : "border-line"}`}>
-              <input type="radio" checked={layout === v} onChange={() => setLayout(v)} />
-              <div>
-                <div className="font-extrabold text-primary">{t}</div>
-                <div className="text-xs text-ink-soft">{h}</div>
-              </div>
-            </label>
+        <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">A4 LAYOUT • เครื่องพิมพ์ทั่วไป (Fuji ApeosPort ฯลฯ)</div>
+        <div className="grid grid-cols-2 gap-2">
+          {LAYOUTS.filter((l) => l.key !== "LABEL").map((l) => (
+            <LayoutOption key={l.key} l={l} on={layout === l.key} count={picked.length} onPick={() => pickLayout(l.key)} />
           ))}
         </div>
+        <div className="mb-2 mt-4 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">LABEL • เครื่องพิมพ์ฉลาก (ตั้งกระดาษ 62 mm ใน Driver)</div>
+        <LayoutOption l={LAYOUTS[4]} on={layout === "LABEL"} count={picked.length} onPick={() => pickLayout("LABEL")} />
+        <p className="mt-3 text-xs font-semibold text-ink-soft">หน้าต่างพิมพ์ของ Browser: ตั้ง Margins = None / Scale = 100% และปิด Headers and footers</p>
       </Modal>
 
       {printing &&
         createPortal(
-          <div id="print-area" className={layout === "A4" ? "print-a4" : "print-label"}>
-            {printing.map((c) => (
-              <div key={keyOf(c)} className="print-card">
-                <PickCardView c={c} />
-              </div>
-            ))}
+          <div id="print-area" ref={printRef} className={L.key === "LABEL" ? "pk-print-label" : "pk-print-a4"}>
+            {L.key === "LABEL"
+              ? printing.items.map((c) => (
+                  <div key={keyOf(c)} className="pk-label-page">
+                    <PickCardView c={c} label />
+                  </div>
+                ))
+              : pages.map((pg, pi) => {
+                  const z = sizes(L.cols, L.rows);
+                  return (
+                    <div key={pi} className={`pk-page ${L.cols >= 3 ? "is-3" : ""}`}>
+                      <div className="pk-grid" style={{ gridTemplateColumns: `repeat(${L.cols}, 1fr)`, gridTemplateRows: `repeat(${L.rows}, 1fr)` }}>
+                        {Array.from({ length: L.cols * L.rows }, (_, i) => (
+                          <div key={i} className="pk-cell">
+                            {pg[i] && (
+                              <div className="pk-hold" style={L.cols === 2 && L.rows >= 7 ? { width: `${(5 / L.rows) * 100}%` } : undefined}>
+                                <PickCardView c={pg[i]} s={z.s} qrMm={z.qr} logoMm={z.logo} a4 />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="pk-foot">
+                        CHR-NEXUS • PICK LIST • PAGE {pi + 1} / {pages.length}
+                      </div>
+                    </div>
+                  );
+                })}
             <style>{`
               #print-area { position: fixed; left: -10000px; top: 0; }
               @media print {
-                body * { visibility: hidden !important; }
-                #print-area, #print-area * { visibility: visible !important; }
-                #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-                .print-a4 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
-                .print-a4 .print-card { break-inside: avoid; border: 0.3mm solid #999; padding: 2mm; }
-                @page { size: ${layout === "A4" ? "A4" : "62mm 40mm"}; margin: ${layout === "A4" ? "8mm" : "0"}; }
-                .print-label .print-card { width: 62mm; height: 40mm; overflow: hidden; break-after: page; font-size: 7pt; }
+                body > *:not(#print-area) { display: none !important; }
+                #print-area { position: static; left: auto; }
+                @page { size: ${L.key === "LABEL" ? "62mm 40mm" : "A4 portrait"}; margin: 0; }
               }
             `}</style>
           </div>,
@@ -254,38 +485,66 @@ export default function PickListPage() {
   );
 }
 
-// การ์ดเบิก (หัว CH. RADIATORS + QR + BILL / GROUP / PRODUCT / WORK ORDER / LOT / PART NAME / QTY / DATE)
-function PickCardView({ c }: { c: PickCard }) {
-  const row = (a: [string, string], b?: [string, string]) => (
-    <div className="flex gap-2 border-t border-line/70 py-1 text-[11px]">
-      <div className="min-w-0 flex-[1.8]">
-        <span className="font-bold text-ink-soft">{a[0]} : </span>
-        <span className="font-extrabold">{a[1]}</span>
-      </div>
-      {b && (
-        <div className="min-w-0 flex-1">
-          <span className="font-bold text-ink-soft">{b[0]} : </span>
-          <span className="font-extrabold">{b[1]}</span>
-        </div>
-      )}
+function PkStat({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="pk-stat" style={{ "--c": tone } as React.CSSProperties}>
+      <span>{label}</span>
+      <b>{value.toLocaleString()}</b>
     </div>
   );
+}
+
+function LayoutOption({ l, on, count, onPick }: { l: (typeof LAYOUTS)[number]; on: boolean; count: number; onPick: () => void }) {
+  const sheets = l.key === "LABEL" ? count : Math.max(1, Math.ceil(count / (l.cols * l.rows)));
   return (
-    <div className="rounded-xl bg-white p-3 text-black">
-      <div className="flex items-start gap-3 pb-2">
-        <div className="grid h-10 w-10 place-items-center rounded-lg bg-black text-sm font-black text-white">CH</div>
-        <div className="flex-1 leading-tight">
-          <div className="text-xs font-black">CH. RADIATORS CO.LTD.</div>
-          <div className="text-[9px]">บริษัท ซีเอชเรดิเอเตอร์ จำกัด</div>
+    <button type="button" onClick={onPick} className={`pk-opt ${on ? "is-on" : ""}`}>
+      <span className="pk-mini" style={{ gridTemplateColumns: `repeat(${l.cols}, 1fr)`, aspectRatio: l.key === "LABEL" ? "62 / 40" : "210 / 297" }}>
+        {Array.from({ length: l.cols * l.rows }, (_, i) => (
+          <i key={i} />
+        ))}
+      </span>
+      <span className="min-w-0 text-left">
+        <b className="block text-[15px] font-black text-primary">{l.title}</b>
+        <span className="block text-[11px] font-bold text-ink-soft">{l.hint}</span>
+        <span className="mt-1 block text-[11px] font-extrabold text-accent">
+          {count} CARD(S) = {sheets} {l.key === "LABEL" ? "LABEL(S)" : "SHEET(S)"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// การ์ดเบิกแบบ WPF (BuildA4Card / พรีวิว): โลโก้บริษัท + QR มุมขวาบน / Bill-Group · Product Code · Product Name · Work Order-LOT · Part Name · Quantity-TicketDate
+//   ป้ายตัวหนา + ค่าบนเส้นใต้ · a4 = เต็มช่องของแผ่น A4 (ความสูงแถวตามสัดส่วน) · label = ฉลาก 62 × 40 mm (ไม่มี Product Code / Name แบบฉลากเดิม)
+function PickCardView({ c, s, qrMm, logoMm, a4, label }: { c: PickCard | null; s?: number; qrMm?: number; logoMm?: number; a4?: boolean; label?: boolean }) {
+  const v = (x: string | undefined | null) => (c ? x ?? "" : "");
+  const row = (fields: [string, string][], opt: { stars?: number[]; two?: boolean; full?: boolean } = {}) => (
+    <div className={`pk-row ${opt.full === false ? "" : "is-full"}`}>
+      {fields.map(([l, val], i) => (
+        <div key={l} className="pk-f" style={{ flex: opt.stars?.[i] ?? 1 }}>
+          <span className="pk-l">{l}</span>
+          <span className="pk-u">
+            <span className="pk-v" data-lines={opt.two && i === fields.length - 1 ? 2 : 1}>
+              {val}
+            </span>
+          </span>
         </div>
-        <QrImage text={qrText(c)} size={72} />
-      </div>
-      {row(["Bill", c.ticketNo], ["Group", c.groupCode])}
-      {row(["Product Code", c.materialCode])}
-      {row(["Product Name", c.productName])}
-      {row(["Work Order", c.workOrder ?? ""], ["LOT NO.", c.lotNo ?? ""])}
-      {row(["Part Name", c.fgName ?? ""])}
-      {row(["Quantity", `${qtyNum(c.qty)} ${c.unit ?? ""}`.trim()], ["TicketDate", d(c.ticketDate)])}
+      ))}
+    </div>
+  );
+  const style = { ...(s ? { "--s": s } : {}), ...(qrMm ? { "--qr": `${qrMm}mm` } : {}), ...(logoMm ? { "--logo": `${logoMm}mm` } : {}) } as React.CSSProperties;
+  return (
+    <div className={`pk-card ${a4 ? "is-a4" : ""} ${label ? "is-label" : ""}`} style={style}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/images/picklist/ch-logo.png" alt="CH. RADIATORS CO.,LTD." className="pk-logo" draggable={false} />
+      <div className="pk-qr">{c ? <QrImage text={qrText(c)} size={label ? 64 : 96} className="pk-qr-img" /> : <span className="pk-qr-empty" />}</div>
+      <div className="pk-div" />
+      {row([["Bill", v(c?.ticketNo)], ["Group", v(c?.groupCode)]], { stars: [1.8, 1], full: !!label })}
+      {!label && row([["Product Code", v(c?.materialCode)]])}
+      {!label && row([["Product Name", v(c?.productName)]], { two: true })}
+      {row([["Work Order", v(c?.workOrder)], ["LOT NO.", v(c?.lotNo)]], { stars: [1.8, 1] })}
+      {row([["Part Name", v(c?.fgName)]], { two: true })}
+      {row([["Quantity", c ? qtyText(c) : ""], ["TicketDate", c ? d(c.ticketDate) : ""]])}
     </div>
   );
 }

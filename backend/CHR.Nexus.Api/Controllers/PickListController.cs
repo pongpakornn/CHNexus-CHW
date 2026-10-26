@@ -47,17 +47,20 @@ public sealed class PickListController : AppController
         if (f < DateTime.Today.AddMonths(-PackingCardErpService.HistoryMonths)) f = DateTime.Today.AddMonths(-PackingCardErpService.HistoryMonths);
         if (ErpOn)
         {
-            var list = new PackingCardErpService().GetHistory(f, t);
-            return Ok(new
+            // ทุกเครื่องที่เปิดหน้านี้ใช้ผลเดียวกัน 10 วินาที (หรือจนมีการพิมพ์ / บันทึกใหม่) - ไม่ยิง ERP ซ้ำทุกเครื่องทุกรอบ
+            try
             {
-                source = "ERP",
-                rows = list.Select(x => new Card
-                {
-                    TicketNo = x.TicketNo, ItemNo = x.ItemNo, GroupCode = x.GroupCode, MaterialCode = x.MaterialCode, WorkOrder = x.WorkOrder, LotNo = x.LotNo,
-                    JobName = x.JobName, Qty = x.Qty, TicketDate = x.TicketDate == DateTime.MinValue ? null : x.TicketDate, ProductName = x.ProductName, Unit = x.Unit,
-                    FgName = x.FgName, PrintedBy = x.PrintedBy, PrintedDate = x.PrintedDate, PrintCount = x.PrintCount, LastPrintedBy = x.LastPrintedBy, LastPrintedDate = x.LastPrintedDate
-                })
-            });
+                var erp = LiveCache.Get($"picklist-erp:{f:yyyyMMdd}:{t:yyyyMMdd}", TimeSpan.FromSeconds(10), () => new PackingCardErpService().GetHistory(f, t)
+                    .Select(x => new Card
+                    {
+                        TicketNo = x.TicketNo, ItemNo = x.ItemNo, GroupCode = x.GroupCode, MaterialCode = x.MaterialCode, WorkOrder = x.WorkOrder, LotNo = x.LotNo,
+                        JobName = x.JobName, Qty = x.Qty, TicketDate = x.TicketDate == DateTime.MinValue ? null : x.TicketDate, ProductName = x.ProductName, Unit = x.Unit,
+                        FgName = x.FgName, PrintedBy = x.PrintedBy, PrintedDate = x.PrintedDate, PrintCount = x.PrintCount, LastPrintedBy = x.LastPrintedBy, LastPrintedDate = x.LastPrintedDate
+                    })
+                    .OrderBy(x => x.GroupCode).ThenBy(x => x.TicketNo).ThenBy(x => x.ItemNo).ToList());
+                return Ok(new { source = "ERP", rows = erp });
+            }
+            catch (Exception ex) { return Fail(ex, "อ่านข้อมูลจาก ERP (192.168.10.10) ไม่สำเร็จ"); }
         }
         using var conn = new SqlConnection(GlobalConfig.ConnStr);
         var rows = conn.Query<Card>(@"

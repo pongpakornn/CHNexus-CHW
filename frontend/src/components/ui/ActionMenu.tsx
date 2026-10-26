@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type MenuIcon = "export" | "import" | "template" | "coil" | "qr" | "approve" | "delete" | "alert" | "contact" | "setup" | "user" | "formula" | "calendar" | "calc" | "admin";
+export type MenuIcon = "export" | "import" | "template" | "coil" | "qr" | "approve" | "delete" | "alert" | "contact" | "setup" | "user" | "formula" | "calendar" | "calc" | "admin" | "print" | "check";
 
 export type MenuAction = {
   key: string;
@@ -68,6 +68,19 @@ const PATHS: Partial<Record<MenuIcon, React.ReactNode>> = {
     </>
   ),
   admin: <path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.5 1.5 0 0 0 2.1 2.1l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.3-.5-.5-2.3z" />,
+  print: (
+    <>
+      <path d="M7 8.5V3.5h10v5M7 17H5a1.5 1.5 0 0 1-1.5-1.5v-5.5A1.5 1.5 0 0 1 5 8.5h14a1.5 1.5 0 0 1 1.5 1.5v5.5A1.5 1.5 0 0 1 19 17h-2" />
+      <rect x="7" y="13.5" width="10" height="7" rx="1" />
+      <path d="M16.5 11.5h.01" />
+    </>
+  ),
+  check: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
+      <path d="m8 12.3 2.8 2.8L16.5 9.3" />
+    </>
+  ),
   calc: <path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12z" />,
   user: (
     <>
