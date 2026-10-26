@@ -122,7 +122,8 @@ public sealed class ProductsController : AppController
         if (map.TryGetValue(ptId, out var c) && c.Coils.Count > 0)
             coilText = $"🧲 IN STOCK NOW: {c.Coils.Count:N0} COIL  •  COIL NO {string.Join(", ", c.Coils.Take(8))}{(c.Coils.Count > 8 ? " ..." : "")}" +
                        (c.Mothers.Count > 0 ? $"  •  MASTER COIL {string.Join(", ", c.Mothers.Take(5))}{(c.Mothers.Count > 5 ? " ..." : "")}" : "");
-        return Ok(new { stockIds = ids, coilText });
+        decimal? weight = DbSchema.HasPartWeight ? _svc.GetPartWeight(ptId) : null;
+        return Ok(new { stockIds = ids, coilText, partWeight = weight });
     }
 
     [HttpGet("{ptId:int}/coils")]
@@ -200,6 +201,7 @@ public sealed class ProductsController : AppController
         public string CoilNo { get; set; }
         public string MasterCoil { get; set; }
         public string CoilKg { get; set; }
+        public string PartWeight { get; set; }   // null = ไม่ได้แสดงช่องนี้ (ไม่แก้ค่าเดิม) / "" = ล้าง
         public int? FilterStkId { get; set; }
         public string OldCode { get; set; }
     }
@@ -241,6 +243,8 @@ public sealed class ProductsController : AppController
     {
         var notes = new List<string>();
         var blocked = _svc.SyncPartStocks(m.PartACode, f.InMain, f.OtherStockIds ?? new(), ptId);
+        if (f.PartWeight != null && ptId > 0 && DbSchema.HasPartWeight)
+            _svc.SetPartWeight(ptId, Qty.TryParse(f.PartWeight.Replace(",", "").Trim(), out decimal w) && w > 0 ? w : null);
         if (blocked.Count > 0)
             notes.Add($"⚠ ไม่สามารถเอาสินค้า {m.PartACode} ออกจากคลังต่อไปนี้ได้ เพราะยังมียอดคงเหลือ\n• {string.Join("\n• ", blocked)}\nกรุณาโอนย้ายหรือตัดยอดให้เป็น 0 ก่อน");
         if (coil != null && ptId > 0)
@@ -388,7 +392,8 @@ public sealed class ProductsController : AppController
         try
         {
             string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Product, forStock == null ? "ALL_STOCKS_Template" : $"{forStock.Code}_Template");
-            new ImportTemplateService().CreatePartTemplate(path, stocks, forStock);
+            var form = forStock == null ? null : LayoutOf(new ProductControlLayoutService().GetAll(), forStock.StkId).FormFields;
+            new ImportTemplateService().CreatePartTemplate(path, stocks, forStock, form);
             LogService.WriteLog(Uid, "PART_TEMPLATE", $"File: {Path.GetFileName(path)} | Stock: {forStock?.Code ?? "ALL"}", "");
             return Download(path);
         }
@@ -399,9 +404,10 @@ public sealed class ProductsController : AppController
     public IActionResult TemplateOptions()
     {
         if (Me?.CanAddProduct != true) return Deny();
+        var lay = new ProductControlLayoutService().GetAll();
         return Ok(_stocks.GetStocks().Where(s => Me.CanViewStock(s) && !s.IsLiveView).Select(s => new
         {
-            s.StkId, s.Code, s.Name, heads = string.Join(" · ", ImportTemplateService.PartHeadsFor(s).Where(h => h != "NO")), s.CountCoil
+            s.StkId, s.Code, s.Name, heads = string.Join(" · ", ImportTemplateService.PartHeadsForForm(s, LayoutOf(lay, s.StkId).FormFields).Where(h => h != "NO")), s.CountCoil
         }));
     }
 
@@ -505,11 +511,13 @@ public sealed class ProductsController : AppController
             qrFields = QrFormat.Fields.Select(c => new { key = c.Key, label = c.Label }),
             groups = ProductControlColumns.Groups,
             defaultOrder = ProductControlColumns.DefaultOrder,
+            formFields = FormFieldList.All.Select(c => new { key = c.Key, label = c.Label }),
+            hasFormFields = DbSchema.HasFormFields,
             hasQrFields = DbSchema.HasQrFields
         });
     }
 
-    public sealed record LayoutSave(int StkId, List<string> Columns, string GroupBy, List<string> QrFields, List<string> QrLabel);
+    public sealed record LayoutSave(int StkId, List<string> Columns, string GroupBy, List<string> QrFields, List<string> QrLabel, List<string> FormFields = null);
 
     [HttpPost("admin/layouts")]
     public IActionResult SaveLayouts([FromBody] List<LayoutSave> list)
@@ -537,6 +545,11 @@ public sealed class ProductsController : AppController
                     return Fail("ฐานข้อมูลยังไม่รองรับรูปแบบนี้ กรุณารัน Database/Update_20261017b.sql ก่อน");
                 l.QrFields = qf;
                 l.QrLabel = QrFormat.Parse(string.Join(",", r.QrLabel ?? new()), QrFormat.DefaultLabel);
+            }
+            if (r.FormFields != null)
+            {
+                if (!DbSchema.HasFormFields) return Fail("ฐานข้อมูลยังไม่รองรับช่องกรอกตามคลัง กรุณารัน database/nexus/09_ProductControl_FormFields.sql");
+                l.FormFields = FormFieldList.Parse(string.Join(",", r.FormFields));
             }
             save.Add(l);
         }

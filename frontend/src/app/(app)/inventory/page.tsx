@@ -21,7 +21,7 @@ import { EMPTY_FORM, formOf, type Form, type Layout, type Meta, type Part } from
 
 const PAGE = 100;
 
-// คอลัมน์ของคลัง (ADMIN > TABLE COLUMNS) -> ช่องกรอก · ALL FIELDS = ลำดับแบบ WPF
+// ช่องกรอกของคลัง (ADMIN > FORM FIELDS) -> ช่องในฟอร์ม · ALL FIELDS = ทุกช่อง
 const FIELDS: Record<string, [string, keyof Form, { list?: string; numeric?: boolean; placeholder?: string }?]> = {
   SUPPLIER: ["SUPPLIER", "supplier", { list: "dl-sup" }],
   CUSTOMER: ["CUSTOMER", "customer", { list: "dl-cus" }],
@@ -34,7 +34,7 @@ const FIELDS: Record<string, [string, keyof Form, { list?: string; numeric?: boo
   BIN: ["BIN", "bin"],
   QRCODE: ["QR CODE (SUPPLIER)", "qrCode"],
 };
-const ALL_FIELDS = ["SUPPLIER", "CUSTOMER", "CATEGORY", "PARTA", "PARTB", "MODEL", "PARTNO", "PACKSIZE", "BIN", "QRCODE"];
+const ALL_FIELDS = ["IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "CODE", "PARTA", "PARTB", "PARTNO", "NAME", "PACKSIZE", "BIN", "MOTHER", "COILNO", "WEIGHT", "QRCODE"];
 
 // 🏷️ INVENTORY REGISTRATION (ProductControlView) - ฟอร์มลงทะเบียน / แก้ไข + ตารางสินค้าตามคลัง
 export default function InventoryPage() {
@@ -176,10 +176,12 @@ export default function InventoryPage() {
   const cols = layout?.columns ?? [];
   // ช่องกรอกของคลังที่เลือกในหัว REGISTER PRODUCT
   const formStock = meta.stocks.find((s) => s.stkId === formStk) ?? null;
-  const formCols = formStk == null ? null : (meta.layouts.find((l) => l.stkId === formStk)?.layout.columns ?? null);
-  const fieldKeys = formCols ? formCols.filter((k) => FIELDS[k]) : ALL_FIELDS;
-  const showImage = !formCols || formCols.includes("IMAGE");
-  const showCoil = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
+  const formCols = formStk == null ? null : (meta.layouts.find((l) => l.stkId === formStk)?.layout.formFields ?? null);
+  const fieldKeys = formCols && formCols.length > 0 ? formCols : ALL_FIELDS;
+  const showImage = fieldKeys.includes("IMAGE");
+  // คลังที่นับ Coil: MASTER / COIL NO / WEIGHT = ของ Coil · คลังอื่น: WEIGHT = น้ำหนักสินค้า
+  const coilForm = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
+  const showPartWeight = !!formStock && !formStock.countCoil && fieldKeys.includes("WEIGHT");
   const label = (k: string) => meta.columns.find((c) => c.key === k)?.label ?? k;
 
   function clear() {
@@ -207,10 +209,11 @@ export default function InventoryPage() {
     const f = document.getElementById("reg-form");
     if (f && f.getBoundingClientRect().top < 0) f.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
-      const d = await api<{ stockIds: number[]; coilText: string | null }>(`/products/${p.ptId}/detail`, { query: { code: p.partCode, stkId: filter ?? undefined } });
+      const d = await api<{ stockIds: number[]; coilText: string | null; partWeight: number | null }>(`/products/${p.ptId}/detail`, { query: { code: p.partCode, stkId: filter ?? undefined } });
       setInMain(p.isShowMain);
       setOthers(d.stockIds);
       setCoilText(d.coilText);
+      setForm((f) => ({ ...f, partWeight: d.partWeight == null ? "" : String(d.partWeight) }));
     } catch {
       /* แสดงข้อมูลได้แม้โหลดคลังไม่สำเร็จ */
     }
@@ -247,7 +250,7 @@ export default function InventoryPage() {
     if (!inMain && others.length === 0) return toast.show("WARNING", "กรุณาเลือกคลัง (STOCK) อย่างน้อย 1 คลังครับ", "warn");
     setBusy(true);
     try {
-      const body = { ...form, inMain, otherStockIds: others, filterStkId: filter, oldCode };
+      const body = { ...form, partWeight: showPartWeight ? form.partWeight : undefined, inMain, otherStockIds: others, filterStkId: filter, oldCode };
       const r = await api<{ message: string }>(isEdit ? `/products/${editId}` : "/products", { method: isEdit ? "PUT" : "POST", body });
       await dlg.alert({ title: isEdit ? "SAVE CHANGES" : "REGISTER", message: r.message, tone: r.message.includes("⚠") ? "warn" : "ok" });
       clear();
@@ -531,7 +534,7 @@ export default function InventoryPage() {
 
       <div className="flex flex-col gap-4">
         {/* ฟอร์มลงทะเบียน / แก้ไข: อยู่ด้านบนแบบ WPF (รูป + QR ซ้าย · ช่องกรอก 5 คอลัมน์ · STOCK · ปุ่ม) ตารางอยู่ด้านล่าง */}
-        <div id="reg-form" className="scroll-mt-4">
+        <div id="reg-form" className="relative z-30 scroll-mt-4">
           <Card
             title={editId ? "✏️ EDIT PRODUCT" : viewId ? "👁 VIEW PRODUCT" : "＋ REGISTER PRODUCT"}
             actions={
@@ -593,43 +596,59 @@ export default function InventoryPage() {
               </div>
 
               <div className="min-w-0 flex-1">
-                {/* ช่องกรอกตามคลังที่เลือก (ADMIN > TABLE COLUMNS ของคลังนั้น): PRODUCT CODE / NAME ทุกคลัง · ช่องอื่นตามลำดับคอลัมน์ · COIL เฉพาะคลังที่นับ Coil
-                    ALL FIELDS = ทุกช่องลำดับแบบ WPF · ช่องที่ซ่อนไม่ถูกล้างค่า (แก้สินค้าแล้วค่าเดิมยังอยู่) */}
+                {/* ช่องกรอกตามคลังที่เลือก (ADMIN > FORM FIELDS ของคลังนั้น) เรียงตามที่ตั้ง: PRODUCT CODE / NAME ทุกคลัง · COIL เฉพาะคลังที่นับ Coil
+                    ALL FIELDS = ทุกช่อง · ช่องที่ซ่อนไม่ถูกล้างค่า (แก้สินค้าแล้วค่าเดิมยังอยู่) */}
                 <div key={formStk ?? "all"} className="reg-fields grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-                  <div className="relative">
-                    {input("PRODUCT CODE", "partCode")}
-                    {codeSuggest.length > 0 && !editId && (
-                      <div className="absolute z-30 mt-1 max-h-60 w-[min(360px,80vw)] overflow-auto rounded-xl border border-line bg-surface shadow-xl">
-                        {codeSuggest.map((p) => (
-                          <button
-                            key={p.ptId}
-                            type="button"
-                            className="block w-full border-b border-line/60 px-3 py-2 text-left hover:bg-surface-2"
-                            onClick={() => {
-                              setCodeSuggest([]);
-                              fill(p, can.edit);
-                              search(p.partCode);
-                              toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาแล้ว - แก้ / เพิ่ม Coil แล้วกด SAVE CHANGES`, "info");
-                            }}
-                          >
-                            <div className="text-sm font-extrabold text-primary">
-                              {p.partCode} {p.partA && <span className="text-ink-soft">• PART A {p.partA}</span>}
+                  {fieldKeys.map((k) => {
+                    switch (k) {
+                      case "IMAGE":
+                        return null;
+                      case "CODE":
+                        return (
+                          <Fragment key={k}>
+                        <div className="relative">
+                          {input("PRODUCT CODE", "partCode")}
+                          {codeSuggest.length > 0 && !editId && (
+                            <div className="absolute z-30 mt-1 max-h-60 w-[min(360px,80vw)] overflow-auto rounded-xl border border-line bg-surface shadow-xl">
+                              {codeSuggest.map((p) => (
+                                <button
+                                  key={p.ptId}
+                                  type="button"
+                                  className="block w-full border-b border-line/60 px-3 py-2 text-left hover:bg-surface-2"
+                                  onClick={() => {
+                                    setCodeSuggest([]);
+                                    fill(p, can.edit);
+                                    search(p.partCode);
+                                    toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาแล้ว - แก้ / เพิ่ม Coil แล้วกด SAVE CHANGES`, "info");
+                                  }}
+                                >
+                                  <div className="text-sm font-extrabold text-primary">
+                                    {p.partCode} {p.partA && <span className="text-ink-soft">• PART A {p.partA}</span>}
+                                  </div>
+                                  <div className="truncate text-xs">{p.partName}</div>
+                                </button>
+                              ))}
                             </div>
-                            <div className="truncate text-xs">{p.partName}</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {input("PRODUCT NAME", "partName")}
-                  {fieldKeys.map((k) => FIELDS[k] && <Fragment key={k}>{input(FIELDS[k][0], FIELDS[k][1], FIELDS[k][2])}</Fragment>)}
-                  {showCoil && (
-                    <>
-                      {input("MASTER COIL", "masterCoil", { placeholder: "กรอกอย่างเดียว = Master ทั้งม้วน" })}
-                      {input("COIL NO", "coilNo")}
-                      {input("COIL WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}
-                    </>
-                  )}
+                          )}
+                        </div>
+                          </Fragment>
+                        );
+                      case "NAME":
+                        return <Fragment key={k}>{input("PRODUCT NAME", "partName")}</Fragment>;
+                      case "MOTHER":
+                        return coilForm ? <Fragment key={k}>{input("MASTER COIL", "masterCoil", { placeholder: "กรอกอย่างเดียว = Master ทั้งม้วน" })}</Fragment> : null;
+                      case "COILNO":
+                        return coilForm ? <Fragment key={k}>{input("COIL NO", "coilNo")}</Fragment> : null;
+                      case "WEIGHT":
+                        return coilForm ? (
+                          <Fragment key={k}>{input("COIL WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}</Fragment>
+                        ) : showPartWeight ? (
+                          <Fragment key={k}>{input("WEIGHT (KG)", "partWeight", { placeholder: "0.000" })}</Fragment>
+                        ) : null;
+                      default:
+                        return FIELDS[k] ? <Fragment key={k}>{input(FIELDS[k][0], FIELDS[k][1], FIELDS[k][2])}</Fragment> : null;
+                    }
+                  })}
                 </div>
                 {meta.hasCoilRegister && coilText && <div className="mt-2 text-xs font-bold text-accent">🧲 {coilText}</div>}
                 <datalist id="dl-sup">{meta.suggestions.suppliers.map((s) => <option key={s} value={s} />)}</datalist>

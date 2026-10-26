@@ -1,5 +1,5 @@
 export type InvStock = { stkId: number; code: string; name: string; isMain: boolean; countCoil: boolean; showCoilRows: boolean; isLiveView: boolean; canView: boolean };
-export type Layout = { stockId: number; columns: string[]; groupBy: string; qrFields: string[]; qrLabel: string[] };
+export type Layout = { stockId: number; columns: string[]; groupBy: string; qrFields: string[]; qrLabel: string[]; formFields: string[] };
 export type Meta = {
   can: { add: boolean; edit: boolean; delete: boolean; admin: boolean };
   stocks: InvStock[];
@@ -56,6 +56,7 @@ export type Form = {
   coilNo: string;
   masterCoil: string;
   coilKg: string;
+  partWeight: string;
 };
 
 export const EMPTY_FORM: Form = {
@@ -76,6 +77,7 @@ export const EMPTY_FORM: Form = {
   coilNo: "",
   masterCoil: "",
   coilKg: "",
+  partWeight: "",
 };
 
 export const formOf = (p: Part): Form => ({
@@ -96,4 +98,5 @@ export const formOf = (p: Part): Form => ({
   coilNo: "",
   masterCoil: "",
   coilKg: "",
+  partWeight: "",
 });

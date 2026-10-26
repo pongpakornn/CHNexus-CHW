@@ -18,9 +18,12 @@ type Data = {
   qrFields: Opt[];
   groups: string[];
   defaultOrder: string[];
+  formFields: Opt[];
+  hasFormFields: boolean;
   hasQrFields: boolean;
 };
-type Tab = "DELETE" | "COLUMNS" | "QR";
+type Tab = "DELETE" | "FORM" | "COLUMNS" | "QR";
+const SIDE_KEY = "inv-admin-side";
 
 // 🛠 ADMIN ของ Inventory Registration (ProductControlAdminWindow - Level 1): STOCK DELETE / TABLE COLUMNS / QR CODE
 export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (changed: boolean) => void }) {
@@ -36,6 +39,23 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   const [all, setAll] = useState(ticked.length === 0);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mini, setMini] = useState(false); // Sidebar พับ = ไอคอนอย่างเดียว
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SIDE_KEY) === "1") queueMicrotask(() => setMini(true));
+    } catch {
+      /* ไม่มี storage */
+    }
+  }, []);
+  const toggleMini = () =>
+    setMini((m) => {
+      try {
+        localStorage.setItem(SIDE_KEY, m ? "0" : "1");
+      } catch {
+        /* ไม่จำก็ได้ */
+      }
+      return !m;
+    });
 
   const load = () =>
     api<Data>("/products/admin")
@@ -61,10 +81,10 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     setDirty((d) => (d.includes(cur) ? d : [...d, cur]));
   };
 
-  async function saveLayouts(kind: "COLUMNS" | "QR") {
+  async function saveLayouts(kind: "COLUMNS" | "QR" | "FORM") {
     const list = dirty.map((id) => {
       const l = layouts[id];
-      return kind === "COLUMNS" ? { stkId: id, columns: l.columns, groupBy: l.groupBy } : { stkId: id, qrFields: l.qrFields, qrLabel: l.qrLabel };
+      return kind === "COLUMNS" ? { stkId: id, columns: l.columns, groupBy: l.groupBy } : kind === "FORM" ? { stkId: id, formFields: l.formFields } : { stkId: id, qrFields: l.qrFields, qrLabel: l.qrLabel };
     });
     if (kind === "COLUMNS") {
       const empty = dirty.find((id) => layouts[id].columns.length === 0);
@@ -118,7 +138,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   );
 
   // ลำดับที่เลือก (ตัวเลข + ◀ เลื่อนขึ้นก่อน + × เอาออก) · ที่ยังไม่เลือก = ＋ เพิ่มต่อท้าย
-  const orderList = (list: string[], opts: Opt[], onChange: (v: string[]) => void, locked?: string) => (
+  const orderList = (list: string[], opts: Opt[], onChange: (v: string[]) => void, locked?: string | string[]) => (
     <div className="grid gap-3">
       <div className="flex flex-wrap gap-2">
         {list.length === 0 && <span className="text-xs font-bold text-ink-soft">ยังไม่ได้เลือก</span>}
@@ -129,7 +149,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
               ◀
             </button>
             <span className="px-0.5">{labelOf(opts, k)}</span>
-            {k === locked ? (
+            {(Array.isArray(locked) ? locked.includes(k) : k === locked) ? (
               <span className="ord-lock" title="จำเป็นต้องมี">
                 🔒
               </span>
@@ -191,6 +211,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
 
   const TABS: [Tab, string, string, React.ReactNode][] = [
     ["DELETE", "STOCK DELETE", "ลบสินค้าตามคลัง", <path key="d" d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5" />],
+    ["FORM", "FORM FIELDS", "ช่องกรอกลงทะเบียน / Template", <path key="f" d="M5 4h14v16H5zM8.5 8.5h7M8.5 12h7M8.5 15.5h4" />],
     ["COLUMNS", "TABLE COLUMNS", "คอลัมน์ / จัดกลุ่ม", <path key="c" d="M4 5h16v14H4zM4 10h16M10 10v9M15 10v9" />],
     ["QR", "QR CODE", "ข้อมูลใน QR / ข้อความใต้ QR", <path key="q" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />],
   ];
@@ -208,12 +229,17 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
           </button>
         ) : (
           <>
+            {tab === "FORM" && l && (
+              <button className="btn-ghost mr-auto" onClick={() => data && edit((x) => ({ ...x, formFields: data.formFields.map((o) => o.key) }))}>
+                ALL FIELDS
+              </button>
+            )}
             {tab === "COLUMNS" && l && (
               <button className="btn-ghost mr-auto" onClick={() => data && edit((x) => ({ ...x, columns: [...data.defaultOrder], groupBy: "CATEGORY" }))}>
                 RESET
               </button>
             )}
-            <button className="btn bg-accent" disabled={dirty.length === 0} onClick={() => saveLayouts(tab)}>
+            <button className="cta-btn is-purple" disabled={dirty.length === 0} onClick={() => saveLayouts(tab)}>
               SAVE {dirty.length > 0 ? `(${dirty.length})` : ""}
             </button>
           </>
@@ -223,12 +249,19 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
       {!data ? (
         <Loading />
       ) : (
-        <div className="grid gap-5 md:grid-cols-[230px_minmax(0,1fr)]">
-          {/* เมนูด้านซ้ายแบบ Sidebar หน้าหลัก */}
+        <div className={`adm-wrap grid gap-5 ${mini ? "is-mini" : ""}`}>
+          {/* เมนูด้านซ้ายแบบ Sidebar หน้าหลัก - พับเหลือไอคอน / กางออกได้ */}
           <nav className="adm-side">
-            <div className="adm-side-head">ADMIN MENU</div>
+            <div className="adm-side-head">
+              <span className="adm-side-title">ADMIN MENU</span>
+              <button type="button" className="adm-burger" onClick={toggleMini} aria-label={mini ? "กางเมนู" : "พับเมนู"} title={mini ? "กางเมนู" : "พับเมนู"}>
+                <span />
+                <span />
+                <span />
+              </button>
+            </div>
             {TABS.map(([t, txt, hint, path]) => (
-              <button key={t} type="button" onClick={() => setTab(t)} className={`adm-item ${tab === t ? "is-on" : ""}`}>
+              <button key={t} type="button" onClick={() => (setTab(t), t === "FORM" && cur === 0 && data && setCur(data.stocks[0]?.stkId ?? 0))} title={mini ? txt : undefined} className={`adm-item ${tab === t ? "is-on" : ""}`}>
                 <svg viewBox="0 0 24 24" className="adm-item-ic" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   {path}
                 </svg>
@@ -287,6 +320,46 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                     ? `All products in ${picked.map((s) => s.code).join(", ")} will be deleted from the system (up to ${picked.reduce((a, s) => a + s.count, 0).toLocaleString()} product(s)).`
                     : `${ticked.length} ticked product(s) will be deleted if they are in ${picked.map((s) => s.code).join(", ")}.`}
               </div>
+            </div>
+          )}
+
+          {tab === "FORM" && (
+            <div key="form" className="adm-pane grid content-start gap-4">
+              <div className="adm-title">SELECT STOCK</div>
+              <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {data.layouts
+                  .filter((x) => x.stkId !== 0)
+                  .map((x, i) => {
+                    const st = stockOf(x.stkId);
+                    return stockCard({ id: x.stkId, code: x.code, name: st?.name, type: st?.stockType, i }, cur === x.stkId, () => setCur(x.stkId), "accent", dirty.includes(x.stkId));
+                  })}
+              </div>
+              {l && cur !== 0 ? (
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="adm-box grid content-start gap-3">
+                    <div className="adm-title">ช่องกรอกลงทะเบียนสินค้า (ลำดับตามที่เลือก) • TEMPLATE EXCEL ของคลังนี้ใช้ช่องชุดเดียวกัน</div>
+                    {orderList(l.formFields ?? [], data.formFields, (v) => edit((x) => ({ ...x, formFields: v })), ["CODE", "NAME"])}
+                    <p className="text-[11px] font-semibold text-ink-soft">
+                      MASTER COIL / COIL NO / WEIGHT ของคลังที่นับ Coil = ของแต่ละ Coil (MASTER COIL อย่างเดียว = Master ทั้งม้วน) · คลังอื่น WEIGHT = น้ำหนักสินค้า · ช่องที่ไม่ได้เลือก ค่าเดิมของสินค้าไม่ถูกลบ
+                    </p>
+                    {!data.hasFormFields && <div className="text-xs font-bold text-warning">ฐานข้อมูลยังไม่รองรับ (database/nexus/09_ProductControl_FormFields.sql)</div>}
+                  </div>
+                  {/* ตัวอย่างฟอร์ม */}
+                  <div className="adm-box">
+                    <div className="adm-title mb-3">PREVIEW • {data.layouts.find((x) => x.stkId === cur)?.code}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(l.formFields ?? []).map((k, i) => (
+                        <div key={k} className={`fm-prev ${k === "IMAGE" ? "col-span-2" : ""}`} style={{ animationDelay: `${i * 25}ms` }}>
+                          <span>{labelOf(data.formFields, k)}</span>
+                          <i />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="adm-sum">เลือกคลังเพื่อตั้งช่องกรอก</div>
+              )}
             </div>
           )}
 

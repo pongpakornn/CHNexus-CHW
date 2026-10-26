@@ -17,11 +17,47 @@ namespace Nexus.Services
         public List<string> QrFields { get; set; } = new List<string>(QrFormat.DefaultFields);
         // ▣ QR รูปแบบที่ 1 = ข้อความใต้ QR ใน PDF บรรทัดละช่อง (บรรทัดแรกตัวหนา)
         public List<string> QrLabel { get; set; } = new List<string>(QrFormat.DefaultLabel);
+        // ✍️ ช่องกรอกลงทะเบียนสินค้าของคลัง (ADMIN > FORM FIELDS) - แยกจากคอลัมน์ตาราง · Template Excel ของคลังใช้ชุดนี้
+        public List<string> FormFields { get; set; } = new List<string>(FormFieldList.Default);
         // ค่าเดิม (แอปเวอร์ชันเก่า): CODE = PRODUCT CODE อย่างเดียว / CODE_NAME = อย่างอื่น
         public string QrContent => QrFields.Count == 1 && QrFields[0] == "CODE" ? "CODE" : "CODE_NAME";
 
         public ProductControlLayout Clone() =>
-            new ProductControlLayout { StockId = StockId, Columns = new List<string>(Columns), GroupBy = GroupBy, QrFields = new List<string>(QrFields), QrLabel = new List<string>(QrLabel) };
+            new ProductControlLayout { StockId = StockId, Columns = new List<string>(Columns), GroupBy = GroupBy, QrFields = new List<string>(QrFields), QrLabel = new List<string>(QrLabel), FormFields = new List<string>(FormFields) };
+    }
+
+    // ✍️ ช่องกรอกลงทะเบียนสินค้า: PRODUCT CODE / NAME ต้องมีเสมอ · MOTHER / COILNO / WEIGHT ของคลังที่นับ Coil = ของ Coil
+    //    WEIGHT ของคลังอื่น = น้ำหนักสินค้า (Nexus.Parts.WeightKG)
+    public static class FormFieldList
+    {
+        public static readonly (string Key, string Label)[] All =
+        {
+            ("IMAGE", "IMAGE"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY"), ("MODEL", "MODEL"),
+            ("CODE", "PRODUCT CODE"), ("PARTA", "PART A"), ("PARTB", "PART B"), ("PARTNO", "PART NO"), ("NAME", "PRODUCT NAME"),
+            ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "COIL NO"), ("WEIGHT", "WEIGHT (KG)"),
+            ("QRCODE", "QR CODE")
+        };
+        public static readonly string[] Default = { "IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "CODE", "PARTA", "PARTB", "PARTNO", "NAME", "PACKSIZE", "BIN", "MOTHER", "COILNO", "WEIGHT", "QRCODE" };
+
+        public static List<string> Parse(string csv)
+        {
+            var list = new List<string>();
+            foreach (var k in (csv ?? "").Split(','))
+            {
+                string key = k.Trim().ToUpperInvariant();
+                if (key.Length > 0 && All.Any(c => c.Key == key) && !list.Contains(key)) list.Add(key);
+            }
+            return Normalize(list);
+        }
+
+        // ต้องมี CODE / NAME เสมอ (ไม่มี = ใส่ไว้หน้าสุด)
+        public static List<string> Normalize(List<string> list)
+        {
+            var l = (list ?? new List<string>()).Where(k => All.Any(c => c.Key == k)).Distinct().ToList();
+            if (!l.Contains("NAME")) l.Insert(0, "NAME");
+            if (!l.Contains("CODE")) l.Insert(0, "CODE");
+            return l;
+        }
     }
 
     // ▣ รูปแบบ QR ที่ EXPORT QR SELECT สร้าง (ตั้งต่อคลังที่ปุ่ม ADMIN > QR CODE)
@@ -129,9 +165,9 @@ namespace Nexus.Services
         {
             var map = new Dictionary<int, ProductControlLayout>();
             if (!Nexus.Helpers.DbSchema.HasProductControlSettings) return map;
-            bool qf = Nexus.Helpers.DbSchema.HasQrFields;
+            bool qf = Nexus.Helpers.DbSchema.HasQrFields, ff = Nexus.Helpers.DbSchema.HasFormFields;
             using (var conn = new SqlConnection(_cs))
-            using (var cmd = new SqlCommand("SELECT StockID, ColumnOrder, GroupBy, QrContent" + (qf ? ", QrFields, QrLabel" : "") + " FROM Nexus.ProductControlSettings", conn))
+            using (var cmd = new SqlCommand("SELECT StockID, ColumnOrder, GroupBy, QrContent" + (qf ? ", QrFields, QrLabel" : ", NULL, NULL") + (ff ? ", FormFields" : ", NULL") + " FROM Nexus.ProductControlSettings", conn))
             {
                 conn.Open();
                 using (var r = cmd.ExecuteReader())
@@ -148,7 +184,8 @@ namespace Nexus.Services
                             GroupBy = ProductControlColumns.Groups.Contains(grp) ? grp : "CATEGORY",
                             QrFields = qf && r[4] != DBNull.Value ? QrFormat.Parse(r[4].ToString(), QrFormat.DefaultFields)
                                      : (qr == "CODE" ? new List<string> { "CODE" } : QrFormat.DefaultFields.ToList()),
-                            QrLabel = qf && r[5] != DBNull.Value ? QrFormat.Parse(r[5].ToString(), QrFormat.DefaultLabel) : QrFormat.DefaultLabel.ToList()
+                            QrLabel = qf && r[5] != DBNull.Value ? QrFormat.Parse(r[5].ToString(), QrFormat.DefaultLabel) : QrFormat.DefaultLabel.ToList(),
+                            FormFields = r[6] != DBNull.Value ? FormFieldList.Parse(r[6].ToString()) : FormFieldList.Default.ToList()
                         };
                     }
             }
@@ -165,8 +202,10 @@ namespace Nexus.Services
         {
             if (!Nexus.Helpers.DbSchema.HasProductControlSettings)
                 throw new InvalidOperationException("ฐานข้อมูลยังไม่รองรับการตั้งค่านี้ กรุณารัน Database/Update_20261016c.sql");
-            bool qf = Nexus.Helpers.DbSchema.HasQrFields;
-            string upd = qf ? ", QrFields = @qf, QrLabel = @ql" : "", insCols = qf ? ", QrFields, QrLabel" : "", insVals = qf ? ", @qf, @ql" : "";
+            bool qf = Nexus.Helpers.DbSchema.HasQrFields, ff = Nexus.Helpers.DbSchema.HasFormFields;
+            string upd = (qf ? ", QrFields = @qf, QrLabel = @ql" : "") + (ff ? ", FormFields = @ff" : ""),
+                   insCols = (qf ? ", QrFields, QrLabel" : "") + (ff ? ", FormFields" : ""),
+                   insVals = (qf ? ", @qf, @ql" : "") + (ff ? ", @ff" : "");
             using (var conn = new SqlConnection(_cs))
             {
                 conn.Open();
@@ -187,6 +226,7 @@ namespace Nexus.Services
                                 cmd.Parameters.AddWithValue("@qf", string.Join(",", l.QrFields));
                                 cmd.Parameters.AddWithValue("@ql", string.Join(",", l.QrLabel));
                             }
+                            if (ff) cmd.Parameters.AddWithValue("@ff", string.Join(",", FormFieldList.Normalize(l.FormFields)));
                             cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
                             cmd.ExecuteNonQuery();
                         }

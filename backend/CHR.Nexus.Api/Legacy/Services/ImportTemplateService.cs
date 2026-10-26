@@ -184,13 +184,48 @@ namespace Nexus.Services
             return heads.Distinct().ToArray();
         }
 
-        // forStock = null -> Template ทุกคอลัมน์ (ทุกคลัง) / เลือกคลัง -> คอลัมน์ตามคลังนั้น + STOCK1 ใส่รหัสคลังให้แล้ว
-        public void CreatePartTemplate(string path, List<StockModel> stocks, StockModel forStock = null)
+        // ✍️ Template ตามช่องกรอกลงทะเบียนของคลัง (ADMIN > FORM FIELDS) เรียงตามช่อง
+        //   WEIGHT: คลังที่นับ Coil = น้ำหนักของ Coil / คลังอื่น = น้ำหนักสินค้า · ท้ายไฟล์ = ยอดคงเหลือ (คลังไม่นับ Coil) + STOCK1 + SHOW/HIDE
+        public static string[] PartHeadsForForm(StockModel s, IList<string> formFields)
+        {
+            if (s == null || formFields == null) return PartHeadsFor(s);
+            var heads = new List<string> { "NO" };
+            foreach (string key in formFields)
+            {
+                switch (key)
+                {
+                    case "IMAGE": heads.Add("IMAGE"); break;
+                    case "SUPPLIER": heads.Add("SUPPLIER"); break;
+                    case "CUSTOMER": heads.Add("CUSTOMER"); break;
+                    case "CATEGORY": heads.Add("CATEGORY"); break;
+                    case "MODEL": heads.Add("MODEL"); break;
+                    case "CODE": heads.Add("PRODUCT CODE"); break;
+                    case "PARTA": heads.Add("PART A"); break;
+                    case "PARTB": heads.Add("PART B"); break;
+                    case "PARTNO": heads.Add("PART NO"); break;
+                    case "NAME": heads.Add("PRODUCT NAME"); break;
+                    case "PACKSIZE": heads.Add("PACK SIZE"); break;
+                    case "BIN": heads.Add("BIN"); break;
+                    case "MOTHER": if (s.CountCoil) heads.Add("MASTER COIL"); break;
+                    case "COILNO": if (s.CountCoil) heads.Add("COIL NO"); break;
+                    case "WEIGHT": heads.Add("WEIGHT (KG)"); break;
+                    case "QRCODE": heads.Add("QR CODE"); break;
+                }
+            }
+            foreach (var must in new[] { "PRODUCT NAME", "PRODUCT CODE" }) if (!heads.Contains(must)) heads.Insert(1, must);
+            // ยอดคงเหลือเริ่มต้น: คลังที่นับ Coil ใช้น้ำหนักของ Coil (WEIGHT) แทน
+            if (!s.CountCoil || !heads.Contains("WEIGHT (KG)")) heads.Add(s.QtyHeader);
+            heads.AddRange(new[] { "STOCK1", "SHOW/HIDE" });
+            return heads.Distinct().ToArray();
+        }
+
+        // forStock = null -> Template ทุกคอลัมน์ (ทุกคลัง) / เลือกคลัง -> คอลัมน์ตามช่องกรอกของคลังนั้น + STOCK1 ใส่รหัสคลังให้แล้ว
+        public void CreatePartTemplate(string path, List<StockModel> stocks, StockModel forStock = null, IList<string> formFields = null)
         {
             using (var wb = new XLWorkbook())
             {
                 var ws = wb.AddWorksheet("PRODUCTS");
-                var heads = PartHeadsFor(forStock);
+                var heads = forStock != null && formFields != null ? PartHeadsForForm(forStock, formFields) : PartHeadsFor(forStock);
                 Header(ws, heads, heads.Select(h => PartWidths.TryGetValue(h, out double w) ? w : 12).ToArray());
                 int lastRow = forStock == null ? 31 : 101;   // ทุกคอลัมน์ 30 แถว / ตามคลัง 100 แถว
                 Body(ws, lastRow, heads.Length);

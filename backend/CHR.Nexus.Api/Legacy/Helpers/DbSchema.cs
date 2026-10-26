@@ -154,6 +154,10 @@ namespace Nexus.Helpers
         // database/nexus/07_Coil_Remark.sql: Nexus.Coils.Remark (หมายเหตุของ Coil ลูก)
         private static bool? _coilRemark;
         public static bool HasCoilRemark => _coilRemark ?? (_coilRemark = ColumnIn("Nexus.Coils", "Remark")) ?? false;
+        // database/nexus/09_ProductControl_FormFields.sql: ช่องกรอกลงทะเบียนตามคลัง + น้ำหนักสินค้า (Nexus.Parts.WeightKG)
+        private static bool? _formFields, _partWeight;
+        public static bool HasFormFields => _formFields ?? (_formFields = ColumnIn("Nexus.ProductControlSettings", "FormFields")) ?? false;
+        public static bool HasPartWeight => _partWeight ?? (_partWeight = ColumnIn("Nexus.Parts", "WeightKG")) ?? false;
         public static bool HasScanWho => _scanWho ?? (_scanWho = ColumnIn("Nexus.ScanTransactions", "EmployeeID")) ?? false;
         public static bool HasScanDepartments => _scanDepartments ?? (_scanDepartments = TableExists("Nexus.ScanDepartments")) ?? false;
         public static bool HasScanRpa => _scanRpa ?? (_scanRpa = TableExists("Nexus.ScanRpaLayouts")) ?? false;

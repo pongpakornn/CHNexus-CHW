@@ -339,6 +339,31 @@ namespace Nexus.Services
             }
         }
 
+        // ⚖️ น้ำหนักสินค้า (KG) ของคลังที่ไม่นับ Coil (Nexus.Parts.WeightKG) - null = ไม่ได้ใส่
+        public decimal? GetPartWeight(int ptId)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand("SELECT WeightKG FROM Nexus.Parts WHERE PartID = @p", conn))
+            {
+                cmd.Parameters.AddWithValue("@p", ptId);
+                conn.Open();
+                var v = cmd.ExecuteScalar();
+                return v == null || v == DBNull.Value ? (decimal?)null : Convert.ToDecimal(v);
+            }
+        }
+
+        public void SetPartWeight(int ptId, decimal? kg)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand("UPDATE Nexus.Parts SET WeightKG = @w WHERE PartID = @p", conn))
+            {
+                cmd.Parameters.Add(kg.HasValue ? Nexus.Helpers.QtyParam.Of("@w", kg.Value) : new SqlParameter("@w", DBNull.Value));
+                cmd.Parameters.AddWithValue("@p", ptId);
+                conn.Open();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public List<int> GetPartStockIds(string partCode, int ptId = 0)
         {
             var ids = new List<int>();

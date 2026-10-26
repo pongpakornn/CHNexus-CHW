@@ -49,6 +49,7 @@ namespace Nexus.Services
         //    สินค้าเดียวกันหลาย Coil = ใส่ PRODUCT CODE ซ้ำได้หลายแถว (แถวแรก = ข้อมูลสินค้า / แถวถัดไป = เพิ่ม Coil)
         public string CoilNo { get; set; }
         public string MotherCoil { get; set; }
+        public decimal? PartWeight { get; set; }        // WEIGHT (KG) ของสินค้า (คลังที่ไม่นับ Coil)
         public decimal CoilWeight { get; set; }
         public bool IsCoilExtra { get; set; }          // แถว Coil เพิ่มของสินค้าที่อยู่แถวก่อนหน้า (ไม่สร้างสินค้าใหม่)
         public PartImportRow CoilOwner { get; set; }   // แถวแรกของสินค้านั้น
@@ -93,6 +94,8 @@ namespace Nexus.Services
             // ยอดคงเหลือของคลังตามหน่วยของคลัง เช่น QTY (KG.) - หน่วยอื่นดู MatchUnitHeader
             ["QTY"] = new[] { "QTY", "QUANTITY", "BALANCE", "ONHAND", "STOCKQTY", "จำนวน", "ยอดคงเหลือ", "คงเหลือ" },
             ["REMARK"] = new[] { "REMARK", "REMARKS", "หมายเหตุ" },
+            // น้ำหนัก (KG): คลังที่นับ Coil = น้ำหนักของ Coil ในแถว / คลังอื่น = น้ำหนักสินค้า (Nexus.Parts.WeightKG)
+            ["WEIGHT"] = new[] { "WEIGHT", "WEIGHTKG", "COILWEIGHT", "COILWEIGHTKG", "น้ำหนัก" },
             // Template: STOCK1 - STOCK10 ใส่รหัสคลัง (Stock Code ในหน้า Store (Max-Min)) ช่องละ 1 คลัง
             ["STOCK1"] = new[] { "STOCK1" }, ["STOCK2"] = new[] { "STOCK2" }, ["STOCK3"] = new[] { "STOCK3" }, ["STOCK4"] = new[] { "STOCK4" },
             ["STOCK5"] = new[] { "STOCK5" }, ["STOCK6"] = new[] { "STOCK6" }, ["STOCK7"] = new[] { "STOCK7" }, ["STOCK8"] = new[] { "STOCK8" },
@@ -240,6 +243,15 @@ namespace Nexus.Services
                         if (item.StockPcs.HasValue && item.StockPcs.Value != qty.Value)
                             item.Error = $"STOCK (UNIT) ({qty}) ไม่ตรงกับ STOCK (PCS) ({item.StockPcs}) - ใส่อย่างใดอย่างหนึ่ง";
                         else item.StockPcs = qty;
+                    }
+                    // WEIGHT (KG): แถว Coil = น้ำหนักของ Coil (ใช้แทน STOCK (UNIT) ได้) / แถวสินค้า = น้ำหนักสินค้า
+                    decimal? weight = Num("WEIGHT", "WEIGHT (KG)");
+                    // ใส่แค่ MASTER COIL (ไม่มี COIL NO) = Master ทั้งม้วน (เลข Coil = เลข Master) แบบช่องกรอกในหน้าเว็บ
+                    if (item.Error == null && item.CoilNo == null && item.MotherCoil != null) { item.CoilNo = item.MotherCoil; item.MotherCoil = null; }
+                    if (item.Error == null && weight.HasValue)
+                    {
+                        if (item.CoilNo != null) { if (!item.StockPcs.HasValue) item.StockPcs = weight; }
+                        else item.PartWeight = weight;
                     }
                     // แถว Coil: น้ำหนักของ Coil นี้ = STOCK (UNIT) / STOCK (PCS) ของแถว / 1 แถว = 1 Coil
                     if (item.Error == null && item.CoilNo != null)
@@ -411,6 +423,13 @@ namespace Nexus.Services
                             cmd.Parameters.AddWithValue("@rmk", (object)r.Remark ?? DBNull.Value);
                             ptId = (int)cmd.ExecuteScalar();
                         }
+                        if (r.PartWeight.HasValue && Nexus.Helpers.DbSchema.HasPartWeight)
+                            using (var cmd = new SqlCommand("UPDATE Nexus.Parts SET WeightKG = @w WHERE PartID = @p", conn, trans))
+                            {
+                                cmd.Parameters.Add(Nexus.Helpers.QtyParam.Of("@w", r.PartWeight.Value));
+                                cmd.Parameters.AddWithValue("@p", ptId);
+                                cmd.ExecuteNonQuery();
+                            }
                         // คลังหลักที่นับ Coil: QTY (COIL) ตามไฟล์
                         if (r.InMain && mainCoil && r.Coil.HasValue)
                             using (var cmd = new SqlCommand("UPDATE Nexus.Parts SET CoilQuantity = @c WHERE PartID = @p", conn, trans))
