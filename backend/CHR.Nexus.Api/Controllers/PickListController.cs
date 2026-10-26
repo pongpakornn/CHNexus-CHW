@@ -56,8 +56,7 @@ public sealed class PickListController : AppController
                         TicketNo = x.TicketNo, ItemNo = x.ItemNo, GroupCode = x.GroupCode, MaterialCode = x.MaterialCode, WorkOrder = x.WorkOrder, LotNo = x.LotNo,
                         JobName = x.JobName, Qty = x.Qty, TicketDate = x.TicketDate == DateTime.MinValue ? null : x.TicketDate, ProductName = x.ProductName, Unit = x.Unit,
                         FgName = x.FgName, PrintedBy = x.PrintedBy, PrintedDate = x.PrintedDate, PrintCount = x.PrintCount, LastPrintedBy = x.LastPrintedBy, LastPrintedDate = x.LastPrintedDate
-                    })
-                    .OrderBy(x => x.GroupCode).ThenBy(x => x.TicketNo).ThenBy(x => x.ItemNo).ToList());
+                    }).ToList());   // ลำดับตาม Query ของ WPF (FMDATE DESC, FTRNNO, FITEMNO) - หน้าเว็บจัดกลุ่ม GROUP ตามลำดับที่เจอก่อน แบบ WPF
                 return Ok(new { source = "ERP", rows = erp });
             }
             catch (Exception ex) { return Fail(ex, "อ่านข้อมูลจาก ERP (192.168.10.10) ไม่สำเร็จ"); }
