@@ -4,6 +4,10 @@ using Nexus.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
+// 👥 หลายคนใช้พร้อมกัน: งานฐานข้อมูลส่วนใหญ่เป็นแบบรอผล (sync) -> เตรียม thread ไว้ล่วงหน้า คำขอที่มาพร้อมกันไม่ต้องรอคิว
+System.Threading.ThreadPool.GetMinThreads(out int minWorker, out int minIo);
+System.Threading.ThreadPool.SetMinThreads(Math.Max(minWorker, 64), Math.Max(minIo, 64));
+
 var builder = WebApplication.CreateBuilder(args);
 
 // 🔒 ค่าจริง (Connection string / JWT key) ไม่ขึ้น GitHub:

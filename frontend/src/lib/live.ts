@@ -5,7 +5,7 @@ import { deviceName } from "./api";
 
 // ⚡ เรียลไทม์ทันที: ทั้งแท็บใช้การเชื่อมต่อเดียว (long-poll /api/live/wait) ฟังทุกหัวข้อที่หน้าจอสนใจ
 //    เซิร์ฟเวอร์ตอบทันทีที่หัวข้อเปลี่ยน -> เรียก callback ของหัวข้อนั้น · เน็ตหลุด = ลองใหม่เอง แล้วรีเฟรชทุกหัวข้อ (ไม่ค้างค่าเก่า)
-//    กลับมาที่แท็บ = รีเฟรชทุกหัวข้อทันที
+//    กลับมาที่แท็บ = รีเฟรชทุกหัวข้อทันที · แท็บที่ซ่อนอยู่ = หยุดรอ (คืนการเชื่อมต่อให้แท็บที่ใช้อยู่ เปิดหลายแท็บไม่ค้าง)
 type Cb = () => void;
 const subs = new Map<string, Set<Cb>>();
 let version: number | null = null;
@@ -31,7 +31,7 @@ async function loop() {
   if (running) return;
   running = true;
   let fails = 0;
-  while (subs.size > 0) {
+  while (subs.size > 0 && !hidden()) {
     const topics = [...subs.keys()].sort();
     topicsKey = topics.join(",");
     ctrl = new AbortController();
@@ -55,14 +55,21 @@ async function loop() {
   running = false;
 }
 
+const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
+
 function restart() {
   const key = [...subs.keys()].sort().join(",");
   if (running && key !== topicsKey) ctrl?.abort();
-  if (!running && subs.size > 0) void loop();
+  if (!running && subs.size > 0 && !hidden()) void loop();
 }
 
 if (typeof document !== "undefined")
-  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && fireAll());
+  document.addEventListener("visibilitychange", () => {
+    if (hidden()) return void ctrl?.abort(); // ออกจากแท็บ = ปิดการรอ
+    version = null; // กลับมา = เริ่มนับใหม่ + ดึงข้อมูลล่าสุดทุกหัวข้อ
+    fireAll();
+    restart();
+  });
 
 /**
  * ฟังการเปลี่ยนแปลงแบบทันที: topics เช่น ["store:1"], ["store", "data"], ["data", "pr"]

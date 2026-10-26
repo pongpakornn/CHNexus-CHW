@@ -3,6 +3,7 @@
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -15,8 +16,7 @@ import type { CalcData, CalcRow, Stock } from "./types";
 import { WorkdayModal } from "./WorkdayModal";
 import { useLive } from "@/lib/live";
 
-const FIRST_PAGE = 20;
-const NEXT_PAGE = 10;
+const PAGE = 100; // แถวต่อหน้า (เหมือนหน้าคลัง)
 const PREF = "MaxMinCalc.Stock";
 type ImportMode = "DAYS" | "CALC" | "ONLY";
 
@@ -39,7 +39,8 @@ export default function MaxMinPage() {
   const [data, setData] = useState<CalcData | null>(null);
   const [key, setKey] = useState("");
   const k = useDebounced(key, 400);
-  const [shown, setShown] = useState(FIRST_PAGE);
+  const [page, setPage] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
   const [pickFormula, setPickFormula] = useState<number | null>(null);
   const [pickAuto, setPickAuto] = useState(false);
   const [editing, setEditing] = useState<CalcRow | null>(null);
@@ -55,7 +56,6 @@ export default function MaxMinPage() {
   const verRef = useRef(0);
   const tokenRef = useRef("");
   const editingRef = useRef<CalcRow | null>(null);
-  const sentinel = useRef<HTMLDivElement>(null);
   const stock = stocks?.find((s) => s.stkId === stk) ?? null;
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function MaxMinPage() {
         setData(r);
         setPickFormula(r.formula.formulaId);
         setPickAuto(r.setting.autoCalc);
-        if (!live) setShown(FIRST_PAGE);
+        if (!live) setPage(0);
       } catch (e) {
         if (!live) toast.show("ERROR", "โหลดข้อมูล Max-Min Calculator ไม่สำเร็จ\n" + (e as Error).message, "error");
       }
@@ -115,26 +115,25 @@ export default function MaxMinPage() {
     15000,
   );
 
-  // เลื่อนใกล้ล่างสุด -> แสดงเพิ่มอีก 10 แถว
+  // 📄 แสดงทีละหน้า (PAGE แถว) + ปุ่มเปลี่ยนหน้าแบบหน้าคลัง · ข้อมูลอัปเดตแล้วหน้าเกิน = ไปหน้าสุดท้ายที่มี
   const total = data?.rows.length ?? 0;
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || shown >= total) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setShown((s) => s + NEXT_PAGE));
-    io.observe(el);
-    return () => io.disconnect();
-  }, [shown, total]);
+  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const curPage = Math.min(page, pages - 1);
+  const goPage = (p: number) => {
+    setPage(p);
+    listRef.current?.scrollTo({ top: 0 });
+  };
 
   const [collapsed, toggleGroup] = useCollapsed();
   const groups = useMemo(() => {
     const g: { key: string; items: CalcRow[] }[] = [];
-    for (const r of (data?.rows ?? []).slice(0, shown)) {
+    for (const r of (data?.rows ?? []).slice(curPage * PAGE, (curPage + 1) * PAGE)) {
       const last = g[g.length - 1];
       if (last && last.key === r.group) last.items.push(r);
       else g.push({ key: r.group, items: [r] });
     }
     return g;
-  }, [data, shown]);
+  }, [data, curPage]);
 
   function changeStock(id: number) {
     setStk(id);
@@ -432,7 +431,7 @@ export default function MaxMinPage() {
       )}
 
       <Card title={`${total.toLocaleString()} ITEMS`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหา ลูกค้า / PART NO / PD CODE / PART A / ชื่อสินค้า" className="w-72 max-w-full" />}>
-        <div className="max-h-[65vh] min-h-[300px] overflow-auto">
+        <div ref={listRef} className="max-h-[65vh] min-h-[300px] overflow-auto">
           {!data ? (
             <Loading />
           ) : total === 0 ? (
@@ -483,12 +482,12 @@ export default function MaxMinPage() {
               </tbody>
             </table>
           )}
-          {data && shown < total && (
-            <div ref={sentinel} className="py-4 text-center text-xs text-ink-soft">
-              ⏳ LOADING MORE...
-            </div>
-          )}
         </div>
+        {total > PAGE && (
+          <div className="border-t border-line/60 pt-4">
+            <Pager page={curPage} pages={pages} total={total} size={PAGE} onPage={goPage} />
+          </div>
+        )}
       </Card>
 
       <FormulaModal open={formulaOpen} stock={stock} selectId={data?.formula.formulaId} canEdit={canEdit} onClose={() => setFormulaOpen(false)} onChanged={() => load(true)} />

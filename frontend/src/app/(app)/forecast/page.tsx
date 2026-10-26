@@ -3,6 +3,7 @@
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -16,7 +17,7 @@ import { useLive } from "@/lib/live";
 type Month = { key: string; label: string };
 type Row = { customer: string; partA: string; partNo: string; productName: string; forecast: number; order: number; delivery: number; month: string };
 type Top = { rank: number; title: string; sub: string; order: number; forecast: number; percent: number; shareOfMonth: number };
-const PAGE = 50;
+const PAGE = 100; // แถวต่อหน้า (เหมือนหน้าคลัง) · ดึงจาก Server ทีละหน้า (ข้อมูลทุกเดือนมีหลายพันแถว)
 const n0 = (v: number) => Math.round(v).toLocaleString("en-US");
 
 // 📈 FORECAST / ORDER / DELIVERY (ForecastOrderView): กราฟทั้งปี + TOP 5 ORDER + ตารางตามเดือน (ALL MONTHS ได้) / Import / Template / Export
@@ -29,7 +30,8 @@ export default function ForecastPage() {
   const [topMonth, setTopMonth] = useState("ALL");
   const [key, setKey] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [more, setMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const [chart, setChart] = useState<{ year: number; months: MonthPoint[]; top: Top[] } | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [pick, setPick] = useState<string[]>([]);
@@ -38,8 +40,6 @@ export default function ForecastPage() {
   const verRef = useRef(0);
   const tokenRef = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const sentinel = useRef<HTMLDivElement>(null);
-  const loadingMore = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const withCalcRef = useRef(true);
   const [choice, setChoice] = useState<{ title: string; text: string; calc: string; only: string } | null>(null);
@@ -69,14 +69,17 @@ export default function ForecastPage() {
   const loadRows = useCallback(async () => {
     const v = ++verRef.current;
     try {
-      const r = await api<Row[]>("/forecast/rows", { query: { month: tableMonth === "ALL" ? undefined : tableMonth, key: k, skip: 0, take: PAGE } });
+      const month = tableMonth === "ALL" ? undefined : tableMonth;
+      const [r, c] = await Promise.all([api<Row[]>("/forecast/rows", { query: { month, key: k, skip: page * PAGE, take: PAGE } }), api<{ total: number }>("/forecast/rows/count", { query: { month, key: k } })]);
       if (v !== verRef.current) return;
+      // ข้อมูลลดลงจนหน้านี้ว่าง -> ไปหน้าสุดท้ายที่มี
+      if (r.length === 0 && page > 0 && c.total > 0) return setPage(Math.ceil(c.total / PAGE) - 1);
       setRows(r);
-      setMore(r.length === PAGE);
+      setTotal(c.total);
     } catch (e) {
       toast.show("ERROR", "โหลดรายการไม่สำเร็จ\n" + (e as Error).message, "error");
     }
-  }, [tableMonth, k, toast]);
+  }, [tableMonth, k, page, toast]);
 
   const loadTop = useCallback(async () => {
     try {
@@ -98,26 +101,13 @@ export default function ForecastPage() {
     return () => clearTimeout(t);
   }, [months, loadTop]);
 
-  // โหลดเพิ่มทีละ 30 เมื่อเลื่อนถึงท้าย
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !more) return;
-    const io = new IntersectionObserver(async ([e]) => {
-      if (!e.isIntersecting || loadingMore.current || !rows) return;
-      loadingMore.current = true;
-      const v = verRef.current;
-      try {
-        const r = await api<Row[]>("/forecast/rows", { query: { month: tableMonth === "ALL" ? undefined : tableMonth, key: k, skip: rows.length, take: 30 } });
-        if (v !== verRef.current) return;
-        setRows((cur) => [...(cur ?? []), ...r]);
-        setMore(r.length === 30);
-      } finally {
-        loadingMore.current = false;
-      }
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [more, rows, tableMonth, k]);
+  // 📄 แบ่งหน้าละ PAGE แถว · เปลี่ยนเดือน / คำค้นหา = กลับหน้าแรก (ข้อมูลอัปเดตแล้วหน้าเกิน = หน้าสุดท้าย)
+  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const curPage = Math.min(page, pages - 1);
+  const goPage = (p: number) => {
+    setPage(p);
+    scrollRef.current?.scrollTo({ top: 0 });
+  };
 
   // ⚡ เรียลไทม์ (8 วินาที): เครื่องอื่น Import -> โหลดใหม่ (กำลังเลื่อนอ่าน = รอ)
   useLive(
@@ -194,7 +184,7 @@ export default function ForecastPage() {
       <PageHeader
         icon="/icons/ForecastOrder.png"
         title="FORECAST / ORDER / DELIVERY"
-        subtitle={`${all ? "All months" : months.find((m) => m.key === tableMonth)?.label} • showing ${(rows ?? []).length.toLocaleString()} item(s)${more ? " - scroll down for more" : ""}`}
+        subtitle={`${all ? "All months" : months.find((m) => m.key === tableMonth)?.label} • ${total.toLocaleString()} item(s)`}
         actions={
           <>
             <ActionMenu
@@ -272,20 +262,23 @@ export default function ForecastPage() {
           ) : chart.top.length === 0 ? (
             <Empty>ยังไม่มี Order</Empty>
           ) : (
-            <div className="grid gap-3">
-              {chart.top.map((t) => (
-                <div key={t.rank} className="grid gap-1" title={`Forecast ${n0(t.forecast)}`}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm font-extrabold">
-                      <span className="mr-2 text-accent">#{t.rank}</span>
-                      {t.title}
-                    </span>
-                    <span className="whitespace-nowrap text-sm font-extrabold">
-                      {n0(t.order)} <span className="text-xs text-ink-soft">{t.shareOfMonth.toFixed(1)}%</span>
-                    </span>
+            <div className="grid gap-2.5">
+              {chart.top.map((t, i) => (
+                <div key={t.rank} className="top-row" style={{ "--d": `${i * 70}ms` } as React.CSSProperties} title={`Forecast ${n0(t.forecast)}`}>
+                  <span className={`top-rank ${t.rank === 1 ? "is-first" : ""}`}>{t.rank}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[13.5px] font-extrabold text-[#1e2a5a]">{t.title}</span>
+                      <span className="shrink-0 text-[14px] font-black tabular-nums text-[#1e2a5a]">{n0(t.order)}</span>
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] font-semibold text-ink-soft">{t.sub}</span>
+                      <span className="top-share">{t.shareOfMonth.toFixed(1)}%</span>
+                    </div>
+                    <div className="top-bar">
+                      <i style={{ width: `${Math.max(3, t.percent)}%` }} />
+                    </div>
                   </div>
-                  <div className="truncate text-[11px] text-ink-soft">{t.sub}</div>
-                  <div className="h-2 rounded-r-[4px] bg-[#2a78d6]" style={{ width: `${Math.max(2, t.percent)}%` }} />
                 </div>
               ))}
             </div>
@@ -297,12 +290,12 @@ export default function ForecastPage() {
         title="ITEMS"
         actions={
           <>
-            <MenuSelect className="w-[200px]" value={tableMonth} options={monthOpts} onChange={setTableMonth} />
+            <MenuSelect className="w-[200px]" value={tableMonth} options={monthOpts} onChange={(v) => (setTableMonth(v), setPage(0))} />
           </>
         }
       >
         <div className="border-b border-line/60 p-3">
-          <SearchBox value={key} onChange={setKey} placeholder="ค้นหา ลูกค้า / PART A / PART NO / ชื่อสินค้า" />
+          <SearchBox value={key} onChange={(v) => (setKey(v), setPage(0))} placeholder="ค้นหา ลูกค้า / PART A / PART NO / ชื่อสินค้า" />
         </div>
         <div ref={scrollRef} className="max-h-[60vh] min-h-[300px] overflow-auto">
           {!rows ? (
@@ -344,8 +337,12 @@ export default function ForecastPage() {
               </tbody>
             </table>
           )}
-          {more && <div ref={sentinel} className="py-4 text-center text-xs text-ink-soft">⏳ LOADING MORE...</div>}
         </div>
+        {total > PAGE && (
+          <div className="border-t border-line/60 pt-4">
+            <Pager page={curPage} pages={pages} total={total} size={PAGE} onPage={goPage} />
+          </div>
+        )}
       </Card>
 
       {/* 📥 IMPORT: คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว */}

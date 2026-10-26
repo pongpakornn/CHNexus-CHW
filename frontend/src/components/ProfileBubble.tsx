@@ -19,11 +19,17 @@ const SIZE = 52;
 const GAP = 16;
 const TOP = 76; // ใต้แถบหัวหน้า (60px)
 
+// ขนาดจอแบบ layout viewport (clientWidth / clientHeight): iPad / มือถือซูมเข้า หรือแถบ Safari ยืด-หด ก็ยังติดขอบจอเดิม
+//   (innerWidth / innerHeight ของ iOS = ส่วนที่ซูมอยู่ -> วงกลมเคยลอยเข้ามากลางจอ)
 function subscribeSize(cb: () => void) {
   window.addEventListener("resize", cb);
-  return () => window.removeEventListener("resize", cb);
+  window.visualViewport?.addEventListener("resize", cb);
+  return () => {
+    window.removeEventListener("resize", cb);
+    window.visualViewport?.removeEventListener("resize", cb);
+  };
 }
-const sizeNow = () => `${window.innerWidth}x${window.innerHeight}`;
+const sizeNow = () => `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`;
 
 // มุมซ้ายเริ่มที่ขอบพื้นที่เนื้อหา (ไม่ทับ Sidebar)
 function cornerPos(c: Corner, w: number, h: number, leftEdge: number) {

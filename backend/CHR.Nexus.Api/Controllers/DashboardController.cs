@@ -16,7 +16,7 @@ public sealed class DashboardController : AppController
     public IActionResult Cards()
     {
         if (Me?.CanViewDashboard != true) return Deny();
-        var visible = _svc.GetStockSummaries().Where(d => Me.CanViewStock(d.Stock)).ToList();
+        var visible = LiveCache.Get("stock-summaries", TimeSpan.FromSeconds(15), _svc.GetStockSummaries).Where(d => Me.CanViewStock(d.Stock)).ToList();
         return Ok(new
         {
             stocks = visible.Select(v => new { v.Stock.StkId, v.Stock.Code, v.Stock.Name, v.Stock.StockType, v.Items, v.MaxCount, v.MinCount }),

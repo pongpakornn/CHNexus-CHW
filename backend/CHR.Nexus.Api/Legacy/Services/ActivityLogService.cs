@@ -34,7 +34,9 @@ namespace Nexus.Services
 
     public class ActivityLogService
     {
-        public const int PageSize = 50;
+        // หน้าเว็บ: หน้าละ 100 รายการ · ดูได้เฉพาะล่าสุด 200 รายการ (2 หน้า) ตามตัวกรอง ไม่ให้หนัก - ต้องการทั้งหมด = EXPORT
+        public const int PageSize = 100;
+        public const int MaxRows = 200;
         private static bool? _hasPc;
 
         private static bool HasPc(SqlConnection conn)
@@ -97,7 +99,7 @@ namespace Nexus.Services
                 using (var cmd = new SqlCommand(Sql(pc, Cols(pc), " ORDER BY l.LogDate DESC, l.LogID DESC OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY"), conn))
                 {
                     AddParams(cmd, f);
-                    cmd.Parameters.AddWithValue("@skip", Math.Max(0, page) * PageSize);
+                    cmd.Parameters.AddWithValue("@skip", Math.Clamp(page, 0, MaxRows / PageSize - 1) * PageSize);
                     cmd.Parameters.AddWithValue("@take", PageSize);
                     using (var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
                         while (await r.ReadAsync(ct).ConfigureAwait(false)) rows.Add(Read(r));

@@ -1,6 +1,7 @@
 "use client";
 
 import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Pager } from "@/components/ui/Pager";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toasts";
 import { DateRange } from "@/components/ui/DateRange";
@@ -11,7 +12,7 @@ import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";
 
 type Row = { date: string; user: string; action: string; detail: string; refCode: string; computer: string };
-type Page = { total: number; page: number; pageSize: number; rows: Row[] };
+type Page = { total: number; all: number; page: number; pageSize: number; rows: Row[] };
 
 // สีของประเภทการกระทำ (อ่านเร็วว่าเป็นงานกลุ่มไหน)
 function actionColor(a: string) {
@@ -27,7 +28,8 @@ function actionColor(a: string) {
 export default function ActivityLogPage() {
   const toast = useToast();
   const [key, setKey] = useState("");
-  const [from, setFrom] = useState(today());
+  // เปิดหน้า = รายการล่าสุด (ทุกวันที่) · ดูได้ล่าสุด 200 รายการ (2 หน้า) ตามตัวกรอง
+  const [from, setFrom] = useState("2000-01-01");
   const [to, setTo] = useState(today());
   const [user, setUser] = useState("");
   const [action, setAction] = useState("");
@@ -51,7 +53,8 @@ export default function ActivityLogPage() {
       try {
         const r = await api<Page>("/activity", { query: { key: k, from, to, user: user || undefined, action: action || undefined, page: p } });
         setData(r);
-        setPage(p);
+        setPage(r.page);
+        scrollRef.current?.scrollTo({ top: 0 });
       } catch (e) {
         toast.show("Activity Log", "โหลดข้อมูลไม่สำเร็จ: " + (e as Error).message, "error");
       } finally {
@@ -68,7 +71,7 @@ export default function ActivityLogPage() {
 
   // ⚡ เรียลไทม์ทันที (มีการบันทึกที่ไหนก็ตาม = มี Log ใหม่) + เช็คเองทุก 10 วินาที: เฉพาะตอนอยู่หน้าแรกและอยู่บนสุด (กำลังเลื่อนอ่าน = ไม่ดึงทับ)
   useLive(
-    ["data"],
+    ["data", "log"],
     async () => {
       if (page !== 0 || (scrollRef.current?.scrollTop ?? 0) > 2) return;
       const r = await api<{ token: string }>("/activity/token");
@@ -79,8 +82,6 @@ export default function ActivityLogPage() {
   );
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-  const first = data && data.total > 0 ? page * data.pageSize + 1 : 0;
-  const last = data ? page * data.pageSize + data.rows.length : 0;
 
   return (
     <PageBody>
@@ -102,7 +103,7 @@ export default function ActivityLogPage() {
         }
       />
       <Card
-        title={`ACTIVITY • ${(data?.total ?? 0).toLocaleString()}`}
+        title={`ACTIVITY • ${(data?.all ?? 0).toLocaleString()}`}
         actions={
           <>
             <MenuSelect
@@ -155,20 +156,11 @@ export default function ActivityLogPage() {
             </table>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-line/60 p-3">
-          <span className="mr-auto text-xs font-bold text-ink-soft">
-            {loading ? "⏳ LOADING..." : `${first.toLocaleString()} - ${last.toLocaleString()} OF ${(data?.total ?? 0).toLocaleString()} RECORDS`}
-          </span>
-          <button className="btn-ghost" disabled={page === 0 || loading} onClick={() => load(page - 1)}>
-            ◀ PREV
-          </button>
-          <span className="text-sm font-bold">
-            PAGE {page + 1} / {pages}
-          </span>
-          <button className="btn-ghost" disabled={!data || (page + 1) * data.pageSize >= data.total || loading} onClick={() => load(page + 1)}>
-            NEXT ▶
-          </button>
-        </div>
+        {data && data.total > 0 && (
+          <div className={`border-t border-line/60 pt-4 transition-opacity ${loading ? "opacity-60" : ""}`}>
+            <Pager page={page} pages={pages} total={data.total} size={data.pageSize} onPage={(p) => !loading && load(p)} note={data.all > data.total ? `ล่าสุด ${data.total.toLocaleString()} จากทั้งหมด ${data.all.toLocaleString()} รายการ (ทั้งหมด = EXPORT)` : undefined} />
+          </div>
+        )}
       </Card>
     </PageBody>
   );

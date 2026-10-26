@@ -37,7 +37,7 @@ public sealed class ActivityLogController : AppController
         var (rows, total) = await _svc.QueryAsync(Filter(key, from, to, user, action), Math.Max(0, page), ct);
         return Ok(new
         {
-            total, page, pageSize = ActivityLogService.PageSize,
+            total = Math.Min(total, ActivityLogService.MaxRows), all = total, page = Math.Clamp(page, 0, ActivityLogService.MaxRows / ActivityLogService.PageSize - 1), pageSize = ActivityLogService.PageSize,
             rows = rows.Select(r => new { date = r.DateText, user = r.UserText, r.Action, r.Detail, r.RefCode, r.Computer })
         });
     }

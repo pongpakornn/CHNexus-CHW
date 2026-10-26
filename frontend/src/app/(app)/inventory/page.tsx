@@ -3,6 +3,7 @@
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -25,6 +26,9 @@ export default function InventoryPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [filter, setFilter] = useState<number | null>(null);
   const [key, setKey] = useState("");
+  const [page, setPage] = useState(0);
+  const [groupCounts, setGroupCounts] = useState<Record<string, number>>({}); // จำนวนรายการทั้งหมดของแต่ละกลุ่ม (ทุกหน้า) // หน้าที่แสดง (ละ PAGE รายการ) · ค้นหา / เปลี่ยนคลัง = กลับหน้าแรก
+  const search = (v: string) => (setKey(v), setPage(0));
   const [rows, setRows] = useState<Part[] | null>(null);
   const [total, setTotal] = useState(0);
   const [layout, setLayout] = useState<Layout | null>(null);
@@ -47,8 +51,7 @@ export default function InventoryPage() {
   const k = useDebounced(key, 300);
   const codeKey = useDebounced(form.partCode, 300);
   const verRef = useRef(0);
-  const sentinel = useRef<HTMLDivElement>(null);
-  const loadingMore = useRef(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
 
@@ -80,7 +83,7 @@ export default function InventoryPage() {
   }, [toast, applyDefaultStocks]);
 
   const query = useCallback(
-    (skip: number) => api<{ total: number; layout: Layout; coilStkId: number | null; rows: Part[] }>("/products", { query: { key: k, stkId: filter ?? undefined, skip, take: PAGE } }),
+    (skip: number) => api<{ total: number; layout: Layout; coilStkId: number | null; groups?: Record<string, number>; rows: Part[] }>("/products", { query: { key: k, stkId: filter ?? undefined, skip, take: PAGE } }),
     [k, filter],
   );
 
@@ -88,40 +91,30 @@ export default function InventoryPage() {
     if (!meta) return;
     const v = ++verRef.current;
     try {
-      const r = await query(0);
+      const r = await query(page * PAGE);
       if (v !== verRef.current) return;
+      // ลบ / ซ่อนจนหน้านี้ว่าง -> ไปหน้าสุดท้ายที่ยังมีรายการ
+      if (r.rows.length === 0 && page > 0 && r.total > 0) return setPage(Math.ceil(r.total / PAGE) - 1);
       setRows(r.rows);
       setTotal(r.total);
+      setGroupCounts(r.groups ?? {});
       setLayout(r.layout);
       setCoilStk(r.coilStkId);
-      setTicked((t) => t.filter((id) => r.rows.some((x) => x.ptId === id)));
     } catch (e) {
       toast.show("ERROR", "โหลดข้อมูลไม่สำเร็จ: " + (e as Error).message, "error");
     }
-  }, [meta, query, toast]);
+  }, [meta, query, page, toast]);
 
   useEffect(() => {
     const t = setTimeout(reload, 0);
     return () => clearTimeout(t);
   }, [reload]);
 
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !rows || rows.length >= total) return;
-    const io = new IntersectionObserver(async ([e]) => {
-      if (!e.isIntersecting || loadingMore.current) return;
-      loadingMore.current = true;
-      const v = verRef.current;
-      try {
-        const r = await query(rows.length);
-        if (v === verRef.current) setRows((cur) => [...(cur ?? []), ...r.rows]);
-      } finally {
-        loadingMore.current = false;
-      }
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [rows, total, query]);
+  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const goPage = (p: number) => {
+    setPage(p);
+    listRef.current?.scrollTo({ top: 0 });
+  };
 
   // PRODUCT CODE: แนะนำสินค้าที่มีแล้ว (เลือก = ดึงข้อมูลทั้งหมดมาแก้)
   useEffect(() => {
@@ -186,6 +179,7 @@ export default function InventoryPage() {
 
   async function changeFilter(v: number | null) {
     setFilter(v);
+    setPage(0);
     setCoils({});
     api("/products/filter", { method: "POST", body: v }).catch(() => {});
   }
@@ -516,7 +510,7 @@ export default function InventoryPage() {
                         onClick={() => {
                           setCodeSuggest([]);
                           fill(p, can.edit);
-                          setKey(p.partCode);
+                          search(p.partCode);
                           toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาแล้ว - แก้ / เพิ่ม Coil แล้วกด SAVE CHANGES`, "info");
                         }}
                       >
@@ -595,9 +589,9 @@ export default function InventoryPage() {
           }
         >
           <div className="border-b border-line/60 p-3">
-            <SearchBox value={key} onChange={setKey} placeholder="ค้นหา PRODUCT CODE / ชื่อ / PART A / BIN / COIL" />
+            <SearchBox value={key} onChange={search} placeholder="ค้นหา PRODUCT CODE / ชื่อ / PART A / BIN / COIL" />
           </div>
-          <div className="max-h-[calc(100dvh-280px)] min-h-[360px] overflow-auto">
+          <div ref={listRef} className="max-h-[calc(100dvh-280px)] min-h-[360px] overflow-auto">
             {!rows ? (
               <Loading />
             ) : rows.length === 0 ? (
@@ -618,7 +612,7 @@ export default function InventoryPage() {
                 <tbody>
                   {groups.map((g) => (
                     <Fragment key={g.key || "_"}>
-                      {g.key && <GroupRow colSpan={ncols} label={layout?.groupBy ?? ""} value={g.key} count={g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />}
+                      {g.key && <GroupRow colSpan={ncols} label={layout?.groupBy ?? ""} value={g.key} count={groupCounts[g.key] ?? g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />}
                       {!collapsed.has(g.key) && g.items.map((p) => (
                         <Fragment key={p.ptId}>
                           <tr className={`${viewId === p.ptId ? "bg-accent-soft/40" : ""} ${p.isShow ? "" : "opacity-50"}`}>
@@ -673,8 +667,12 @@ export default function InventoryPage() {
                 </tbody>
               </table>
             )}
-            {rows && rows.length < total && <div ref={sentinel} className="py-4 text-center text-xs text-ink-soft">⏳ LOADING MORE...</div>}
           </div>
+          {total > PAGE && (
+            <div className="border-t border-line/60 pt-4">
+              <Pager page={Math.min(page, pages - 1)} pages={pages} total={total} size={PAGE} onPage={goPage} />
+            </div>
+          )}
         </Card>
       </div>
 

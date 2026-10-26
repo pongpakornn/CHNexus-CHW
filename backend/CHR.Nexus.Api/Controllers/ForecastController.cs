@@ -41,12 +41,18 @@ public sealed class ForecastController : AppController
     public IActionResult Top([FromQuery] string month)
     {
         if (Me?.CanViewForecastOrder != true) return Deny();
+        // กราฟทั้งปี + TOP 5 เหมือนกันทุกคน = คำนวณครั้งเดียวแบ่งกันใช้ (ใหม่เมื่อข้อมูลเปลี่ยน / ครบ 30 วินาที)
+        return Ok(LiveCache.Get($"forecast-top:{month}", TimeSpan.FromSeconds(30), () => TopData(month)));
+    }
+
+    private object TopData(string month)
+    {
         var m = ParseMonth(month);
         var months = _svc.GetMonths();
         int year = (m ?? (months.Count > 0 ? months.Max() : DateTime.Today)).Year;
         var data = _svc.GetYear(year);
         var top = _svc.GetTop5(m);
-        return Ok(new
+        return new
         {
             year,
             months = Enumerable.Range(1, 12).Select(i =>
@@ -54,8 +60,8 @@ public sealed class ForecastController : AppController
                 var r = data.FirstOrDefault(x => x.Month == i);
                 return new { label = new DateTime(2000, i, 1).ToString("MMM", CultureInfo.InvariantCulture), forecast = r?.Forecast ?? 0, order = r?.Order ?? 0, delivery = r?.Delivery ?? 0 };
             }),
-            top = top.Select(t => new { t.Rank, t.Title, t.Sub, t.Order, t.Forecast, t.Percent, t.ShareOfMonth })
-        });
+            top = top.Select(t => new { t.Rank, t.Title, t.Sub, t.Order, t.Forecast, t.Percent, t.ShareOfMonth }).ToList()
+        };
     }
 
     [HttpGet("rows")]
@@ -64,6 +70,17 @@ public sealed class ForecastController : AppController
         if (Me?.CanViewForecastOrder != true) return Deny();
         var rows = _svc.GetRows(ParseMonth(month), key ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 500));
         return Ok(rows.Select(r => new { r.Customer, r.PartA, r.PartNo, r.ProductName, r.Forecast, r.Order, r.Delivery, month = r.MonthText }));
+    }
+
+    [HttpGet("rows/count")]
+    public IActionResult RowsCount([FromQuery] string month, [FromQuery] string key)
+    {
+        if (Me?.CanViewForecastOrder != true) return Deny();
+        // ไม่มีคำค้นหา = นับครั้งเดียวแบ่งกันใช้
+        int total = string.IsNullOrWhiteSpace(key)
+            ? LiveCache.Get($"forecast-count:{month}", TimeSpan.FromSeconds(30), () => (object)_svc.CountRows(ParseMonth(month), "")) is int n ? n : 0
+            : _svc.CountRows(ParseMonth(month), key);
+        return Ok(new { total });
     }
 
     // ⚡ เรียลไทม์: เครื่องอื่น Import -> หน้าโหลดใหม่เอง

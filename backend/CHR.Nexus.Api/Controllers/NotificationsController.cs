@@ -28,7 +28,7 @@ public sealed class NotificationsController : AppController
 
         if (Me.CanViewStore || Me.CanViewDashboard)
         {
-            var low = new DashboardService().GetStockSummaries()
+            var low = LiveCache.Get("stock-summaries", TimeSpan.FromSeconds(15), new DashboardService().GetStockSummaries)
                 .Where(s => Me.CanViewStock(s.Stock) && s.MinCount > 0)
                 .OrderByDescending(s => s.MinCount).ToList();
             if (low.Count > 0)
@@ -42,7 +42,7 @@ public sealed class NotificationsController : AppController
 
         if (Me.CanViewPR)
         {
-            var waiting = new PRService().GetPRList("", null).Where(p => string.Equals(p.Status, "Waiting", StringComparison.OrdinalIgnoreCase)).ToList();
+            var waiting = LiveCache.Get("pr-list", TimeSpan.FromSeconds(15), () => new PRService().GetPRList("", null)).Where(p => string.Equals(p.Status, "Waiting", StringComparison.OrdinalIgnoreCase)).ToList();
             if (waiting.Count > 0)
                 items.Add(new
                 {

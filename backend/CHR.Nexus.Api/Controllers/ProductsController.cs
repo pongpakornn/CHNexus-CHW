@@ -77,8 +77,20 @@ public sealed class ProductsController : AppController
     {
         if (Me?.CanViewProductControl != true) return Deny();
         var layout = LayoutOf(new ProductControlLayoutService().GetAll(), stkId);
-        var all = _svc.GetInventoryForQR(key?.Trim(), stkId);
-        var rows = all.Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 100000)).ToList();
+        // ไม่มีคำค้นหา = รายการทั้งคลังใช้ร่วมกันทุกคน (โหลดจากฐานใหม่เมื่อข้อมูลเปลี่ยนหรือครบ 30 วินาที)
+        var all = string.IsNullOrWhiteSpace(key)
+            ? LiveCache.Get($"products:{stkId}", TimeSpan.FromSeconds(30), () => _svc.GetInventoryForQR(null, stkId))
+            : _svc.GetInventoryForQR(key.Trim(), stkId);
+        // หัวกลุ่มของทุกรายการ -> เรียงตามกลุ่มก่อนแบ่งหน้า (กลุ่มเดียวกันไม่กระจายข้ามหน้า) + จำนวนต่อกลุ่มทั้งหมด
+        string GroupOf(ProductControlModel p)
+        {
+            if (layout.GroupBy == "NONE") return "";
+            string g = layout.GroupBy == "CUSTOMER" ? p.Customer : layout.GroupBy == "SUPPLIER" ? p.CustomerCode : p.Category;
+            return string.IsNullOrWhiteSpace(g) ? "-" : g.Trim();
+        }
+        var ordered = all.Select(p => (p, g: GroupOf(p))).OrderBy(x => x.g, StringComparer.OrdinalIgnoreCase).ToList();
+        var groupCounts = ordered.GroupBy(x => x.g).ToDictionary(x => x.Key, x => x.Count());
+        var rows = ordered.Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 100000)).Select(x => x.p).ToList();
         // ข้อมูลเสริม (ProductControlViewModel.Decorate): หัวกลุ่ม + Coil ในคลัง
         var stock = stkId.HasValue ? _stocks.GetStock(stkId.Value) : null;
         int? coilStk = stock != null && stock.ShowCoilRows && DbSchema.HasCoilRegister ? stock.StkId : null;
@@ -86,8 +98,7 @@ public sealed class ProductsController : AppController
         var coils = needCoils ? new ProductControlLayoutService().GetCoils(stkId) : null;
         foreach (var p in rows)
         {
-            string g = layout.GroupBy == "CUSTOMER" ? p.Customer : layout.GroupBy == "SUPPLIER" ? p.CustomerCode : p.Category;
-            p.GroupKey = string.IsNullOrWhiteSpace(g) ? "-" : g.Trim();
+            p.GroupKey = GroupOf(p) is { Length: > 0 } g ? g : "-";
             if (coils != null && coils.TryGetValue(p.PtId, out var c))
             {
                 p.MotherCoil = Short(c.Mothers, 3);
@@ -95,7 +106,7 @@ public sealed class ProductsController : AppController
                 p.CoilCount = coilStk.HasValue ? c.Coils.Count : 0;
             }
         }
-        return Ok(new { total = all.Count, layout, coilStkId = coilStk, rows = rows.Select(Row) });
+        return Ok(new { total = all.Count, layout, coilStkId = coilStk, groups = groupCounts, rows = rows.Select(Row) });
     }
 
     // VIEW / EDIT สินค้า: คลังที่สินค้าอยู่ + Coil ในคลังตอนนี้ (แสดงอย่างเดียว)

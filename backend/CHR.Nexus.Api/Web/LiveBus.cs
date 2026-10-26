@@ -16,6 +16,9 @@ public static class LiveBus
 
     public static long Version => Interlocked.Read(ref _ver);
 
+    // เวอร์ชันของข้อมูลกลาง (บันทึกผ่าน API / ตัวเลขคลังเปลี่ยน) - ไม่นับ Log เปิดหน้า / แชท
+    public static long DataVersion => Math.Max(Topics.GetValueOrDefault("data"), Topics.GetValueOrDefault("store"));
+
     public static void Publish(params string[] topics)
     {
         TaskCompletionSource done;
@@ -102,6 +105,9 @@ public sealed class LivePublishMiddleware
     private readonly RequestDelegate _next;
     public LivePublishMiddleware(RequestDelegate next) => _next = next;
 
+    private static readonly HashSet<string> OwnTopicAreas = new(StringComparer.OrdinalIgnoreCase) { "log", "chat", "support" };
+    private static readonly HashSet<string> PrefPaths = new(StringComparer.OrdinalIgnoreCase) { "/api/products/filter", "/api/products/default-stocks", "/api/pr/stock" };
+
     public async Task Invoke(HttpContext ctx)
     {
         await _next(ctx);
@@ -110,7 +116,29 @@ public sealed class LivePublishMiddleware
         var path = ctx.Request.Path;
         if (!path.StartsWithSegments("/api", out var rest) || path.StartsWithSegments("/api/live") || path.StartsWithSegments("/api/auth")) return;
         string area = rest.Value?.Trim('/').Split('/', 2)[0].ToLowerInvariant() ?? "";
+        // ค่าส่วนตัวของผู้ใช้ (ตัวกรอง / คลังที่เลือกค้าง) ไม่ใช่ข้อมูลกลาง = ไม่ต้องให้จอใครโหลดใหม่
+        if (PrefPaths.Contains(path.Value?.TrimEnd('/') ?? "")) return;
+        // Log เปิดหน้า / แชท = แจ้งเฉพาะจอที่แสดงเรื่องนั้น (ไม่ใช่ "data" -> จอทุกคนไม่ต้องโหลดใหม่ทุกครั้งที่มีคนเปลี่ยนหน้า)
+        if (OwnTopicAreas.Contains(area)) { LiveBus.Publish(area); return; }
         LiveBus.Publish(area.Length > 0 ? new[] { "data", area } : new[] { "data" });
         LiveWatcher.Poke();
+    }
+}
+
+// 🧠 ผลคำนวณที่ใช้ร่วมกันทุกคน (เช่น สรุปยอดทุกคลังของกระดิ่ง / Dashboard): คำนวณครั้งเดียวแล้วแบ่งกันใช้
+//   ใช้ซ้ำจนกว่าข้อมูลเปลี่ยน (LiveBus.DataVersion ขยับ) หรือครบ maxAge · หลายคนขอพร้อมกัน = รอผลรอบเดียวกัน ไม่คำนวณซ้อน
+public static class LiveCache
+{
+    private sealed record Entry(long Ver, DateTime At, Lazy<object> Value);
+    private static readonly ConcurrentDictionary<string, Entry> Items = new();
+
+    public static T Get<T>(string key, TimeSpan maxAge, Func<T> make) where T : class
+    {
+        long v = LiveBus.DataVersion;
+        var e = Items.AddOrUpdate(key,
+            _ => new Entry(v, DateTime.UtcNow, new Lazy<object>(() => make())),
+            (_, old) => old.Ver == v && DateTime.UtcNow - old.At < maxAge ? old : new Entry(v, DateTime.UtcNow, new Lazy<object>(() => make())));
+        try { return (T)e.Value.Value; }
+        catch { Items.TryRemove(new KeyValuePair<string, Entry>(key, e)); throw; } // คำนวณพลาด = ไม่จำค่าเสีย รอบหน้าลองใหม่
     }
 }

@@ -101,13 +101,17 @@ namespace Nexus.Services
                 FROM Nexus.ForecastOrderImports
                 WHERE TargetDate >= @from AND TargetDate < @to
                 GROUP BY LTRIM(RTRIM(ISNULL(CustomerCode, ''))), LTRIM(RTRIM(ISNULL(PartACode, ''))), DATEFROMPARTS(YEAR(TargetDate), MONTH(TargetDate), 1)
+            ),
+            -- สินค้าแยกตาม ลูกค้า + รหัส (PART A / PART NO / PD CODE) เลือกตัวแรก (PartID น้อยสุด) -> JOIN ครั้งเดียวแทนการค้นทีละแถว
+            pk AS (
+                SELECT LTRIM(RTRIM(ISNULL(x.Customer, ''))) AS Customer, v.K, x.PartA, x.PartNumber, x.Description,
+                       ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(ISNULL(x.Customer, ''))), v.K ORDER BY x.PartID) AS Rn
+                FROM Nexus.Parts x
+                CROSS APPLY (SELECT DISTINCT k FROM (VALUES (LTRIM(RTRIM(ISNULL(x.PartA, '')))), (LTRIM(RTRIM(ISNULL(x.PartNumber, '')))), (LTRIM(RTRIM(x.PartCode)))) t(k) WHERE k <> '') v(K)
             )
             SELECT a.Customer, ISNULL(p.PartA, '') AS PartA, COALESCE(NULLIF(LTRIM(RTRIM(p.PartNumber)), ''), a.PartKey) AS PartNo, ISNULL(p.Description, '') AS ProductName, a.F, a.O, a.D, a.M
             FROM agg a
-            OUTER APPLY (SELECT TOP 1 x.PartA, x.PartNumber, x.Description FROM Nexus.Parts x
-                         WHERE a.PartKey <> '' AND LTRIM(RTRIM(ISNULL(x.Customer, ''))) = a.Customer
-                           AND a.PartKey IN (LTRIM(RTRIM(ISNULL(x.PartA, ''))), LTRIM(RTRIM(ISNULL(x.PartNumber, ''))), LTRIM(RTRIM(x.PartCode)))
-                         ORDER BY x.PartID) p
+            LEFT JOIN pk p ON a.PartKey <> '' AND p.Customer = a.Customer AND p.K = a.PartKey AND p.Rn = 1
             WHERE @key = '' OR a.Customer LIKE '%' + @key + '%' OR a.PartKey LIKE '%' + @key + '%'
                OR ISNULL(p.PartA, '') LIKE '%' + @key + '%' OR ISNULL(p.PartNumber, '') LIKE '%' + @key + '%' OR ISNULL(p.Description, '') LIKE '%' + @key + '%'";
 
@@ -115,8 +119,12 @@ namespace Nexus.Services
         public List<ForecastOrderRow> GetRows(DateTime? month, string keyword, int skip, int take)
         {
             var list = new List<ForecastOrderRow>();
+            // ไม่มีคำค้นหา = ตัดหน้าที่ยอดรวม (agg) ก่อน แล้วค่อยหาข้อมูลสินค้าแค่แถวของหน้านั้น (หน้าท้าย ๆ ไม่ช้า)
+            string sql = string.IsNullOrWhiteSpace(keyword)
+                ? RowsSql.Replace("FROM agg a", "FROM (SELECT * FROM agg ORDER BY Customer, PartKey, M OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY) a") + " ORDER BY a.Customer, a.PartKey, a.M OPTION (MAX_GRANT_PERCENT = 5)"
+                : RowsSql + " ORDER BY a.Customer, a.PartKey, a.M OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY OPTION (MAX_GRANT_PERCENT = 5)";
             using (var conn = new SqlConnection(_cs))
-            using (var cmd = new SqlCommand(RowsSql + " ORDER BY a.Customer, a.PartKey, a.M OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY OPTION (MAX_GRANT_PERCENT = 5)", conn))
+            using (var cmd = new SqlCommand(sql, conn))
             {
                 AddMonth(cmd, month, keyword);
                 cmd.Parameters.AddWithValue("@skip", skip);
@@ -125,6 +133,23 @@ namespace Nexus.Services
                 using (var r = cmd.ExecuteReader()) while (r.Read()) list.Add(Read(r));
             }
             return list;
+        }
+
+        // จำนวนแถวทั้งหมดตามเดือน / คำค้นหา (หน้าเว็บแบ่งหน้าละ 100 แถว -> ปุ่มเปลี่ยนหน้า)
+        public int CountRows(DateTime? month, string keyword)
+        {
+            const string cols = "SELECT a.Customer, ISNULL(p.PartA, '') AS PartA, COALESCE(NULLIF(LTRIM(RTRIM(p.PartNumber)), ''), a.PartKey) AS PartNo, ISNULL(p.Description, '') AS ProductName, a.F, a.O, a.D, a.M";
+            // ไม่มีคำค้นหา = นับจากยอดรวมอย่างเดียว (ไม่ต้องหาข้อมูลสินค้า)
+            string sql = string.IsNullOrWhiteSpace(keyword)
+                ? RowsSql[..RowsSql.IndexOf(cols, StringComparison.Ordinal)] + "SELECT COUNT(*) FROM agg"
+                : RowsSql.Replace(cols, "SELECT COUNT(*)") + " OPTION (MAX_GRANT_PERCENT = 5)";
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand(sql, conn))
+            {
+                AddMonth(cmd, month, keyword);
+                conn.Open();
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
         }
 
         // TOP 5 Order ของเดือน + เปอร์เซ็นต์ / month = null -> รวมทุกเดือน
