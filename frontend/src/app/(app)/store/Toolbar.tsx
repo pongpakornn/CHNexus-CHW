@@ -78,7 +78,7 @@ export function CategoryPicker({ label, allLabel, options, value, onChange }: { 
 
   const items = [{ v: "", t: allLabel }, ...options.map((o) => ({ v: o, t: o }))];
   return (
-    <div ref={box} className="relative shrink-0" onKeyDown={move}>
+    <div ref={box} className={`ms relative shrink-0 ${open ? "is-open" : ""}`} onKeyDown={move}>
       <button
         type="button"
         onClick={(e) => {
@@ -102,41 +102,30 @@ export function CategoryPicker({ label, allLabel, options, value, onChange }: { 
         </svg>
       </button>
 
-      <div className={`cat-drop absolute ${right ? "right-0" : "left-0"} top-[calc(100%+8px)] z-40 w-[280px] max-w-[calc(100vw-24px)] ${open ? "is-open" : ""}`} inert={!open}>
-        <div className="overflow-hidden rounded-2xl border border-[#e2e4f0] bg-surface shadow-[0_24px_48px_-20px_rgb(40_45_110/0.45)]">
-          <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">
-            {label}
-            <span className="rounded-full bg-[#dbeafe] px-2 py-0.5 text-[#1d4ed8]">{options.length}</span>
-          </div>
-          <div ref={list} role="listbox" className="max-h-[320px] overflow-y-auto p-1.5">
-            {items.map((x, i) => {
-              const on = x.v === value;
-              return (
-                <button
-                  key={x.v || "__all"}
-                  type="button"
-                  role="option"
-                  aria-selected={on}
-                  onClick={() => pick(x.v)}
-                  className={`cat-item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-bold outline-none transition ${
-                    on
-                      ? "bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white shadow-[0_6px_14px_-8px_rgb(37_99_235)]"
-                      : "text-ink hover:bg-[#eff6ff] hover:text-[#1d4ed8] focus-visible:bg-[#eff6ff] focus-visible:text-[#1d4ed8]"
-                  }`}
-                  style={{ "--d": `${Math.min(i, 10) * 22}ms` } as React.CSSProperties}
-                >
-                  <span className={`size-1.5 shrink-0 rounded-full ${on ? "bg-white" : x.v ? "bg-[#93c5fd]" : "bg-ink-soft/40"}`} />
-                  <span className="truncate">{x.t}</span>
-                  {on && (
-                    <svg viewBox="0 0 24 24" className="ml-auto size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="m5 12 5 5 9-10" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {/* รายการที่เลื่อนลง: แบบเดียวกับ Dropdown ของระบบ (MenuSelect) - เผยจากกลางแล้วทยอยขึ้นทีละแถว */}
+      <div ref={list} role="listbox" className={`ms-menu is-long !min-w-[220px] ${right ? "" : "!left-0 !right-auto"}`} inert={!open}>
+        {items.map((x, i) => {
+          const on = x.v === value;
+          return (
+            <button
+              key={x.v || "__all"}
+              type="button"
+              role="option"
+              aria-selected={on}
+              tabIndex={open ? 0 : -1}
+              onClick={() => pick(x.v)}
+              className={`ms-item ${on ? "is-on" : ""}`}
+              style={{ "--i": Math.min(i, 12) } as React.CSSProperties}
+            >
+              <span className="truncate">{x.t}</span>
+              {on && (
+                <svg viewBox="0 0 24 24" className="ml-auto size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
