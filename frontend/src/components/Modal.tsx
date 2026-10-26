@@ -12,6 +12,7 @@ export function Modal({
   footer,
   wide,
   size,
+  flush,
 }: {
   open: boolean;
   title: React.ReactNode;
@@ -21,6 +22,8 @@ export function Modal({
   wide?: boolean;
   /** xl = กว้างเกือบเต็มจอ (ตารางหลายคอลัมน์) */
   size?: "xl";
+  /** เนื้อหาชิดขอบ (ไม่มีระยะขอบ / ไม่เลื่อนเอง) - หน้าต่างที่มี Sidebar จัดวางเอง */
+  flush?: boolean;
 }) {
   // ปิดแล้วยังวาดค้างไว้ 180 ms ให้เล่นอนิเมชันจางออก (เนื้อหาเดิมจำไว้ระหว่างนั้น)
   const [shown, setShown] = useState(open);
@@ -59,7 +62,7 @@ export function Modal({
             </svg>
           </button>
         </div>
-        <div className="modal-body min-h-0 flex-1 overflow-auto p-4 sm:p-5">{view.children}</div>
+        <div className={`modal-body min-h-0 flex-1 ${flush ? "flex overflow-hidden" : "overflow-auto p-4 sm:p-5"}`}>{view.children}</div>
         {view.footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#eeecf3] bg-[#faf9fd] px-4 py-3 sm:px-5">{view.footer}</div>}
       </div>
     </div>

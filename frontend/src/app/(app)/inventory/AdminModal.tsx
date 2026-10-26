@@ -40,6 +40,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [mini, setMini] = useState(false); // Sidebar พับ = ไอคอนอย่างเดียว
+  const [drawer, setDrawer] = useState(false); // มือถือ: เมนูเลื่อนออกจากซ้าย
   useEffect(() => {
     try {
       if (localStorage.getItem(SIDE_KEY) === "1") queueMicrotask(() => setMini(true));
@@ -216,63 +217,78 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     ["QR", "QR CODE", "ข้อมูลใน QR / ข้อความใต้ QR", <path key="q" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />],
   ];
 
-  return (
-    <Modal
-      open
-      size="xl"
-      title="🛠 ADMIN • INVENTORY REGISTRATION"
-      onClose={close}
-      footer={
-        tab === "DELETE" ? (
-          <button className="btn bg-danger" disabled={busy || chosen.length === 0 || !reason.trim() || (!all && ticked.length === 0)} onClick={doDelete}>
-            🗑 DELETE
+  const tabName = TABS.find((x) => x[0] === tab)?.[1] ?? "";
+  const pick = (t: Tab) => {
+    setTab(t);
+    setDrawer(false);
+    if (t === "FORM" && cur === 0 && data) setCur(data.stocks[0]?.stkId ?? 0);
+  };
+  const burger = (onClick: () => void, label: string) => (
+    <button type="button" className="adm-burger" onClick={onClick} aria-label={label} title={label}>
+      <span />
+      <span />
+      <span />
+    </button>
+  );
+  const foot =
+    tab === "DELETE" ? (
+      <button className="cta-btn is-red ml-auto" disabled={busy || chosen.length === 0 || !reason.trim() || (!all && ticked.length === 0)} onClick={doDelete}>
+        🗑 DELETE
+      </button>
+    ) : (
+      <>
+        {tab === "FORM" && l && (
+          <button className="fill-btn is-sm" onClick={() => data && edit((x) => ({ ...x, formFields: data.formFields.map((o) => o.key) }))}>
+            ALL FIELDS
           </button>
-        ) : (
-          <>
-            {tab === "FORM" && l && (
-              <button className="btn-ghost mr-auto" onClick={() => data && edit((x) => ({ ...x, formFields: data.formFields.map((o) => o.key) }))}>
-                ALL FIELDS
-              </button>
-            )}
-            {tab === "COLUMNS" && l && (
-              <button className="btn-ghost mr-auto" onClick={() => data && edit((x) => ({ ...x, columns: [...data.defaultOrder], groupBy: "CATEGORY" }))}>
-                RESET
-              </button>
-            )}
-            <button className="cta-btn is-purple" disabled={dirty.length === 0} onClick={() => saveLayouts(tab)}>
-              SAVE {dirty.length > 0 ? `(${dirty.length})` : ""}
-            </button>
-          </>
-        )
-      }
-    >
-      {!data ? (
-        <Loading />
-      ) : (
-        <div className={`adm-wrap grid gap-5 ${mini ? "is-mini" : ""}`}>
-          {/* เมนูด้านซ้ายแบบ Sidebar หน้าหลัก - พับเหลือไอคอน / กางออกได้ */}
-          <nav className="adm-side">
-            <div className="adm-side-head">
-              <span className="adm-side-title">ADMIN MENU</span>
-              <button type="button" className="adm-burger" onClick={toggleMini} aria-label={mini ? "กางเมนู" : "พับเมนู"} title={mini ? "กางเมนู" : "พับเมนู"}>
-                <span />
-                <span />
-                <span />
-              </button>
-            </div>
-            {TABS.map(([t, txt, hint, path]) => (
-              <button key={t} type="button" onClick={() => (setTab(t), t === "FORM" && cur === 0 && data && setCur(data.stocks[0]?.stkId ?? 0))} title={mini ? txt : undefined} className={`adm-item ${tab === t ? "is-on" : ""}`}>
-                <svg viewBox="0 0 24 24" className="adm-item-ic" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  {path}
-                </svg>
-                <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-extrabold">{txt}</span>
-                  <span className="adm-item-hint">{hint}</span>
-                </span>
-              </button>
-            ))}
-          </nav>
+        )}
+        {tab === "COLUMNS" && l && (
+          <button className="fill-btn is-sm" onClick={() => data && edit((x) => ({ ...x, columns: [...data.defaultOrder], groupBy: "CATEGORY" }))}>
+            RESET
+          </button>
+        )}
+        <button className="cta-btn is-purple ml-auto" disabled={dirty.length === 0} onClick={() => saveLayouts(tab as "COLUMNS" | "QR" | "FORM")}>
+          💾 SAVE {dirty.length > 0 ? `(${dirty.length})` : ""}
+        </button>
+      </>
+    );
 
+  return (
+    <Modal open size="xl" flush title={`🛠 ADMIN • ${tabName}`} onClose={close}>
+      {/* Sidebar ติดขอบซ้ายสูงเต็มหน้าต่าง (แบบเมนูหลัก) · พับเหลือไอคอนได้ · มือถือ = เมนูเลื่อนออกจากซ้าย */}
+      <div className={`adm-shell ${mini ? "is-mini" : ""} ${drawer ? "is-drawer" : ""}`}>
+        <nav className="adm-nav">
+          <div className="adm-nav-head">
+            {burger(() => (window.matchMedia("(max-width: 767px)").matches ? setDrawer(false) : toggleMini()), mini ? "กางเมนู" : "พับเมนู")}
+            <span className="adm-nav-title">
+              ADMIN
+              <small>INVENTORY REGISTRATION</small>
+            </span>
+          </div>
+          {TABS.map(([t, txt, hint, path]) => (
+            <button key={t} type="button" onClick={() => pick(t)} title={mini ? txt : undefined} className={`adm-item ${tab === t ? "is-on" : ""}`}>
+              <svg viewBox="0 0 24 24" className="adm-item-ic" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {path}
+              </svg>
+              <span className="adm-item-txt">
+                <span className="block truncate text-[13.5px] font-extrabold">{txt}</span>
+                <span className="adm-item-hint">{hint}</span>
+              </span>
+            </button>
+          ))}
+        </nav>
+        {drawer && <div className="adm-scrim" onClick={() => setDrawer(false)} />}
+
+        <section className="adm-main">
+          <div className="adm-main-head">
+            {burger(() => setDrawer(true), "เมนู")}
+            <b>{tabName}</b>
+          </div>
+          <div className="adm-scroll">
+            {!data ? (
+              <Loading />
+            ) : (
+              <>
           {tab === "DELETE" && (
             <div key="del" className="adm-pane grid content-start gap-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -416,8 +432,12 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
               )}
             </div>
           )}
-        </div>
-      )}
+              </>
+            )}
+          </div>
+          <div className="adm-foot">{foot}</div>
+        </section>
+      </div>
     </Modal>
   );
 }
