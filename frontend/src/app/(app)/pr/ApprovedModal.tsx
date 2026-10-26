@@ -1,5 +1,6 @@
 "use client";
 
+import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
@@ -170,16 +171,10 @@ export function ApprovedModal({
                     </td>
                     {(can.edit || can.delete) && (
                       <td className="whitespace-nowrap">
-                        {can.edit && (
-                          <button className="btn-ghost mr-1 px-2 py-1 text-xs" onClick={() => setEdit(p)}>
-                            ✏️
-                          </button>
-                        )}
-                        {can.delete && (
-                          <button className="btn-ghost px-2 py-1 text-xs text-danger" onClick={() => remove(p)}>
-                            🗑
-                          </button>
-                        )}
+                        <RowActions>
+                          {can.edit && <RowAction kind="edit" onClick={() => setEdit(p)} />}
+                          {can.delete && <RowAction kind="delete" onClick={() => remove(p)} />}
+                        </RowActions>
                       </td>
                     )}
                   </tr>

@@ -1,5 +1,6 @@
 "use client";
 
+import { RowAction } from "@/components/ui/RowAction";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toasts";
@@ -220,24 +221,18 @@ export default function UsersPage() {
                 <div className="truncate">{u.lastLoginText}</div>
                 {u.showScanChip && <div className={`truncate font-extrabold ${u.scanNotSet ? "text-danger" : "text-success"}`}>{u.scanChipText}</div>}
               </div>
-              <div className="mt-auto flex flex-wrap gap-1 border-t border-line/60 p-2">
-                <button className="btn-ghost px-3 py-1 text-xs" onClick={() => setPerm({ userId: u.userId, readOnly: true })}>
-                  VIEW
-                </button>
-                {can.edit && (
-                  <button className="btn bg-info px-3 py-1 text-xs" onClick={() => setEdit({ user: u })}>
-                    EDIT
-                  </button>
-                )}
+              <div className="mt-auto flex flex-wrap items-center gap-1 border-t border-line/60 p-2">
+                <RowAction kind="view" title="VIEW PERMISSION" onClick={() => setPerm({ userId: u.userId, readOnly: true })} />
+                {can.edit && <RowAction kind="edit" title="EDIT USER" onClick={() => setEdit({ user: u })} />}
                 {can.perms && (
                   <button className="btn bg-accent px-3 py-1 text-xs" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
                     🔑 PERMISSION
                   </button>
                 )}
                 {can.delete && (
-                  <button className="btn bg-danger ml-auto px-3 py-1 text-xs" onClick={() => remove(u)}>
-                    DEL
-                  </button>
+                  <span className="ml-auto">
+                    <RowAction kind="delete" title="DELETE USER" onClick={() => remove(u)} />
+                  </span>
                 )}
               </div>
             </div>

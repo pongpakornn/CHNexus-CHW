@@ -1,5 +1,6 @@
 "use client";
 
+import { RowAction } from "@/components/ui/RowAction";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -404,10 +405,8 @@ export default function PrPage() {
                         {p.department}
                       </td>
                       <td className="whitespace-nowrap text-right">
-                        <div className="inline-flex gap-1">
-                          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => (viewing?.prNumber === p.prNumber ? clear() : (setViewing(p), setF({ requester: p.requester, dept: p.department, remark: p.remark, target: p.targetDept })))}>
-                            👁
-                          </button>
+                        <div className="inline-flex items-center gap-1">
+                          <RowAction kind="view" active={viewing?.prNumber === p.prNumber} onClick={() => (viewing?.prNumber === p.prNumber ? clear() : (setViewing(p), setF({ requester: p.requester, dept: p.department, remark: p.remark, target: p.targetDept })))} />
                           {can.approve && p.status === "Waiting" && (
                             <>
                               <button className="btn bg-success px-2 py-1 text-xs" onClick={() => setApprove(p)}>

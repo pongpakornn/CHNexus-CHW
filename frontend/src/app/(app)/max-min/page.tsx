@@ -1,5 +1,6 @@
 "use client";
 
+import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
@@ -468,12 +469,10 @@ export default function MaxMinPage() {
                         <td className="text-right font-extrabold text-success">{r.qtyMax}</td>
                         <td className="text-right font-extrabold text-danger">{r.qtyMin}</td>
                         <td className="whitespace-nowrap text-center">
-                          <button className="btn bg-accent px-3 py-1 text-xs" disabled={!canEdit} onClick={() => edit(r)}>
-                            {editing?.ptId === r.ptId ? "CANCEL" : "EDIT"}
-                          </button>{" "}
-                          <button className="btn bg-danger px-3 py-1 text-xs" disabled={!canEdit || !!busy} onClick={() => reset(r)}>
-                            RESET
-                          </button>
+                          <RowActions>
+                            <RowAction kind="edit" active={editing?.ptId === r.ptId} title={editing?.ptId === r.ptId ? "CANCEL" : "EDIT MAX / MIN (DAY)"} disabled={!canEdit} onClick={() => edit(r)} />
+                            <RowAction kind="reset" title="RESET = ใช้ค่าตามสูตร" disabled={!canEdit || !!busy} onClick={() => reset(r)} />
+                          </RowActions>
                         </td>
                       </tr>
                     ))}

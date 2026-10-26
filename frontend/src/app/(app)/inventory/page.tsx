@@ -10,6 +10,7 @@ import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
 import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
 import { QrImage } from "@/components/ui/QrImage";
+import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { api, download, upload } from "@/lib/api";
 import { qty } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
@@ -636,26 +637,12 @@ export default function InventoryPage() {
                             </td>
                             {cols.map((c) => cell(p, c))}
                             <td className="whitespace-nowrap text-right">
-                              <div className="inline-flex gap-1">
-                                <button className="btn-ghost px-2 py-1 text-xs" onClick={() => (viewId === p.ptId && !editId ? clear() : fill(p, false))} title="VIEW">
-                                  👁
-                                </button>
-                                {can.edit && (
-                                  <button className="btn-ghost px-2 py-1 text-xs" onClick={() => (editId === p.ptId ? clear() : fill(p, true))} title="EDIT">
-                                    ✏️
-                                  </button>
-                                )}
-                                {can.edit && (
-                                  <button className="btn-ghost px-2 py-1 text-xs" onClick={() => toggleShow(p)} title={p.isShow ? "HIDE" : "SHOW"}>
-                                    {p.isShow ? "🙈" : "👁‍🗨"}
-                                  </button>
-                                )}
-                                {can.delete && (
-                                  <button className="btn-ghost px-2 py-1 text-xs text-danger" onClick={() => remove(p)} title="DELETE">
-                                    🗑
-                                  </button>
-                                )}
-                              </div>
+                              <RowActions>
+                                <RowAction kind="view" active={viewId === p.ptId && !editId} onClick={() => (viewId === p.ptId && !editId ? clear() : fill(p, false))} />
+                                {can.edit && <RowAction kind="edit" active={editId === p.ptId} title={editId === p.ptId ? "CANCEL EDIT" : "EDIT"} onClick={() => (editId === p.ptId ? clear() : fill(p, true))} />}
+                                {can.edit && <RowAction kind="hide" shown={p.isShow} onClick={() => toggleShow(p)} />}
+                                {can.delete && <RowAction kind="delete" onClick={() => remove(p)} />}
+                              </RowActions>
                             </td>
                           </tr>
                           {coils[p.ptId] && (
