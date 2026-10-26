@@ -5,7 +5,7 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
-import { Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
+import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { ContactModal } from "./ContactModal";
@@ -187,7 +187,89 @@ export default function UsersPage() {
       {list.length === 0 ? (
         <Empty>NO USER</Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <>
+        {/* 🖥 Desktop: ตารางผู้ใช้ · 📱 Mobile: การ์ด (แบบเดิม) */}
+        <Card className="hidden lg:block">
+          <div className="max-h-[calc(100dvh-230px)] overflow-auto">
+            <table className="data-table um-table w-full">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th className="text-left">USER</th>
+                  <th>LEVEL</th>
+                  <th>STATUS</th>
+                  <th className="text-left max-[1440px]:hidden">POSITION / UNIT</th>
+                  <th>SYSTEMS</th>
+                  <th className="text-left">SCAN STOCK</th>
+                  <th className="max-[1180px]:hidden">LAST LOGIN</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((u, i) => {
+                  const tone = LEVEL_TONE[u.level] ?? "var(--primary)";
+                  return (
+                    <tr key={u.userId} className={`um-row ${u.isLocked ? "is-locked" : ""}`} style={{ animationDelay: `${Math.min(i, 15) * 25}ms` }}>
+                      <td className="text-left">
+                        <div className="flex items-center gap-3">
+                          <span className="relative shrink-0">
+                            <span className="grid size-10 place-items-center rounded-full text-sm font-extrabold text-white" style={{ background: tone }}>
+                              {u.initials}
+                            </span>
+                            <span className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-surface ${u.isLocked ? "bg-danger" : u.isOnline ? "bg-success" : "bg-[#bdbdbd]"}`} />
+                          </span>
+                          <span className="min-w-0">
+                            <b className="block max-w-[220px] truncate text-[#1f2350]">{u.name}</b>
+                            <span className="text-[11px] font-bold text-ink-soft">ID : {u.userId}</span>
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="whitespace-nowrap rounded-md px-2 py-0.5 text-[10.5px] font-extrabold text-white" style={{ background: tone }}>
+                          {u.levelText}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`um-status ${u.isLocked ? "is-locked" : u.isOnline ? "is-on" : ""}`}>{u.statusText}</span>
+                      </td>
+                      <td className="text-left text-xs font-semibold text-ink-soft max-[1440px]:hidden">
+                        <div className="max-w-[260px] truncate" title={u.subText}>
+                          {u.subText}
+                        </div>
+                        <div className="max-w-[300px] truncate" title={u.subText2}>
+                          {u.subText2}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[11px] font-extrabold text-primary">{u.permCount}</span>
+                      </td>
+                      <td className="text-left text-xs">
+                        {u.showScanChip && (
+                          <div className={`max-w-[180px] truncate font-extrabold ${u.scanNotSet ? "text-danger" : "text-success"}`} title={u.scanChipText}>
+                            {u.scanChipText}
+                          </div>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-xs font-semibold text-ink-soft max-[1180px]:hidden">{u.lastLoginText.replace(/^Last login\s*/i, "")}</td>
+                      <td>
+                        <div className="inline-flex items-center gap-1.5">
+                          <RowAction kind="view" title="VIEW PERMISSION" onClick={() => setPerm({ userId: u.userId, readOnly: true })} />
+                          {can.edit && <RowAction kind="edit" title="EDIT USER" onClick={() => setEdit({ user: u })} />}
+                          {can.perms && (
+                            <button className="cta-btn is-purple is-sm" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
+                              🔑 PERMISSION
+                            </button>
+                          )}
+                          {can.delete && <RowAction kind="delete" title="DELETE USER" onClick={() => remove(u)} />}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
           {list.map((u) => (
             <div key={u.userId} className={`flex flex-col overflow-hidden rounded-2xl border bg-surface shadow-sm transition hover:shadow-md ${u.isLocked ? "border-danger/50 opacity-80" : "border-line/60"}`}>
               <div className="h-1.5" style={{ background: LEVEL_TONE[u.level] ?? "var(--primary)" }} />
@@ -238,6 +320,7 @@ export default function UsersPage() {
             </div>
           ))}
         </div>
+        </>
       )}
 
       {edit && (
