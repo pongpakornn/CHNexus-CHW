@@ -3872,36 +3872,44 @@ div.swap-in:has(> .show-strip) {
 .ra-row {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
 }
+/* ปุ่มพื้นสีอ่อนตามประเภท (ไอคอน + ขอบสีเดียวกัน) · ชี้ = พื้นสีเต็ม ไอคอนขาว ยกขึ้นเล็กน้อย */
 .ra {
   --c: var(--accent);
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #64748b;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--c) 14%, #fff);
+  color: var(--c);
   cursor: pointer;
-  transition: color 0.2s ease, transform 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease, transform 0.2s ease;
 }
 .ra:hover:not(:disabled),
 .ra:focus-visible,
 .ra.is-active {
-  color: var(--c);
+  border-color: var(--c);
+  background: var(--c);
+  color: #fff;
+  box-shadow: 0 8px 16px -8px var(--c);
+}
+.ra:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 .ra:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--c) 45%, transparent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 .ra:active:not(:disabled) {
-  transform: scale(0.88);
+  transform: scale(0.9);
 }
 .ra:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
+  filter: grayscale(0.6);
   cursor: not-allowed;
 }
 .ra-ic {
@@ -3917,7 +3925,7 @@ div.swap-in:has(> .show-strip) {
   --c: #2563eb;
 }
 .ra-hide {
-  --c: #7c3aed;
+  --c: #d97706;
 }
 .ra-delete {
   --c: #ef4444;
@@ -4035,10 +4043,6 @@ div.swap-in:has(> .show-strip) {
 .ra-hide:hover:not(:disabled) .ra-eye {
   transform: scaleY(0.72);
 }
-.ra-hide.is-off {
-  --c: #0d9488;
-  color: #a1a1aa;
-}
 .ra-hide.is-off .ra-slash {
   stroke-dashoffset: 0;
 }
@@ -4072,12 +4076,23 @@ div.swap-in:has(> .show-strip) {
   transform-origin: bottom right;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.ra-delete:hover:not(:disabled) .ra-bin {
-  gap: 0;
-}
 .ra-delete:hover:not(:disabled) .ra-bin-top {
-  transition-duration: 0.4s;
-  transform: rotate(150deg);
+  transition: transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transform: translateY(-1.5px) rotate(28deg);
+}
+.ra-delete:hover:not(:disabled) .ra-bin-body {
+  animation: ra-shake 0.45s ease-in-out 0.15s;
+}
+@keyframes ra-shake {
+  25% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+  75% {
+    transform: rotate(-3deg);
+  }
 }
 
 /* ↺ RESET: หมุน 1 รอบ */

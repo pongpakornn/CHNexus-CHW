@@ -631,7 +631,7 @@ export default function InventoryPage() {
                       {g.key && <GroupRow colSpan={ncols} label={layout?.groupBy ?? ""} value={g.key} count={groupCounts[g.key] ?? g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />}
                       {!collapsed.has(g.key) && g.items.map((p) => (
                         <Fragment key={p.ptId}>
-                          <tr className={`${viewId === p.ptId ? "bg-accent-soft/40" : ""} ${p.isShow ? "" : "opacity-50"}`}>
+                          <tr className={`${viewId === p.ptId ? "bg-accent-soft/40" : ""} ${p.isShow ? "" : "[&>td:not(:last-child)]:opacity-50"}`}>
                             <td>
                               <input type="checkbox" checked={ticked.includes(p.ptId)} onChange={(e) => setTicked((t) => (e.target.checked ? [...t, p.ptId] : t.filter((x) => x !== p.ptId)))} />
                             </td>
