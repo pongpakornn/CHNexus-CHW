@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { DateField } from "@/components/ui/DateField";
 import { DateRange } from "@/components/ui/DateRange";
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
@@ -60,6 +61,10 @@ const d = (s: string | null) => {
   return `${String(x.getDate()).padStart(2, "0")}-${String(x.getMonth() + 1).padStart(2, "0")}-${x.getFullYear()}`;
 };
 const stamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const shift = (iso: string, n: number) => {
+  const [y, m, dd] = iso.split("-").map(Number);
+  return isoDate(new Date(y, m - 1, dd + n));
+};
 const minDate = () => {
   const x = new Date();
   x.setMonth(x.getMonth() - HISTORY_MONTHS);
@@ -100,7 +105,17 @@ export default function PickListPage() {
   const [exporting, setExporting] = useState(false);
   const [collapsed, toggleGroup] = useCollapsed();
   const printRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<"DAY" | "RANGE">("DAY");
   const k = useDebounced(key, 250);
+
+  // เลือกวันเดียว = FROM / TO เป็นวันนั้น (ไม่เกินย้อนหลัง 2 เดือน / ไม่เกินวันนี้)
+  function setDay(v: string) {
+    const m = minDate();
+    const x = v < m ? m : v > today() ? today() : v;
+    setFrom(x);
+    setTo(x);
+    setSel([]);
+  }
 
   useEffect(() => {
     try {
@@ -289,19 +304,39 @@ export default function PickListPage() {
             <div className="mb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wide text-accent">
               🕘 HISTORY <span className="font-bold text-ink-soft">(BACK {HISTORY_MONTHS} MONTHS)</span>
             </div>
+            {/* 📅 DAY = เลือกวันไหน แสดงเฉพาะวันนั้น (‹ › เลื่อนทีละวัน) · RANGE = ช่วงวันที่ */}
             <div className="flex flex-wrap items-center gap-2">
-              <DateRange
-                from={from}
-                to={to}
-                quick={false}
-                onChange={(f, t) => {
-                  const m = minDate();
-                  setFrom(f < m ? m : f);
-                  setTo(t < m ? m : t);
-                  setSel([]);
-                }}
-              />
-              <button className="btn-ghost" disabled={from === today() && to === today()} onClick={() => (setFrom(today()), setTo(today()), setSel([]))}>
+              <div className="pk-seg" role="tablist">
+                {(["DAY", "RANGE"] as const).map((m) => (
+                  <button key={m} type="button" role="tab" aria-selected={mode === m} className={mode === m ? "is-on" : ""} onClick={() => (setMode(m), m === "DAY" && from !== to && setDay(from))}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {mode === "DAY" ? (
+                <>
+                  <button type="button" className="pk-step" disabled={from <= minDate()} onClick={() => setDay(shift(from, -1))} aria-label="วันก่อนหน้า">
+                    ‹
+                  </button>
+                  <DateField label="DATE" value={from} onChange={setDay} className="w-[190px]" />
+                  <button type="button" className="pk-step" disabled={from >= today()} onClick={() => setDay(shift(from, 1))} aria-label="วันถัดไป">
+                    ›
+                  </button>
+                </>
+              ) : (
+                <DateRange
+                  from={from}
+                  to={to}
+                  quick={false}
+                  onChange={(f, t) => {
+                    const m = minDate();
+                    setFrom(f < m ? m : f);
+                    setTo(t < m ? m : t);
+                    setSel([]);
+                  }}
+                />
+              )}
+              <button className="btn-ghost" disabled={from === today() && to === today()} onClick={() => setDay(today())}>
                 TODAY
               </button>
             </div>
