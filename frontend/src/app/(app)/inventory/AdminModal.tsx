@@ -7,11 +7,12 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { Loading } from "@/components/ui/Page";
 import { QrImage } from "@/components/ui/QrImage";
 import { api } from "@/lib/api";
+import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import type { Layout } from "./types";
 
 type Opt = { key: string; label: string };
 type Data = {
-  stocks: { stkId: number; code: string; name: string; count: number }[];
+  stocks: { stkId: number; code: string; name: string; count: number; stockType: string | null; isMain: boolean }[];
   layouts: { stkId: number; code: string; layout: Layout }[];
   columns: Opt[];
   qrFields: Opt[];
@@ -104,46 +105,100 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     }
   }
 
-  const chip = (on: boolean, text: string, onClick: () => void, key?: string) => (
-    <button key={key ?? text} type="button" onClick={onClick} className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${on ? "border-accent bg-accent text-white" : "border-line hover:border-accent"}`}>
+  const l = layouts[cur];
+  const labelOf = (opts: Opt[], k: string) => opts.find((o) => o.key === k)?.label ?? k;
+  const stockOf = (id: number) => data?.stocks.find((s) => s.stkId === id);
+  const picked = data ? data.stocks.filter((s) => chosen.includes(s.stkId)) : [];
+
+  // ปุ่มเลือก (GROUP BY / คอลัมน์): ขอบสี ชี้แล้วสีเต็มขยายจากกลางปุ่ม · on = เลือกอยู่
+  const fill = (on: boolean, text: React.ReactNode, onClick: () => void, key: string, extra = "") => (
+    <button key={key} type="button" onClick={onClick} className={`fill-btn ${on ? "is-on" : ""} ${extra}`}>
       {text}
     </button>
   );
 
-  const l = layouts[cur];
-  const labelOf = (opts: Opt[], k: string) => opts.find((o) => o.key === k)?.label ?? k;
-
+  // ลำดับที่เลือก (ตัวเลข + ◀ เลื่อนขึ้นก่อน + × เอาออก) · ที่ยังไม่เลือก = ＋ เพิ่มต่อท้าย
   const orderList = (list: string[], opts: Opt[], onChange: (v: string[]) => void, locked?: string) => (
-    <div className="flex flex-wrap gap-2">
-      {list.map((k, i) => (
-        <span key={k} className="flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-xs font-extrabold text-white">
-          <button type="button" disabled={i === 0} onClick={() => onChange(list.map((x, j) => (j === i - 1 ? k : j === i ? list[i - 1] : x)))} className="px-1 disabled:opacity-30">
-            ◀
-          </button>
-          {i + 1}. {labelOf(opts, k)}
-          {k === locked ? (
-            " 🔒"
-          ) : (
-            <button type="button" onClick={() => onChange(list.filter((x) => x !== k))} className="px-1">
-              ×
+    <div className="grid gap-3">
+      <div className="flex flex-wrap gap-2">
+        {list.length === 0 && <span className="text-xs font-bold text-ink-soft">ยังไม่ได้เลือก</span>}
+        {list.map((k, i) => (
+          <span key={k} className="ord-chip">
+            <b className="ord-no">{i + 1}</b>
+            <button type="button" disabled={i === 0} title="เลื่อนขึ้นก่อน" onClick={() => onChange(list.map((x, j) => (j === i - 1 ? k : j === i ? list[i - 1] : x)))} className="ord-mv">
+              ◀
             </button>
-          )}
-        </span>
-      ))}
-      {opts
-        .filter((o) => !list.includes(o.key))
-        .map((o) => (
-          <button key={o.key} type="button" onClick={() => onChange([...list, o.key])} className="rounded-full border border-dashed border-line px-3 py-1 text-xs font-bold text-ink-soft hover:border-accent">
-            ＋ {o.label}
-          </button>
+            <span className="px-0.5">{labelOf(opts, k)}</span>
+            {k === locked ? (
+              <span className="ord-lock" title="จำเป็นต้องมี">
+                🔒
+              </span>
+            ) : (
+              <button type="button" title="เอาออก" onClick={() => onChange(list.filter((x) => x !== k))} className="ord-x">
+                ×
+              </button>
+            )}
+          </span>
         ))}
+      </div>
+      {opts.some((o) => !list.includes(o.key)) && (
+        <div className="flex flex-wrap gap-2 border-t border-dashed border-line pt-3">
+          {opts.filter((o) => !list.includes(o.key)).map((o) => fill(false, `＋ ${o.label}`, () => onChange([...list, o.key]), o.key, "is-add"))}
+        </div>
+      )}
     </div>
   );
+
+  // การ์ดคลังแบบหน้า Store (Max-Min): แถบสี · ไอคอนประจำคลัง · รหัส / ชื่อ · จำนวน · ติ๊กถูกเมื่อเลือก
+  const stockCard = (o: { id: number; code: string; name?: string; count?: number; type?: string | null; i: number }, on: boolean, onClick: () => void, tone: "danger" | "accent", mark?: boolean) => {
+    const [ic, c0] = o.id === 0 ? ["", "#6750a4"] : stockIcon(o.code, o.i, o.type);
+    const col = tone === "danger" && on ? "#ef4444" : c0;
+    return (
+      <button key={o.id} type="button" onClick={onClick} className={`adm-card ${on ? "is-on" : ""}`} style={{ "--c": col } as React.CSSProperties}>
+        <span className="adm-bar" />
+        <span className="adm-ic" style={tileStyle(c0)}>
+          {o.id === 0 ? (
+            <svg viewBox="0 0 24 24" className="size-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+              <rect x="3.5" y="3.5" width="7" height="7" rx="1.6" />
+              <rect x="13.5" y="3.5" width="7" height="7" rx="1.6" />
+              <rect x="3.5" y="13.5" width="7" height="7" rx="1.6" />
+              <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" />
+            </svg>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={ic} alt="" className="size-6 object-contain" draggable={false} />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 text-left">
+          <span className="flex items-center gap-1.5 truncate text-[15px] font-extrabold text-[#1f2350]">
+            {o.code} {mark && <span className="adm-dirty" title="ยังไม่ได้ SAVE" />}
+          </span>
+          {o.name && <span className="block truncate text-[11px] font-semibold text-ink-soft">{o.name}</span>}
+          {o.count !== undefined && (
+            <span className="mt-1 block text-[11px] font-extrabold" style={{ color: c0 }}>
+              <span className="text-lg tabular-nums">{o.count.toLocaleString()}</span> ITEMS
+            </span>
+          )}
+        </span>
+        <span className="adm-check" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 12.5 4 4 8-9" />
+          </svg>
+        </span>
+      </button>
+    );
+  };
+
+  const TABS: [Tab, string, string, React.ReactNode][] = [
+    ["DELETE", "STOCK DELETE", "ลบสินค้าตามคลัง", <path key="d" d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5" />],
+    ["COLUMNS", "TABLE COLUMNS", "คอลัมน์ / จัดกลุ่ม", <path key="c" d="M4 5h16v14H4zM4 10h16M10 10v9M15 10v9" />],
+    ["QR", "QR CODE", "ข้อมูลใน QR / ข้อความใต้ QR", <path key="q" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />],
+  ];
 
   return (
     <Modal
       open
-      wide
+      size="xl"
       title="🛠 ADMIN • INVENTORY REGISTRATION"
       onClose={close}
       footer={
@@ -168,95 +223,122 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
       {!data ? (
         <Loading />
       ) : (
-        <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-          <nav className="flex gap-2 md:flex-col">
-            {(
-              [
-                ["DELETE", "🗑 STOCK DELETE"],
-                ["COLUMNS", "▦ TABLE COLUMNS"],
-                ["QR", "▣ QR CODE"],
-              ] as [Tab, string][]
-            ).map(([t, txt]) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded-xl px-3 py-2 text-left text-sm font-extrabold ${tab === t ? "bg-[#1c1c1e] text-white" : "hover:bg-surface-2"}`}>
-                {txt}
+        <div className="grid gap-5 md:grid-cols-[230px_minmax(0,1fr)]">
+          {/* เมนูด้านซ้ายแบบ Sidebar หน้าหลัก */}
+          <nav className="adm-side">
+            <div className="adm-side-head">ADMIN MENU</div>
+            {TABS.map(([t, txt, hint, path]) => (
+              <button key={t} type="button" onClick={() => setTab(t)} className={`adm-item ${tab === t ? "is-on" : ""}`}>
+                <svg viewBox="0 0 24 24" className="adm-item-ic" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  {path}
+                </svg>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-extrabold">{txt}</span>
+                  <span className="adm-item-hint">{hint}</span>
+                </span>
               </button>
             ))}
           </nav>
 
           {tab === "DELETE" && (
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {data.stocks.map((s) => (
-                  <button
-                    key={s.stkId}
-                    onClick={() => setChosen((c) => (c.includes(s.stkId) ? c.filter((x) => x !== s.stkId) : [...c, s.stkId]))}
-                    className={`rounded-2xl border-2 p-3 text-left ${chosen.includes(s.stkId) ? "border-danger bg-[#ffebee]" : "border-line"}`}
-                  >
-                    <div className="font-extrabold text-primary">{s.code}</div>
-                    <div className="text-xs text-ink-soft">{s.count.toLocaleString()} ITEMS</div>
+            <div key="del" className="adm-pane grid content-start gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="adm-title">SELECT STOCK</div>
+                <span className="ml-auto" />
+                {fill(
+                  chosen.length === data.stocks.length && data.stocks.length > 0,
+                  chosen.length === data.stocks.length && data.stocks.length > 0 ? "✓ ALL STOCKS" : "SELECT ALL STOCKS",
+                  () => setChosen(chosen.length === data.stocks.length ? [] : data.stocks.map((s) => s.stkId)),
+                  "all",
+                  "is-sm is-danger",
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
+                {data.stocks.map((s, i) =>
+                  stockCard(
+                    { id: s.stkId, code: s.code, name: s.name, count: s.count, type: s.stockType, i },
+                    chosen.includes(s.stkId),
+                    () => setChosen((c) => (c.includes(s.stkId) ? c.filter((x) => x !== s.stkId) : [...c, s.stkId])),
+                    "danger",
+                  ),
+                )}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    [false, "DELETE THE TICKED PRODUCTS", `สินค้าที่ติ๊กไว้ในตาราง (${ticked.length} ticked)`, ticked.length === 0],
+                    [true, "DELETE ALL PRODUCTS", "สินค้าทั้งหมดในคลังที่เลือก", false],
+                  ] as [boolean, string, string, boolean][]
+                ).map(([v, t, h, off]) => (
+                  <button key={t} type="button" disabled={off} onClick={() => setAll(v)} className={`adm-opt ${all === v ? "is-on" : ""}`}>
+                    <span className="adm-radio" />
+                    <span className="min-w-0 text-left">
+                      <b className="block text-[13px] font-extrabold">{t}</b>
+                      <span className="block text-[11px] font-semibold text-ink-soft">{h}</span>
+                    </span>
                   </button>
                 ))}
               </div>
-              <label className="flex items-center gap-2 text-sm font-bold">
-                <input type="radio" checked={!all} disabled={ticked.length === 0} onChange={() => setAll(false)} /> DELETE THE TICKED PRODUCTS IN THE TABLE ({ticked.length} ticked)
-              </label>
-              <label className="flex items-center gap-2 text-sm font-bold">
-                <input type="radio" checked={all} onChange={() => setAll(true)} /> DELETE ALL PRODUCTS IN THE SELECTED STOCKS
-              </label>
               <textarea className="field" rows={2} placeholder="เหตุผล (REASON)" value={reason} onChange={(e) => setReason(e.target.value)} />
-              <div className="rounded-xl bg-surface-2 p-3 text-sm font-semibold">
+              <div className={`adm-sum ${chosen.length > 0 ? "is-warn" : ""}`}>
                 {chosen.length === 0
                   ? "Select at least 1 stock."
                   : all
-                    ? `All products in ${data.stocks.filter((s) => chosen.includes(s.stkId)).map((s) => s.code).join(", ")} will be deleted from the system (up to ${data.stocks.filter((s) => chosen.includes(s.stkId)).reduce((a, s) => a + s.count, 0).toLocaleString()} product(s)).`
-                    : `${ticked.length} ticked product(s) will be deleted if they are in ${data.stocks.filter((s) => chosen.includes(s.stkId)).map((s) => s.code).join(", ")}.`}
+                    ? `All products in ${picked.map((s) => s.code).join(", ")} will be deleted from the system (up to ${picked.reduce((a, s) => a + s.count, 0).toLocaleString()} product(s)).`
+                    : `${ticked.length} ticked product(s) will be deleted if they are in ${picked.map((s) => s.code).join(", ")}.`}
               </div>
             </div>
           )}
 
           {(tab === "COLUMNS" || tab === "QR") && (
-            <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
-              <div className="flex max-h-[55vh] flex-col gap-1 overflow-auto">
-                {data.layouts.map((x) => (
-                  <button key={x.stkId} onClick={() => setCur(x.stkId)} className={`rounded-xl px-3 py-2 text-left text-sm font-bold ${cur === x.stkId ? "bg-accent text-white" : "hover:bg-surface-2"}`}>
-                    {x.code} {dirty.includes(x.stkId) && "•"}
-                  </button>
-                ))}
+            <div key={tab} className="adm-pane grid content-start gap-4">
+              <div className="adm-title">SELECT STOCK</div>
+              <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+                {data.layouts.map((x, i) => {
+                  const st = stockOf(x.stkId);
+                  return stockCard({ id: x.stkId, code: x.code, name: x.stkId === 0 ? "ค่าเริ่มต้นของทุกคลัง" : st?.name, type: st?.stockType, i }, cur === x.stkId, () => setCur(x.stkId), "accent", dirty.includes(x.stkId));
+                })}
               </div>
               {l && tab === "COLUMNS" && (
-                <div className="grid gap-4">
+                <div className="adm-box grid gap-5">
                   <div>
-                    <div className="mb-2 text-xs font-extrabold uppercase text-primary">GROUP BY</div>
-                    <div className="flex flex-wrap gap-2">{data.groups.map((g) => chip(l.groupBy === g, g, () => edit((x) => ({ ...x, groupBy: g }))))}</div>
+                    <div className="adm-title mb-2">GROUP BY</div>
+                    <div className="flex flex-wrap gap-2">{data.groups.map((g) => fill(l.groupBy === g, g, () => edit((x) => ({ ...x, groupBy: g })), g))}</div>
                   </div>
                   <div>
-                    <div className="mb-2 text-xs font-extrabold uppercase text-primary">COLUMNS (ลำดับตามที่เลือก)</div>
+                    <div className="adm-title mb-2">COLUMNS (ลำดับตามที่เลือก)</div>
                     {orderList(l.columns, data.columns, (v) => edit((x) => ({ ...x, columns: v })))}
                   </div>
                 </div>
               )}
               {l && tab === "QR" && (
-                <div className="grid gap-4">
-                  <div>
-                    <div className="mb-2 text-xs font-extrabold uppercase text-primary">รูปแบบที่ 2 • ข้อมูลใน QR (หน้าสแกนอ่าน คั่นด้วย |)</div>
-                    {orderList(l.qrFields, data.qrFields, (v) => edit((x) => ({ ...x, qrFields: v.includes("CODE") ? v : ["CODE", ...v] })), "CODE")}
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+                  <div className="adm-box grid content-start gap-5">
+                    <div>
+                      <div className="adm-title mb-2">รูปแบบที่ 2 • ข้อมูลใน QR (หน้าสแกนอ่าน คั่นด้วย |)</div>
+                      {orderList(l.qrFields, data.qrFields, (v) => edit((x) => ({ ...x, qrFields: v.includes("CODE") ? v : ["CODE", ...v] })), "CODE")}
+                    </div>
+                    <div>
+                      <div className="adm-title mb-2">รูปแบบที่ 1 • ข้อความใต้ QR (บรรทัดแรกตัวหนา)</div>
+                      {orderList(l.qrLabel, data.qrFields, (v) => edit((x) => ({ ...x, qrLabel: v })))}
+                    </div>
+                    {!data.hasQrFields && <div className="text-xs font-bold text-warning">ฐานข้อมูลยังไม่รองรับรูปแบบ QR แบบกำหนดเอง (Update_20261017b.sql)</div>}
                   </div>
-                  <div>
-                    <div className="mb-2 text-xs font-extrabold uppercase text-primary">รูปแบบที่ 1 • ข้อความใต้ QR (บรรทัดแรกตัวหนา)</div>
-                    {orderList(l.qrLabel, data.qrFields, (v) => edit((x) => ({ ...x, qrLabel: v })))}
-                  </div>
-                  <div className="flex items-center gap-4 rounded-2xl bg-surface-2 p-4">
-                    <QrImage text={l.qrFields.map((k) => (k === "CODE" ? "A250-00017" : k === "NAME" ? "SAMPLE NAME" : k)).join("|")} size={110} />
-                    <div className="text-sm">
-                      <div className="font-mono text-xs text-ink-soft">{l.qrFields.map((k) => labelOf(data.qrFields, k)).join(" | ")}</div>
+                  {/* ตัวอย่างป้าย QR */}
+                  <div className="adm-box">
+                    <div className="adm-title mb-3">PREVIEW</div>
+                    <div className="mx-auto w-fit rounded-2xl bg-white p-3 shadow-[0_10px_24px_-14px_rgb(55_48_107/0.45)]">
+                      <QrImage text={l.qrFields.map((k) => (k === "CODE" ? "A250-00017" : k === "NAME" ? "SAMPLE NAME" : k)).join("|")} size={140} />
+                    </div>
+                    <div className="mt-3 text-center text-sm">
                       {l.qrLabel.map((k, i) => (
-                        <div key={k} className={i === 0 ? "font-extrabold" : ""}>
+                        <div key={k} className={i === 0 ? "font-extrabold text-[#1f2350]" : "font-semibold text-ink-soft"}>
                           {labelOf(data.qrFields, k)}
                         </div>
                       ))}
                     </div>
+                    <div className="mt-3 break-all rounded-lg bg-surface-2 px-2 py-1.5 text-center font-mono text-[10px] text-ink-soft">{l.qrFields.map((k) => labelOf(data.qrFields, k)).join(" | ")}</div>
                   </div>
-                  {!data.hasQrFields && <div className="text-xs font-bold text-warning">ฐานข้อมูลยังไม่รองรับรูปแบบ QR แบบกำหนดเอง (Update_20261017b.sql)</div>}
                 </div>
               )}
             </div>

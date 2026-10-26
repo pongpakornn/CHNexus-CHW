@@ -448,7 +448,7 @@ public sealed class ProductsController : AppController
         var counts = _svc.GetStockPartCounts(stocks);
         return Ok(new
         {
-            stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, count = counts.TryGetValue(s.StkId, out int n) ? n : 0 }),
+            stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.StockType, s.IsMain, count = counts.TryGetValue(s.StkId, out int n) ? n : 0 }),
             layouts = stocks.Select(s => (int?)s.StkId).Prepend(null).Select(id => new { stkId = id ?? 0, code = id == null ? "ALL STOCKS" : stocks.First(s => s.StkId == id).Code, layout = LayoutOf(layouts, id) }),
             columns = ProductControlColumns.All.Select(c => new { key = c.Key, label = c.Label }),
             qrFields = QrFormat.Fields.Select(c => new { key = c.Key, label = c.Label }),

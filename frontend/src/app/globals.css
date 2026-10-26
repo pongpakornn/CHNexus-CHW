@@ -4115,3 +4115,389 @@ div.swap-in:has(> .show-strip) {
     transition: none !important;
   }
 }
+
+/* 🛠 ADMIN (Inventory Registration): เมนูซ้ายแบบ Sidebar · การ์ดคลังแบบ Store · ปุ่มเติมสีจากกลาง */
+.adm-side {
+  display: flex;
+  gap: 4px;
+  align-self: start;
+  overflow-x: auto;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #2b2833, #1d1b22);
+  padding: 10px;
+  box-shadow: 0 14px 30px -18px rgb(20 18 30 / 0.7);
+}
+.adm-side-head {
+  display: none;
+  padding: 6px 10px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgb(255 255 255 / 0.4);
+}
+@media (min-width: 768px) {
+  .adm-side {
+    position: sticky;
+    top: 0;
+    flex-direction: column;
+    overflow: visible;
+  }
+  .adm-side-head {
+    display: block;
+  }
+}
+.adm-item {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: rgb(255 255 255 / 0.72);
+  text-align: left;
+  transition: background-color 0.25s, color 0.25s, transform 0.25s;
+}
+.adm-item:hover {
+  background: rgb(255 255 255 / 0.07);
+  color: #fff;
+}
+.adm-item:hover .adm-item-ic {
+  transform: rotate(-8deg) scale(1.1);
+}
+.adm-item.is-on {
+  background: linear-gradient(90deg, #6750a4, #8c6fdc);
+  color: #fff;
+  box-shadow: 0 10px 20px -10px #8c6fdc;
+}
+.adm-item.is-on::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 22%;
+  bottom: 22%;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: #c4b5fd;
+}
+.adm-item-ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.adm-item-hint {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.62;
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  .adm-item-hint {
+    display: none;
+  }
+  .adm-item.is-on::before {
+    display: none;
+  }
+}
+.adm-pane {
+  min-width: 0;
+  animation: adm-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes adm-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.adm-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.adm-box {
+  border-radius: 18px;
+  border: 1px solid #ebe9f3;
+  background: linear-gradient(180deg, #fbfaff, #fff);
+  padding: 16px;
+}
+
+/* การ์ดคลัง */
+.adm-card {
+  --c: var(--accent);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  min-width: 0;
+  border-radius: 18px;
+  border: 1.5px solid #e2e4f0;
+  background: var(--surface);
+  padding: 14px 14px 12px;
+  box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 10px 24px -20px rgb(40 45 110 / 0.35);
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s, box-shadow 0.3s, background-color 0.25s;
+}
+.adm-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--c) 45%, #e2e4f0);
+  box-shadow: 0 16px 30px -20px var(--c);
+}
+.adm-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 45%, white));
+  transition: height 0.25s;
+}
+.adm-card:hover .adm-bar {
+  height: 5px;
+}
+.adm-ic {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  border-radius: 14px;
+  transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.adm-card:hover .adm-ic {
+  transform: rotate(-6deg) scale(1.08);
+}
+.adm-check {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  align-self: flex-start;
+  border-radius: 99px;
+  border: 1.5px solid #dcd9e6;
+  color: transparent;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.adm-check svg {
+  width: 14px;
+  height: 14px;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 0.35s ease 0.08s;
+}
+.adm-card.is-on {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 6%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 16px 30px -20px var(--c);
+}
+.adm-card.is-on .adm-check {
+  border-color: var(--c);
+  background: var(--c);
+  color: #fff;
+  transform: scale(1.1);
+}
+.adm-card.is-on .adm-check svg {
+  stroke-dashoffset: 0;
+}
+.adm-dirty {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 99px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 0.2);
+  animation: pk-pulse 1.6s ease-out infinite;
+}
+
+/* ตัวเลือก (ลบที่ติ๊ก / ลบทั้งหมด) */
+.adm-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 16px;
+  border: 1.5px solid #e2e4f0;
+  background: var(--surface);
+  padding: 12px 14px;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.25s;
+}
+.adm-opt:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 45%, #e2e4f0);
+}
+.adm-opt:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.adm-opt.is-on {
+  border-color: var(--danger);
+  background: #fff5f5;
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.12);
+}
+.adm-radio {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 99px;
+  border: 2px solid #cfcbdc;
+  transition: border-color 0.2s;
+}
+.adm-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: var(--danger);
+  scale: 0;
+  transition: scale 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.adm-opt.is-on .adm-radio {
+  border-color: var(--danger);
+}
+.adm-opt.is-on .adm-radio::after {
+  scale: 1;
+}
+.adm-sum {
+  border-radius: 14px;
+  background: var(--surface-2, #f4f3f8);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.adm-sum.is-warn {
+  border: 1px solid rgb(239 68 68 / 0.25);
+  background: linear-gradient(90deg, #fff1f1, #fff8f8);
+  color: #b91c1c;
+}
+
+/* ปุ่มเติมสีจากกลาง (ขอบสี → ชี้แล้วพื้นสีขยายเต็มปุ่ม) */
+.fill-btn {
+  --f: var(--accent);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid var(--f);
+  border-radius: 34px;
+  background: transparent;
+  padding: 7px 18px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--f);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fill-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  margin: auto;
+  width: 50px;
+  height: 50px;
+  border-radius: inherit;
+  background: var(--f);
+  scale: 0;
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fill-btn:hover::before,
+.fill-btn.is-on::before {
+  scale: 6;
+}
+.fill-btn:hover,
+.fill-btn.is-on {
+  color: #fff;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--f) 40%, transparent);
+}
+.fill-btn:hover {
+  scale: 1.06;
+}
+.fill-btn:active {
+  scale: 1;
+}
+.fill-btn.is-add {
+  --f: #8a84a3;
+  border-style: dashed;
+  border-width: 1.5px;
+}
+.fill-btn.is-add:hover {
+  --f: var(--accent);
+  border-style: solid;
+}
+.fill-btn.is-sm {
+  padding: 5px 14px;
+  font-size: 11.5px;
+}
+.fill-btn.is-danger {
+  --f: var(--danger);
+}
+
+/* ลำดับที่เลือก */
+.ord-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 34px;
+  background: linear-gradient(90deg, #6750a4, #8c6fdc);
+  padding: 4px 6px 4px 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 8px 16px -10px #6750a4;
+  animation: ord-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@keyframes ord-pop {
+  from {
+    opacity: 0;
+    scale: 0.7;
+  }
+}
+.ord-no {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 99px;
+  background: #fff;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #6750a4;
+}
+.ord-mv,
+.ord-x {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 99px;
+  font-size: 10px;
+  transition: background-color 0.2s, transform 0.2s;
+}
+.ord-x {
+  font-size: 15px;
+}
+.ord-mv:hover:not(:disabled),
+.ord-x:hover {
+  background: rgb(255 255 255 / 0.22);
+}
+.ord-mv:hover:not(:disabled) {
+  transform: translateX(-2px);
+}
+.ord-mv:disabled {
+  opacity: 0.3;
+}
+.ord-lock {
+  padding: 0 4px;
+  font-size: 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .adm-pane,
+  .ord-chip,
+  .adm-dirty {
+    animation: none;
+  }
+}
