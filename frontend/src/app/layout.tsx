@@ -19,6 +19,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // iPad / iPhone: ไม่ซูมเข้าเองตอนแตะช่องกรอก (ยังถ่างนิ้วซูมได้ตามปกติบน iOS)
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

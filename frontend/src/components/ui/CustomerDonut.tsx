@@ -90,7 +90,7 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
       {rows.length === 0 ? (
         <div className="py-16 text-center text-sm font-semibold text-ink-soft">{empty}</div>
       ) : view === "table" ? (
-        <div className={fill ? "relative flex-1 xl:min-h-[380px]" : ""}>
+        <div className={fill ? "relative xl:min-h-[380px] xl:flex-1" : ""}>
           <div className={`view-in max-h-[520px] overflow-auto px-4 pb-4 ${fill ? "xl:absolute xl:inset-0 xl:max-h-none" : ""}`}>
             <table className="w-full border-collapse text-sm tabular-nums">
               <thead className="sticky top-0 z-10 bg-surface">
@@ -116,7 +116,7 @@ export function CustomerDonut({ title, period, rows, empty = "ไม่มีข
         </div>
       ) : (
         <>
-          <div className={`view-in @container flex-1 ${fill ? "relative xl:min-h-[380px]" : ""}`}>
+          <div className={`view-in @container ${fill ? "relative xl:min-h-[380px] xl:flex-1" : ""}`}>
             <div className={`grid items-center gap-4 p-4 @[540px]:grid-cols-[minmax(220px,.9fr)_minmax(0,1.1fr)] ${fill ? "xl:absolute xl:inset-0 xl:grid-rows-[minmax(0,1fr)] xl:@[540px]:grid-cols-[minmax(240px,1.15fr)_minmax(250px,.85fr)]" : ""}`}>
               {/* วงแหวน */}
               <div className={`relative mx-auto aspect-square w-full max-w-[320px] ${fill ? "xl:max-h-full xl:max-w-[400px]" : ""}`}>

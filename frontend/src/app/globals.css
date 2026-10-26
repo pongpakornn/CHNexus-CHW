@@ -154,6 +154,18 @@ body {
   height: 44px;
 }
 
+/* 📱 จอสัมผัส (iPad / มือถือ): ช่องกรอกตัวอักษร 16px = Safari ไม่ซูมเข้าเองตอนแตะ · ปิดซูมจากการแตะสองครั้ง */
+html {
+  touch-action: manipulation;
+}
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ⊟ ตารางจัดกึ่งกลาง (หัวตาราง + ข้อมูล): Multi-Scanner / Product Control / Pick List / Max-Min / Forecast / PR / Activity Log
    ปุ่ม / ป้ายในช่องที่เรียงแบบ flex ก็อยู่กลางช่องด้วย */
 .t-center th,
@@ -165,6 +177,32 @@ body {
 .t-center th > .flex,
 .t-center th > label {
   justify-content: center;
+}
+
+/* 📐 ตารางที่ล้นพื้นที่ (FitTables ใส่ .is-tight): กระชับก่อนเปลี่ยนเป็นการ์ด - ช่องแคบลง · หัวคอลัมน์ขึ้นบรรทัดใหม่ได้ (MAX / (DAYS))
+   ข้อความยาวตัดบรรทัดในช่อง · ปุ่มในช่องเรียงลงได้ */
+.data-table.is-tight th {
+  height: 46px;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: normal;
+}
+.data-table.is-tight td {
+  padding: 8px 6px;
+  font-size: 13px;
+  white-space: normal;
+}
+.data-table.is-tight td > .flex,
+.data-table.is-tight td > .inline-flex {
+  flex-wrap: wrap;
+}
+.data-table.is-tight td [class*="min-w-["] {
+  min-width: 0;
+}
+.data-table.is-tight td[class*="min-w-["] {
+  min-width: 120px;
 }
 
 /* 📱 ตารางที่แสดงไม่ครบคอลัมน์ (FitTables ใส่ .is-stacked): แถวละ 1 การ์ด · ซ้าย = ชื่อคอลัมน์ ขวา = ค่า */

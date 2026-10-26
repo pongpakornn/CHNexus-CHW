@@ -49,7 +49,8 @@ export function Card({
 }) {
   return (
     // หัวการ์ดไม่ตัดขอบ: Dropdown บนหัวการ์ดกางออกนอกการ์ดได้ · เนื้อหาด้านล่างยังตัดตามมุมมน
-    <section className={`rounded-2xl border border-line/60 bg-surface shadow-sm ${className}`}>
+    // min-w-0: การ์ดไม่ยืดตามตารางที่กว้าง (ตารางย่อ / เป็นการ์ดในกล่องแทน)
+    <section className={`min-w-0 rounded-2xl border border-line/60 bg-surface shadow-sm ${className}`}>
       {(title || actions) && (
         <div className="relative z-20 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 px-4 py-3">
           {title && <h3 className="text-sm font-extrabold uppercase tracking-wide text-primary">{title}</h3>}

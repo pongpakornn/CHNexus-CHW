@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-// 📱 ตารางทั้งระบบ (.data-table): แสดงครบทุกคอลัมน์ได้ = ตารางแบบ Desktop · พื้นที่แคบกว่าที่ตารางต้องใช้ (มือถือ / iPad แนวตั้ง) = แถวละ 1 การ์ด
+// 📱 ตารางทั้งระบบ (.data-table): แสดงครบทุกคอลัมน์ได้ = ตารางแบบ Desktop · แคบลง = ตารางกระชับ (iPad แนวตั้ง) · ยังไม่พอ = แถวละ 1 การ์ด (มือถือ)
 //    แต่ละช่องมีชื่อคอลัมน์กำกับ (data-label จากหัวตาราง) -> เห็นข้อมูลครบโดยไม่ต้องเลื่อนซ้าย-ขวา
 //    จำความกว้างที่ตารางต้องใช้ไว้ (data-need) แล้วกลับเป็นตารางเมื่อพื้นที่กว้างพอ · ข้ามตารางหน้าคลัง (มีการ์ดของตัวเอง) และ data-nostack
 const SKIP = ".store-table, [data-nostack]";
@@ -21,18 +21,29 @@ function label(table: HTMLTableElement) {
     }
 }
 
+const over = (table: HTMLTableElement, box: HTMLElement) => table.scrollWidth > box.clientWidth + 2 || box.scrollWidth > box.clientWidth + 2;
+const widthOf = (table: HTMLTableElement, box: HTMLElement) => String(Math.max(table.scrollWidth, box.scrollWidth) + 4);
+
+// ตารางเต็ม -> ล้น = ตารางกระชับ (is-tight: ช่องแคบ หัวคอลัมน์ / ข้อความขึ้นบรรทัดใหม่) -> ยังล้น = การ์ด (is-stacked)
+//   จำความกว้างที่แต่ละขั้นต้องใช้ (data-need-full / data-need) แล้วถอยกลับขั้นก่อนหน้าเมื่อพื้นที่กว้างพอ
 function fit(table: HTMLTableElement) {
   const box = table.parentElement;
   if (!box) return;
   const w = box.clientWidth;
-  if (table.classList.contains("is-stacked")) {
-    if (w >= Number(table.dataset.need || 0)) table.classList.remove("is-stacked");
+  const cl = table.classList;
+  if (cl.contains("is-stacked")) {
+    if (w >= Number(table.dataset.need || 0)) cl.remove("is-stacked");
     else return;
   }
-  if (table.scrollWidth > w + 2 || box.scrollWidth > w + 2) {
-    table.dataset.need = String(Math.max(table.scrollWidth, box.scrollWidth) + 4);
-    table.classList.add("is-stacked");
+  if (cl.contains("is-tight") && w >= Number(table.dataset.needFull || 0)) cl.remove("is-tight");
+  if (!over(table, box)) return;
+  if (!cl.contains("is-tight")) {
+    table.dataset.needFull = widthOf(table, box);
+    cl.add("is-tight");
+    if (!over(table, box)) return;
   }
+  table.dataset.need = widthOf(table, box);
+  cl.add("is-stacked");
 }
 
 export function FitTables() {
