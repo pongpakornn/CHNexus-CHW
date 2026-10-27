@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Loading } from "@/components/ui/Page";
 import { QrImage } from "@/components/ui/QrImage";
 import { api } from "@/lib/api";
@@ -11,6 +12,12 @@ import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import type { Layout } from "./types";
 
 type Opt = { key: string; label: string };
+type CField = { fieldId: number; stockId: number; key: string; label: string; type: string; values: number };
+const CF_TYPES = [
+  { value: "TEXT", label: "TEXT (ข้อความ)" },
+  { value: "NUMBER", label: "NUMBER (ตัวเลข)" },
+  { value: "DATE", label: "DATE (วันที่)" },
+];
 type Data = {
   stocks: { stkId: number; code: string; name: string; count: number; stockType: string | null; isMain: boolean }[];
   layouts: { stkId: number; code: string; layout: Layout }[];
@@ -20,9 +27,11 @@ type Data = {
   defaultOrder: string[];
   formFields: Opt[];
   hasFormFields: boolean;
+  hasCustomFields: boolean;
+  customFields: CField[];
   hasQrFields: boolean;
 };
-type Tab = "DELETE" | "FORM" | "COLUMNS" | "QR";
+type Tab = "DELETE" | "FIELDS" | "FORM" | "COLUMNS" | "QR";
 const SIDE_KEY = "inv-admin-side";
 
 // 🛠 ADMIN ของ Inventory Registration (ProductControlAdminWindow - Level 1): STOCK DELETE / TABLE COLUMNS / QR CODE
@@ -39,6 +48,9 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   const [all, setAll] = useState(ticked.length === 0);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // ➕ CUSTOM FIELDS: ช่องใหม่ / ช่องที่กำลังแก้
+  const [nf, setNf] = useState({ label: "", type: "TEXT" });
+  const [ef, setEf] = useState<{ id: number; label: string; type: string } | null>(null);
   const [mini, setMini] = useState(false); // Sidebar พับ = ไอคอนอย่างเดียว
   const [drawer, setDrawer] = useState(false); // มือถือ: เมนูเลื่อนออกจากซ้าย
   useEffect(() => {
@@ -126,8 +138,64 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     }
   }
 
+  // ➕ เพิ่ม / แก้ / ลบ ช่องกรอกของคลัง (ยืนยันก่อนทุกครั้ง)
+  async function addField() {
+    if (!data || !cur) return;
+    const label = nf.label.trim();
+    if (!label) return toast.show("WARNING", "กรุณากรอกชื่อช่อง", "warn");
+    const code = stockOf(cur)?.code ?? "";
+    if (!(await dlg.confirm({ title: "ADD FIELD", ok: "＋ ADD", message: `เพิ่มช่อง "${label.toUpperCase()}" (${nf.type}) ให้คลัง ${code}?
+
+แล้วเลือกให้แสดงได้ที่ FORM FIELDS / TABLE COLUMNS และหน้า Store (EDIT STOCK) · Template Excel ใช้ตาม FORM FIELDS` }))) return;
+    try {
+      const r = await api<{ message: string }>("/products/admin/fields", { method: "POST", body: { stkId: cur, label, type: nf.type } });
+      toast.show("CUSTOM FIELD", r.message, "ok");
+      setNf({ label: "", type: nf.type });
+      setChanged(true);
+      load();
+    } catch (e) {
+      toast.show("WARNING", (e as Error).message, "warn");
+    }
+  }
+  async function saveField() {
+    if (!ef) return;
+    try {
+      const r = await api<{ message: string }>(`/products/admin/fields/${ef.id}`, { method: "PUT", body: { stkId: cur, label: ef.label, type: ef.type } });
+      toast.show("CUSTOM FIELD", r.message, "ok");
+      setEf(null);
+      setChanged(true);
+      load();
+    } catch (e) {
+      toast.show("WARNING", (e as Error).message, "warn");
+    }
+  }
+  async function deleteField(f: CField) {
+    if (
+      !(await dlg.confirm({
+        title: "DELETE FIELD",
+        danger: true,
+        ok: "🗑 DELETE",
+        message: `ลบช่อง "${f.label}" ของคลัง ${stockOf(f.stockId)?.code ?? ""}?
+
+ค่าที่เคยกรอกไว้ ${f.values.toLocaleString()} รายการจะถูกลบด้วย และเอาออกจาก FORM FIELDS / TABLE COLUMNS / หน้า Store ให้อัตโนมัติ
+ลบแล้วกู้คืนไม่ได้`,
+      }))
+    )
+      return;
+    try {
+      const r = await api<{ message: string }>(`/products/admin/fields/${f.fieldId}/delete`, { method: "POST" });
+      toast.show("CUSTOM FIELD", r.message, "ok");
+      setChanged(true);
+      load();
+    } catch (e) {
+      toast.show("WARNING", (e as Error).message, "warn");
+    }
+  }
+
   const l = layouts[cur];
-  const labelOf = (opts: Opt[], k: string) => opts.find((o) => o.key === k)?.label ?? k;
+  // ช่องกรอกเพิ่มเองของคลังที่เลือก -> ตัวเลือกใน FORM FIELDS / TABLE COLUMNS
+  const cfOpts = (stk: number): Opt[] => (data?.customFields ?? []).filter((f) => f.stockId === stk).map((f) => ({ key: f.key, label: `➕ ${f.label}` }));
+  const labelOf = (opts: Opt[], k: string) => opts.find((o) => o.key === k)?.label ?? data?.customFields.find((f) => f.key === k)?.label ?? k;
   const stockOf = (id: number) => data?.stocks.find((s) => s.stkId === id);
   const picked = data ? data.stocks.filter((s) => chosen.includes(s.stkId)) : [];
 
@@ -212,6 +280,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
 
   const TABS: [Tab, string, string, React.ReactNode][] = [
     ["DELETE", "STOCK DELETE", "ลบสินค้าตามคลัง", <path key="d" d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5" />],
+    ["FIELDS", "CUSTOM FIELDS", "เพิ่ม / แก้ / ลบ ช่องกรอกของคลัง", <path key="cf" d="M12 5v14M5 12h14M4 4h4M16 4h4M4 20h4M16 20h4" />],
     ["FORM", "FORM FIELDS", "ช่องกรอกลงทะเบียน / Template", <path key="f" d="M5 4h14v16H5zM8.5 8.5h7M8.5 12h7M8.5 15.5h4" />],
     ["COLUMNS", "TABLE COLUMNS", "คอลัมน์ / จัดกลุ่ม", <path key="c" d="M4 5h16v14H4zM4 10h16M10 10v9M15 10v9" />],
     ["QR", "QR CODE", "ข้อมูลใน QR / ข้อความใต้ QR", <path key="q" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />],
@@ -221,7 +290,8 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   const pick = (t: Tab) => {
     setTab(t);
     setDrawer(false);
-    if (t === "FORM" && cur === 0 && data) setCur(data.stocks[0]?.stkId ?? 0);
+    if ((t === "FORM" || t === "FIELDS") && cur === 0 && data) setCur(data.stocks[0]?.stkId ?? 0);
+    setEf(null);
   };
   const burger = (onClick: () => void, label: string) => (
     <button type="button" className="adm-burger" onClick={onClick} aria-label={label} title={label}>
@@ -231,7 +301,9 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     </button>
   );
   const foot =
-    tab === "DELETE" ? (
+    tab === "FIELDS" ? (
+      <span className="text-xs font-bold text-ink-soft">เพิ่ม / แก้ / ลบ มีผลทันที (ไม่ต้องกด SAVE) · ลง Activity Log ทุกครั้ง</span>
+    ) : tab === "DELETE" ? (
       <button className="cta-btn is-red ml-auto" disabled={busy || chosen.length === 0 || !reason.trim() || (!all && ticked.length === 0)} onClick={doDelete}>
         🗑 DELETE
       </button>
@@ -339,6 +411,73 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
             </div>
           )}
 
+          {tab === "FIELDS" && (
+            <div key="fields" className="adm-pane grid content-start gap-4">
+              <div className="adm-title">SELECT STOCK</div>
+              <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {data.stocks.map((st, i) =>
+                  stockCard({ id: st.stkId, code: st.code, name: `${data.customFields.filter((f) => f.stockId === st.stkId).length} CUSTOM FIELD(S)`, type: st.stockType, i }, cur === st.stkId, () => (setCur(st.stkId), setEf(null)), "accent"),
+                )}
+              </div>
+              {!data.hasCustomFields ? (
+                <div className="adm-sum is-warn">ฐานข้อมูลยังไม่รองรับ - รัน database/nexus/12_Custom_Fields.sql บนฐาน CHR-Nexus</div>
+              ) : cur ? (
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="adm-box grid content-start gap-2">
+                    <div className="adm-title mb-1">ช่องกรอกเพิ่มเองของ {stockOf(cur)?.code}</div>
+                    {data.customFields.filter((f) => f.stockId === cur).length === 0 && <div className="py-3 text-sm font-bold text-ink-soft">ยังไม่มีช่องเพิ่มเอง - เพิ่มได้ที่กล่องด้านขวา</div>}
+                    {data.customFields
+                      .filter((f) => f.stockId === cur)
+                      .map((f, i) =>
+                        ef?.id === f.fieldId ? (
+                          <div key={f.fieldId} className="cf-row is-edit">
+                            <input className="field fx-in min-w-0 flex-1" autoFocus maxLength={60} value={ef.label} onChange={(e) => setEf({ ...ef, label: e.target.value })} onKeyDown={(e) => (e.key === "Enter" ? saveField() : e.key === "Escape" && setEf(null))} />
+                            <MenuSelect compact className="w-[170px]" value={ef.type} options={CF_TYPES} onChange={(v) => setEf({ ...ef, type: v })} />
+                            <button className="cta-btn is-purple is-sm" onClick={saveField}>
+                              💾 SAVE
+                            </button>
+                            <button className="fill-btn is-xs" onClick={() => setEf(null)}>
+                              CANCEL
+                            </button>
+                          </div>
+                        ) : (
+                          <div key={f.fieldId} className="cf-row" style={{ "--i": i } as React.CSSProperties}>
+                            <span className="cf-key">{f.key}</span>
+                            <b className="min-w-0 flex-1 truncate text-[14px] text-[#1f2350]">{f.label}</b>
+                            <span className="cf-type">{f.type}</span>
+                            <span className="text-[11px] font-bold text-ink-soft">{f.values.toLocaleString()} ค่า</span>
+                            <button className="fill-btn is-xs" onClick={() => setEf({ id: f.fieldId, label: f.label, type: f.type })}>
+                              ✏ EDIT
+                            </button>
+                            <button className="fill-btn is-xs text-danger" onClick={() => deleteField(f)}>
+                              🗑 DELETE
+                            </button>
+                          </div>
+                        ),
+                      )}
+                  </div>
+                  <div className="adm-box grid content-start gap-3">
+                    <div className="adm-title">＋ เพิ่มช่องใหม่ให้ {stockOf(cur)?.code}</div>
+                    <label className="fx">
+                      <span className="fx-cap">ชื่อช่อง (FIELD NAME)</span>
+                      <input className="field fx-in" maxLength={60} placeholder="เช่น COLOR / LOT SIZE / EXPIRE DATE" value={nf.label} onChange={(e) => setNf({ ...nf, label: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addField()} />
+                    </label>
+                    <div className="fx">
+                      <span className="fx-cap">ชนิดข้อมูล (TYPE)</span>
+                      <MenuSelect compact className="w-full" value={nf.type} options={CF_TYPES} onChange={(v) => setNf({ ...nf, type: v })} />
+                    </div>
+                    <button className="cta-btn is-purple" onClick={addField} disabled={!nf.label.trim()}>
+                      ＋ ADD FIELD
+                    </button>
+                    <p className="text-[11px] font-semibold leading-relaxed text-ink-soft">
+                      เพิ่มแล้ว: เลือกให้แสดงที่ FORM FIELDS (ช่องกรอก + Template / Import Excel ใช้ชื่อช่องเป็นหัวคอลัมน์) · TABLE COLUMNS (ตารางหน้านี้) · หน้า Store &gt; EDIT STOCK &gt; TABLE COLUMNS (ตารางคลัง)
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           {tab === "FORM" && (
             <div key="form" className="adm-pane grid content-start gap-4">
               <div className="adm-title">SELECT STOCK</div>
@@ -354,7 +493,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="adm-box grid content-start gap-3">
                     <div className="adm-title">ช่องกรอกลงทะเบียนสินค้า (ลำดับตามที่เลือก) • TEMPLATE EXCEL ของคลังนี้ใช้ช่องชุดเดียวกัน</div>
-                    {orderList(l.formFields ?? [], data.formFields, (v) => edit((x) => ({ ...x, formFields: v })), ["CODE", "NAME"])}
+                    {orderList(l.formFields ?? [], [...data.formFields, ...cfOpts(cur)], (v) => edit((x) => ({ ...x, formFields: v })), ["CODE", "NAME"])}
                     <p className="text-[11px] font-semibold text-ink-soft">
                       MASTER COIL / COIL NO / WEIGHT ของคลังที่นับ Coil = ของแต่ละ Coil (MASTER COIL อย่างเดียว = Master ทั้งม้วน) · คลังอื่น WEIGHT = น้ำหนักสินค้า · ช่องที่ไม่ได้เลือก ค่าเดิมของสินค้าไม่ถูกลบ
                     </p>
@@ -366,7 +505,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                     <div className="grid grid-cols-2 gap-2">
                       {(l.formFields ?? []).map((k, i) => (
                         <div key={k} className={`fm-prev ${k === "IMAGE" ? "col-span-2" : ""}`} style={{ animationDelay: `${i * 25}ms` }}>
-                          <span>{labelOf(data.formFields, k)}</span>
+                          <span>{labelOf([...data.formFields, ...cfOpts(cur)], k)}</span>
                           <i />
                         </div>
                       ))}
@@ -396,7 +535,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                   </div>
                   <div>
                     <div className="adm-title mb-2">COLUMNS (ลำดับตามที่เลือก)</div>
-                    {orderList(l.columns, data.columns, (v) => edit((x) => ({ ...x, columns: v })))}
+                    {orderList(l.columns, [...data.columns, ...cfOpts(cur)], (v) => edit((x) => ({ ...x, columns: v })))}
                   </div>
                 </div>
               )}

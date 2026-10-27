@@ -152,9 +152,12 @@ public sealed class ForecastController : AppController
             var months = valid.Select(v => v.Month).Distinct().OrderBy(m => m).ToList();
             int auto = valid.Count(v => !string.IsNullOrEmpty(v.Note));
             string monthText = string.Join(", ", months.Select(m => m.ToString("MMM yyyy", CultureInfo.InvariantCulture)));
-            string summary = $"ไฟล์: {file.FileName}\n\nนำเข้า {valid.Count:N0} แถว  (เดือน: {monthText})\n" +
-                             $"Forecast {valid.Sum(v => v.Forecast):N0}  •  Order {valid.Sum(v => v.Order):N0}  •  Delivery {valid.Sum(v => v.Delivery):N0}\n" +
-                             "ลูกค้า / สินค้า / เดือนเดียวกันที่เคยนำเข้าจะถูกแทนที่" +
+            var diff = new MaxMinCalcService().ForecastDiff(valid);
+            string summary = $"ไฟล์: {file.FileName}\n\nในไฟล์ {valid.Count:N0} แถว  (เดือน: {monthText})\n" +
+                             $"Forecast {valid.Sum(v => v.Forecast):N0}  •  Order {valid.Sum(v => v.Order):N0}  •  Delivery {valid.Sum(v => v.Delivery):N0}\n\n" +
+                             $"🆕 รายการใหม่ {diff.New:N0}  •  ✏️ ยอดเปลี่ยน {diff.Changed:N0} (อัพเดทเป็นยอดใหม่)  •  ✔ ยอดเดิมตรงกัน {diff.Same:N0} (ข้าม ไม่แตะ)" +
+                             (diff.ChangedText.Count > 0 ? "\n" + string.Join("\n", diff.ChangedText.Select(t => "  • " + t)) + (diff.Changed > diff.ChangedText.Count ? $"\n  • ... และอีก {diff.Changed - diff.ChangedText.Count:N0} รายการ" : "") : "") +
+                             (diff.New + diff.Changed == 0 ? "\n\nℹ ข้อมูลในไฟล์ตรงกับระบบทั้งหมด - ไม่มีอะไรต้องอัพเดท" : "") +
                              (withCalc ? "\n\nแล้วคำนวณ MAX / MIN ของคลังที่เปิด AUTO CALC" : "\n\nนำเข้าอย่างเดียว ไม่คำนวณ MAX / MIN") +
                              "\n\nℹ ตรวจสอบด้วย PART A · CUSTOMER / PART NO / ชื่อสินค้า ใช้ข้อมูลในระบบ" +
                              (auto > 0 ? $"\n⚠ CUSTOMER ในไฟล์ไม่ตรงกับระบบ {auto:N0} แถว (ใช้ของระบบ)" : "") +
@@ -174,15 +177,17 @@ public sealed class ForecastController : AppController
         try
         {
             var calc = new MaxMinCalcService();
-            int n = calc.ApplyForecast(rows, Uid);
-            LogService.WriteLog(Uid, "FORECAST_IMPORT", $"File: {it.FileName} | Rows: {n} | Months: {monthText} | Skipped rows: {bad}" +
+            var m = calc.ApplyForecastMerge(rows, Uid);
+            int n = m.Rows;
+            string mergeText = $"ใหม่ {m.New:N0} • ยอดเปลี่ยน {m.Changed:N0} • ตรงกันเดิม (ข้าม) {m.Same:N0}";
+            LogService.WriteLog(Uid, "FORECAST_IMPORT", $"File: {it.FileName} | New: {m.New} | Changed: {m.Changed} | Unchanged (skipped): {m.Same} | Rows written: {n} | Months: {monthText} | Skipped rows: {bad}" +
                                                    (withCalc ? "" : $" | Import only (no MAX / MIN calculate) | Customer differs from system: {auto}"), "");
             _uploads.Remove(id);
-            if (!withCalc) return Ok(new { message = $"นำเข้าแล้ว {n:N0} แถว (ไม่คำนวณ MAX / MIN)", month = last });
+            if (!withCalc || m.New + m.Changed == 0) return Ok(new { message = $"นำเข้าแล้ว: {mergeText}" + (withCalc ? "\nไม่มียอดเปลี่ยน - ไม่ต้องคำนวณ MAX / MIN ใหม่" : "\n(ไม่คำนวณ MAX / MIN)"), month = last });
             var r = calc.Calculate(null, null, Uid);
             if (r.Stocks > 0)
                 LogService.WriteLog(Uid, "MAXMIN_CALCULATE", $"Auto calculate after forecast import | Stocks: {r.Stocks} | Updated: {r.Updated} | Skipped (no order): {r.Skipped}", "");
-            return Ok(new { message = $"นำเข้าแล้ว {n:N0} แถว" + (r.Stocks > 0 ? $"\nคำนวณ MAX / MIN อัตโนมัติ {r.Updated:N0} รายการ" : ""), month = last });
+            return Ok(new { message = $"นำเข้าแล้ว: {mergeText}" + (r.Stocks > 0 ? $"\nคำนวณ MAX / MIN อัตโนมัติ {r.Updated:N0} รายการ" : ""), month = last });
         }
         catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ (ยกเลิกทั้งไฟล์)"); }
     }

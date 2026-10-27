@@ -45,7 +45,7 @@ namespace Nexus.Services
             foreach (var k in (csv ?? "").Split(','))
             {
                 string key = k.Trim().ToUpperInvariant();
-                if (key.Length > 0 && All.Any(c => c.Key == key) && !list.Contains(key)) list.Add(key);
+                if (key.Length > 0 && (All.Any(c => c.Key == key) || CustomFields.IsKey(key)) && !list.Contains(key)) list.Add(key);
             }
             return Normalize(list);
         }
@@ -53,7 +53,7 @@ namespace Nexus.Services
         // ต้องมี CODE / NAME เสมอ (ไม่มี = ใส่ไว้หน้าสุด)
         public static List<string> Normalize(List<string> list)
         {
-            var l = (list ?? new List<string>()).Where(k => All.Any(c => c.Key == k)).Distinct().ToList();
+            var l = (list ?? new List<string>()).Where(k => All.Any(c => c.Key == k) || CustomFields.IsKey(k)).Distinct().ToList();
             if (!l.Contains("NAME")) l.Insert(0, "NAME");
             if (!l.Contains("CODE")) l.Insert(0, "CODE");
             return l;
@@ -147,7 +147,7 @@ namespace Nexus.Services
             foreach (var k in (csv ?? "").Split(','))
             {
                 string key = k.Trim().ToUpperInvariant();
-                if (key.Length > 0 && All.Any(c => c.Key == key) && !list.Contains(key)) list.Add(key);
+                if (key.Length > 0 && (All.Any(c => c.Key == key) || CustomFields.IsKey(key)) && !list.Contains(key)) list.Add(key);
             }
             return list;
         }

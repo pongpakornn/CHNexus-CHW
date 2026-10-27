@@ -148,7 +148,14 @@ export const ProductRow = memo(function ProductRow({
           </td>
         );
       default:
-        return <td key={col} />;
+        // ➕ ช่องกรอกเพิ่มเองของคลัง (แก้ค่าได้ที่ Inventory Registration)
+        return col.startsWith("CF") ? (
+          <td key={col} className="max-w-[220px] break-words font-semibold">
+            {p.cf?.[col] || "-"}
+          </td>
+        ) : (
+          <td key={col} />
+        );
     }
   };
 

@@ -139,8 +139,28 @@ export default function ActivityLogPage() {
           ) : data.rows.length === 0 ? (
             <Empty />
           ) : (
+            <>
+            {/* 📱 จอเล็ก / แท็บเล็ตแนวตั้ง (< 1024px): การ์ดทีละรายการ อ่านครบทุกช่องไม่ต้องเลื่อนซ้าย-ขวา */}
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2 p-3 lg:hidden">
+              {data.rows.map((r, i) => (
+                <article key={`${r.date}-${i}`} className="al-card" style={{ "--c": actionColor(r.action), "--i": Math.min(i, 12) } as React.CSSProperties}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge color={actionColor(r.action)}>{r.action}</Badge>
+                    <span className="ml-auto text-[11px] font-bold tabular-nums text-ink-soft">{r.date}</span>
+                  </div>
+                  <div className="mt-1.5 break-words text-[13px] font-semibold text-ink">{r.detail || "-"}</div>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold text-ink-soft">
+                    <span>👤 {r.user}</span>
+                    {r.refCode && <span className="break-all">🔖 {r.refCode}</span>}
+                    {r.computer && <span>🖥 {r.computer}</span>}
+                  </div>
+                </article>
+              ))}
+            </div>
+            {/* .data-table ตั้ง display เอง -> ซ่อนที่กล่องครอบแทน */}
+            <div className="max-lg:hidden">
             <table className="data-table t-center w-full">
-              <thead className="sticky top-0">
+              <thead className="sticky top-0 z-10">
                 <tr>
                   <th>DATE TIME</th>
                   <th>USER</th>
@@ -158,13 +178,15 @@ export default function ActivityLogPage() {
                     <td>
                       <Badge color={actionColor(r.action)}>{r.action}</Badge>
                     </td>
-                    <td className="min-w-[280px] break-words text-xs font-medium">{r.detail}</td>
+                    <td className="min-w-[240px] break-words text-xs font-medium xl:min-w-[320px]">{r.detail}</td>
                     <td className="max-w-[200px] break-all text-xs">{r.refCode}</td>
                     <td className="whitespace-nowrap text-xs text-ink-soft">{r.computer}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
+            </>
           )}
         </div>
         {data && data.total > 0 && (

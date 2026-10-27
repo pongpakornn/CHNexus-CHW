@@ -197,7 +197,27 @@ export default function InventoryPage() {
   // คลังที่นับ Coil: MASTER / COIL NO / WEIGHT = ของ Coil · คลังอื่น: WEIGHT = น้ำหนักสินค้า
   const coilForm = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
   const showPartWeight = !!formStock && !formStock.countCoil && fieldKeys.includes("WEIGHT");
-  const label = (k: string) => meta.columns.find((c) => c.key === k)?.label ?? k;
+  const cfDefs = meta.customFields ?? [];
+  const label = (k: string) => meta.columns.find((c) => c.key === k)?.label ?? cfDefs.find((f) => f.key === k)?.label ?? k;
+  // ➕ ช่องกรอกเพิ่มเอง: TEXT / NUMBER / DATE
+  const cfInput = (k: string) => {
+    const d = cfDefs.find((f) => f.key === k);
+    if (!d) return null;
+    return (
+      <label className="block">
+        <span className="mb-1 block truncate text-[11px] font-extrabold uppercase text-ink-soft" title={d.label}>
+          {d.label}
+        </span>
+        <input
+          className="field"
+          type={d.type === "DATE" ? "date" : "text"}
+          inputMode={d.type === "NUMBER" ? "decimal" : undefined}
+          value={form.cf[k] ?? ""}
+          onChange={(e) => setForm({ ...form, cf: { ...form.cf, [k]: d.type === "NUMBER" ? e.target.value.replace(/[^\d.,-]/g, "") : e.target.value } })}
+        />
+      </label>
+    );
+  };
 
   function clear() {
     setForm(EMPTY_FORM);
@@ -224,11 +244,11 @@ export default function InventoryPage() {
     const f = document.getElementById("reg-form");
     if (f && f.getBoundingClientRect().top < 0) f.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
-      const d = await api<{ stockIds: number[]; coilText: string | null; partWeight: number | null }>(`/products/${p.ptId}/detail`, { query: { code: p.partCode, stkId: filter ?? undefined } });
+      const d = await api<{ stockIds: number[]; coilText: string | null; partWeight: number | null; cf?: Record<string, string> }>(`/products/${p.ptId}/detail`, { query: { code: p.partCode, stkId: filter ?? undefined } });
       setInMain(p.isShowMain);
       setOthers(d.stockIds);
       setCoilText(d.coilText);
-      setForm((f) => ({ ...f, partWeight: d.partWeight == null ? "" : String(d.partWeight) }));
+      setForm((f) => ({ ...f, partWeight: d.partWeight == null ? "" : String(d.partWeight), cf: { ...(d.cf ?? {}) } }));
     } catch {
       /* แสดงข้อมูลได้แม้โหลดคลังไม่สำเร็จ */
     }
@@ -265,7 +285,9 @@ export default function InventoryPage() {
     if (!inMain && others.length === 0) return toast.show("WARNING", "กรุณาเลือกคลัง (STOCK) อย่างน้อย 1 คลังครับ", "warn");
     setBusy(true);
     try {
-      const body = { ...form, partWeight: showPartWeight ? form.partWeight : undefined, inMain, otherStockIds: others, filterStkId: filter, oldCode };
+      // ➕ ส่งเฉพาะช่องเพิ่มเองที่อยู่ในฟอร์มของคลังนี้ (ช่องอื่นของสินค้าไม่แตะ) · ว่าง = ล้างค่า
+      const cf = Object.fromEntries(fieldKeys.filter((k) => k.startsWith("CF") && cfDefs.some((d) => d.key === k)).map((k) => [k, form.cf[k] ?? ""]));
+      const body = { ...form, cf, partWeight: showPartWeight ? form.partWeight : undefined, inMain, otherStockIds: others, filterStkId: filter, oldCode };
       const r = await api<{ message: string }>(isEdit ? `/products/${editId}` : "/products", { method: isEdit ? "PUT" : "POST", body });
       await dlg.alert({ title: isEdit ? "SAVE CHANGES" : "REGISTER", message: r.message, tone: r.message.includes("⚠") ? "warn" : "ok" });
       clear();
@@ -461,7 +483,13 @@ export default function InventoryPage() {
       case "QRCODE":
         return <td key={c} className="max-w-[160px] truncate font-mono text-xs" title={p.qrCodeData}>{p.qrCodeData}</td>;
       default:
-        return <td key={c} />;
+        return c.startsWith("CF") ? (
+          <td key={c} className="max-w-[200px] break-words text-sm font-semibold">
+            {p.cf?.[c] || "-"}
+          </td>
+        ) : (
+          <td key={c} />
+        );
     }
   };
 
@@ -676,7 +704,7 @@ export default function InventoryPage() {
                           <Fragment key={k}>{input("WEIGHT (KG)", "partWeight", { placeholder: "0.000" })}</Fragment>
                         ) : null;
                       default:
-                        return FIELDS[k] ? <Fragment key={k}>{input(FIELDS[k][0], FIELDS[k][1], FIELDS[k][2])}</Fragment> : null;
+                        return FIELDS[k] ? <Fragment key={k}>{input(FIELDS[k][0], FIELDS[k][1], FIELDS[k][2])}</Fragment> : k.startsWith("CF") ? <Fragment key={k}>{cfInput(k)}</Fragment> : null;
                     }
                   })}
                 </div>

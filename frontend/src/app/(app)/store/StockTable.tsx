@@ -19,6 +19,8 @@ import { type Counts, type Product, type Stock } from "./types";
 type Meta = {
   stock: Stock;
   columns: string[];
+  /** ➕ ช่องกรอกเพิ่มเองของคลัง (key = CF12) */
+  customFields?: { key: string; label: string; type: string }[];
   coilRowOrder: string[];
   coilSum: CoilSum;
   allLabel: string;
@@ -492,7 +494,9 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const s = meta.stock;
   const cols = meta.columns;
   const header = (c: string) =>
-    ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ?? c;
+    ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ??
+    meta.customFields?.find((f) => f.key === c)?.label ??
+    c;
   const width = cfg.width;
   const coilsOn = cfg.coilsOn;
 

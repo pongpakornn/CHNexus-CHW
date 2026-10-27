@@ -25,6 +25,8 @@ namespace Nexus.Services
         public List<string> StockCodes { get; } = new List<string>();   // STOCK1 - STOCK10 (1 ช่อง = 1 รหัสคลัง)
         public string ShowHide { get; set; }              // SHOW / HIDE (แสดงในตารางคลังหลัก) - ว่าง = ตามคลังที่ใส่
         public string Customer { get; set; }
+        public Dictionary<string, string> Extra { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // หัวคอลัมน์อื่น (ช่องกรอกเพิ่มเอง)
+        public Dictionary<int, string> Custom { get; } = new Dictionary<int, string>();   // FieldID -> ค่า (ช่องกรอกเพิ่มเองของคลังที่ลงทะเบียน)
         public string PartA { get; set; }
         public string PartB { get; set; }
         public string PartNo { get; set; }
@@ -139,9 +141,11 @@ namespace Nexus.Services
                 var cols = new Dictionary<string, int>();
                 int headerRow = 0;
 
+                var extraCols = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 foreach (var row in ws.RowsUsed().Take(10))
                 {
                     cols.Clear();
+                    extraCols.Clear();
                     foreach (var cell in row.CellsUsed())
                     {
                         string h = Normalize(cell.GetString());
@@ -152,6 +156,7 @@ namespace Nexus.Services
                         {
                             string key = MatchUnitHeader(h);
                             if (key != null && !cols.ContainsKey(key)) cols[key] = cell.Address.ColumnNumber;
+                            else if (key == null && h.Length > 0 && !extraCols.ContainsKey(h)) extraCols[h] = cell.Address.ColumnNumber;
                         }
                     }
                     if (cols.ContainsKey("CODE") && cols.ContainsKey("NAME")) { headerRow = row.RowNumber(); break; }
@@ -190,6 +195,11 @@ namespace Nexus.Services
                     {
                         string sc = Get(r, "STOCK" + n);
                         if (sc.Length > 0) item.StockCodes.Add(sc);
+                    }
+                    foreach (var ex in extraCols)
+                    {
+                        string v = ws.Cell(r, ex.Value).GetString().Trim();
+                        if (v.Length > 0 && v != "-") item.Extra[ex.Key] = v;
                     }
                     string psz = Get(r, "PACKSIZE");
                     // แถว Coil ใต้แถวสินค้า (PRODUCT CODE / NAME ว่าง แต่มี COIL NO) = Coil เพิ่มของสินค้าแถวบน
@@ -272,7 +282,28 @@ namespace Nexus.Services
             }
 
             ValidateAgainstDb(rows, stocks);
+            ApplyCustomFields(rows, stocks);
             return rows;
+        }
+
+        // ➕ หัวคอลัมน์ที่ตรงกับชื่อช่องกรอกเพิ่มเองของคลังที่ลงทะเบียน = ค่าของช่องนั้น · ค่าผิดชนิด (ตัวเลข / วันที่) = แถวนั้นมีปัญหา
+        private static void ApplyCustomFields(List<PartImportRow> rows, List<StockModel> stocks)
+        {
+            if (!rows.Any(r => r.Extra.Count > 0) || !CustomFieldService.Ready) return;
+            var defs = new CustomFieldService().GetDefs();
+            if (defs.Count == 0) return;
+            int mainId = stocks.FirstOrDefault(s => s.IsMain)?.StkId ?? 0;
+            foreach (var r in rows.Where(r => r.IsValid && r.Extra.Count > 0))
+            {
+                var ids = new HashSet<int>(r.OtherStockIds);
+                if (r.InMain) ids.Add(mainId);
+                foreach (var d in defs.Where(d => ids.Contains(d.StockId)))
+                {
+                    if (!r.Extra.TryGetValue(Normalize(d.Label), out var v)) continue;   // หัวคอลัมน์ในไฟล์ถูกตัดช่องว่าง / วงเล็บแล้ว
+                    try { r.Custom[d.FieldId] = CustomFieldService.Normalize(d, v); }
+                    catch (InvalidOperationException ex) { r.Error = ex.Message; break; }
+                }
+            }
         }
 
         // คลังของสินค้า: STOCK1 - STOCK10 (ช่องละ 1 รหัสคลัง) และ/หรือ STOCK (คั่นด้วย ,)
@@ -461,6 +492,17 @@ namespace Nexus.Services
                                 cmd.ExecuteNonQuery();
                             }
                         }
+
+                        // ➕ ช่องกรอกเพิ่มเองของคลัง
+                        foreach (var cv in r.Custom.Where(c => c.Value.Length > 0))
+                            using (var cmd = new SqlCommand("INSERT INTO Nexus.PartFieldValues (FieldID, PartID, Value, UpdatedBy) VALUES (@f, @p, @v, @u)", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@f", cv.Key);
+                                cmd.Parameters.AddWithValue("@p", ptId);
+                                cmd.Parameters.AddWithValue("@v", cv.Value);
+                                cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                                cmd.ExecuteNonQuery();
+                            }
 
                         // 🧲 Coil ของสินค้านี้ (ทุกแถวที่ใส่ COIL NO) -> ทะเบียน Coil ของคลังที่นับ Coil + นับ STOCK (COIL) ใหม่
                         if (coilRows.TryGetValue(r, out var cl))

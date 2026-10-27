@@ -11,7 +11,10 @@ export type Meta = {
   savedFilter: number | null;
   savedStocks: string;
   hasCoilRegister: boolean;
+  /** ➕ ช่องกรอกเพิ่มเองของคลัง (ADMIN > CUSTOM FIELDS) - key = CF12 */
+  customFields?: CustomField[];
 };
+export type CustomField = { fieldId: number; stockId: number; key: string; label: string; type: "TEXT" | "NUMBER" | "DATE" };
 export type Part = {
   ptId: number;
   partCode: string;
@@ -38,6 +41,8 @@ export type Part = {
   masterCount: number;
   groupKey: string;
   imageUrl: string | null;
+  /** ค่าช่องเพิ่มเองที่อยู่ในคอลัมน์ { CF12: "..." } */
+  cf?: Record<string, string>;
 };
 
 export type Form = {
@@ -59,6 +64,8 @@ export type Form = {
   masterCoil: string;
   coilKg: string;
   partWeight: string;
+  /** ➕ ค่าช่องเพิ่มเอง { CF12: "..." } */
+  cf: Record<string, string>;
 };
 
 export const EMPTY_FORM: Form = {
@@ -80,6 +87,7 @@ export const EMPTY_FORM: Form = {
   masterCoil: "",
   coilKg: "",
   partWeight: "",
+  cf: {},
 };
 
 export const formOf = (p: Part): Form => ({
@@ -101,4 +109,5 @@ export const formOf = (p: Part): Form => ({
   masterCoil: "",
   coilKg: "",
   partWeight: "",
+  cf: { ...(p.cf ?? {}) },
 });

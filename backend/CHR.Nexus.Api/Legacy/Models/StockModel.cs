@@ -111,7 +111,8 @@ namespace Nexus.Models
             foreach (string k in (ColumnOrder ?? "").Split(','))
             {
                 string key = k.Trim().ToUpperInvariant();
-                if (key.Length > 0 && System.Array.IndexOf(DefaultColumnOrder, key) >= 0 && !list.Contains(key)) list.Add(key);
+                // CF12 = ช่องกรอกเพิ่มเองของคลัง (Inventory Registration > ADMIN > CUSTOM FIELDS) - แสดงเมื่อติ๊กเท่านั้น
+                if (key.Length > 0 && (System.Array.IndexOf(DefaultColumnOrder, key) >= 0 || Nexus.Services.CustomFields.IsKey(key)) && !list.Contains(key)) list.Add(key);
             }
             foreach (string k in DefaultColumnOrder) if (!list.Contains(k)) list.Add(k);   // คอลัมน์ที่ไม่ได้ระบุ = ต่อท้ายตามลำดับเดิม
             return list;

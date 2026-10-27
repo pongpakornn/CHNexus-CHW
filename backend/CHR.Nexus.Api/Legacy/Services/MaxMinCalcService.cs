@@ -590,7 +590,115 @@ namespace Nexus.Services
         }
 
         // บันทึก: ลูกค้า + สินค้า + เดือนเดียวกันที่นำเข้าซ้ำ -> แทนที่ของเดิม
-        public int ApplyForecast(List<CalcImportRow> rows, string userId)
+        // 📥 นำเข้า Forecast / Order / Delivery แบบเทียบของเดิม (ลูกค้า + สินค้า + เดือน = 1 รายการ)
+        //   ยังไม่มี = เพิ่ม · ยอดต่างจากเดิม = แทนที่ด้วยยอดใหม่ · ยอดเดิมตรงกันทุกช่อง = ข้าม (ไม่แตะ)
+        //   รายการที่ไม่มีในไฟล์ = คงเดิม · นำเข้าเดือนเดิมซ้ำได้เลย ไม่ต้องลบก่อน
+        public sealed class ForecastMerge { public int New, Changed, Same, Rows; public List<string> ChangedText = new(); }
+
+        private static string FcKey(string c, string p, DateTime m) => $"{(c ?? "").Trim().ToUpperInvariant()}|{(p ?? "").Trim().ToUpperInvariant()}|{m:yyyy-MM}";
+
+        // ยอดรวมต่อรายการในไฟล์ / ในระบบ (ช่วงเดือนที่อยู่ในไฟล์)
+        private Dictionary<string, (decimal F, decimal O, decimal D, int? W)> ExistingForecast(SqlConnection conn, SqlTransaction tr, IEnumerable<DateTime> months)
+        {
+            var map = new Dictionary<string, (decimal, decimal, decimal, int?)>();
+            foreach (var m in months.Distinct())
+                using (var cmd = new SqlCommand(@"SELECT LTRIM(RTRIM(ISNULL(CustomerCode, ''))), LTRIM(RTRIM(ISNULL(PartACode, ''))),
+                                                         SUM(ISNULL(ForecastQuantity, 0)), SUM(ISNULL(OrderQuantity, 0)), SUM(ISNULL(DeliveryQuantity, 0)), MAX(WorkDays)
+                                                  FROM Nexus.ForecastOrderImports WHERE TargetDate >= @m AND TargetDate < DATEADD(MONTH, 1, @m)
+                                                  GROUP BY LTRIM(RTRIM(ISNULL(CustomerCode, ''))), LTRIM(RTRIM(ISNULL(PartACode, '')))", conn, tr))
+                {
+                    cmd.Parameters.Add("@m", SqlDbType.Date).Value = m;
+                    using (var r = cmd.ExecuteReader())
+                        while (r.Read())
+                            map[FcKey(r.GetString(0), r.GetString(1), m)] = (Convert.ToDecimal(r[2]), Convert.ToDecimal(r[3]), Convert.ToDecimal(r[4]), r.IsDBNull(5) ? (int?)null : Convert.ToInt32(r[5]));
+                }
+            return map;
+        }
+
+        // เทียบไฟล์กับของเดิม (ไม่บันทึก) - ใช้แสดงก่อนยืนยันการนำเข้า
+        public ForecastMerge ForecastDiff(List<CalcImportRow> rows)
+        {
+            using (var conn = new SqlConnection(_cs))
+            {
+                conn.Open();
+                return Merge(conn, null, rows, null, false);
+            }
+        }
+
+        private ForecastMerge Merge(SqlConnection conn, SqlTransaction tr, List<CalcImportRow> rows, string userId, bool write)
+        {
+            var res = new ForecastMerge();
+            var valid = rows.Where(r => r.IsValid).ToList();
+            if (valid.Count == 0) return res;
+            var old = ExistingForecast(conn, tr, valid.Select(v => v.Month));
+            Guid batch = Guid.NewGuid();
+            foreach (var g in valid.GroupBy(v => FcKey(v.Customer, v.Part, v.Month)))
+            {
+                var first = g.First();
+                decimal f = g.Sum(x => x.Forecast), o = g.Sum(x => x.Order), d = g.Sum(x => x.Delivery);
+                int? w = g.Select(x => x.Workdays).FirstOrDefault(x => x.HasValue);
+                bool had = old.TryGetValue(g.Key, out var was);
+                if (had && was.F == f && was.O == o && was.D == d && (w == null || was.W == w)) { res.Same++; continue; }
+                if (had)
+                {
+                    res.Changed++;
+                    if (res.ChangedText.Count < 8)
+                        res.ChangedText.Add($"{first.Customer} | {first.Part} | {first.Month.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}: " +
+                                            string.Join(" ", new[] { was.F != f ? $"F {was.F:N0}->{f:N0}" : null, was.O != o ? $"O {was.O:N0}->{o:N0}" : null, was.D != d ? $"D {was.D:N0}->{d:N0}" : null }.Where(x => x != null)));
+                }
+                else res.New++;
+                if (!write) { res.Rows += g.Count(); continue; }
+                using (var cmd = new SqlCommand(@"DELETE FROM Nexus.ForecastOrderImports
+                                                  WHERE LTRIM(RTRIM(ISNULL(CustomerCode, ''))) = @c AND LTRIM(RTRIM(ISNULL(PartACode, ''))) = @p
+                                                    AND TargetDate >= @m AND TargetDate < DATEADD(MONTH, 1, @m)", conn, tr))
+                {
+                    cmd.Parameters.AddWithValue("@c", (first.Customer ?? "").Trim());
+                    cmd.Parameters.AddWithValue("@p", (first.Part ?? "").Trim());
+                    cmd.Parameters.Add("@m", SqlDbType.Date).Value = first.Month;
+                    cmd.ExecuteNonQuery();
+                }
+                foreach (var v in g)
+                {
+                    using (var cmd = new SqlCommand(@"INSERT INTO Nexus.ForecastOrderImports (CustomerCode, PartACode, ForecastQuantity, OrderQuantity, DeliveryQuantity, WorkDays, TargetDate, RunGuid, CreatedAt, CreatedBy)
+                                                      VALUES (@c, @p, @f, @o, @d, @w, @m, @g, GETDATE(), @u)", conn, tr))
+                    {
+                        cmd.Parameters.AddWithValue("@c", v.Customer);
+                        cmd.Parameters.AddWithValue("@p", string.IsNullOrWhiteSpace(v.Part) ? (object)DBNull.Value : v.Part);
+                        cmd.Parameters.AddWithValue("@f", v.Forecast);
+                        cmd.Parameters.AddWithValue("@o", v.Order);
+                        cmd.Parameters.AddWithValue("@d", v.Delivery);
+                        cmd.Parameters.AddWithValue("@w", (object)v.Workdays ?? DBNull.Value);
+                        cmd.Parameters.Add("@m", SqlDbType.Date).Value = v.Month;
+                        cmd.Parameters.AddWithValue("@g", batch);
+                        cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                        cmd.ExecuteNonQuery();
+                    }
+                    res.Rows++;
+                }
+            }
+            return res;
+        }
+
+        public int ApplyForecast(List<CalcImportRow> rows, string userId) => ApplyForecastMerge(rows, userId).Rows;
+
+        public ForecastMerge ApplyForecastMerge(List<CalcImportRow> rows, string userId)
+        {
+            var valid = rows.Where(r => r.IsValid).ToList();
+            if (valid.Count == 0) return new ForecastMerge();
+            using (var conn = new SqlConnection(_cs))
+            {
+                conn.Open();
+                using (var tr = conn.BeginTransaction())
+                {
+                    var res = Merge(conn, tr, valid, userId, true);
+                    tr.Commit();
+                    return res;
+                }
+            }
+        }
+
+        // (เดิม: ลบทุกรายการในไฟล์แล้วลงใหม่ทั้งหมด - เก็บไว้อ้างอิง ไม่ได้ใช้แล้ว)
+        private int ApplyForecastReplaceAll(List<CalcImportRow> rows, string userId)
         {
             var valid = rows.Where(r => r.IsValid).ToList();
             if (valid.Count == 0) return 0;

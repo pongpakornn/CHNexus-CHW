@@ -72,6 +72,8 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
   const [formats, setFormats] = useState<Fmt[]>([]);
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
+  // ➕ ช่องกรอกเพิ่มเองของคลังนี้ (Inventory Registration > ADMIN > CUSTOM FIELDS) - เลือกแสดงเป็นคอลัมน์ได้
+  const [cfCols, setCfCols] = useState<[string, string][]>([]);
 
   const loadFormats = () => api<Fmt[]>("/store/formats/brief").then(setFormats).catch(() => {});
 
@@ -80,10 +82,11 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
       api<Fmt[]>("/store/formats/brief").then(setFormats).catch(() => {});
       return;
     }
-    api<{ stock: Stock; columns: string[]; coilRowOrder: string[]; formats: Fmt[] }>(`/store/stocks/${stkId}/settings`)
+    api<{ stock: Stock; columns: string[]; coilRowOrder: string[]; formats: Fmt[]; customFields?: { key: string; label: string }[] }>(`/store/stocks/${stkId}/settings`)
       .then((r) => {
         setS({ ...r.stock, maxMinBasis: ["KG", "PCS", "SHEET", "BOX", "COIL"].includes(r.stock.maxMinUnit) ? r.stock.maxMinUnit : "KG", maxMinDecimalSetting: r.stock.maxMinDecimal, showCoilRowsSetting: r.stock.showCoilRowsSetting ?? true, cardStyleSetting: r.stock.cardStyle });
         setCols(r.columns);
+        setCfCols((r.customFields ?? []).map((f) => [f.key, `➕ ${f.label}`]));
         setSubs(r.stock.coilRowColumns === "-" ? [] : r.coilRowOrder);
         setFormats(r.formats);
       })
@@ -239,8 +242,11 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
         {section(
           "TABLE COLUMNS (order = order ticked)",
           <>
-            <div className="flex flex-wrap gap-2">{COLUMNS.map(([k, l]) => chip(k, cols.includes(k), l, () => toggleCol(k), false, cols.indexOf(k) + 1))}</div>
-            {order(cols, COLUMNS)}
+            <div className="flex flex-wrap gap-2">{[...COLUMNS, ...cfCols].map(([k, l]) => chip(k, cols.includes(k), l, () => toggleCol(k), false, cols.indexOf(k) + 1))}</div>
+            {order(cols, [...COLUMNS, ...cfCols])}
+            <div className="mt-2 text-[11px] font-semibold text-ink-soft">
+              ➕ = ช่องกรอกเพิ่มเองของคลัง · เพิ่ม / แก้ / ลบ ช่องได้ที่ Inventory Registration &gt; ADMIN &gt; CUSTOM FIELDS{stkId ? "" : " (สร้างคลังก่อนแล้วค่อยเพิ่มช่อง)"}
+            </div>
           </>,
           "STOCK (COIL) = นับ Coil (คลัง KG) • ติ๊กก่อน = แสดงก่อน",
         )}

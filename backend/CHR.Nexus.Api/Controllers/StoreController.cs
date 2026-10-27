@@ -27,13 +27,16 @@ public sealed class StoreController : AppController
 
     // คอลัมน์ที่แสดงจริง (StoreMaxMinView.ApplyColumnSettings): เปิด / ปิดตาม Col* ของคลัง เรียงตาม ColumnOrder
     //   BOX / COIL = ช่องเดียวกัน (STOCK (BOX) / STOCK (COIL)) · MAX / MIN / STATUS ตาม USE MAX-MIN · STATUS อยู่ท้ายสุดเสมอ
-    private static List<string> VisibleColumns(StockModel s)
+    private static List<string> VisibleColumns(StockModel s, List<CustomFieldDef> cf = null)
     {
+        cf ??= new CustomFieldService().GetDefs(s.StkId);
         bool On(string k) => k switch
         {
             "NO" => s.ColNo, "IMAGE" => s.ColImage, "CUSTOMER" => s.ColCustomer, "CODE" => s.ColCode, "PARTA" => s.ColPartA, "PARTB" => s.ColPartB,
             "PARTNO" => s.ColPartNo, "MODEL" => s.ColModel, "NAME" => s.ColName, "MAXMIN" => s.UseMaxMin, "QTY" => s.ColQty,
-            "BOX" or "COIL" => s.ShowBoxColumn, "PCS" => s.ColStockPcs, "REMARK" => s.ColRemark, _ => false
+            "BOX" or "COIL" => s.ShowBoxColumn, "PCS" => s.ColStockPcs, "REMARK" => s.ColRemark,
+            // ➕ ช่องกรอกเพิ่มเองของคลังนี้ (ติ๊กไว้ใน ADD / EDIT STOCK) - ช่องที่ถูกลบแล้ว = ไม่แสดง
+            _ => CustomFields.IsKey(k) && cf.Any(d => d.FieldId == CustomFields.IdOf(k))
         };
         var list = new List<string>();
         foreach (string k in s.ColumnOrderList())
@@ -81,7 +84,12 @@ public sealed class StoreController : AppController
     {
         if (Me?.CanEditStore != true) return Deny("คุณไม่มีสิทธิ์แก้ไขคลังนี้");
         var s = _stocks.GetStock(stkId);
-        return s == null ? NotFound() : Ok(new { stock = s, columns = s.ColumnOrderList(), coilRowOrder = s.CoilRowOrder(), formats = _stocks.GetFormats().Select(f => new { f.FmtId, f.Name, f.IsActive }) });
+        if (s == null) return NotFound();
+        var cf = new CustomFieldService().GetDefs(s.StkId);
+        // คอลัมน์ที่ติ๊ก (ตามลำดับ) - ช่องกรอกเพิ่มเองที่ถูกลบแล้วไม่ต้องส่ง
+        var cols = s.ColumnOrderList().Where(k => !CustomFields.IsKey(k) || cf.Any(d => d.FieldId == CustomFields.IdOf(k))).ToList();
+        return Ok(new { stock = s, columns = cols, coilRowOrder = s.CoilRowOrder(), formats = _stocks.GetFormats().Select(f => new { f.FmtId, f.Name, f.IsActive }),
+                        customFields = cf.Select(d => new { key = d.Key, d.Label, type = d.DataType }) });
     }
 
     [HttpGet("formats/brief")]
@@ -186,10 +194,12 @@ public sealed class StoreController : AppController
         if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
         var cats = _products.GetCategories(s).Skip(1).ToList();
         var counts = _products.GetStatusCounts(s);
+        var cf = new CustomFieldService().GetDefs(s.StkId);
         return Ok(new
         {
             stock = s,
-            columns = VisibleColumns(s),
+            columns = VisibleColumns(s, cf),
+            customFields = cf.Select(d => new { key = d.Key, d.Label, type = d.DataType }),
             coilRowOrder = s.CoilRowOrder(),
             coilSum = CoilSum(s, counts != null),
             allLabel = AllLabel(s), groupLabel = s.GroupCode, categories = cats,
@@ -201,8 +211,9 @@ public sealed class StoreController : AppController
         });
     }
 
-    private static object Row(StoreProductModel p) => new
+    private static object Row(StoreProductModel p, Dictionary<string, string> cf = null) => new
     {
+        cf,
         p.PartId, p.PartCode, p.PartName, p.Customer, p.PartA, p.PartB, p.PartNo, p.Model, p.Category, p.Supplier, p.Bin, p.GroupKey,
         p.PackSize, p.Max, p.Min, p.Qty, p.StockBox, p.StockPcs, p.Remark, p.StockStatus, p.Priority,
         imageUrl = string.IsNullOrWhiteSpace(p.ImageFileName) ? null : $"/api/images/file?name={Uri.EscapeDataString(p.ImageFileName)}"
@@ -216,7 +227,24 @@ public sealed class StoreController : AppController
         if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
         string catFilter = string.IsNullOrEmpty(cat) || cat == AllLabel(s) ? "" : cat;
         var rows = _products.GetProducts(s, key ?? "", catFilter, filter ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 100000));
-        return Ok(new { token = _products.GetChangeToken(s), rows = rows.Select(Row) });
+        // ➕ ค่าช่องกรอกเพิ่มเองที่เปิดแสดงในตารางคลังนี้
+        var cfIds = VisibleColumns(s).Where(CustomFields.IsKey).Select(CustomFields.IdOf).ToList();
+        if (cfIds.Count == 0) return Ok(new { token = _products.GetChangeToken(s), rows = rows.Select(p => Row(p)) });
+        // คลัง Live View (เช่น STORE-PC ดึงจากระบบ StorePC): รหัสแถวไม่ใช่ PartID ของ CHR-Nexus -> จับคู่สินค้าในทะเบียนของคลังนี้ด้วย PART A / PD CODE
+        Func<StoreProductModel, int> nexusId = p => p.PartId;
+        if (s.IsLiveView)
+        {
+            var (byA, byCode) = new CustomFieldService().PartKeysInStock(s.StkId, s.IsMain);
+            nexusId = p => !string.IsNullOrWhiteSpace(p.PartA) && byA.TryGetValue(p.PartA.Trim(), out int a) ? a
+                         : !string.IsNullOrWhiteSpace(p.PartCode) && p.PartCode.Trim() != "-" && byCode.TryGetValue(p.PartCode.Trim(), out int c) ? c : 0;
+        }
+        var ids = rows.ToDictionary(p => p, nexusId);
+        var vals = new CustomFieldService().GetValues(ids.Values.Where(i => i > 0), cfIds);
+        return Ok(new
+        {
+            token = _products.GetChangeToken(s),
+            rows = rows.Select(p => Row(p, vals.TryGetValue(ids[p], out var v) ? v.ToDictionary(x => CustomFields.KeyOf(x.Key), x => x.Value) : null))
+        });
     }
 
     // ⚡ เรียลไทม์: ถาม "เปลี่ยนไหม" ทุก 3 วินาที - เปลี่ยน = ตัวเลขล่าสุดของทั้งคลัง (ยอด / MAX / MIN / REMARK / สถานะ)

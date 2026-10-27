@@ -189,6 +189,7 @@ namespace Nexus.Services
         public static string[] PartHeadsForForm(StockModel s, IList<string> formFields)
         {
             if (s == null || formFields == null) return PartHeadsFor(s);
+            List<CustomFieldDef> customDefs = null;
             var heads = new List<string> { "NO" };
             foreach (string key in formFields)
             {
@@ -210,6 +211,11 @@ namespace Nexus.Services
                     case "COILNO": if (s.CountCoil) heads.Add("COIL NO"); break;
                     case "WEIGHT": heads.Add("WEIGHT (KG)"); break;
                     case "QRCODE": heads.Add("QR CODE"); break;
+                    default:
+                        // ช่องกรอกเพิ่มเองของคลัง (CF12) -> หัวคอลัมน์ = ชื่อช่อง (Import อ่านกลับด้วยชื่อเดียวกัน)
+                        if (CustomFields.IsKey(key) && (customDefs ??= new CustomFieldService().GetDefs(s.StkId)).FirstOrDefault(d => d.FieldId == CustomFields.IdOf(key)) is { } cf)
+                            heads.Add(cf.Label);
+                        break;
                 }
             }
             foreach (var must in new[] { "PRODUCT NAME", "PRODUCT CODE" }) if (!heads.Contains(must)) heads.Insert(1, must);

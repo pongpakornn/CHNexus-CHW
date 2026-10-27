@@ -73,6 +73,8 @@ export type Product = {
   stockPcs: string;
   remark: string;
   stockStatus: string;
+  /** ➕ ค่าช่องกรอกเพิ่มเองที่เปิดแสดง { CF12: "..." } */
+  cf?: Record<string, string> | null;
   imageUrl: string | null;
 };
 

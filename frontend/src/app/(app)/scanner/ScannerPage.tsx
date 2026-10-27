@@ -91,6 +91,69 @@ export default function ScannerPage() {
 
   const focusScan = useCallback(() => setTimeout(() => inputRef.current?.focus(), 0), []);
 
+  // 📌 LOCK SCAN: ช่องสแกนพร้อมรับตลอดเวลา (เปิดค้างไว้ จำค่าต่อเครื่อง)
+  //   - กดปุ่ม / คลิกพื้นที่ว่างในหน้านี้เสร็จ = กลับมาที่ช่องสแกนเอง
+  //   - ยิงเครื่องสแกนตอนเคอร์เซอร์ไม่ได้อยู่ในช่องไหน = ตัวอักษรเข้าช่องสแกนให้ (ไม่หายตัวแรก)
+  //   - ไม่ยุ่งตอนพิมพ์ในช่องอื่น (EMPLOYEE / DEPARTMENT / ค้นหา) · ตอนเปิดหน้าต่าง / Dropdown / ปฏิทิน · ตอนลากเลือกข้อความ
+  const [lockScan, setLockScan] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("scan-lock") === "0") queueMicrotask(() => setLockScan(false));
+    } catch {
+      /* ไม่มี storage = เปิดไว้ */
+    }
+  }, []);
+  const toggleLock = () =>
+    setLockScan((v) => {
+      try {
+        localStorage.setItem("scan-lock", v ? "0" : "1");
+      } catch {
+        /* ไม่จำก็ได้ */
+      }
+      if (!v) focusScan();
+      return !v;
+    });
+  useEffect(() => {
+    if (!lockScan) return;
+    const editable = (el: Element | null) =>
+      !!el && el !== inputRef.current && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el as HTMLElement).isContentEditable);
+    // มีหน้าต่าง / ป๊อปอัพเปิดอยู่ = ปล่อยให้ใช้งานหน้าต่างนั้น
+    const busyUi = () => !!document.querySelector(".modal-bg, .dlg-bg, .menu-pop, [class*='is-open'], [aria-haspopup][aria-expanded='true']");
+    const refocus = () => {
+      const inp = inputRef.current;
+      if (!inp || inp.disabled || document.hidden || busyUi() || editable(document.activeElement)) return;
+      if (window.getSelection()?.toString()) return; // กำลังลากเลือกข้อความ
+      if (document.activeElement !== inp) inp.focus({ preventScroll: true });
+    };
+    // คลิก / แตะเสร็จ -> รอปุ่มทำงาน (เปิดหน้าต่างก่อน) แล้วค่อยกลับช่องสแกน
+    const up = () => setTimeout(refocus, 250);
+    // ยิงสแกนตอนโฟกัสอยู่ที่ปุ่ม / พื้นที่ว่าง -> พาตัวอักษรเข้าช่องสแกน
+    const key = (e: KeyboardEvent) => {
+      const inp = inputRef.current;
+      if (!inp || inp.disabled || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      if (e.key === " " && document.activeElement instanceof HTMLButtonElement) return; // Space = กดปุ่มด้วยคีย์บอร์ด
+      if (document.activeElement === inp || editable(document.activeElement) || busyUi()) return;
+      e.preventDefault();
+      inp.focus({ preventScroll: true });
+      onBarcodeChangeRef.current(inp.value + e.key);
+    };
+    // ช่องสแกนหลุดโฟกัสไปที่ปุ่ม / พื้นหลัง (เช่นแท็บกลับมา) -> กลับมาเอง
+    const out = () => setTimeout(refocus, 400);
+    document.addEventListener("pointerup", up, true);
+    document.addEventListener("keydown", key, true);
+    window.addEventListener("focus", out);
+    const inp = inputRef.current;
+    inp?.addEventListener("blur", out);
+    const t = setInterval(refocus, 1500);
+    return () => {
+      document.removeEventListener("pointerup", up, true);
+      document.removeEventListener("keydown", key, true);
+      window.removeEventListener("focus", out);
+      inp?.removeEventListener("blur", out);
+      clearInterval(t);
+    };
+  }, [lockScan]);
+
   // ---------------------------------------------------------------- โหลดข้อมูล
   const loadContext = useCallback(async (m?: Modes) => {
     const mm = m ?? modesRef.current;
@@ -220,6 +283,10 @@ export default function ScannerPage() {
     if (raw.trim()) send({ barcode: raw });
   }
 
+  const onBarcodeChangeRef = useRef<(v: string) => void>(() => {});
+  useEffect(() => {
+    onBarcodeChangeRef.current = onBarcodeChange;
+  });
   function onBarcodeChange(v: string) {
     if (v && hasThai(v)) v = toEnglish(v);
     setBarcode(v);
@@ -360,7 +427,18 @@ export default function ScannerPage() {
         {/* ช่องสแกน + EMPLOYEE / DEPARTMENT + STOCK */}
         <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <label className="sc-label">SCAN BARCODE</label>
+            <div className="flex items-center gap-2">
+              <label className="sc-label">SCAN BARCODE</label>
+              <button
+                type="button"
+                className={`sc-lock ${lockScan ? "is-on" : ""}`}
+                onClick={toggleLock}
+                aria-pressed={lockScan}
+                title={lockScan ? "ช่องสแกนพร้อมรับตลอดเวลา (คลิก = ปิด)" : "เปิดให้ช่องสแกนพร้อมรับตลอดเวลา"}
+              >
+                {lockScan ? "📌 ALWAYS READY" : "📌 OFF"}
+              </button>
+            </div>
             <div className={`sc-scan ${busy ? "is-busy" : ""} ${notAssigned ? "is-off" : ""}`}>
               <svg viewBox="0 0 24 24" className="sc-scan-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
                 <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
