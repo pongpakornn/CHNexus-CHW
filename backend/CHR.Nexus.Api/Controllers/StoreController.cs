@@ -240,10 +240,11 @@ public sealed class StoreController : AppController
         }
         var ids = rows.ToDictionary(p => p, nexusId);
         var vals = new CustomFieldService().GetValues(ids.Values.Where(i => i > 0), cfIds);
+        var cfDefs = new CustomFieldService().GetDefs(s.StkId).ToDictionary(d => d.FieldId);   // ตัวเลข + หน่วย
         return Ok(new
         {
             token = _products.GetChangeToken(s),
-            rows = rows.Select(p => Row(p, vals.TryGetValue(ids[p], out var v) ? v.ToDictionary(x => CustomFields.KeyOf(x.Key), x => x.Value) : null))
+            rows = rows.Select(p => Row(p, vals.TryGetValue(ids[p], out var v) ? v.ToDictionary(x => CustomFields.KeyOf(x.Key), x => cfDefs.TryGetValue(x.Key, out var d) ? d.Display(x.Value) : x.Value) : null))
         });
     }
 

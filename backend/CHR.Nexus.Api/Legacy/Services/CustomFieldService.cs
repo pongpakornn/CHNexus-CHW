@@ -17,7 +17,16 @@ namespace Nexus.Services
         public static bool IsKey(string key) => KeyRx.IsMatch((key ?? "").Trim());
         public static int IdOf(string key) { var m = KeyRx.Match((key ?? "").Trim()); return m.Success ? int.Parse(m.Groups[1].Value) : 0; }
         public static string KeyOf(int id) => "CF" + id;
-        public static readonly string[] Types = { "TEXT", "NUMBER", "DATE" };
+        // SELECT = DROPDOWN เลือกจากรายการ (Nexus.PartFieldOptions - database/nexus/13_Custom_Field_Unit_Dropdown.sql)
+        public static readonly string[] Types = { "TEXT", "NUMBER", "DATE", "SELECT" };
+    }
+
+    public sealed class CustomFieldOption
+    {
+        public int OptionId { get; set; }
+        public string Value { get; set; }
+        public int SortNo { get; set; }
+        public int Uses { get; set; }   // จำนวนสินค้าที่เลือกค่านี้อยู่
     }
 
     public sealed class CustomFieldDef
@@ -29,6 +38,12 @@ namespace Nexus.Services
         public int SortNo { get; set; }
         public string Key => CustomFields.KeyOf(FieldId);
         public int ValueCount { get; set; }
+        public string Unit { get; set; }   // หน่วยของช่อง NUMBER เช่น KG
+        public List<CustomFieldOption> Options { get; set; } = new();   // รายการของช่อง DROPDOWN
+
+        // ค่าที่แสดงในตาราง: ตัวเลข + หน่วย (12 KG)
+        public string Display(string value) =>
+            string.IsNullOrEmpty(value) ? value : DataType == "NUMBER" && !string.IsNullOrWhiteSpace(Unit) ? $"{value} {Unit}" : value;
     }
 
     public class CustomFieldService
@@ -53,21 +68,69 @@ namespace Nexus.Services
             }
         }
 
-        // ช่องทั้งหมด (stockId = null) หรือเฉพาะคลัง
+        // 13_Custom_Field_Unit_Dropdown.sql: หน่วย + DROPDOWN
+        private static bool? _v2;
+        public static bool HasUnitAndOptions
+        {
+            get
+            {
+                if (_v2 == true) return true;
+                try
+                {
+                    using var conn = new SqlConnection(GlobalConfig.ConnStr);
+                    using var cmd = new SqlCommand("SELECT CASE WHEN COL_LENGTH('Nexus.PartFieldDefs','Unit') IS NOT NULL AND OBJECT_ID('Nexus.PartFieldOptions','U') IS NOT NULL THEN 1 ELSE 0 END", conn);
+                    conn.Open();
+                    _v2 = Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+                }
+                catch { _v2 = false; }
+                return _v2 == true;
+            }
+        }
+
+        // ช่องทั้งหมด (stockId = null) หรือเฉพาะคลัง · ช่อง DROPDOWN พร้อมรายการ (เรียงตามลำดับ)
         public List<CustomFieldDef> GetDefs(int? stockId = null)
         {
             var list = new List<CustomFieldDef>();
             if (!Ready) return list;
+            bool v2 = HasUnitAndOptions;
             using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand(@"SELECT d.FieldID, d.StockID, d.Label, d.DataType, d.SortNo,
-                                                    (SELECT COUNT(*) FROM Nexus.PartFieldValues v WHERE v.FieldID = d.FieldID)
-                                             FROM Nexus.PartFieldDefs d WHERE (@s IS NULL OR d.StockID = @s) ORDER BY d.StockID, d.SortNo, d.FieldID", conn);
-            cmd.Parameters.AddWithValue("@s", (object)stockId ?? DBNull.Value);
             conn.Open();
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
-                list.Add(new CustomFieldDef { FieldId = r.GetInt32(0), StockId = r.GetInt32(1), Label = r.GetString(2), DataType = r.GetString(3), SortNo = r.GetInt32(4), ValueCount = r.GetInt32(5) });
+            using (var cmd = new SqlCommand($@"SELECT d.FieldID, d.StockID, d.Label, d.DataType, d.SortNo,
+                                                      (SELECT COUNT(*) FROM Nexus.PartFieldValues v WHERE v.FieldID = d.FieldID), {(v2 ? "d.Unit" : "NULL")}
+                                               FROM Nexus.PartFieldDefs d WHERE (@s IS NULL OR d.StockID = @s) ORDER BY d.StockID, d.SortNo, d.FieldID", conn))
+            {
+                cmd.Parameters.AddWithValue("@s", (object)stockId ?? DBNull.Value);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                    list.Add(new CustomFieldDef { FieldId = r.GetInt32(0), StockId = r.GetInt32(1), Label = r.GetString(2), DataType = r.GetString(3), SortNo = r.GetInt32(4), ValueCount = r.GetInt32(5), Unit = r.IsDBNull(6) ? null : r.GetString(6) });
+            }
+            if (v2 && list.Any(d => d.DataType == "SELECT"))
+                using (var cmd = new SqlCommand(@"SELECT o.FieldID, o.OptionID, o.Value, o.SortNo,
+                                                         (SELECT COUNT(*) FROM Nexus.PartFieldValues v WHERE v.FieldID = o.FieldID AND v.Value = o.Value)
+                                                  FROM Nexus.PartFieldOptions o JOIN Nexus.PartFieldDefs d ON d.FieldID = o.FieldID
+                                                  WHERE (@s IS NULL OR d.StockID = @s) ORDER BY o.FieldID, o.SortNo, o.OptionID", conn))
+                {
+                    cmd.Parameters.AddWithValue("@s", (object)stockId ?? DBNull.Value);
+                    var byId = list.ToDictionary(d => d.FieldId);
+                    using var r = cmd.ExecuteReader();
+                    while (r.Read())
+                        if (byId.TryGetValue(r.GetInt32(0), out var d))
+                            d.Options.Add(new CustomFieldOption { OptionId = r.GetInt32(1), Value = r.GetString(2), SortNo = r.GetInt32(3), Uses = r.GetInt32(4) });
+                }
             return list;
+        }
+
+        private static string CleanUnit(string type, string unit)
+        {
+            if (type != "NUMBER") return null;
+            unit = Regex.Replace((unit ?? "").Trim(), @"\s+", " ").ToUpperInvariant();
+            if (unit.Length > 20) throw new InvalidOperationException("หน่วยยาวได้ไม่เกิน 20 ตัวอักษร");
+            return unit.Length == 0 ? null : unit;
+        }
+
+        private void RequireV2(string type)
+        {
+            if (type == "SELECT" && !HasUnitAndOptions) throw new InvalidOperationException("ฐานข้อมูลยังไม่รองรับ DROPDOWN กรุณารัน database/nexus/13_Custom_Field_Unit_Dropdown.sql");
         }
 
         private static string CleanLabel(string label)
@@ -85,33 +148,41 @@ namespace Nexus.Services
 
         private static string CleanType(string t) => CustomFields.Types.Contains((t ?? "").Trim().ToUpperInvariant()) ? t.Trim().ToUpperInvariant() : "TEXT";
 
-        public CustomFieldDef Add(int stockId, string label, string type, string userId)
+        public CustomFieldDef Add(int stockId, string label, string type, string userId, string unit = null)
         {
             label = CleanLabel(label);
+            type = CleanType(type);
+            RequireV2(type);
+            unit = CleanUnit(type, unit);
+            bool v2 = HasUnitAndOptions;
             using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand(@"IF EXISTS (SELECT 1 FROM Nexus.PartFieldDefs WHERE StockID = @s AND Label = @l) THROW 50001, N'dup', 1;
-                                             INSERT INTO Nexus.PartFieldDefs (StockID, Label, DataType, SortNo, CreatedBy)
+            using var cmd = new SqlCommand($@"IF EXISTS (SELECT 1 FROM Nexus.PartFieldDefs WHERE StockID = @s AND Label = @l) THROW 50001, N'dup', 1;
+                                             INSERT INTO Nexus.PartFieldDefs (StockID, Label, DataType, SortNo, CreatedBy{(v2 ? ", Unit" : "")})
                                              OUTPUT inserted.FieldID
-                                             VALUES (@s, @l, @t, (SELECT ISNULL(MAX(SortNo), 0) + 1 FROM Nexus.PartFieldDefs WHERE StockID = @s), @u)", conn);
+                                             VALUES (@s, @l, @t, (SELECT ISNULL(MAX(SortNo), 0) + 1 FROM Nexus.PartFieldDefs WHERE StockID = @s), @u{(v2 ? ", @unit" : "")})", conn);
             cmd.Parameters.AddWithValue("@s", stockId);
             cmd.Parameters.AddWithValue("@l", label);
-            cmd.Parameters.AddWithValue("@t", CleanType(type));
+            cmd.Parameters.AddWithValue("@t", type);
             cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@unit", (object)unit ?? DBNull.Value);
             conn.Open();
             try
             {
                 int id = Convert.ToInt32(cmd.ExecuteScalar());
-                return new CustomFieldDef { FieldId = id, StockId = stockId, Label = label, DataType = CleanType(type) };
+                return new CustomFieldDef { FieldId = id, StockId = stockId, Label = label, DataType = type, Unit = unit };
             }
             catch (SqlException ex) when (ex.Number == 50001 || ex.Number == 2627) { throw new InvalidOperationException($"มีช่อง \"{label}\" ในคลังนี้แล้ว"); }
         }
 
         // แก้ชื่อ / ชนิด · คืนค่าเดิม (ไว้ลง Log)
-        public (CustomFieldDef Old, CustomFieldDef New) Update(int fieldId, string label, string type, string userId)
+        public (CustomFieldDef Old, CustomFieldDef New) Update(int fieldId, string label, string type, string userId, string unit = null)
         {
             var old = GetDefs().FirstOrDefault(d => d.FieldId == fieldId) ?? throw new InvalidOperationException("ไม่พบช่องนี้ (อาจถูกลบไปแล้ว)");
             label = CleanLabel(label);
             type = CleanType(type);
+            RequireV2(type);
+            unit = CleanUnit(type, unit);
+            bool v2 = HasUnitAndOptions;
             using var conn = new SqlConnection(_cs);
             conn.Open();
             if (type == "NUMBER" && old.DataType != "NUMBER")
@@ -120,8 +191,20 @@ namespace Nexus.Services
                     chk.Parameters.AddWithValue("@id", fieldId);
                     if (chk.ExecuteScalar() is string bad) throw new InvalidOperationException($"เปลี่ยนเป็น NUMBER ไม่ได้ - มีค่าที่ไม่ใช่ตัวเลขอยู่แล้ว (เช่น \"{bad}\")");
                 }
-            using var cmd = new SqlCommand(@"IF EXISTS (SELECT 1 FROM Nexus.PartFieldDefs WHERE StockID = @s AND Label = @l AND FieldID <> @id) THROW 50001, N'dup', 1;
-                                             UPDATE Nexus.PartFieldDefs SET Label = @l, DataType = @t, UpdatedAt = SYSDATETIME(), UpdatedBy = @u WHERE FieldID = @id", conn);
+            // เปลี่ยนเป็น DROPDOWN: ค่าที่กรอกไว้แล้วกลายเป็นรายการให้เลือก (ไม่ต้องกรอกใหม่)
+            if (type == "SELECT" && old.DataType != "SELECT")
+                using (var cp = new SqlCommand(@"INSERT INTO Nexus.PartFieldOptions (FieldID, Value, SortNo, CreatedBy)
+                                                 SELECT @id, x.Value, ROW_NUMBER() OVER (ORDER BY x.Value), @u
+                                                 FROM (SELECT DISTINCT LEFT(Value, 200) AS Value FROM Nexus.PartFieldValues WHERE FieldID = @id) x
+                                                 WHERE NOT EXISTS (SELECT 1 FROM Nexus.PartFieldOptions o WHERE o.FieldID = @id AND o.Value = x.Value)", conn))
+                {
+                    cp.Parameters.AddWithValue("@id", fieldId);
+                    cp.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                    cp.ExecuteNonQuery();
+                }
+            using var cmd = new SqlCommand($@"IF EXISTS (SELECT 1 FROM Nexus.PartFieldDefs WHERE StockID = @s AND Label = @l AND FieldID <> @id) THROW 50001, N'dup', 1;
+                                             UPDATE Nexus.PartFieldDefs SET Label = @l, DataType = @t{(v2 ? ", Unit = @unit" : "")}, UpdatedAt = SYSDATETIME(), UpdatedBy = @u WHERE FieldID = @id", conn);
+            cmd.Parameters.AddWithValue("@unit", (object)unit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@s", old.StockId);
             cmd.Parameters.AddWithValue("@l", label);
             cmd.Parameters.AddWithValue("@t", type);
@@ -129,7 +212,116 @@ namespace Nexus.Services
             cmd.Parameters.AddWithValue("@id", fieldId);
             try { cmd.ExecuteNonQuery(); }
             catch (SqlException ex) when (ex.Number == 50001 || ex.Number == 2627) { throw new InvalidOperationException($"มีช่อง \"{label}\" ในคลังนี้แล้ว"); }
-            return (old, new CustomFieldDef { FieldId = fieldId, StockId = old.StockId, Label = label, DataType = type, SortNo = old.SortNo });
+            return (old, new CustomFieldDef { FieldId = fieldId, StockId = old.StockId, Label = label, DataType = type, SortNo = old.SortNo, Unit = unit });
+        }
+
+        // ---------------------------------------------------------------- รายการของ DROPDOWN
+        private CustomFieldDef SelectField(int fieldId)
+        {
+            if (!HasUnitAndOptions) throw new InvalidOperationException("ฐานข้อมูลยังไม่รองรับ DROPDOWN กรุณารัน database/nexus/13_Custom_Field_Unit_Dropdown.sql");
+            var d = GetDefs().FirstOrDefault(x => x.FieldId == fieldId) ?? throw new InvalidOperationException("ไม่พบช่องนี้ (อาจถูกลบไปแล้ว)");
+            if (d.DataType != "SELECT") throw new InvalidOperationException($"ช่อง {d.Label} ไม่ใช่ DROPDOWN");
+            return d;
+        }
+
+        private static string CleanOption(string v)
+        {
+            v = Regex.Replace((v ?? "").Trim(), @"\s+", " ");
+            if (v.Length == 0) throw new InvalidOperationException("กรุณากรอกรายการ");
+            if (v.Length > 200) throw new InvalidOperationException("รายการยาวได้ไม่เกิน 200 ตัวอักษร");
+            return v;
+        }
+
+        public (CustomFieldDef Field, string Value) AddOption(int fieldId, string value, string userId)
+        {
+            var d = SelectField(fieldId);
+            value = CleanOption(value);
+            if (d.Options.Any(o => string.Equals(o.Value, value, StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException($"มีรายการ \"{value}\" แล้ว");
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand(@"INSERT INTO Nexus.PartFieldOptions (FieldID, Value, SortNo, CreatedBy)
+                                             VALUES (@f, @v, (SELECT ISNULL(MAX(SortNo), 0) + 1 FROM Nexus.PartFieldOptions WHERE FieldID = @f), @u)", conn);
+            cmd.Parameters.AddWithValue("@f", fieldId);
+            cmd.Parameters.AddWithValue("@v", value);
+            cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+            conn.Open();
+            cmd.ExecuteNonQuery();
+            return (d, value);
+        }
+
+        // แก้ชื่อรายการ: สินค้าที่เลือกค่าเดิมไว้ เปลี่ยนเป็นค่าใหม่ตาม · คืน (ช่อง, ค่าเดิม, จำนวนสินค้าที่เปลี่ยน)
+        public (CustomFieldDef Field, string Old, int Changed) RenameOption(int optionId, string value, string userId)
+        {
+            value = CleanOption(value);
+            var (d, o) = FindOption(optionId);
+            if (d.Options.Any(x => x.OptionId != optionId && string.Equals(x.Value, value, StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException($"มีรายการ \"{value}\" แล้ว");
+            using var conn = new SqlConnection(_cs);
+            conn.Open();
+            using var tr = conn.BeginTransaction();
+            int n;
+            using (var cmd = new SqlCommand(@"UPDATE Nexus.PartFieldOptions SET Value = @v WHERE OptionID = @o;
+                                              UPDATE Nexus.PartFieldValues SET Value = @v, UpdatedAt = SYSDATETIME(), UpdatedBy = @u WHERE FieldID = @f AND Value = @old;", conn, tr))
+            {
+                cmd.Parameters.AddWithValue("@v", value);
+                cmd.Parameters.AddWithValue("@o", optionId);
+                cmd.Parameters.AddWithValue("@f", d.FieldId);
+                cmd.Parameters.AddWithValue("@old", o.Value);
+                cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                n = cmd.ExecuteNonQuery() - 1;
+            }
+            tr.Commit();
+            return (d, o.Value, Math.Max(0, n));
+        }
+
+        // ลบรายการ: สินค้าที่เลือกค่านี้ไว้ = ค่าว่าง · คืน (ช่อง, ค่า, จำนวนสินค้าที่ถูกล้างค่า)
+        public (CustomFieldDef Field, string Value, int Cleared) DeleteOption(int optionId)
+        {
+            var (d, o) = FindOption(optionId);
+            using var conn = new SqlConnection(_cs);
+            conn.Open();
+            using var tr = conn.BeginTransaction();
+            int n;
+            using (var cmd = new SqlCommand("DELETE FROM Nexus.PartFieldValues WHERE FieldID = @f AND Value = @v", conn, tr))
+            {
+                cmd.Parameters.AddWithValue("@f", d.FieldId);
+                cmd.Parameters.AddWithValue("@v", o.Value);
+                n = cmd.ExecuteNonQuery();
+            }
+            using (var cmd = new SqlCommand("DELETE FROM Nexus.PartFieldOptions WHERE OptionID = @o", conn, tr))
+            {
+                cmd.Parameters.AddWithValue("@o", optionId);
+                cmd.ExecuteNonQuery();
+            }
+            tr.Commit();
+            return (d, o.Value, n);
+        }
+
+        // เรียงลำดับรายการตาม optionIds
+        public CustomFieldDef OrderOptions(int fieldId, List<int> optionIds)
+        {
+            var d = SelectField(fieldId);
+            var ids = (optionIds ?? new()).Where(id => d.Options.Any(o => o.OptionId == id)).Distinct().ToList();
+            ids.AddRange(d.Options.Select(o => o.OptionId).Where(id => !ids.Contains(id)));
+            using var conn = new SqlConnection(_cs);
+            conn.Open();
+            using var tr = conn.BeginTransaction();
+            for (int i = 0; i < ids.Count; i++)
+                using (var cmd = new SqlCommand("UPDATE Nexus.PartFieldOptions SET SortNo = @n WHERE OptionID = @o AND FieldID = @f", conn, tr))
+                {
+                    cmd.Parameters.AddWithValue("@n", i + 1);
+                    cmd.Parameters.AddWithValue("@o", ids[i]);
+                    cmd.Parameters.AddWithValue("@f", fieldId);
+                    cmd.ExecuteNonQuery();
+                }
+            tr.Commit();
+            return d;
+        }
+
+        private (CustomFieldDef, CustomFieldOption) FindOption(int optionId)
+        {
+            if (!HasUnitAndOptions) throw new InvalidOperationException("ฐานข้อมูลยังไม่รองรับ DROPDOWN");
+            foreach (var d in GetDefs().Where(x => x.DataType == "SELECT"))
+                if (d.Options.FirstOrDefault(o => o.OptionId == optionId) is { } o) return (d, o);
+            throw new InvalidOperationException("ไม่พบรายการนี้ (อาจถูกลบไปแล้ว)");
         }
 
         // ลบช่อง + ค่าทั้งหมดของช่องนั้น (CASCADE) · เอาคีย์ออกจากการตั้งค่าที่อ้างถึง (ช่องกรอก / คอลัมน์ / คอลัมน์ Store)
@@ -226,6 +418,12 @@ namespace Nexus.Services
                     !DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt)) throw new InvalidOperationException($"{d.Label}: วันที่ไม่ถูกต้อง (เช่น 2026-10-28)");
                 if (dt.Year > 2500) dt = dt.AddYears(-543);   // ปี พ.ศ.
                 return dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            }
+            if (d.DataType == "SELECT")
+            {
+                var o = d.Options.FirstOrDefault(x => string.Equals(x.Value, value, StringComparison.OrdinalIgnoreCase))
+                        ?? throw new InvalidOperationException($"{d.Label}: \"{value}\" ไม่มีในรายการ DROPDOWN (เพิ่มรายการได้ที่ ADMIN > DROPDOWN LISTS)");
+                return o.Value;
             }
             return value;
         }

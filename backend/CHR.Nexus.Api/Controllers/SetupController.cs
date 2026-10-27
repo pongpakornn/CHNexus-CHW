@@ -24,7 +24,7 @@ public sealed class SetupController : AppController
         var layouts = svc.GetPrExcelLayouts();
         return Ok(svc.GetStocks().Select(s => new
         {
-            s.StkId, s.Code, s.Name, keep = auto.TryGetValue(s.StkId, out bool k) && k,
+            s.StkId, s.Code, s.Name, s.StockType, s.IsMain, unit = s.UnitDisplay, keep = auto.TryGetValue(s.StkId, out bool k) && k,
             file = layouts.TryGetValue(s.StkId, out var l) && l.HasPath ? Path.GetFileName(Storage.MapExternal(l.Path)) : null
         }));
     }

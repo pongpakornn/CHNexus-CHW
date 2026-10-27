@@ -7,6 +7,7 @@ import { useDialogs } from "@/components/ui/Dialogs";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Empty, Loading } from "@/components/ui/Page";
 import { api, upload } from "@/lib/api";
+import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import { useDebounced } from "@/lib/useDebounced";
 
 type Section = "PR" | "EXCEL" | "DEPT";
@@ -114,7 +115,7 @@ export function SetupModal({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------- 🧾 PR SETTINGS
-type PrStock = { stkId: number; code: string; name: string; keep: boolean; file: string | null };
+type PrStock = { stkId: number; code: string; name: string; stockType: string | null; isMain: boolean; unit: string; keep: boolean; file: string | null };
 
 function PrPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
   const toast = useToast();
@@ -158,23 +159,53 @@ function PrPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
   return (
     <div className="grid gap-3">
       <p className="text-xs font-bold text-ink-soft">KEEP PR = scanning OUT creates a PR and the stock shows in the PR page dropdown • the Excel file of EXPORT PATH is set in EXCEL SETUP</p>
-      <div className="grid gap-2">
-        {rows.map((r) => (
-          <label key={r.stkId} className={`su-row ${r.keep ? "is-on" : ""}`} style={{ "--i": rows.indexOf(r) } as React.CSSProperties}>
-            <span className="min-w-0 flex-1">
-              <span className="block font-extrabold text-primary">
-                {r.code} {r.keep !== orig[r.stkId] && <span className="adm-dirty ml-1" title="ยังไม่ได้ SAVE" />}
-              </span>
-              <span className="block truncate text-xs font-semibold text-ink-soft">{r.name}</span>
-            </span>
-            <span className="max-sm:hidden truncate text-xs font-bold text-ink-soft">{r.file ? "📊 " + r.file : "📊 no Excel file (EXCEL SETUP)"}</span>
-            <span className={`sw ${r.keep ? "is-on" : ""}`}>
-              <input type="checkbox" className="sr-only" checked={r.keep} onChange={(e) => setRows((rs) => rs!.map((x) => (x.stkId === r.stkId ? { ...x, keep: e.target.checked } : x)))} />
-              <span className="sw-track" />
-              KEEP PR
-            </span>
-          </label>
-        ))}
+      {/* การ์ดคลังแบบหน้า Store (Max-Min): แถบสี · ไอคอนประจำคลัง · สวิตช์ KEEP PR · ไฟล์ Excel ของ PR */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        {rows.map((r, i) => {
+          const [ic, col] = stockIcon(r.code, i, r.stockType);
+          const dirty = r.keep !== orig[r.stkId];
+          const toggle = () => setRows((rs) => rs!.map((x) => (x.stkId === r.stkId ? { ...x, keep: !x.keep } : x)));
+          return (
+            <div
+              key={r.stkId}
+              role="switch"
+              aria-checked={r.keep}
+              tabIndex={0}
+              onClick={toggle}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle())}
+              className={`pr-card group ${r.keep ? "is-on" : ""}`}
+              style={{ "--c": col, animationDelay: `${i * 50}ms` } as React.CSSProperties}
+            >
+              <span className="pr-card-bar" />
+              <div className="flex items-start gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-[14px] transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110" style={tileStyle(col)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={ic} alt="" draggable={false} className="size-6 object-contain" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[16px] font-extrabold text-[#1f2350]">{r.code}</span>
+                    {r.isMain && <span className="pr-main">MAIN</span>}
+                    {dirty && <span className="adm-dirty" title="ยังไม่ได้ SAVE" />}
+                  </div>
+                  <div className="truncate text-xs font-semibold text-ink-soft">{r.name}</div>
+                </div>
+                <span className={`sw ${r.keep ? "is-on" : ""} pointer-events-none`}>
+                  <span className="sw-track" />
+                  KEEP PR
+                </span>
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <span className={`pr-file ${r.file ? "is-set" : ""}`} title={r.file ?? "ตั้งไฟล์ Excel ได้ที่ EXCEL SETUP"}>
+                  📊 {r.file ?? "no Excel file (EXCEL SETUP)"}
+                </span>
+                <span className="ml-auto text-[11px] font-extrabold" style={{ color: r.keep ? col : "var(--ink-soft)" }}>
+                  {r.keep ? "● PR ON" : "○ PR OFF"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-xs font-bold text-warning">{changed.length > 0 ? `${changed.length} stock(s) changed - press SAVE` : ""}</span>
@@ -657,18 +688,26 @@ function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
       ) : (
         <div className="grid gap-1">
           {names.map((n, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-8 text-center font-extrabold text-ink-soft">{i + 1}</span>
-              <input className="field fx-in" title="Click to edit the name" value={n} onChange={(e) => setNames((ns) => ns!.map((x, j) => (j === i ? e.target.value : x)))} />
-              <button className="btn-ghost px-2 py-1" title="Move up" onClick={() => move(i, -1)}>
-                ▲
-              </button>
-              <button className="btn-ghost px-2 py-1" title="Move down" onClick={() => move(i, 1)}>
-                ▼
-              </button>
-              <button className="btn-ghost px-2 py-1 text-danger" title="Delete" onClick={() => setNames((ns) => ns!.filter((_, j) => j !== i))}>
-                ✕
-              </button>
+            <div key={i} className="dept-row">
+              <span className="dept-no">{i + 1}</span>
+              <input className="field fx-in !h-9 min-w-0 flex-1" title="Click to edit the name" value={n} onChange={(e) => setNames((ns) => ns!.map((x, j) => (j === i ? e.target.value : x)))} />
+              <span className="dept-acts">
+                <button type="button" className="dept-btn" title="Move up" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m6 15 6-6 6 6" />
+                  </svg>
+                </button>
+                <button type="button" className="dept-btn" title="Move down" aria-label="Move down" disabled={i === names.length - 1} onClick={() => move(i, 1)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                <button type="button" className="dept-btn is-del" title="Delete" aria-label="Delete" onClick={() => setNames((ns) => ns!.filter((_, j) => j !== i))}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
+                  </svg>
+                </button>
+              </span>
             </div>
           ))}
         </div>

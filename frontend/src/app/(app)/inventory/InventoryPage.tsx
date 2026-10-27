@@ -207,7 +207,17 @@ export default function InventoryPage() {
       <label className="block">
         <span className="mb-1 block truncate text-[11px] font-extrabold uppercase text-ink-soft" title={d.label}>
           {d.label}
+          {d.unit ? ` (${d.unit})` : ""}
         </span>
+        {d.type === "SELECT" ? (
+          <MenuSelect
+            compact
+            className="w-full"
+            value={form.cf[k] ?? ""}
+            options={[{ value: "", label: "— เลือก —" }, ...(form.cf[k] && !(d.options ?? []).includes(form.cf[k]) ? [form.cf[k]] : []), ...(d.options ?? [])].map((o) => (typeof o === "string" ? { value: o, label: o } : o))}
+            onChange={(v) => setForm({ ...form, cf: { ...form.cf, [k]: v } })}
+          />
+        ) : (
         <input
           className="field"
           type={d.type === "DATE" ? "date" : "text"}
@@ -215,6 +225,7 @@ export default function InventoryPage() {
           value={form.cf[k] ?? ""}
           onChange={(e) => setForm({ ...form, cf: { ...form.cf, [k]: d.type === "NUMBER" ? e.target.value.replace(/[^\d.,-]/g, "") : e.target.value } })}
         />
+        )}
       </label>
     );
   };

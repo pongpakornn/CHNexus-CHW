@@ -14,7 +14,7 @@ export type Meta = {
   /** ➕ ช่องกรอกเพิ่มเองของคลัง (ADMIN > CUSTOM FIELDS) - key = CF12 */
   customFields?: CustomField[];
 };
-export type CustomField = { fieldId: number; stockId: number; key: string; label: string; type: "TEXT" | "NUMBER" | "DATE" };
+export type CustomField = { fieldId: number; stockId: number; key: string; label: string; type: "TEXT" | "NUMBER" | "DATE" | "SELECT"; unit?: string | null; options?: string[] };
 export type Part = {
   ptId: number;
   partCode: string;

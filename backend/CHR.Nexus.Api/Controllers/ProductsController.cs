@@ -39,7 +39,7 @@ public sealed class ProductsController : AppController
             can = new { add = Me.CanAddProduct, edit = Me.CanEditProduct, delete = Me.CanDeleteProduct, admin = Me.UserLevel == 1 },
             canAll,
             customFields = new CustomFieldService().GetDefs().Where(d => stocks.Any(s => s.StkId == d.StockId))
-                                                   .Select(d => new { d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType }),
+                                                   .Select(d => new { d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, d.Unit, options = d.Options.Select(o => o.Value) }),
             // สิทธิ์ต่อคลัง: VIEW = ดูอย่างเดียว / ADD,EDIT = ติ๊กสินค้าเข้าคลัง + แก้ไข / DEL = ลบ
             stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.IsMain, s.CountCoil, s.ShowCoilRows, s.IsLiveView, canView = true,
                                               canAdd = Me.CanAddInStock(s), canEdit = Me.CanEditStock(s), canDelete = Me.CanDeleteInStock(s) }),
@@ -131,10 +131,13 @@ public sealed class ProductsController : AppController
         if (cfIds.Count == 0)
             return Ok(new { total = all.Count, layout, coilStkId = coilStk, groups = groupCounts, rows = rows.Select(p => Row(p, masters.TryGetValue(p.PtId, out int n) ? n : 0)) });
         var cfVals = new CustomFieldService().GetValues(rows.Select(p => p.PtId), cfIds);
+        // ค่าที่แสดง: ตัวเลข + หน่วย (12 KG)
+        var cfDefs = new CustomFieldService().GetDefs().ToDictionary(d => d.FieldId);
+        string cfShow(int id, string v) => cfDefs.TryGetValue(id, out var d) ? d.Display(v) : v;
         return Ok(new
         {
             total = all.Count, layout, coilStkId = coilStk, groups = groupCounts,
-            rows = rows.Select(p => new { p = Row(p, masters.TryGetValue(p.PtId, out int n) ? n : 0), cf = cfVals.TryGetValue(p.PtId, out var v) ? v.ToDictionary(x => CustomFields.KeyOf(x.Key), x => x.Value) : null })
+            rows = rows.Select(p => new { p = Row(p, masters.TryGetValue(p.PtId, out int n) ? n : 0), cf = cfVals.TryGetValue(p.PtId, out var v) ? v.ToDictionary(x => CustomFields.KeyOf(x.Key), x => cfShow(x.Key, x.Value)) : null })
                        .Select(x => MergeCf(x.p, x.cf))
         });
     }
@@ -598,7 +601,12 @@ public sealed class ProductsController : AppController
             formFields = FormFieldList.All.Select(c => new { key = c.Key, label = c.Label }),
             hasFormFields = DbSchema.HasFormFields,
             hasCustomFields = CustomFieldService.Ready,
-            customFields = new CustomFieldService().GetDefs().Select(d => new { d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, values = d.ValueCount }),
+            hasDropdown = CustomFieldService.HasUnitAndOptions,
+            customFields = new CustomFieldService().GetDefs().Select(d => new
+            {
+                d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, values = d.ValueCount, d.Unit,
+                options = d.Options.Select(o => new { id = o.OptionId, o.Value, o.Uses })
+            }),
             hasQrFields = DbSchema.HasQrFields
         });
     }
@@ -653,7 +661,7 @@ public sealed class ProductsController : AppController
     }
 
     // ➕ CUSTOM FIELDS (Level 1): เพิ่ม / แก้ชื่อ-ชนิด / ลบ ช่องกรอกของคลัง · ทุกครั้งลง Activity Log
-    public sealed record FieldSave(int StkId, string Label, string Type);
+    public sealed record FieldSave(int StkId, string Label, string Type, string Unit = null);
 
     [HttpPost("admin/fields")]
     public IActionResult AddField([FromBody] FieldSave r)
@@ -664,8 +672,8 @@ public sealed class ProductsController : AppController
         if (s == null) return Fail("กรุณาเลือกคลัง");
         try
         {
-            var d = new CustomFieldService().Add(s.StkId, r.Label, r.Type, Uid);
-            LogService.WriteLog(Uid, "CUSTOM_FIELD_ADD", $"{s.Code} | {d.Key} {d.Label} ({d.DataType})", s.Code);
+            var d = new CustomFieldService().Add(s.StkId, r.Label, r.Type, Uid, r.Unit);
+            LogService.WriteLog(Uid, "CUSTOM_FIELD_ADD", $"{s.Code} | {d.Key} {d.Label} ({d.DataType}{(d.Unit == null ? "" : " " + d.Unit)})", s.Code);
             return Ok(new { message = $"เพิ่มช่อง \"{d.Label}\" ให้ {s.Code} แล้ว\nเลือกแสดงได้ที่ FORM FIELDS / TABLE COLUMNS และหน้า Store (EDIT STOCK)", key = d.Key });
         }
         catch (InvalidOperationException ex) { return Fail(ex.Message); }
@@ -677,9 +685,9 @@ public sealed class ProductsController : AppController
         if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
         try
         {
-            var (o, n) = new CustomFieldService().Update(id, r?.Label, r?.Type, Uid);
+            var (o, n) = new CustomFieldService().Update(id, r?.Label, r?.Type, Uid, r?.Unit);
             string code = _stocks.GetStocks().FirstOrDefault(x => x.StkId == o.StockId)?.Code ?? "";
-            LogService.WriteLog(Uid, "CUSTOM_FIELD_EDIT", $"{code} | {o.Key} | {o.Label} ({o.DataType}) -> {n.Label} ({n.DataType})", code);
+            LogService.WriteLog(Uid, "CUSTOM_FIELD_EDIT", $"{code} | {o.Key} | {o.Label} ({o.DataType}{(o.Unit == null ? "" : " " + o.Unit)}) -> {n.Label} ({n.DataType}{(n.Unit == null ? "" : " " + n.Unit)})", code);
             return Ok(new { message = "แก้ไขช่องแล้ว" });
         }
         catch (InvalidOperationException ex) { return Fail(ex.Message); }
@@ -696,6 +704,63 @@ public sealed class ProductsController : AppController
             LogService.WriteLog(Uid, "CUSTOM_FIELD_DELETE", $"{code} | {o.Key} {o.Label} | ลบค่าของสินค้า {o.ValueCount:N0} รายการ", code);
             LiveBus.Publish("store:" + o.StockId, "store");
             return Ok(new { message = $"ลบช่อง \"{o.Label}\" แล้ว (ค่าที่เคยกรอก {o.ValueCount:N0} รายการถูกลบด้วย)" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    // ▾ รายการของช่อง DROPDOWN (Level 1): เพิ่ม / แก้ชื่อ (ค่าของสินค้าเปลี่ยนตาม) / ลบ (ค่าของสินค้าว่าง) / เรียงลำดับ
+    public sealed record OptionSave(string Value);
+
+    private string CodeOf(int stkId) => _stocks.GetStocks().FirstOrDefault(x => x.StkId == stkId)?.Code ?? "";
+
+    [HttpPost("admin/fields/{id:int}/options")]
+    public IActionResult AddOption(int id, [FromBody] OptionSave r)
+    {
+        if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        try
+        {
+            var (d, v) = new CustomFieldService().AddOption(id, r?.Value, Uid);
+            LogService.WriteLog(Uid, "CUSTOM_OPTION_ADD", $"{CodeOf(d.StockId)} | {d.Key} {d.Label} | + {v}", CodeOf(d.StockId));
+            return Ok(new { message = $"เพิ่ม \"{v}\" ใน {d.Label} แล้ว" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    [HttpPut("admin/options/{optionId:int}")]
+    public IActionResult RenameOption(int optionId, [FromBody] OptionSave r)
+    {
+        if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        try
+        {
+            var (d, old, n) = new CustomFieldService().RenameOption(optionId, r?.Value, Uid);
+            LogService.WriteLog(Uid, "CUSTOM_OPTION_EDIT", $"{CodeOf(d.StockId)} | {d.Key} {d.Label} | {old} -> {r.Value?.Trim()} | สินค้าเปลี่ยนตาม {n:N0}", CodeOf(d.StockId));
+            return Ok(new { message = $"แก้รายการแล้ว" + (n > 0 ? $" (สินค้าที่เลือกค่าเดิม {n:N0} รายการเปลี่ยนตาม)" : "") });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    [HttpPost("admin/options/{optionId:int}/delete")]
+    public IActionResult DeleteOption(int optionId)
+    {
+        if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        try
+        {
+            var (d, v, n) = new CustomFieldService().DeleteOption(optionId);
+            LogService.WriteLog(Uid, "CUSTOM_OPTION_DELETE", $"{CodeOf(d.StockId)} | {d.Key} {d.Label} | - {v} | ล้างค่าของสินค้า {n:N0}", CodeOf(d.StockId));
+            return Ok(new { message = $"ลบ \"{v}\" แล้ว" + (n > 0 ? $" (สินค้าที่เลือกค่านี้ {n:N0} รายการเป็นค่าว่าง)" : "") });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    [HttpPost("admin/fields/{id:int}/options/order")]
+    public IActionResult OrderOptions(int id, [FromBody] List<int> ids)
+    {
+        if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        try
+        {
+            var d = new CustomFieldService().OrderOptions(id, ids);
+            LogService.WriteLog(Uid, "CUSTOM_OPTION_ORDER", $"{CodeOf(d.StockId)} | {d.Key} {d.Label}", CodeOf(d.StockId));
+            return Ok(new { message = "เรียงลำดับแล้ว" });
         }
         catch (InvalidOperationException ex) { return Fail(ex.Message); }
     }
