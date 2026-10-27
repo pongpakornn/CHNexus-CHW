@@ -91,12 +91,13 @@ namespace Nexus.Services
             }
         }
 
+        //   ยอดในระบบน้อยกว่าที่ต้องหัก (ยอดเคยถูกแก้ / ตัดจากที่อื่นแต่ Coil ยังค้างในทะเบียน) = เหลือ 0 ไม่ติดลบ (ฐานข้อมูลไม่ยอมให้ติดลบ)
         private static void AddStockQty(SqlConnection conn, SqlTransaction trans, StockModel stock, int ptId, decimal delta)
         {
             if (delta == 0) return;
             using (var cmd = new SqlCommand(stock.IsMain
-                ? "UPDATE Nexus.Parts SET StockQuantity = ISNULL(StockQuantity, 0) + @q WHERE PartID = @p"
-                : "UPDATE Nexus.PartStocks SET Quantity = ISNULL(Quantity, 0) + @q, UpdatedDate = GETDATE() WHERE StockID = @s AND PartID = @p", conn, trans))
+                ? "UPDATE Nexus.Parts SET StockQuantity = CASE WHEN ISNULL(StockQuantity, 0) + @q < 0 THEN 0 ELSE ISNULL(StockQuantity, 0) + @q END WHERE PartID = @p"
+                : "UPDATE Nexus.PartStocks SET Quantity = CASE WHEN ISNULL(Quantity, 0) + @q < 0 THEN 0 ELSE ISNULL(Quantity, 0) + @q END, UpdatedDate = GETDATE() WHERE StockID = @s AND PartID = @p", conn, trans))
             {
                 cmd.Parameters.Add(QtyParam.Of("@q", delta));
                 cmd.Parameters.AddWithValue("@s", stock.StkId);

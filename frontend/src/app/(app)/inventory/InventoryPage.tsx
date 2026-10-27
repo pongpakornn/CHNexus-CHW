@@ -680,7 +680,13 @@ export default function InventoryPage() {
                     }
                   })}
                 </div>
-                {meta.hasCoilRegister && coilText && <div className="mt-2 text-xs font-bold text-accent">🧲 {coilText}</div>}
+                {meta.hasCoilRegister && coilText && <div className="mt-2 text-xs font-bold text-accent">{coilText}</div>}
+                {/* แก้ไขสินค้า: ช่อง Coil ในฟอร์ม = เพิ่ม Coil ใหม่ · Coil เดิมแก้ / ลบ / เปลี่ยนชื่อ Master ที่แถว Coil ใต้สินค้าในตาราง */}
+                {editId && coilForm && (
+                  <div className="mt-1.5 text-xs font-semibold text-ink-soft">
+                    ✏️ MASTER COIL / COIL NO / WEIGHT ในฟอร์มนี้ = <b>เพิ่ม Coil ใหม่</b> (กรอก MASTER อย่างเดียว + WEIGHT = Master ทั้งม้วน) · แก้ / ลบ Coil เดิม หรือเปลี่ยนชื่อ MASTER กดปุ่ม ✏ / 🗑 ที่แถว Coil ใต้สินค้าในตาราง
+                  </div>
+                )}
                 <datalist id="dl-sup">{meta.suggestions.suppliers.map((s) => <option key={s} value={s} />)}</datalist>
                 <datalist id="dl-cat">{meta.suggestions.categories.map((s) => <option key={s} value={s} />)}</datalist>
                 <datalist id="dl-cus">{meta.suggestions.customers.map((s) => <option key={s} value={s} />)}</datalist>

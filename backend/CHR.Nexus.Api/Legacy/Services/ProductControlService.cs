@@ -538,6 +538,38 @@ namespace Nexus.Services
                             return false;
                         }
 
+                        // 🧲 Coil ในทะเบียนของสินค้า: ลงผิดและยังไม่เคยสแกน (มีแค่ REGISTER / IMPORT / EDIT) = ลบไปพร้อมสินค้า
+                        //    มี Coil ที่เคยสแกน / ใช้ไปแล้ว = ลบสินค้าไม่ได้ (เก็บประวัติไว้) -> แนะนำให้ซ่อนแทน
+                        if (Nexus.Helpers.DbSchema.HasCoilRegister)
+                        {
+                            var used = new List<string>();
+                            using (SqlCommand cmd = new SqlCommand(@"SELECT c.CoilNo, c.Status FROM Nexus.Coils c JOIN Nexus.Parts p ON p.PartID = c.PartID
+                                                                     WHERE ((@PtId > 0 AND p.PartID = @PtId) OR (@PtId = 0 AND p.PartCode = @PartACode))
+                                                                       AND (c.Status <> 'IN' OR EXISTS (SELECT 1 FROM Nexus.CoilMoves m WHERE m.CoilID = c.CoilID AND m.Action NOT IN ('REGISTER', 'IMPORT', 'EDIT')))", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@PartACode", partACode);
+                                cmd.Parameters.AddWithValue("@PtId", ptId);
+                                using (SqlDataReader rdr = cmd.ExecuteReader())
+                                    while (rdr.Read()) used.Add($"{rdr[0]} ({(rdr[1].ToString() == "IN" ? "เคยสแกน" : "ใช้ไปแล้ว")})");
+                            }
+                            if (used.Count > 0)
+                            {
+                                trans.Rollback();
+                                error = $"สินค้านี้มี Coil ที่มีประวัติการสแกน / ใช้งานแล้ว {used.Count:N0} ม้วน\n\n• " + string.Join("\n• ", used.Take(8)) + (used.Count > 8 ? "\n• ..." : "") +
+                                        "\n\nลบสินค้าไม่ได้ (ต้องเก็บประวัติไว้) - กด 👁 ซ่อนรายการแทน";
+                                return false;
+                            }
+                            using (SqlCommand cmd = new SqlCommand(@"DELETE m FROM Nexus.CoilMoves m JOIN Nexus.Coils c ON c.CoilID = m.CoilID JOIN Nexus.Parts p ON p.PartID = c.PartID
+                                                                     WHERE (@PtId > 0 AND p.PartID = @PtId) OR (@PtId = 0 AND p.PartCode = @PartACode);
+                                                                     DELETE c FROM Nexus.Coils c JOIN Nexus.Parts p ON p.PartID = c.PartID
+                                                                     WHERE (@PtId > 0 AND p.PartID = @PtId) OR (@PtId = 0 AND p.PartCode = @PartACode);", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@PartACode", partACode);
+                                cmd.Parameters.AddWithValue("@PtId", ptId);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+
                         string sql = @"DELETE ps FROM Nexus.PartStocks ps JOIN Nexus.Parts p ON p.PartID = ps.PartID
                                        WHERE (@PtId > 0 AND p.PartID = @PtId) OR (@PtId = 0 AND p.PartCode = @PartACode);
                                        DELETE FROM Nexus.Parts WHERE (@PtId > 0 AND PartID = @PtId) OR (@PtId = 0 AND PartCode = @PartACode);";
