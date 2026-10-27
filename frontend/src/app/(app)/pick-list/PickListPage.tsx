@@ -99,9 +99,9 @@ export default function PickListPage() {
   const [sel, setSel] = useState<string[]>([]);
   const [preview, setPreview] = useState<PickCard | null>(null);
   const [mobilePreview, setMobilePreview] = useState(false);
-  const [printOpen, setPrintOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false); // หน้าต่าง PREVIEW (เลือกรูปแบบ + ดูแผ่นจริง) ก่อน PRINT / EXPORT PDF
   const [layout, setLayout] = useState<Layout>("A4-10");
-  const [printing, setPrinting] = useState<{ items: PickCard[]; layout: Layout } | null>(null);
+  const [printing, setPrinting] = useState<{ items: PickCard[]; layout: Layout; mode: "print" | "pdf" } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [collapsed, toggleGroup] = useCollapsed();
   const printRef = useRef<HTMLDivElement>(null);
@@ -193,7 +193,18 @@ export default function PickListPage() {
 
   function print() {
     setPrintOpen(false);
-    setPrinting({ items: picked, layout });
+    setPrinting({ items: picked, layout, mode: "print" });
+  }
+
+  // ⬇ EXPORT PDF: วาดแผ่นเดียวกับที่พิมพ์ (A4 / ฉลาก 62 × 40) แล้วแปลงเป็น PDF ในเครื่อง - ไม่บันทึกว่าพิมพ์แล้ว
+  function exportPdf() {
+    setPrintOpen(false);
+    setPrinting({ items: picked, layout, mode: "pdf" });
+  }
+
+  function openPreview() {
+    if (picked.length === 0) return toast.show("WARNING", "กรุณาติ๊กเลือกรายการที่ต้องการพิมพ์ / Export PDF ก่อนครับ", "warn");
+    setPrintOpen(true);
   }
 
   // วาดการ์ด + QR ครบแล้วค่อยสั่งพิมพ์ -> บันทึกประวัติการพิมพ์ (CHR-Nexus) หลังปิดหน้าต่างพิมพ์
@@ -204,6 +215,17 @@ export default function PickListPage() {
       if (done) return;
       done = true;
       fitTexts(printRef.current);
+      if (printing.mode === "pdf") {
+        try {
+          const n = await makePdf(printRef.current!, printing.layout === "LABEL");
+          toast.show("EXPORT PDF", `บันทึกไฟล์ ${n} แล้ว (${printing.items.length} การ์ด)`, "ok");
+        } catch (e) {
+          toast.show("ERROR", "สร้าง PDF ไม่สำเร็จ\n" + (e as Error).message, "error");
+        } finally {
+          setPrinting(null);
+        }
+        return;
+      }
       window.print();
       const items = printing.items;
       setPrinting(null);
@@ -232,13 +254,6 @@ export default function PickListPage() {
   }, [printing, load, toast]);
 
   const L = LAYOUTS.find((l) => l.key === (printing?.layout ?? layout))!;
-  const pages = useMemo(() => {
-    if (!printing || L.key === "LABEL") return [];
-    const per = L.cols * L.rows;
-    const out: PickCard[][] = [];
-    for (let i = 0; i < printing.items.length; i += per) out.push(printing.items.slice(i, i + per));
-    return out;
-  }, [printing, L]);
 
   return (
     <PageBody>
@@ -270,12 +285,21 @@ export default function PickListPage() {
                 onClick: exportExcel,
               },
               {
+                key: "pdf",
+                title: `EXPORT PDF${picked.length ? ` (${picked.length})` : ""}`,
+                detail: "ดูตัวอย่างแผ่นจริงก่อน แล้วบันทึกเป็นไฟล์ PDF (A4 10 / 12 / 14 / 21 ใบต่อแผ่น หรือฉลาก 62 × 40 mm) - ไม่นับเป็นการพิมพ์",
+                color: "#e11d48",
+                icon: "export" as const,
+                busy: printing?.mode === "pdf",
+                onClick: openPreview,
+              },
+              {
                 key: "print",
                 title: `PRINT${picked.length ? ` (${picked.length})` : ""}`,
-                detail: "พิมพ์การ์ดที่ติ๊กไว้: A4 10 / 12 / 14 / 21 ใบต่อแผ่น หรือฉลาก 62 × 40 mm - บันทึกว่าใครพิมพ์ เมื่อไหร่",
+                detail: "ดูตัวอย่างแผ่นจริงก่อนพิมพ์: A4 10 / 12 / 14 / 21 ใบต่อแผ่น หรือฉลาก 62 × 40 mm - บันทึกว่าใครพิมพ์ เมื่อไหร่",
                 color: "#6750a4",
                 icon: "print" as const,
-                onClick: () => (picked.length === 0 ? toast.show("WARNING", "กรุณาติ๊กเลือกรายการที่ต้องการพิมพ์ก่อนครับ", "warn") : setPrintOpen(true)),
+                onClick: openPreview,
               },
             ]}
           />
@@ -353,7 +377,7 @@ export default function PickListPage() {
           </div>
         </Card>
 
-        <Card title="LABEL PREVIEW" bodyClass="grid place-items-center p-4 md:p-5" className="max-lg:hidden">
+        <Card title="LABEL PREVIEW" bodyClass="grid place-items-center p-4 md:p-5">
           {cur ? (
             <div className="pk-preview">
               <PickCardView c={cur} />
@@ -449,62 +473,46 @@ export default function PickListPage() {
         )}
       </Modal>
 
+      {/* 🖨 PREVIEW: เลือกรูปแบบ + ดูแผ่นจริง (ย่อพอดีจอทุกขนาด) แล้ว PRINT / EXPORT PDF */}
       <Modal
         open={printOpen}
-        title="🖨 SELECT LAYOUT"
+        size="xl"
+        title={`🖨 PRINT / PDF PREVIEW • ${picked.length} CARD(S)`}
         onClose={() => setPrintOpen(false)}
         footer={
           <>
-            <button className="btn-ghost" onClick={() => setPrintOpen(false)}>
+            <button className="fill-btn mr-auto" onClick={() => setPrintOpen(false)}>
               CANCEL
             </button>
-            <button className="btn bg-accent" onClick={print}>
-              🖨 PRINT {picked.length} CARD(S)
+            <button className="cta-btn is-red" onClick={exportPdf} disabled={!!printing}>
+              ⬇ EXPORT PDF
+            </button>
+            <button className="cta-btn is-purple" onClick={print} disabled={!!printing}>
+              🖨 PRINT
             </button>
           </>
         }
       >
-        <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">A4 LAYOUT • เครื่องพิมพ์ทั่วไป (Fuji ApeosPort ฯลฯ)</div>
-        <div className="grid grid-cols-2 gap-2">
-          {LAYOUTS.filter((l) => l.key !== "LABEL").map((l) => (
-            <LayoutOption key={l.key} l={l} on={layout === l.key} count={picked.length} onPick={() => pickLayout(l.key)} />
-          ))}
+        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <div className="grid content-start gap-2">
+            <div className="text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">A4 LAYOUT • เครื่องพิมพ์ทั่วไป</div>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+              {LAYOUTS.filter((l) => l.key !== "LABEL").map((l) => (
+                <LayoutOption key={l.key} l={l} on={layout === l.key} count={picked.length} onPick={() => pickLayout(l.key)} />
+              ))}
+            </div>
+            <div className="mt-2 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">LABEL • เครื่องพิมพ์ฉลาก 62 mm</div>
+            <LayoutOption l={LAYOUTS[4]} on={layout === "LABEL"} count={picked.length} onPick={() => pickLayout("LABEL")} />
+            <p className="mt-1 text-xs font-semibold text-ink-soft">PRINT: ตั้ง Margins = None / Scale = 100% และปิด Headers and footers · PDF: บันทึกไฟล์ลงเครื่องได้เลย</p>
+          </div>
+          {printOpen && <SheetPreview items={picked} layout={layout} />}
         </div>
-        <div className="mb-2 mt-4 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">LABEL • เครื่องพิมพ์ฉลาก (ตั้งกระดาษ 62 mm ใน Driver)</div>
-        <LayoutOption l={LAYOUTS[4]} on={layout === "LABEL"} count={picked.length} onPick={() => pickLayout("LABEL")} />
-        <p className="mt-3 text-xs font-semibold text-ink-soft">หน้าต่างพิมพ์ของ Browser: ตั้ง Margins = None / Scale = 100% และปิด Headers and footers</p>
       </Modal>
 
       {printing &&
         createPortal(
           <div id="print-area" ref={printRef} className={L.key === "LABEL" ? "pk-print-label" : "pk-print-a4"}>
-            {L.key === "LABEL"
-              ? printing.items.map((c) => (
-                  <div key={keyOf(c)} className="pk-label-page">
-                    <PickCardView c={c} label />
-                  </div>
-                ))
-              : pages.map((pg, pi) => {
-                  const z = sizes(L.cols, L.rows);
-                  return (
-                    <div key={pi} className={`pk-page ${L.cols >= 3 ? "is-3" : ""}`}>
-                      <div className="pk-grid" style={{ gridTemplateColumns: `repeat(${L.cols}, 1fr)`, gridTemplateRows: `repeat(${L.rows}, 1fr)` }}>
-                        {Array.from({ length: L.cols * L.rows }, (_, i) => (
-                          <div key={i} className="pk-cell">
-                            {pg[i] && (
-                              <div className="pk-hold" style={L.cols === 2 && L.rows >= 7 ? { width: `${(5 / L.rows) * 100}%` } : undefined}>
-                                <PickCardView c={pg[i]} s={z.s} qrMm={z.qr} logoMm={z.logo} a4 />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="pk-foot">
-                        CHR-NEXUS • PICK LIST • PAGE {pi + 1} / {pages.length}
-                      </div>
-                    </div>
-                  );
-                })}
+            <Sheets items={printing.items} layout={L.key} />
             <style>{`
               #print-area { position: fixed; left: -10000px; top: 0; }
               @media print {
@@ -518,6 +526,121 @@ export default function PickListPage() {
         )}
     </PageBody>
   );
+}
+
+// แผ่นที่พิมพ์ / Export PDF: A4 (cols × rows ต่อแผ่น) หรือฉลาก 1 ดวงต่อหน้า
+function Sheets({ items, layout }: { items: PickCard[]; layout: Layout }) {
+  const L = LAYOUTS.find((l) => l.key === layout)!;
+  if (L.key === "LABEL")
+    return (
+      <>
+        {items.map((c) => (
+          <div key={keyOf(c)} className="pk-label-page">
+            <PickCardView c={c} label />
+          </div>
+        ))}
+      </>
+    );
+  const per = L.cols * L.rows;
+  const pages: PickCard[][] = [];
+  for (let i = 0; i < items.length; i += per) pages.push(items.slice(i, i + per));
+  const z = sizes(L.cols, L.rows);
+  return (
+    <>
+      {pages.map((pg, pi) => (
+        <div key={pi} className={`pk-page ${L.cols >= 3 ? "is-3" : ""}`}>
+          <div className="pk-grid" style={{ gridTemplateColumns: `repeat(${L.cols}, 1fr)`, gridTemplateRows: `repeat(${L.rows}, 1fr)` }}>
+            {Array.from({ length: per }, (_, i) => (
+              <div key={i} className="pk-cell">
+                {pg[i] && (
+                  <div className="pk-hold" style={L.cols === 2 && L.rows >= 7 ? { width: `${(5 / L.rows) * 100}%` } : undefined}>
+                    <PickCardView c={pg[i]} s={z.s} qrMm={z.qr} logoMm={z.logo} a4 />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="pk-foot">
+            CHR-NEXUS • PICK LIST • PAGE {pi + 1} / {pages.length}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// พรีวิวแผ่นจริงย่อให้พอดีความกว้างช่อง (มือถือ / แท็บเล็ต / จอใหญ่) - แสดงสูงสุด 6 หน้าแรก
+const PREVIEW_MAX = 6;
+function SheetPreview({ items, layout }: { items: PickCard[]; layout: Layout }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.5);
+  const label = layout === "LABEL";
+  const L = LAYOUTS.find((l) => l.key === layout)!;
+  const per = label ? 1 : L.cols * L.rows;
+  const total = Math.max(1, Math.ceil(items.length / per));
+  const shown = items.slice(0, PREVIEW_MAX * per);
+  const pxW = label ? 234 : 794; // 62 mm / 210 mm ที่ 96 dpi
+
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => setScale(Math.min(label ? 2.2 : 1, (el.clientWidth - 2) / pxW));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [label, pxW]);
+
+  useLayoutEffect(() => {
+    fitTexts(box.current);
+  }, [items, layout, scale]);
+
+  return (
+    <div className="pk-pv">
+      <div className="pk-pv-head">
+        <b>PREVIEW</b>
+        <span>
+          {L.title} • {total} {label ? "LABEL(S)" : "SHEET(S)"}
+          {total > PREVIEW_MAX ? ` • แสดง ${PREVIEW_MAX} หน้าแรก` : ""}
+        </span>
+      </div>
+      <div ref={box} className={`pk-pv-pages ${label ? "is-label" : ""}`} key={layout}>
+        <SheetsScaled scale={scale} label={label}>
+          <Sheets items={shown} layout={layout} />
+        </SheetsScaled>
+      </div>
+    </div>
+  );
+}
+
+// ห่อแต่ละแผ่นให้ย่อด้วย transform แต่กินพื้นที่ตามขนาดที่ย่อแล้ว
+function SheetsScaled({ scale, label, children }: { scale: number; label: boolean; children: React.ReactNode }) {
+  const w = label ? 234 : 794;
+  const h = label ? 151 : 1123;
+  return (
+    <div className="pk-pv-stack" style={{ "--pv": scale, "--pw": `${w * scale}px`, "--ph": `${h * scale}px` } as React.CSSProperties}>
+      {children}
+    </div>
+  );
+}
+
+// แปลงแผ่นที่วาดไว้ (นอกจอ) เป็น PDF ทีละหน้า -> บันทึกไฟล์ · คืนชื่อไฟล์
+async function makePdf(root: HTMLElement, label: boolean) {
+  const [{ jsPDF }, { toJpeg }] = await Promise.all([import("jspdf"), import("html-to-image")]);
+  const pages = [...root.querySelectorAll<HTMLElement>(label ? ".pk-label-page" : ".pk-page")];
+  if (pages.length === 0) throw new Error("ไม่มีหน้าให้ Export");
+  const fmt: [number, number] = label ? [62, 40] : [210, 297];
+  const pdf = new jsPDF({ orientation: label ? "landscape" : "portrait", unit: "mm", format: fmt, compress: true });
+  for (let i = 0; i < pages.length; i++) {
+    const img = await toJpeg(pages[i], { quality: 0.92, pixelRatio: label ? 5 : 2.5, backgroundColor: "#ffffff", cacheBust: false });
+    if (i > 0) pdf.addPage(fmt, label ? "landscape" : "portrait");
+    pdf.addImage(img, "JPEG", 0, 0, fmt[0], fmt[1]);
+  }
+  const t = new Date();
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const name = `PICKLIST_${t.getFullYear()}${p2(t.getMonth() + 1)}${p2(t.getDate())}_${p2(t.getHours())}${p2(t.getMinutes())}${label ? "_LABEL" : ""}.pdf`;
+  pdf.save(name);
+  return name;
 }
 
 function PkStat({ label, value, tone }: { label: string; value: number; tone: string }) {

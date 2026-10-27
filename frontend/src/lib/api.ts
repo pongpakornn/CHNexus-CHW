@@ -35,7 +35,9 @@ export async function api<T = unknown>(path: string, opt: Options = {}): Promise
   const { body, query, headers, ...rest } = opt;
   // FormData (อัปโหลดไฟล์) = ให้ Browser ใส่ Content-Type / boundary เอง
   const form = typeof FormData !== "undefined" && body instanceof FormData;
+  // ⏱ กันหน้าค้าง: Server ไม่ตอบเกิน 2 นาที = ยกเลิกแล้วแจ้งผู้ใช้ (ส่ง signal เองได้)
   const res = await fetch(url(path, query), {
+    signal: AbortSignal.timeout(120_000),
     ...rest,
     credentials: "same-origin",
     headers: {
@@ -44,6 +46,10 @@ export async function api<T = unknown>(path: string, opt: Options = {}): Promise
       ...headers,
     },
     body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
+  }).catch((e: Error) => {
+    if (e.name === "TimeoutError") throw new ApiError(0, "Server ไม่ตอบกลับภายใน 2 นาที กรุณาลองใหม่อีกครั้ง");
+    if (e.name === "AbortError") throw e;
+    throw new ApiError(0, "เชื่อมต่อ Server ไม่ได้ - ตรวจสอบเครือข่ายแล้วลองใหม่");
   });
   if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) {
     // นอก React: โหลดหน้า Login ใหม่ทั้งหน้า (ล้างข้อมูลของผู้ใช้เดิมที่ค้างอยู่ใน State)

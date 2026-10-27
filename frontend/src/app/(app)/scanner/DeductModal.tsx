@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { DateRange } from "@/components/ui/DateRange";
@@ -56,9 +56,12 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
   const [reg, setReg] = useState<Row | null>(null);
   const k = useDebounced(key, 250);
 
+  const seq = useRef(0); // คำขอล่าสุด - ผลของช่วงวันที่เก่าที่ตอบช้ากว่าไม่ทับรายการ
   const load = useCallback(async () => {
+    const n = ++seq.current;
     try {
       const r = await api<{ canAct: boolean; stocks?: RegStock[]; rows: Row[] }>("/scanner/deduct", { query: { deducted, key: k, from, to } });
+      if (n !== seq.current) return;
       setStocks(r.stocks ?? []);
       setRows(r.rows);
       setCanAct(r.canAct);

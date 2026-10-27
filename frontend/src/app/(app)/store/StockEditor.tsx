@@ -126,21 +126,32 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
     }
   }
 
-  const chip = (key: string | number, on: boolean, label: React.ReactNode, onClick: () => void, disabled = false) => (
-    <button
-      key={key}
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition disabled:opacity-40 ${on ? "border-accent bg-accent text-white" : "border-line bg-surface text-ink hover:border-accent"}`}
-    >
+  // ชิปเลือก: วงเลขลำดับ (no) / เครื่องหมายถูก · เลือก = ไล่สีเต็มชิป
+  const chip = (key: string | number, on: boolean, label: React.ReactNode, onClick: () => void, disabled = false, no?: number) => (
+    <button key={key} type="button" disabled={disabled} onClick={onClick} aria-pressed={on} className={`col-chip ${on ? "is-on" : ""}`}>
+      <span className="col-no" key={on ? `on-${no ?? ""}` : "off"}>
+        {on ? (no ?? "✓") : ""}
+      </span>
       {label}
     </button>
   );
+  const order = (keys: string[], all: [string, string][]) => (
+    <div className="col-order">
+      ORDER:
+      {keys.length === 0
+        ? " -"
+        : keys.map((k, i) => (
+            <span key={k} style={{ animationDelay: `${i * 25}ms` }}>
+              {i > 0 && <em>→ </em>}
+              {all.find((c) => c[0] === k)?.[1]}
+            </span>
+          ))}
+    </div>
+  );
   const check = (k: keyof Stock, label: string) => <Checkbox checked={!!s[k]} onChange={(v) => set(k, v as never)} label={label} />;
   const section = (title: string, children: React.ReactNode, hint?: string) => (
-    <div className="rounded-2xl border border-line/70 p-4">
-      <div className="mb-3 text-xs font-extrabold uppercase tracking-wide text-primary">{title}</div>
+    <div className="se-sec">
+      <div className="se-sec-head">{title}</div>
       {children}
       {hint && <div className="mt-2 text-xs font-semibold text-ink-soft">{hint}</div>}
     </div>
@@ -154,11 +165,11 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
       onClose={onClose}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="btn bg-accent" onClick={save} disabled={busy}>
-            {stkId ? "SAVE" : "CREATE STOCK"}
+          <button className="cta-btn is-purple" onClick={save} disabled={busy}>
+            {busy ? "⏳ SAVING..." : stkId ? "💾 SAVE" : "＋ CREATE STOCK"}
           </button>
         </>
       }
@@ -170,13 +181,13 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
         {section(
           "STOCK",
           <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 sm:col-span-1">
-              <span className="mb-1 block text-xs font-bold text-ink-soft">STOCK CODE</span>
-              <input className="field" maxLength={30} value={s.code ?? ""} onChange={(e) => set("code", e.target.value)} />
+            <label className="fx col-span-2 sm:col-span-1">
+              <span className="fx-cap">STOCK CODE</span>
+              <input className="field fx-in" maxLength={30} value={s.code ?? ""} onChange={(e) => set("code", e.target.value)} />
             </label>
-            <label className="col-span-2 sm:col-span-1">
-              <span className="mb-1 block text-xs font-bold text-ink-soft">STOCK NAME</span>
-              <input className="field" value={s.name ?? ""} onChange={(e) => set("name", e.target.value)} />
+            <label className="fx col-span-2 sm:col-span-1">
+              <span className="fx-cap">STOCK NAME</span>
+              <input className="field fx-in" value={s.name ?? ""} onChange={(e) => set("name", e.target.value)} />
             </label>
             <div className="col-span-2">
               <span className="mb-1.5 block text-xs font-bold text-ink-soft">STOCK TYPE {stkId ? "" : "*"} (ไอคอนของคลัง)</span>
@@ -228,8 +239,8 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
         {section(
           "TABLE COLUMNS (order = order ticked)",
           <>
-            <div className="flex flex-wrap gap-2">{COLUMNS.map(([k, l]) => chip(k, cols.includes(k), cols.includes(k) ? `${cols.indexOf(k) + 1}. ${l}` : l, () => toggleCol(k)))}</div>
-            <div className="mt-3 text-xs font-bold text-ink-soft">ORDER: {cols.length ? cols.map((k) => COLUMNS.find((c) => c[0] === k)?.[1]).join("  →  ") : "-"}</div>
+            <div className="flex flex-wrap gap-2">{COLUMNS.map(([k, l]) => chip(k, cols.includes(k), l, () => toggleCol(k), false, cols.indexOf(k) + 1))}</div>
+            {order(cols, COLUMNS)}
           </>,
           "STOCK (COIL) = นับ Coil (คลัง KG) • ติ๊กก่อน = แสดงก่อน",
         )}
@@ -240,7 +251,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               <Checkbox checked={s.showCoilRowsSetting ?? true} onChange={(v) => set("showCoilRowsSetting", v)} disabled={!cols.includes("COIL")} label="Click PD CODE shows the coils" />
             </div>
             <div className="flex flex-wrap gap-2">
-              {SUB_ROWS.map(([k, l]) => chip(k, subs.includes(k), subs.includes(k) ? `${subs.indexOf(k) + 1}. ${l}` : l, () => toggleSub(k), !cols.includes("COIL")))}
+              {SUB_ROWS.map(([k, l]) => chip(k, subs.includes(k), l, () => toggleSub(k), !cols.includes("COIL"), subs.indexOf(k) + 1))}
             </div>
           </>,
           "ใช้กับคลังที่เปิด STOCK (COIL)",
@@ -295,7 +306,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               )}
             </div>
             {canFormats && (
-              <button type="button" className="btn-ghost mt-3 px-3 py-1 text-xs" onClick={() => setManage(true)}>
+              <button type="button" className="fill-btn is-xs mt-3" onClick={() => setManage(true)}>
                 🏷️ MANAGE FORMATS
               </button>
             )}

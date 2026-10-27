@@ -17,7 +17,7 @@ import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { AdminModal } from "./AdminModal";
 import { CoilPanel, type CoilRow } from "./CoilPanel";
-import { EMPTY_FORM, formOf, type Form, type Layout, type Meta, type Part } from "./types";
+import { EMPTY_FORM, formOf, type Form, type InvStock, type Layout, type Meta, type Part } from "./types";
 
 const PAGE = 100;
 
@@ -82,9 +82,16 @@ export default function InventoryPage() {
       main = a === "1";
       for (const t of (b ?? "").split(",")) {
         const id = Number(t);
-        if (id && m.stocks.some((s) => s.stkId === id && !s.isMain)) ids.push(id);
+        if (id && m.stocks.some((s) => s.stkId === id && !s.isMain && s.canAdd)) ids.push(id);
       }
       if (!main && ids.length === 0) main = true;
+    }
+    // ติ๊กได้เฉพาะคลังที่มีสิทธิ์เพิ่ม - คลังหลักไม่มีสิทธิ์ = ใช้คลังแรกที่มีสิทธิ์แทน
+    const mainOk = m.stocks.some((s) => s.isMain && s.canAdd);
+    if (main && !mainOk) {
+      main = false;
+      const first = m.stocks.find((s) => !s.isMain && s.canAdd);
+      if (ids.length === 0 && first) ids.push(first.stkId);
     }
     setInMain(main);
     setOthers(ids);
@@ -98,7 +105,7 @@ export default function InventoryPage() {
         const fs = m.stocks.find((s) => s.stkId === m.savedFilter) ?? m.stocks.find((s) => s.isMain) ?? m.stocks[0];
         setFormStk(fs?.stkId ?? null);
         applyDefaultStocks(m);
-        if (fs) {
+        if (fs?.canAdd) {
           setInMain(fs.isMain);
           setOthers(fs.isMain ? [] : [fs.stkId]);
         }
@@ -171,8 +178,16 @@ export default function InventoryPage() {
   }, [rows, layout]);
 
   if (!meta) return <Loading />;
-  const can = meta.can;
   const filterStock = meta.stocks.find((s) => s.stkId === filter) ?? null;
+  // 🔒 สิทธิ์ของหน้า (ProductControl) + สิทธิ์ของคลังที่ดูอยู่ (ALL STOCKS = มีสิทธิ์อย่างน้อย 1 คลัง)
+  //    VIEW = ดูอย่างเดียว · EDIT = แก้ไข / ซ่อน · DEL = ลบ · ADMIN = เฉพาะ Admin Level 1
+  const inScope = (k: "canAdd" | "canEdit" | "canDelete") => (filterStock ? filterStock[k] : meta.stocks.some((s) => s[k]));
+  const can = {
+    add: meta.can.add && meta.stocks.some((s) => s.canAdd),
+    edit: meta.can.edit && inScope("canEdit"),
+    delete: meta.can.delete && inScope("canDelete"),
+    admin: meta.can.admin,
+  };
   const cols = layout?.columns ?? [];
   // ช่องกรอกของคลังที่เลือกในหัว REGISTER PRODUCT
   const formStock = meta.stocks.find((s) => s.stkId === formStk) ?? null;
@@ -193,7 +208,7 @@ export default function InventoryPage() {
     if (meta) applyDefaultStocks(meta);
     // มีคลังที่เลือกไว้ในหัวฟอร์ม = ลงทะเบียนเข้าคลังนั้น
     const fs = meta?.stocks.find((x) => x.stkId === formStk);
-    if (fs) {
+    if (fs?.canAdd) {
       setInMain(fs.isMain);
       setOthers(fs.isMain ? [] : [fs.stkId]);
     }
@@ -231,7 +246,7 @@ export default function InventoryPage() {
     setFormStk(v);
     if (v == null || editId || viewId || !meta) return;
     const s = meta.stocks.find((x) => x.stkId === v);
-    if (!s) return;
+    if (!s?.canAdd) return;
     setInMain(s.isMain);
     setOthers(s.isMain ? [] : [s.stkId]);
   }
@@ -450,17 +465,31 @@ export default function InventoryPage() {
     }
   };
 
-  const stockChip = (id: number | "main", text: string, on: boolean, title?: string) => (
-    <button
-      key={String(id)}
-      type="button"
-      title={title}
-      onClick={() => toggleStock(id)}
-      className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${on ? "border-accent bg-accent text-white" : "border-line bg-surface hover:border-accent"}`}
-    >
-      {text}
-    </button>
-  );
+  // ชิปเลือกคลัง: ดูอย่างเดียว (VIEW) / คลังที่ไม่มีสิทธิ์ ADD-EDIT = ล็อก (กดไม่ได้ ค่าคงเดิม)
+  const stockChip = (s: InvStock, on: boolean, i: number) => {
+    const id = s.isMain ? ("main" as const) : s.stkId;
+    const locked = (!!viewId && !editId) || !(editId ? s.canEdit : s.canAdd);
+    return (
+      <button
+        key={String(id)}
+        type="button"
+        title={locked ? `${s.name} • ไม่มีสิทธิ์${editId ? "แก้ไข" : "เพิ่ม"}ในคลังนี้ (ดูอย่างเดียว)` : s.name}
+        disabled={locked}
+        aria-pressed={on}
+        onClick={() => toggleStock(id)}
+        className={`stk-pick ${on ? "is-on" : ""} ${locked ? "is-locked" : ""}`}
+        style={{ "--i": i } as React.CSSProperties}
+      >
+        <span className="stk-pick-box" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+        </span>
+        {s.code}
+        {locked && <span className="stk-pick-lock">🔒</span>}
+      </button>
+    );
+  };
 
   const allTicked = (rows ?? []).length > 0 && (rows ?? []).every((r) => ticked.includes(r.ptId));
   const ncols = cols.length + 2;
@@ -660,7 +689,7 @@ export default function InventoryPage() {
                   <div className="min-w-0 flex-1">
                     <span className="mb-2 block text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
                     <div className="flex flex-wrap gap-2">
-                      {meta.stocks.map((s) => (s.isMain ? stockChip("main", s.code, inMain, s.name) : stockChip(s.stkId, s.code, others.includes(s.stkId), s.name)))}
+                      {meta.stocks.map((s, i) => stockChip(s, s.isMain ? inMain : others.includes(s.stkId), i))}
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -692,7 +721,7 @@ export default function InventoryPage() {
               <MenuSelect
                 className="w-[200px]"
                 value={filter == null ? "" : String(filter)}
-                options={[{ value: "", label: "ALL STOCKS" }, ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))]}
+                options={[...(meta.canAll ? [{ value: "", label: "ALL STOCKS" }] : []), ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))]}
                 onChange={(v) => changeFilter(v ? Number(v) : null)}
               />
             </>

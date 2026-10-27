@@ -153,6 +153,7 @@ export const ProductRow = memo(function ProductRow({
   return (
     <>
       <tr
+        data-pid={p.partId}
         className={`${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${cfg.rowToggle ? "mat-row cursor-pointer" : ""} ${cfg.rowToggle && open ? "is-open" : ""}`}
         onClick={cfg.rowToggle ? (e) => !(e.target as HTMLElement).closest("input, button, [data-edit]") && act.toggle(p) : undefined}
       >

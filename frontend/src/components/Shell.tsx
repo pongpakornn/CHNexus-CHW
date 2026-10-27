@@ -36,10 +36,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", fit);
   }, []);
 
+  // OPEN_PAGE ลง Activity Log ครั้งเดียวต่อการเปิดหน้า (ข้อมูลผู้ใช้รีเฟรช / วาดซ้ำ ไม่ลงซ้ำ)
+  const logged = useRef("");
+  const uid = me?.userId;
+  const title = current?.title;
   useEffect(() => {
     setMobile(false);
-    if (current && me) api("/log/page", { method: "POST", body: { title: current.title } }).catch(() => {});
-  }, [path, current, me]);
+    const k = `${uid}|${path}`;
+    if (!title || !uid || logged.current === k) return;
+    logged.current = k;
+    api("/log/page", { method: "POST", body: { title } }).catch(() => {});
+  }, [path, title, uid]);
 
   // ตัวหนังสือในเมนู: วาดไว้ตลอด แค่จาง / เลื่อนออกตอนพับ = กาง-พับลื่น ไม่กระตุกจากการสร้าง / ลบ element
   const hide = (compact: boolean) => (compact ? "pointer-events-none -translate-x-2 opacity-0" : "translate-x-0 opacity-100");

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
+import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Empty, Loading } from "@/components/ui/Page";
 import { api, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
@@ -13,12 +14,38 @@ type Dirty = Record<Section, boolean>;
 const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS" };
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
+const SIDE_KEY = "setup-side";
+const TABS: [Section, string, string, React.ReactNode][] = [
+  ["PR", "PR SETTINGS", "คลังที่เก็บ PR (KEEP PR)", <path key="p" d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" />],
+  ["EXCEL", "EXCEL SETUP", "ไฟล์ Excel ของ PR / Export RPA", <path key="e" d="M4 4h16v16H4zM4 9h16M4 14h16M9 9v11M14 9v11" />],
+  ["DEPT", "DEPARTMENTS", "แผนกของหน้า Multi-Scanner", <path key="d" d="M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h2M14 11h2" />],
+];
+
 // ⚙ SETUP (SystemSetupWindow - Admin Level 1): 🧾 PR SETTINGS / 📊 EXCEL SETUP / 🏢 DEPARTMENTS
+//   Sidebar ติดขอบซ้ายแบบเมนูหลัก · พับเหลือไอคอนได้ (จำค่า) · มือถือ = เมนูเลื่อนออกจากซ้าย
 export function SetupModal({ onClose }: { onClose: () => void }) {
   const dlg = useDialogs();
   const [sec, setSec] = useState<Section>("PR");
   const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false });
+  const [mini, setMini] = useState(false);
+  const [drawer, setDrawer] = useState(false);
   const mark = useCallback((s: Section, v: boolean) => setDirty((d) => (d[s] === v ? d : { ...d, [s]: v })), []);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SIDE_KEY) === "1") queueMicrotask(() => setMini(true));
+    } catch {
+      /* ไม่มี storage */
+    }
+  }, []);
+  const toggleMini = () =>
+    setMini((m) => {
+      try {
+        localStorage.setItem(SIDE_KEY, m ? "0" : "1");
+      } catch {
+        /* ไม่จำก็ได้ */
+      }
+      return !m;
+    });
 
   async function tryClose() {
     const unsaved = (Object.keys(dirty) as Section[]).filter((s) => dirty[s]).map((s) => NAMES[s]);
@@ -27,40 +54,60 @@ export function SetupModal({ onClose }: { onClose: () => void }) {
     onClose();
   }
 
+  const burger = (onClick: () => void, label: string) => (
+    <button type="button" className="adm-burger" onClick={onClick} aria-label={label} title={label}>
+      <span />
+      <span />
+      <span />
+    </button>
+  );
+
   return (
-    <Modal open wide title="⚙ SETUP" onClose={tryClose}>
-      <div className="grid gap-4 md:grid-cols-[200px_1fr]">
-        <nav className="flex gap-2 md:flex-col">
-          {(
-            [
-              ["PR", "🧾 PR SETTINGS"],
-              ["EXCEL", "📊 EXCEL SETUP"],
-              ["DEPT", "🏢 DEPARTMENTS"],
-            ] as const
-          ).map(([k, l]) => (
-            <button
-              key={k}
-              onClick={() => setSec(k)}
-              className={`rounded-xl px-3 py-2 text-left text-sm font-extrabold transition ${sec === k ? "bg-primary text-white" : "bg-surface-2 text-primary hover:bg-accent-soft"}`}
-            >
-              {l}
-              {dirty[k] && <span className="ml-1 text-warning">●</span>}
+    <Modal open size="xl" flush title={`⚙ SETUP • ${NAMES[sec]}`} onClose={tryClose}>
+      <div className={`adm-shell ${mini ? "is-mini" : ""} ${drawer ? "is-drawer" : ""}`}>
+        <nav className="adm-nav">
+          <div className="adm-nav-head">
+            {burger(() => (window.matchMedia("(max-width: 767px)").matches ? setDrawer(false) : toggleMini()), mini ? "กางเมนู" : "พับเมนู")}
+            <span className="adm-nav-title">
+              SETUP
+              <small>ADMIN LEVEL 1</small>
+            </span>
+          </div>
+          {TABS.map(([t, txt, hint, path]) => (
+            <button key={t} type="button" onClick={() => (setSec(t), setDrawer(false))} title={mini ? txt : undefined} className={`adm-item ${sec === t ? "is-on" : ""}`}>
+              <svg viewBox="0 0 24 24" className="adm-item-ic" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {path}
+              </svg>
+              <span className="adm-item-txt">
+                <span className="block truncate text-[13.5px] font-extrabold">
+                  {txt}
+                  {dirty[t] && <span className="adm-dirty ml-1.5" title="ยังไม่ได้ SAVE" />}
+                </span>
+                <span className="adm-item-hint">{hint}</span>
+              </span>
             </button>
           ))}
-          <div className="hidden text-[11px] font-bold text-ink-soft md:block">ADMIN LEVEL 1</div>
         </nav>
-        <div className="min-w-0">
-          {/* ทุกแผงเปิดค้างไว้ (เก็บค่าที่ยังไม่ SAVE) - ซ่อนแผงที่ไม่ได้เลือก */}
-          <div hidden={sec !== "PR"}>
-            <PrPanel onDirty={(v) => mark("PR", v)} />
+        {drawer && <div className="adm-scrim" onClick={() => setDrawer(false)} />}
+
+        <section className="adm-main">
+          <div className="adm-main-head">
+            {burger(() => setDrawer(true), "เมนู")}
+            <b>{NAMES[sec]}</b>
           </div>
-          <div hidden={sec !== "EXCEL"}>
-            <ExcelPanel onDirty={(v) => mark("EXCEL", v)} />
+          <div className="adm-scroll">
+            {/* ทุกแผงเปิดค้างไว้ (เก็บค่าที่ยังไม่ SAVE) - ซ่อนแผงที่ไม่ได้เลือก · เปลี่ยนแผง = เลื่อนเข้ามาใหม่ */}
+            <div hidden={sec !== "PR"} className={sec === "PR" ? "adm-pane" : ""}>
+              <PrPanel onDirty={(v) => mark("PR", v)} />
+            </div>
+            <div hidden={sec !== "EXCEL"} className={sec === "EXCEL" ? "adm-pane" : ""}>
+              <ExcelPanel onDirty={(v) => mark("EXCEL", v)} />
+            </div>
+            <div hidden={sec !== "DEPT"} className={sec === "DEPT" ? "adm-pane" : ""}>
+              <DeptPanel onDirty={(v) => mark("DEPT", v)} />
+            </div>
           </div>
-          <div hidden={sec !== "DEPT"}>
-            <DeptPanel onDirty={(v) => mark("DEPT", v)} />
-          </div>
-        </div>
+        </section>
       </div>
     </Modal>
   );
@@ -113,18 +160,25 @@ function PrPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
       <p className="text-xs font-bold text-ink-soft">KEEP PR = scanning OUT creates a PR and the stock shows in the PR page dropdown • the Excel file of EXPORT PATH is set in EXCEL SETUP</p>
       <div className="grid gap-2">
         {rows.map((r) => (
-          <label key={r.stkId} className={`flex flex-wrap items-center gap-3 rounded-xl border-2 px-3 py-2 ${r.keep ? "border-accent" : "border-line/60"}`}>
-            <input type="checkbox" checked={r.keep} onChange={(e) => setRows((rs) => rs!.map((x) => (x.stkId === r.stkId ? { ...x, keep: e.target.checked } : x)))} />
-            <span className="font-extrabold text-primary">{r.code}</span>
-            <span className="text-sm font-semibold text-ink-soft">{r.name}</span>
-            <span className="ml-auto text-xs font-bold text-ink-soft">{r.file ? "📊 " + r.file : "📊 no Excel file (EXCEL SETUP)"}</span>
-            <span className="text-xs font-extrabold text-accent">KEEP PR</span>
+          <label key={r.stkId} className={`su-row ${r.keep ? "is-on" : ""}`} style={{ "--i": rows.indexOf(r) } as React.CSSProperties}>
+            <span className="min-w-0 flex-1">
+              <span className="block font-extrabold text-primary">
+                {r.code} {r.keep !== orig[r.stkId] && <span className="adm-dirty ml-1" title="ยังไม่ได้ SAVE" />}
+              </span>
+              <span className="block truncate text-xs font-semibold text-ink-soft">{r.name}</span>
+            </span>
+            <span className="max-sm:hidden truncate text-xs font-bold text-ink-soft">{r.file ? "📊 " + r.file : "📊 no Excel file (EXCEL SETUP)"}</span>
+            <span className={`sw ${r.keep ? "is-on" : ""}`}>
+              <input type="checkbox" className="sr-only" checked={r.keep} onChange={(e) => setRows((rs) => rs!.map((x) => (x.stkId === r.stkId ? { ...x, keep: e.target.checked } : x)))} />
+              <span className="sw-track" />
+              KEEP PR
+            </span>
           </label>
         ))}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-xs font-bold text-warning">{changed.length > 0 ? `${changed.length} stock(s) changed - press SAVE` : ""}</span>
-        <button className="btn bg-success ml-auto" disabled={busy || changed.length === 0} onClick={save}>
+        <button className="cta-btn is-green ml-auto" disabled={busy || changed.length === 0} onClick={save}>
           💾 SAVE
         </button>
       </div>
@@ -290,7 +344,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
               setCur(null);
               setSheets([]);
             }}
-            className={`rounded-xl px-3 py-1.5 text-sm font-extrabold ${isRpa === v ? "bg-accent text-white" : "bg-surface-2 text-primary"}`}
+            className={`fill-btn is-sm ${isRpa === v ? "is-on" : ""}`}
           >
             {l}
           </button>
@@ -311,9 +365,10 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                     setCur(r.stkId);
                     setSheets([]);
                   }}
-                  className={`rounded-lg border-2 px-3 py-2 text-left ${r.stkId === row.stkId ? "border-accent bg-surface-2" : "border-line/60"}`}
+                  className={`fm-item is-col ${r.stkId === row.stkId ? "is-on" : ""}`}
+                  style={{ "--i": rows.indexOf(r) } as React.CSSProperties}
                 >
-                  <div className="font-extrabold text-primary">
+                  <div className="font-extrabold">
                     {r.code}
                     {isChanged(r, isRpa) && (
                       <span className="ml-1 text-warning" title="Changed - not saved yet">
@@ -321,7 +376,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                       </span>
                     )}
                   </div>
-                  <div className="truncate text-[11px] font-semibold text-ink-soft">
+                  <div className="truncate text-[11px] font-semibold opacity-75">
                     {isRpa
                       ? !r.path.trim()
                         ? "no Excel file"
@@ -337,8 +392,8 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
             <div>
               <span className={L}>2. EXCEL FILE</span>
               <div className="flex flex-wrap gap-2">
-                <input className="field min-w-0 flex-1" value={row.path} placeholder="ชื่อไฟล์ใน CHR-Nexus (storage/excel)" onChange={(e) => patch({ path: e.target.value })} />
-                <button className="btn bg-info" onClick={() => fileRef.current?.click()}>
+                <input className="field fx-in min-w-0 flex-1" value={row.path} placeholder="ชื่อไฟล์ใน CHR-Nexus (storage/excel)" onChange={(e) => patch({ path: e.target.value })} />
+                <button className="cta-btn" onClick={() => fileRef.current?.click()}>
                   ⤒ UPLOAD
                 </button>
                 <input
@@ -376,8 +431,8 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                   <label>
                     <span className={L}>{row.addSheet ? "TEMPLATE SHEET  (copied for every export)" : "SHEET  (rows are added under its last row)"}</span>
                     <div className="flex gap-2">
-                      <input className="field" title="Sheet name in the file (empty = the 1st sheet)" value={row.baseSheet ?? ""} onChange={(e) => patch({ baseSheet: e.target.value })} />
-                      <button className="btn-ghost whitespace-nowrap" title="Read the sheet names from the file and pick one" onClick={loadSheets}>
+                      <input className="field fx-in" title="Sheet name in the file (empty = the 1st sheet)" value={row.baseSheet ?? ""} onChange={(e) => patch({ baseSheet: e.target.value })} />
+                      <button className="fill-btn is-sm whitespace-nowrap" title="Read the sheet names from the file and pick one" onClick={loadSheets}>
                         ↻ SHEETS
                       </button>
                     </div>
@@ -385,14 +440,14 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                   {row.addSheet && (
                     <label>
                       <span className={L}>NEW SHEET NAME</span>
-                      <input className="field" value={row.sheetName ?? ""} onChange={(e) => patch({ sheetName: e.target.value })} />
+                      <input className="field fx-in" value={row.sheetName ?? ""} onChange={(e) => patch({ sheetName: e.target.value })} />
                     </label>
                   )}
                 </div>
                 {sheets.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {sheets.map((s) => (
-                      <button key={s} className="btn-ghost px-2 py-0.5 text-xs" title="Use this sheet" onClick={() => patch({ baseSheet: s })}>
+                      <button key={s} className="fill-btn is-xs" title="Use this sheet" onClick={() => patch({ baseSheet: s })}>
                         📄 {s}
                       </button>
                     ))}
@@ -412,7 +467,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
 
             <div>
               <span className={L}>{n(3)}. TABLE START ROW</span>
-              <input className="field w-28" inputMode="numeric" value={row.startRow} onChange={(e) => patch({ startRow: Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1) })} />
+              <input className="field fx-in w-28" inputMode="numeric" value={row.startRow} onChange={(e) => patch({ startRow: Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1) })} />
               <p className="mt-1 text-[11px] font-semibold text-ink-soft">first row of the table (MULTI-SCANNER: a TABLE COLUMN like B3 starts at its own row) - the next export continues after the last row that has data</p>
             </div>
 
@@ -453,19 +508,19 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
               <span className={L}>{n(isRpa ? 5 : 4)}. FIELDS (ONE CELL = one value in a cell, e.g. DATE → C1 • TABLE COLUMN = one row per item, e.g. PRODUCT CODE → B)</span>
               {row.entries.map((e, i) => (
                 <div key={i} className="grid items-center gap-2 sm:grid-cols-[1.5fr_1fr_1fr_auto]">
-                  <select className="field" value={e.field} onChange={(x) => patchEntry(i, { field: x.target.value })}>
-                    {fields.map((f) => (
-                      <option key={f.key} value={f.key}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select className="field" value={e.isTable ? "1" : "0"} onChange={(x) => patchEntry(i, { isTable: x.target.value === "1" })}>
-                    <option value="0">ONE CELL</option>
-                    <option value="1">TABLE COLUMN</option>
-                  </select>
+                  <MenuSelect compact className="w-full" value={e.field} options={fields.map((f) => ({ value: f.key, label: f.label }))} onChange={(v) => patchEntry(i, { field: v })} />
+                  <MenuSelect
+                    compact
+                    className="w-full"
+                    value={e.isTable ? "1" : "0"}
+                    options={[
+                      { value: "0", label: "ONE CELL" },
+                      { value: "1", label: "TABLE COLUMN" },
+                    ]}
+                    onChange={(v) => patchEntry(i, { isTable: v === "1" })}
+                  />
                   <input
-                    className="field uppercase"
+                    className="field fx-in uppercase"
                     value={e.target}
                     placeholder={e.isTable ? (isRpa ? "column B or start cell B3" : "column e.g. B") : "cell e.g. C1"}
                     onChange={(x) => patchEntry(i, { target: x.target.value })}
@@ -476,11 +531,11 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                 </div>
               ))}
               <div className="flex gap-2">
-                <button className="btn-ghost" title="Add a field and choose its cell or column" onClick={addField}>
+                <button className="fill-btn is-sm" title="Add a field and choose its cell or column" onClick={addField}>
                   ＋ ADD FIELD
                 </button>
                 <button
-                  className="btn-ghost"
+                  className="fill-btn is-sm"
                   title={
                     isRpa
                       ? "Table from row 2: NO = A · SCAN DATE = B · PRODUCT CODE = C · PRODUCT NAME = D · QTY = E · EMPLOYEE ID = F · DEPARTMENT = G · USER ID = H"
@@ -510,7 +565,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
 
       <div className="flex items-center gap-3">
         <span className="text-xs font-bold text-warning">{status}</span>
-        <button className="btn bg-success ml-auto" disabled={busy || changed.length === 0 || !canSave} onClick={() => save()}>
+        <button className="cta-btn is-green ml-auto" disabled={busy || changed.length === 0 || !canSave} onClick={() => save()}>
           💾 SAVE
         </button>
       </div>
@@ -592,8 +647,8 @@ function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
         The DEPARTMENT dropdown of the Multi-Scanner page • shown for the stocks whose PERMISSION → SCAN STOCKS has DEPT on • every scan of those stocks saves the chosen department
       </p>
       <div className="flex gap-2">
-        <input className="field" autoFocus value={text} placeholder="DEPARTMENT NAME" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} />
-        <button className="btn bg-accent" onClick={add}>
+        <input className="field fx-in" autoFocus value={text} placeholder="DEPARTMENT NAME" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} />
+        <button className="cta-btn is-purple" onClick={add}>
           ＋ ADD
         </button>
       </div>
@@ -604,7 +659,7 @@ function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           {names.map((n, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="w-8 text-center font-extrabold text-ink-soft">{i + 1}</span>
-              <input className="field" title="Click to edit the name" value={n} onChange={(e) => setNames((ns) => ns!.map((x, j) => (j === i ? e.target.value : x)))} />
+              <input className="field fx-in" title="Click to edit the name" value={n} onChange={(e) => setNames((ns) => ns!.map((x, j) => (j === i ? e.target.value : x)))} />
               <button className="btn-ghost px-2 py-1" title="Move up" onClick={() => move(i, -1)}>
                 ▲
               </button>
@@ -622,7 +677,7 @@ function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
         <span className="text-xs font-bold text-ink-soft">
           {!canSave ? "⚠ Run Database/Update_20261020b.sql first - cannot save yet" : dirty ? `${names.length} department(s) - changed, press SAVE` : `${names.length} department(s)`}
         </span>
-        <button className="btn bg-success ml-auto" disabled={busy || !canSave || !dirty} onClick={save}>
+        <button className="cta-btn is-green ml-auto" disabled={busy || !canSave || !dirty} onClick={save}>
           💾 SAVE
         </button>
       </div>

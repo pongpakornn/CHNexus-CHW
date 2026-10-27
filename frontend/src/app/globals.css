@@ -5885,177 +5885,1008 @@ div.swap-in:has(> .show-strip) {
   clip-path: inset(94% 45% 6% 45% round 18px);
 }
 
-/* 📷 Multi-Scanner: ปุ่มกลมสแกนด้วยกล้อง + หน้าจอกล้อง */
-.cam-fab {
+
+/* 🍔 MenuSelect: รายการลอยบน body (fixed) - ไม่ถูกหน้าต่าง / การ์ดตัด · กางขึ้นบนเมื่อด้านล่างไม่พอ */
+.ms-menu.is-float {
+  position: fixed;
+  left: auto;
+  z-index: 120;
+}
+.ms-menu.is-float.is-open {
+  clip-path: inset(0 0 0 0 round 14px);
+  opacity: 1;
+  pointer-events: auto;
+}
+.ms-menu.is-float.is-up:not(.is-open) {
+  clip-path: inset(90% 50% 10% 50% round 14px);
+}
+.ms-menu.is-open .ms-item {
+  transform: none;
+  opacity: 1;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.12s + var(--i) * 0.06s), opacity 0.4s ease calc(0.12s + var(--i) * 0.06s), background-color 0.2s ease, color 0.2s ease;
+}
+.ms-menu.is-up .ms-item {
+  transform: translateY(-26px);
+}
+.ms-menu.is-up.is-open .ms-item {
+  transform: none;
+}
+
+/* 🔵 MenuSelect tone="blue" (Activity Log): ปุ่ม + รายการโทนฟ้า */
+.ms-blue {
+  --accent: #2563eb;
+}
+.ms.ms-blue .ms-btn {
+  background: linear-gradient(135deg, #60a5fa, #2563eb 60%, #1d4ed8);
+}
+.ms-compact.ms-blue .ms-btn {
+  background: #fff;
+}
+.ms-compact.ms-blue .ms-btn:hover {
+  background: #eff6ff;
+}
+.ms-compact.ms-blue.is-open .ms-btn {
+  background: #e8f1ff;
+}
+.ms-menu.ms-blue {
+  box-shadow: 0 22px 44px -18px rgb(20 50 120 / 0.45), 0 0 0 1px rgb(37 99 235 / 0.14);
+}
+.ms-menu.ms-blue .ms-item + .ms-item {
+  box-shadow: inset 0 1px 0 #edf2fb;
+}
+.ms-menu.ms-blue .ms-item:hover,
+.ms-menu.ms-blue .ms-item:focus-visible {
+  background: #eff6ff;
+}
+.ms-menu.ms-blue .ms-item.is-on {
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  box-shadow: 0 8px 16px -10px #2563eb;
+}
+
+/* ✨ หน้าต่าง (Modal): เนื้อหาทยอยเลื่อนขึ้นทีละส่วน · ปิด = ย่อ + เบลอ + จางลง */
+.modal-in .modal-body > *,
+.modal-in .modal-body > .grid > *,
+.modal-in .adm-main > * {
+  animation: mdl-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: 0.16s;
+}
+.modal-in .modal-body > .grid > *:nth-child(2),
+.modal-in .modal-body > *:nth-child(2),
+.modal-in .adm-main > *:nth-child(2) {
+  animation-delay: 0.22s;
+}
+.modal-in .modal-body > .grid > *:nth-child(3),
+.modal-in .modal-body > *:nth-child(3),
+.modal-in .adm-main > *:nth-child(3) {
+  animation-delay: 0.28s;
+}
+.modal-in .modal-body > .grid > *:nth-child(4),
+.modal-in .modal-body > *:nth-child(4) {
+  animation-delay: 0.34s;
+}
+.modal-in .modal-body > .grid > *:nth-child(5) {
+  animation-delay: 0.4s;
+}
+.modal-in .modal-body > .grid > *:nth-child(n + 6) {
+  animation-delay: 0.46s;
+}
+@keyframes mdl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(3px);
+  }
+}
+.modal-bg.is-leaving {
+  transition: opacity 0.22s ease, backdrop-filter 0.22s ease;
+  backdrop-filter: blur(0);
+}
+.modal-bg.is-leaving .modal-in {
+  animation: mdl-out 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes mdl-out {
+  to {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+    filter: blur(4px);
+  }
+}
+/* footer ปุ่มเลื่อนเข้าตามมา */
+.modal-in > :last-child:not(.modal-body) > * {
+  animation: mdl-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s backwards;
+}
+
+/* ✏️ ช่องกรอก (fx): ป้ายเปลี่ยนสีเมื่อพิมพ์ · ขีดไล่สีใต้ช่อง · ช่องลอยขึ้นเล็กน้อย */
+.fx {
   position: relative;
   display: grid;
-  flex: none;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  border-radius: 999px;
-  background: linear-gradient(145deg, #8c6fdc, #6750a4 60%, #4b3a80);
-  color: #fff;
-  box-shadow: 0 14px 28px -10px #6750a4, inset 0 1px 0 rgb(255 255 255 / 0.25);
-  transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.3s;
-  animation: cam-pulse 2.4s ease-out infinite;
+  gap: 5px;
+  min-width: 0;
 }
-.cam-fab svg {
-  width: 28px;
-  height: 28px;
+.fx-cap {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: color 0.25s ease, transform 0.25s ease;
 }
-.cam-fab:active {
-  transform: scale(0.9);
+.fx:focus-within > .fx-cap {
+  color: var(--accent);
+  transform: translateX(3px);
 }
-@keyframes cam-pulse {
-  0% {
-    box-shadow: 0 14px 28px -10px #6750a4, 0 0 0 0 rgb(103 80 164 / 0.45);
-  }
-  70%,
-  100% {
-    box-shadow: 0 14px 28px -10px #6750a4, 0 0 0 16px rgb(103 80 164 / 0);
-  }
+.fx.is-off > .fx-cap {
+  opacity: 0.5;
 }
-.cam-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 150;
-  display: flex;
-  flex-direction: column;
-  background: #0e0d12;
-  color: #fff;
-  animation: modal-bg-in 0.2s ease;
+.field.fx-in {
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, #e2e4f0, #e2e4f0) border-box;
+  border: 1.5px solid transparent;
+  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
 }
-.cam-top {
+.field.fx-in:hover:not(:disabled) {
+  background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, #e2e4f0), #e2e4f0) border-box;
+}
+.field.fx-in:focus {
+  background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, #8b6fd6, var(--accent), #2563eb) border-box;
+  box-shadow: 0 10px 22px -14px var(--accent), 0 0 0 4px rgb(103 80 164 / 0.1);
+  transform: translateY(-1px);
+}
+.field.fx-in:disabled {
+  background: linear-gradient(#f6f5f9, #f6f5f9) padding-box, linear-gradient(#ecebf1, #ecebf1) border-box;
+  color: #a7a3b3;
+  cursor: not-allowed;
+}
+.fx .ms-compact .ms-btn {
+  height: 38px;
+  border-radius: 12px;
+}
+
+/* 🏷️ BARCODE FORMATS */
+.fm-list {
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid #ece9f3;
+  background: linear-gradient(180deg, #faf8ff, #fff 40%);
+  align-self: start;
+}
+.fm-list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
-  background: #1c1c1e;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-}
-.cam-x {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: 99px;
-  background: rgb(255 255 255 / 0.1);
-  font-size: 16px;
-}
-.cam-view {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-}
-.cam-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: opacity 0.3s;
-}
-.cam-frame {
-  position: relative;
-  width: min(70vw, 300px);
-  aspect-ratio: 1;
-  border-radius: 22px;
-  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.45);
-}
-.cam-frame i {
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  border: 4px solid #c4b5fd;
-}
-.cam-frame i:nth-child(1) {
-  left: -2px;
-  top: -2px;
-  border-right: 0;
-  border-bottom: 0;
-  border-top-left-radius: 20px;
-}
-.cam-frame i:nth-child(2) {
-  right: -2px;
-  top: -2px;
-  border-left: 0;
-  border-bottom: 0;
-  border-top-right-radius: 20px;
-}
-.cam-frame i:nth-child(3) {
-  left: -2px;
-  bottom: -2px;
-  border-right: 0;
-  border-top: 0;
-  border-bottom-left-radius: 20px;
-}
-.cam-frame i:nth-child(4) {
-  right: -2px;
-  bottom: -2px;
-  border-left: 0;
-  border-top: 0;
-  border-bottom-right-radius: 20px;
-}
-.cam-frame.is-hit i {
-  border-color: #4ade80;
-  animation: ord-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
-}
-.cam-line {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, #c4b5fd, transparent);
-  box-shadow: 0 0 12px #a78bfa;
-  animation: cam-scan 2s ease-in-out infinite alternate;
-}
-@keyframes cam-scan {
-  from {
-    top: 8%;
-  }
-  to {
-    top: 92%;
-  }
-}
-.cam-note {
-  position: absolute;
-  bottom: 18px;
-  left: 16px;
-  right: 16px;
-  border-radius: 14px;
-  background: rgb(0 0 0 / 0.6);
+  border-bottom: 1px solid #ece9f3;
   padding: 10px 14px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--primary);
 }
-.cam-bottom {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
-  background: #1c1c1e;
-  text-align: center;
-}
-.cam-hit {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.fm-list-head span {
   border-radius: 100px;
-  background: #16a34a;
-  padding: 6px 14px;
+  background: var(--accent);
+  padding: 1px 8px;
+  color: #fff;
+}
+.fm-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 12px;
+  padding: 9px 11px;
+  text-align: left;
   font-size: 13px;
   font-weight: 800;
-  animation: ord-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+  color: var(--ink);
+  animation: fm-slide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(0.15s + var(--i, 0) * 40ms);
+  transition: background-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.3s ease;
 }
-.cam-fab:disabled {
+.fm-item:hover {
+  background: #f3effc;
+  transform: translateX(3px);
+}
+.fm-item.is-on {
+  color: #fff;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent));
+  box-shadow: 0 10px 20px -12px var(--accent);
+  transform: none;
+}
+.fm-item.is-inactive:not(.is-on) {
+  color: var(--ink-soft);
+}
+.fm-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 99px;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgb(22 163 74 / 0.18);
+}
+.fm-item.is-inactive .fm-dot {
+  background: #a3a0ad;
+  box-shadow: 0 0 0 3px rgb(160 160 170 / 0.2);
+}
+.fm-item.is-on .fm-dot {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.3);
+}
+.fm-tag {
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.07);
+  padding: 1px 6px;
+  font-size: 9.5px;
+  font-weight: 900;
+}
+.fm-item.is-on .fm-tag {
+  background: rgb(255 255 255 / 0.22);
+}
+@keyframes fm-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+.fm-group {
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid #ece9f3;
+  background: #fff;
+  padding: 14px;
+  animation: mdl-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(0.12s + var(--d, 0ms));
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.fm-group:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 35%, #ece9f3);
+  box-shadow: 0 14px 30px -24px var(--accent);
+}
+.fm-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+.fm-group-head b {
+  flex: none;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+}
+.fm-no {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--accent);
+}
+.fm-test {
+  background: linear-gradient(180deg, #f7f5fc, #fff);
+}
+.fm-test.is-ok {
+  border-color: rgb(22 163 74 / 0.35);
+  box-shadow: 0 14px 30px -24px #16a34a;
+}
+.fm-test.is-bad {
+  border-color: rgb(225 29 72 / 0.35);
+  box-shadow: 0 14px 30px -24px #e11d48;
+}
+.fm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 9px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  animation: fm-pop 0.35s cubic-bezier(0.3, 1.5, 0.5, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.fm-chip i {
+  font-style: normal;
+  opacity: 0.75;
+  font-size: 10.5px;
+}
+@keyframes fm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(6px);
+  }
+}
+.fm-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.fm-key::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--c);
+}
+
+/* ☑ Checkbox: ติ๊กออก = เครื่องหมายถูกหดกลับก่อน แล้ววาดกรอบสี่เหลี่ยมกลับมา (ย้อนลำดับตอนติ๊ก) + เด้งเล็กน้อย */
+.cbx svg polyline {
+  transition: stroke-dashoffset 0.2s ease-in, stroke 0.2s ease;
+}
+.cbx svg path {
+  transition: stroke-dashoffset 0.32s ease-out 0.14s, stroke 0.2s ease;
+}
+.cbx svg {
+  transition: stroke 0.2s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.cbx:active svg {
+  transform: scale(0.82);
+}
+.cbx-input:checked + .cbx svg {
+  transform: scale(1);
+}
+
+/* 🧩 ADD / EDIT STOCK: ชิปเลือกคอลัมน์ - เลขลำดับเด้งเข้า · ไอคอนถูกวาดเอง · ลากไล่สีตอนเลือก */
+.col-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  border-radius: 100px;
+  border: 1.5px solid #e2e0ea;
+  background: #fff;
+  padding: 5px 13px 5px 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink);
+  isolation: isolate;
+  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+}
+.col-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.col-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px -12px var(--accent);
+}
+.col-chip:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.col-chip.is-on {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 8px 18px -12px var(--accent);
+}
+.col-chip.is-on::before {
+  transform: scaleX(1);
+}
+.col-chip:disabled {
   opacity: 0.4;
-  animation: none;
+  cursor: not-allowed;
+}
+.col-no {
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 100px;
+  border: 1.5px dashed #cfcbd9;
+  font-size: 10.5px;
+  font-weight: 900;
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+.col-chip.is-on .col-no {
+  border: 0;
+  background: rgb(255 255 255 / 0.25);
+  animation: fm-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.col-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: #f7f5fc;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.col-order span {
+  border-radius: 7px;
+  background: #fff;
+  padding: 2px 7px;
+  color: var(--accent);
+  box-shadow: 0 1px 0 #ebe7f3;
+  animation: fm-pop 0.3s cubic-bezier(0.3, 1.5, 0.5, 1) backwards;
+}
+.col-order em {
+  font-style: normal;
+  color: #c3bdd1;
+}
+.se-sec {
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid #ece9f3;
+  background: #fff;
+  padding: 16px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.se-sec:hover {
+  border-color: color-mix(in srgb, var(--accent) 25%, #ece9f3);
+  box-shadow: 0 16px 34px -28px var(--accent);
+}
+.se-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.se-sec-head::before {
+  content: "";
+  width: 4px;
+  height: 16px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #8b6fd6, var(--accent));
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-in .modal-body > *,
+  .modal-in .modal-body > .grid > *,
+  .modal-in .adm-main > *,
+  .modal-in > :last-child:not(.modal-body) > *,
+  .fm-item,
+  .fm-group,
+  .fm-chip,
+  .col-chip.is-on .col-no,
+  .col-order span {
+    animation: none;
+  }
+}
+
+/* 🏷️ Inventory Registration: ชิปเลือกคลัง - กล่องติ๊กวาดเครื่องหมายถูก · เลือก = ไล่สีเต็มชิป · ล็อก = ไม่มีสิทธิ์ */
+.stk-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 100px;
+  border: 1.5px solid #e2e0ea;
+  background: #fff;
+  padding: 6px 14px 6px 7px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  animation: fm-pop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 35ms);
+  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+}
+.stk-pick::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent));
+  clip-path: circle(0% at 16px 50%);
+  transition: clip-path 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stk-pick:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 18px -12px var(--accent);
+}
+.stk-pick:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.stk-pick.is-on {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 20px -12px var(--accent);
+}
+.stk-pick.is-on::before {
+  clip-path: circle(150% at 16px 50%);
+}
+.stk-pick-box {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 6px;
+  border: 1.5px solid #cfcbd9;
+  background: #fff;
+  transition: border-color 0.3s ease, background-color 0.3s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stk-pick-box svg {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+  transition: stroke-dashoffset 0.25s ease-in;
+}
+.stk-pick.is-on .stk-pick-box {
+  border-color: #fff;
+  transform: rotate(-8deg) scale(1.05);
+}
+.stk-pick.is-on .stk-pick-box svg {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.35s ease-out 0.12s;
+}
+.stk-pick.is-locked {
+  cursor: not-allowed;
+  border-style: dashed;
+  opacity: 0.6;
+}
+.stk-pick.is-locked.is-on {
+  opacity: 0.75;
+}
+.stk-pick-lock {
+  font-size: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stk-pick {
+    animation: none;
+  }
+}
+
+/* 🖨 Pick List PREVIEW: แผ่นจริง (A4 / ฉลาก) ย่อพอดีช่องด้วย zoom - มือถือถึงจอใหญ่ */
+.pk-pv {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid #ece9f3;
+  background: linear-gradient(180deg, #f3f1f8, #ebe8f2);
+}
+.pk-pv-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  border-bottom: 1px solid #e3dfec;
+  background: #fff;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.pk-pv-head b {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.pk-pv-pages {
+  max-height: min(64vh, 900px);
+  overflow: auto;
+  padding: 14px;
+}
+.pk-pv-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.pk-pv-pages.is-label .pk-pv-stack {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.pk-pv-stack > .pk-page,
+.pk-pv-stack > .pk-label-page {
+  zoom: var(--pv);
+  flex: none;
+  border-radius: 3mm;
+  box-shadow: 0 6mm 14mm -8mm rgb(40 30 90 / 0.45), 0 0 0 0.3mm rgb(0 0 0 / 0.06);
+  animation: pk-pv-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.pk-pv-stack > :nth-child(2) {
+  animation-delay: 70ms;
+}
+.pk-pv-stack > :nth-child(3) {
+  animation-delay: 140ms;
+}
+.pk-pv-stack > :nth-child(n + 4) {
+  animation-delay: 200ms;
+}
+@keyframes pk-pv-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pk-pv-stack > .pk-page,
+  .pk-pv-stack > .pk-label-page {
+    animation: none;
+  }
+}
+
+/* ⚙ SETUP: แถวคลัง PR (สวิตช์ KEEP PR) */
+.su-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border-radius: 16px;
+  border: 1.5px solid #ece9f3;
+  background: #fff;
+  padding: 10px 12px 10px 16px;
+  cursor: pointer;
+  animation: fm-slide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(0.1s + var(--i, 0) * 40ms);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
+}
+.su-row:hover {
+  transform: translateX(3px);
+  border-color: color-mix(in srgb, var(--accent) 35%, #ece9f3);
+}
+.su-row.is-on {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 12px 24px -20px var(--accent);
+  background: linear-gradient(90deg, #faf7ff, #fff 60%);
+}
+
+/* 👤 ADD / EDIT USER */
+.ue-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border-radius: 20px;
+  padding: 14px 16px;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--c) 12%, #fff), #fff 70%);
+  border: 1px solid color-mix(in srgb, var(--c) 22%, #ece9f3);
+  animation: mdl-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s backwards;
+  transition: background 0.4s ease, border-color 0.4s ease;
+}
+.ue-avatar {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 60%, #fff), var(--c));
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 10px 20px -10px var(--c);
+  animation: dlg-icon-in 0.6s cubic-bezier(0.3, 1.5, 0.5, 1) 0.2s backwards;
+  transition: background 0.4s ease;
+}
+.ue-badge {
+  border-radius: 100px;
+  background: var(--c);
+  padding: 4px 11px;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  transition: background-color 0.4s ease;
+}
+.ue-badge.is-lock {
+  background: #475569;
+  animation: fm-pop 0.35s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.ue-lv {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1.5px solid #e6e3ee;
+  background: #fff;
+  padding: 11px 12px;
+  color: var(--ink);
+  isolation: isolate;
+  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+}
+.ue-lv::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 70%, #fff), var(--c));
+  clip-path: circle(0% at 22px 50%);
+  transition: clip-path 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ue-lv:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--c);
+}
+.ue-lv.is-on {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 12px 22px -14px var(--c);
+}
+.ue-lv.is-on::before {
+  clip-path: circle(150% at 22px 50%);
+}
+.ue-lv:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.ue-lv-dot {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 99px;
+  border: 2px solid var(--c);
+  background: #fff;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.ue-lv.is-on .ue-lv-dot {
+  border-color: #fff;
+  box-shadow: inset 0 0 0 3px var(--c), 0 0 0 3px rgb(255 255 255 / 0.3);
+}
+.sw.ue-lock {
+  color: var(--danger);
+  border-color: rgb(225 29 72 / 0.4);
+}
+.sw.ue-lock .sw-track {
+  background: linear-gradient(90deg, #e11d48, #fb7185);
+}
+.ue-meter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 2px;
+}
+.ue-meter i {
+  height: 4px;
+  border-radius: 4px;
+  background: #ebe8f1;
+  transition: background-color 0.35s ease;
+}
+.ue-meter[data-s="1"] i:nth-child(-n + 1) {
+  background: #ef4444;
+}
+.ue-meter[data-s="2"] i:nth-child(-n + 2) {
+  background: #f59e0b;
+}
+.ue-meter[data-s="3"] i:nth-child(-n + 3) {
+  background: #2563eb;
+}
+.ue-meter[data-s="4"] i {
+  background: #16a34a;
+}
+.field.fx-in.is-bad {
+  background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, #fb7185, #e11d48) border-box;
+}
+.ue-err {
+  animation: ue-shake 0.4s ease;
+}
+@keyframes ue-shake {
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .su-row,
+  .ue-hero,
+  .ue-avatar,
+  .ue-badge.is-lock,
+  .ue-err {
+    animation: none;
+  }
+}
+
+/* 🐞 BUG LOG: ปุ่มกลมลอยมุมขวาล่าง (หน้า ACTIVITY LOG) · มีรายการใหม่ = วงแดงกระเพื่อม + ตัวเลข */
+.bug-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 84px;
+  z-index: 60;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 100px;
+  background: linear-gradient(135deg, #3a3742, #1c1c1e);
+  color: #fff;
+  box-shadow: 0 14px 28px -12px rgb(20 20 40 / 0.6);
+  animation: fm-pop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.3s backwards;
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.3s ease;
+}
+.bug-fab svg {
+  width: 24px;
+  height: 24px;
+  transition: transform 0.4s ease;
+}
+.bug-fab:hover {
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: 0 18px 32px -12px rgb(20 20 40 / 0.7);
+}
+.bug-fab:hover svg {
+  transform: rotate(-12deg);
+}
+.bug-fab:active {
+  transform: scale(0.94);
+}
+.bug-fab.has-new {
+  background: linear-gradient(135deg, #fb7185, #e11d48);
+  animation: fm-pop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.3s backwards, bug-ring 2s ease-out 1s infinite;
+}
+@keyframes bug-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(225 29 72 / 0.45), 0 14px 28px -12px rgb(225 29 72 / 0.6);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 16px rgb(225 29 72 / 0), 0 14px 28px -12px rgb(225 29 72 / 0.6);
+  }
+}
+.bug-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 100px;
+  border: 2px solid #fff;
+  background: #fff;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+  color: #e11d48;
+  animation: fm-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.bug-row {
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #ece9f3;
+  background: #fff;
+  animation: fm-slide 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.bug-row.is-new {
+  border-color: rgb(225 29 72 / 0.35);
+  box-shadow: inset 4px 0 0 #e11d48;
+}
+.bug-row.is-new.is-warn {
+  border-color: rgb(245 158 11 / 0.4);
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+.bug-row-main {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  transition: background-color 0.2s ease;
+}
+.bug-row-main:hover {
+  background: #faf8ff;
+}
+.bug-src {
+  flex: none;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+.bug-src.is-api {
+  background: #6750a4;
+}
+.bug-src.is-web {
+  background: #2563eb;
+}
+.bug-hits {
+  display: inline-block;
+  margin-top: 3px;
+  border-radius: 100px;
+  background: #ffebee;
+  padding: 1px 8px;
+  font-weight: 900;
+  color: #e11d48;
+}
+.bug-detail {
+  border-top: 1px solid #f0edf5;
+  background: #fbfaff;
+  padding: 10px 14px 12px;
+  animation: mdl-rise 0.3s ease;
+}
+.bug-detail pre {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 10px;
+  background: #1c1c1e;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #e5e7eb;
+}
+@media (max-width: 640px) {
+  .bug-fab {
+    right: 14px;
+    bottom: 76px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bug-fab,
+  .bug-fab.has-new,
+  .bug-badge,
+  .bug-row,
+  .bug-detail {
+    animation: none;
+  }
+}
+
+/* ⚡ เรียลไทม์: แถว / การ์ดที่ตัวเลขเพิ่งเปลี่ยน กระพริบเขียวอ่อน 1 ครั้ง */
+@keyframes live-flash {
+  0%,
+  35% {
+    background-color: rgb(22 163 74 / 0.16);
+    box-shadow: inset 4px 0 0 #16a34a;
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 4px 0 0 transparent;
+  }
+}
+tr.live-flash > td,
+.mc-card.live-flash {
+  animation: live-flash 1.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  tr.live-flash > td,
+  .mc-card.live-flash {
+    animation-duration: 1ms;
+  }
+}
+
+/* ⚙ SETUP: รายการคลัง (รหัส + บรรทัดรอง) */
+.fm-item.is-col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* หน้าต่าง (Modal) เปิดอยู่ = ซ่อนปุ่มลอยโปรไฟล์ / แชท และปุ่ม BUG LOG ไม่ให้บังปุ่มในหน้าต่าง (มือถือ) */
+body:has(.modal-bg) .profile-bubble,
+body:has(.modal-bg) .bug-fab {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.fx {
+  grid-template-columns: minmax(0, 1fr);
 }

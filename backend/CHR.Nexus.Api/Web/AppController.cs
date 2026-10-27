@@ -34,6 +34,8 @@ public abstract class AppController : ControllerBase
     // ข้อผิดพลาดที่พบบ่อยเป็นข้อความไทยแบบเดิม
     protected IActionResult Fail(Exception ex, string prefix = null)
     {
+        BugLog.Write("API", "WARN", (string.IsNullOrEmpty(prefix) ? "" : prefix + " • ") + $"{ex.GetType().Name}: {ex.Message}", ex.ToString(),
+                     HttpContext?.Request.Path + HttpContext?.Request.QueryString, HttpContext?.Request.Method, 400, Uid, global::Nexus.Core.ClientContext.Machine);
         string msg = ex.Message.Contains("being used") || ex is IOException && ex.Message.Contains("process")
             ? "ไฟล์ Excel ถูกเปิดค้างอยู่ กรุณาปิดไฟล์ก่อนแล้วลองใหม่"
             : ex.Message;

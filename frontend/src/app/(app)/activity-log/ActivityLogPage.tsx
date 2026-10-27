@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { BugLogButton } from "./BugLogButton";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Pager } from "@/components/ui/Pager";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -115,13 +116,15 @@ export default function ActivityLogPage() {
         actions={
           <>
             <MenuSelect
+              compact
+              tone="blue"
               className="w-[220px]"
               label="USER"
               value={user}
               options={[{ value: "", label: "ALL USERS" }, ...lookups.users.map((u) => ({ value: u.id, label: u.name ? `${u.id} - ${u.name}` : u.id }))]}
               onChange={setUser}
             />
-            <MenuSelect className="w-[200px]" label="ACTION" value={action} options={[{ value: "", label: "ALL ACTIONS" }, ...lookups.actions.map((a) => ({ value: a, label: a }))]} onChange={setAction} />
+            <MenuSelect compact tone="blue" className="w-[200px]" label="ACTION" value={action} options={[{ value: "", label: "ALL ACTIONS" }, ...lookups.actions.map((a) => ({ value: a, label: a }))]} onChange={setAction} />
           </>
         }
       >
@@ -170,6 +173,7 @@ export default function ActivityLogPage() {
           </div>
         )}
       </Card>
+      <BugLogButton />
     </PageBody>
   );
 }

@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import { hasThai, toEnglish } from "@/lib/thaiKeyboard";
 import { AdjustModal } from "./AdjustModal";
 import { DeductModal } from "./DeductModal";
-import { CameraScan } from "./CameraScan";
 import { DisplayModal } from "./DisplayModal";
 import { HistoryModal } from "./HistoryModal";
 import { ScopeModal } from "./ScopeModal";
@@ -72,7 +71,6 @@ export default function ScannerPage() {
   const [showScope, setShowScope] = useState(false);
   const [showDisplay, setShowDisplay] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [camOpen, setCamOpen] = useState(false); // 📷 สแกนด้วยกล้องมือถือ
   const [locked, setLocked] = useState<string | null>(null);
   const [deductView, setDeductView] = useState<"deducted" | "not" | null>(null);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -363,8 +361,7 @@ export default function ScannerPage() {
         <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <label className="sc-label">SCAN BARCODE</label>
-            <div className="flex items-center gap-2.5">
-            <div className={`flex-1 sc-scan ${busy ? "is-busy" : ""} ${notAssigned ? "is-off" : ""}`}>
+            <div className={`sc-scan ${busy ? "is-busy" : ""} ${notAssigned ? "is-off" : ""}`}>
               <svg viewBox="0 0 24 24" className="sc-scan-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
                 <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
                 <path d="M7 8v8M10 8v8M13 8v8M16 8v8" />
@@ -390,16 +387,6 @@ export default function ScannerPage() {
                 <span className="sc-dot" />
                 {busy ? "SAVING" : notAssigned ? "LOCKED" : "READY"}
               </span>
-            </div>
-            {/* 📷 ปุ่มกลมสแกน QR / บาร์โค้ดด้วยกล้อง - อ่านได้ = บันทึกเหมือนยิงเครื่องสแกน */}
-            <button type="button" className="cam-fab" disabled={notAssigned} onClick={() => setCamOpen(true)} aria-label="สแกน QR ด้วยกล้อง" title="สแกน QR / บาร์โค้ดด้วยกล้อง">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2" />
-                <rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2" />
-                <rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2" />
-                <path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />
-              </svg>
-            </button>
             </div>
           </div>
           {ctx.who.askEmployee && (
@@ -694,7 +681,6 @@ export default function ScannerPage() {
         />
       )}
       {showHistory && <HistoryModal onClose={() => (setShowHistory(false), focusScan())} />}
-      {camOpen && <CameraScan onResult={(t) => commit(t)} onClose={() => (setCamOpen(false), focusScan())} />}
       {deductView && (
         <DeductModal
           deducted={deductView === "deducted"}

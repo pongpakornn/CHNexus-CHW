@@ -76,6 +76,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 var app = builder.Build();
 
 app.UseMiddleware<ClientContextMiddleware>();
+app.UseMiddleware<BugLogMiddleware>(); // 🐞 Exception ที่หลุด = บันทึก BUG LOG + ตอบข้อความไทย (ไม่ค้าง)
 app.UseCors();
 app.UseResponseCaching();
 app.UseAuthentication();

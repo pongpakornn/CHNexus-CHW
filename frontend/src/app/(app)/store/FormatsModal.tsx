@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { useDialogs } from "@/components/ui/Dialogs";
-import { Badge, Loading } from "@/components/ui/Page";
+import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Loading } from "@/components/ui/Page";
 import { api } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 
@@ -130,11 +131,11 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
 
   const canSave = f && (f.fmtId === 0 ? data?.canAdd : data?.canEdit);
   const set = <K extends keyof Fmt>(k: K, v: Fmt[K]) => f && setF({ ...f, [k]: v });
-  const txt = (label: string, k: keyof Fmt, opt: { num?: boolean; disabled?: boolean; ph?: string } = {}) => (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">{label}</span>
+  const txt = (label: string, k: keyof Fmt, opt: { num?: boolean; disabled?: boolean; ph?: string; mono?: boolean } = {}) => (
+    <label className={`fx ${opt.disabled ? "is-off" : ""}`}>
+      <span className="fx-cap">{label}</span>
       <input
-        className="field"
+        className={`field fx-in ${opt.mono ? "font-mono" : ""}`}
         disabled={opt.disabled}
         placeholder={opt.ph}
         inputMode={opt.num ? "numeric" : undefined}
@@ -143,6 +144,22 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
       />
     </label>
   );
+  const pick = (label: string, k: keyof Fmt, options: { value: string; label: string }[]) => (
+    <div className="fx">
+      <span className="fx-cap">{label}</span>
+      <MenuSelect compact className="w-full" value={String(f?.[k] ?? "")} options={options} onChange={(v) => set(k, (k === "sourceStkId" ? (v ? Number(v) : null) : v) as never)} />
+    </div>
+  );
+  const group = (n: number, title: string, hint: string, children: React.ReactNode) => (
+    <section className="fm-group" style={{ "--d": `${n * 70}ms` } as React.CSSProperties}>
+      <div className="fm-group-head">
+        <span className="fm-no">{n}</span>
+        <b>{title}</b>
+        <span className="truncate text-[11px] font-semibold text-ink-soft">{hint}</span>
+      </div>
+      <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))]">{children}</div>
+    </section>
+  );
 
   const color = (n: number) => {
     if (!f) return "#e3e1e8";
@@ -150,7 +167,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
     if (n === f.altCodePos) return "var(--info)";
     if (n === f.qtyPos) return "var(--success)";
     if (n === f.coilNoPos || n === f.motherCoilPos) return "var(--warning)";
-    return "#cfccd6";
+    return "#b9b5c4";
   };
 
   return (
@@ -162,18 +179,18 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
       footer={
         <>
           {data?.canAdd && (
-            <button className="btn-ghost mr-auto" onClick={() => (setF({ ...BLANK }), setMinTyped(""))}>
+            <button className="fill-btn mr-auto" onClick={() => (setF({ ...BLANK }), setMinTyped(""))}>
               ＋ NEW FORMAT
             </button>
           )}
           {data?.canDelete && f && f.fmtId > 0 && (
-            <button className="btn bg-danger" onClick={remove}>
+            <button className="cta-btn is-red" onClick={remove}>
               🗑 DELETE
             </button>
           )}
           {canSave && (
-            <button className="btn bg-accent" onClick={save}>
-              SAVE
+            <button className="cta-btn is-purple" onClick={save}>
+              💾 SAVE
             </button>
           )}
         </>
@@ -182,87 +199,121 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
       {!data ? (
         <Loading />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-          <div className="flex max-h-[60vh] flex-col gap-1 overflow-auto">
-            {data.formats.map((x) => (
-              <button
-                key={x.fmtId}
-                onClick={() => (setF(x), setMinTyped(String(x.minFields)))}
-                className={`rounded-xl px-3 py-2 text-left text-sm font-bold ${f?.fmtId === x.fmtId ? "bg-accent text-white" : "hover:bg-surface-2"}`}
-              >
-                {x.name} {!x.isActive && <Badge color="var(--ink-soft)">INACTIVE</Badge>}
-              </button>
-            ))}
-            {data.formats.length === 0 && <div className="p-3 text-sm text-ink-soft">ยังไม่มีรูปแบบ</div>}
+        <div className="grid gap-4 lg:grid-cols-[250px_1fr]">
+          {/* รายการรูปแบบ */}
+          <div className="fm-list">
+            <div className="fm-list-head">
+              FORMATS <span>{data.formats.length}</span>
+            </div>
+            <div className="flex max-h-[30vh] flex-col gap-1 overflow-auto p-1.5 lg:max-h-[62vh]">
+              {data.formats.map((x, i) => (
+                <button
+                  key={x.fmtId}
+                  onClick={() => (setF(x), setMinTyped(String(x.minFields)))}
+                  className={`fm-item ${f?.fmtId === x.fmtId ? "is-on" : ""} ${x.isActive ? "" : "is-inactive"}`}
+                  style={{ "--i": i } as React.CSSProperties}
+                >
+                  <span className="fm-dot" />
+                  <span className="min-w-0 flex-1 truncate">{x.name}</span>
+                  {!x.isActive && <span className="fm-tag">INACTIVE</span>}
+                </button>
+              ))}
+              {f && f.fmtId === 0 && (
+                <div className="fm-item is-on">
+                  <span className="fm-dot" />
+                  <span className="min-w-0 flex-1 truncate">{f.name || "NEW FORMAT"}</span>
+                  <span className="fm-tag">NEW</span>
+                </div>
+              )}
+              {data.formats.length === 0 && !f && <div className="p-3 text-sm text-ink-soft">ยังไม่มีรูปแบบ</div>}
+            </div>
           </div>
           {f && (
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="col-span-2">{txt("FORMAT NAME", "name")}</div>
-                <label className="col-span-2 flex items-end gap-2 pb-2 text-sm font-bold">
-                  <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={f.isActive} onChange={(e) => set("isActive", e.target.checked)} /> ACTIVE
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">SPLIT FIELDS BY</span>
-                  <select className="field" value={f.delimMode} onChange={(e) => set("delimMode", e.target.value)}>
-                    <option value="CHAR">DELIMITER</option>
-                    <option value="SPACES">ANY SPACES</option>
-                  </select>
-                </label>
-                {txt("DELIMITER", "delimiter", { disabled: f.delimMode === "SPACES" })}
-                {txt("TRIM CHARS", "trimChars", { ph: "เช่น |" })}
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">CODE PREFIX</span>
-                  <select className="field" value={f.codePrefix} onChange={(e) => set("codePrefix", e.target.value)}>
-                    <option value="NONE">NONE</option>
-                    <option value="DIGIT">CUT 1st DIGIT (2A250 → A250)</option>
-                    <option value="CUT">CUT N CHARS</option>
-                  </select>
-                </label>
-                {txt("CUT N", "codeCut", { num: true, disabled: f.codePrefix !== "CUT" })}
-                {txt("STARTS WITH", "matchStart")}
-                {txt("ENDS WITH", "matchEnd")}
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">MATCH BY</span>
-                  <select className="field" value={f.matchBy} onChange={(e) => set("matchBy", e.target.value)}>
-                    <option value="CODE">PRODUCT CODE</option>
-                    <option value="NAME">PRODUCT NAME</option>
-                  </select>
-                </label>
-                {txt("NAME FIELDS #", "nameFields", { disabled: f.matchBy !== "NAME", ph: "เช่น 6,7" })}
-                {txt("CODE FIELD #", "codePos", { num: true })}
-                {txt("ALT CODE FIELD #", "altCodePos", { num: true })}
-                {txt("QTY FIELD #", "qtyPos", { num: true })}
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">MIN FIELDS</span>
-                  <input className="field" inputMode="numeric" placeholder={test ? `auto ${test.minFields}` : ""} value={minTyped} onChange={(e) => setMinTyped(e.target.value.replace(/\D/g, ""))} />
-                </label>
-                {txt("COIL NO FIELD #", "coilNoPos", { num: true })}
-                {txt("MASTER COIL FIELD #", "motherCoilPos", { num: true })}
-                <label className="col-span-2 block">
-                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">DEDUCT FROM STOCK (ตัดยอดจากคลัง)</span>
-                  <select className="field" value={f.sourceStkId ?? ""} onChange={(e) => set("sourceStkId", e.target.value ? Number(e.target.value) : null)}>
-                    <option value="">— NONE —</option>
-                    {data.stocks.map((s) => (
-                      <option key={s.stkId} value={s.stkId}>
-                        {s.display}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="rounded-2xl bg-surface-2 p-4">
-                <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">🧪 TEST LABEL (SAMPLE)</span>
-                <input className="field font-mono" value={f.sampleText ?? ""} onChange={(e) => set("sampleText", e.target.value)} placeholder="ยิง / วางป้ายตัวอย่างที่นี่" />
+            <div key={f.fmtId} className="grid min-w-0 content-start gap-3">
+              <section className="fm-group" style={{ "--d": "0ms" } as React.CSSProperties}>
+                <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
+                  {txt("FORMAT NAME", "name")}
+                  <label className={`sw ${f.isActive ? "is-on" : ""} mb-0.5 justify-self-start`}>
+                    <input type="checkbox" className="sr-only" checked={f.isActive} onChange={(e) => set("isActive", e.target.checked)} />
+                    <span className="sw-track" />
+                    {f.isActive ? "ACTIVE" : "INACTIVE"}
+                  </label>
+                </div>
+              </section>
+              {group(
+                1,
+                "SPLIT & CLEAN",
+                "แยกช่องของป้าย / ตัดตัวอักษร",
+                <>
+                  {pick("SPLIT FIELDS BY", "delimMode", [
+                    { value: "CHAR", label: "DELIMITER" },
+                    { value: "SPACES", label: "ANY SPACES" },
+                  ])}
+                  {txt("DELIMITER", "delimiter", { disabled: f.delimMode === "SPACES", mono: true })}
+                  {txt("TRIM CHARS", "trimChars", { ph: "เช่น |", mono: true })}
+                  <label className="fx">
+                    <span className="fx-cap">MIN FIELDS</span>
+                    <input className="field fx-in" inputMode="numeric" placeholder={test ? `auto ${test.minFields}` : ""} value={minTyped} onChange={(e) => setMinTyped(e.target.value.replace(/\D/g, ""))} />
+                  </label>
+                </>,
+              )}
+              {group(
+                2,
+                "MATCH PRODUCT",
+                "หาสินค้าจากรหัส / ชื่อ",
+                <>
+                  {pick("MATCH BY", "matchBy", [
+                    { value: "CODE", label: "PRODUCT CODE" },
+                    { value: "NAME", label: "PRODUCT NAME" },
+                  ])}
+                  {pick("CODE PREFIX", "codePrefix", [
+                    { value: "NONE", label: "NONE" },
+                    { value: "DIGIT", label: "CUT 1st DIGIT (2A250 → A250)" },
+                    { value: "CUT", label: "CUT N CHARS" },
+                  ])}
+                  {txt("CUT N", "codeCut", { num: true, disabled: f.codePrefix !== "CUT" })}
+                  {txt("NAME FIELDS #", "nameFields", { disabled: f.matchBy !== "NAME", ph: "เช่น 6,7" })}
+                  {txt("STARTS WITH", "matchStart", { mono: true })}
+                  {txt("ENDS WITH", "matchEnd", { mono: true })}
+                </>,
+              )}
+              {group(
+                3,
+                "FIELD POSITIONS",
+                "ลำดับช่องของข้อมูลในป้าย (#)",
+                <>
+                  {txt("CODE FIELD #", "codePos", { num: true })}
+                  {txt("ALT CODE FIELD #", "altCodePos", { num: true })}
+                  {txt("QTY FIELD #", "qtyPos", { num: true })}
+                  {txt("COIL NO FIELD #", "coilNoPos", { num: true })}
+                  {txt("MASTER COIL FIELD #", "motherCoilPos", { num: true })}
+                  <div className="col-span-2 min-w-0 md:col-span-3">
+                    {pick("DEDUCT FROM STOCK (ตัดยอดจากคลัง)", "sourceStkId", [{ value: "", label: "— NONE —" }, ...data.stocks.map((s) => ({ value: String(s.stkId), label: s.display }))])}
+                  </div>
+                </>,
+              )}
+              <section className={`fm-group fm-test ${test && f.sampleText ? (test.ok ? "is-ok" : "is-bad") : ""}`} style={{ "--d": "280ms" } as React.CSSProperties}>
+                <div className="fm-group-head">
+                  <span className="fm-no">🧪</span>
+                  <b>TEST LABEL (SAMPLE)</b>
+                  <span className="truncate text-[11px] font-semibold text-ink-soft">ยิง / วางป้ายตัวอย่าง - ระบบแยกช่องให้ดูทันที</span>
+                </div>
+                <input className="field fx-in font-mono" value={f.sampleText ?? ""} onChange={(e) => set("sampleText", e.target.value)} placeholder="ยิง / วางป้ายตัวอย่างที่นี่" />
                 {test && test.fields.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {test.fields.map((v, i) => (
-                      <span key={i} className="rounded-lg px-2 py-1 text-xs font-bold text-white" style={{ background: color(i + 1) }}>
-                        #{i + 1} {v || "∅"}
+                      <span key={`${i}-${v}`} className="fm-chip" style={{ background: color(i + 1), "--i": i } as React.CSSProperties}>
+                        <i>#{i + 1}</i> {v || "∅"}
                       </span>
                     ))}
                   </div>
                 )}
+                <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold text-ink-soft">
+                  <span className="fm-key" style={{ "--c": "var(--accent)" } as React.CSSProperties}>CODE / NAME</span>
+                  <span className="fm-key" style={{ "--c": "var(--info)" } as React.CSSProperties}>ALT CODE</span>
+                  <span className="fm-key" style={{ "--c": "var(--success)" } as React.CSSProperties}>QTY</span>
+                  <span className="fm-key" style={{ "--c": "var(--warning)" } as React.CSSProperties}>COIL</span>
+                </div>
                 {test && f.sampleText && (
                   <div className="mt-3 grid gap-1 text-sm font-bold">
                     <div className={test.ok ? "text-success" : "text-danger"}>
@@ -276,7 +327,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
                     {test.lookup && <div className={test.lookup.startsWith("FOUND") ? "text-success" : "text-ink-soft"}>{test.lookup}</div>}
                   </div>
                 )}
-              </div>
+              </section>
             </div>
           )}
         </div>

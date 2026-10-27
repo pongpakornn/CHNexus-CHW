@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
 import { DateRange } from "@/components/ui/DateRange";
@@ -42,11 +42,14 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
   const [busy, setBusy] = useState(false);
   const k = useDebounced(key, 300);
 
+  const seq = useRef(0); // คำขอล่าสุด - ผลของคำขอเก่าที่ตอบช้ากว่า (เลือกวันที่ใหม่ไปแล้ว) ไม่ทับรายการ
   const load = useCallback(async () => {
+    const n = ++seq.current;
     try {
       const r = await api<{ stocks: { stkId: number; code: string }[]; rows: Row[] }>("/scanner/adjust", {
         query: { key: k, from, to, stkId: stkId || undefined, type: type || undefined },
       });
+      if (n !== seq.current) return;
       setData(r);
       setSel((s) => s.filter((id) => r.rows.some((x) => x.txId === id && x.canSelect)));
     } catch (e) {
@@ -162,7 +165,7 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
           <option>OUT</option>
           <option>RETURN</option>
         </select>
-        <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} quick={false} />
+        <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
       </div>
       {!data ? (
         <Loading />

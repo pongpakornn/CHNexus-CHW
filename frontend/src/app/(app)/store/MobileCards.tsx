@@ -127,7 +127,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
   const nTiles = (has("MAXMIN") ? 2 : 0) + ["BOX", "QTY", "PCS"].filter(has).length;
 
   return (
-    <article className={`mc-card ${off ? "is-off" : ""}`} style={{ "--tone": tone.line } as React.CSSProperties}>
+    <article data-pid={p.partId} className={`mc-card ${off ? "is-off" : ""}`} style={{ "--tone": tone.line } as React.CSSProperties}>
       <div className="flex items-start gap-3">
         {has("IMAGE") && (
           <span className="mc-img">

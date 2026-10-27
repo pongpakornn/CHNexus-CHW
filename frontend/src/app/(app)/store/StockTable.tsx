@@ -55,6 +55,19 @@ const pref = {
 
 // 📋 ตารางของคลัง (StoreMaxMinView): กรองสถานะ / กลุ่ม / ค้นหา, แก้ในตาราง, แถว Coil, Import / Export, SHOW PRODUCTION / SHOW CARD / SHOW COILS
 //   คอลัมน์ = ที่คลังเปิดไว้ (ADD / EDIT STOCK) เรียงตามลำดับที่ติ๊ก + STATUS ท้ายสุด (คลังที่ใช้ MAX-MIN)
+// ⚡ แถว / การ์ดที่ตัวเลขเพิ่งเปลี่ยน (สแกน / แก้จากเครื่องอื่น) = กระพริบสีเขียวอ่อนครั้งเดียว - แตะ DOM ตรง ไม่วาดตารางใหม่
+function flashRows(ids: number[]) {
+  requestAnimationFrame(() => {
+    for (const id of ids)
+      document.querySelectorAll<HTMLElement>(`[data-pid="${id}"]`).forEach((el) => {
+        el.classList.remove("live-flash");
+        void el.offsetWidth; // เริ่มอนิเมชันใหม่ถ้าเปลี่ยนติดกัน
+        el.classList.add("live-flash");
+        el.addEventListener("animationend", () => el.classList.remove("live-flash"), { once: true });
+      });
+  });
+}
+
 export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: number; onBack: () => void; initialFilter?: string }) {
   const toast = useToast();
   const dlg = useDialogs();
@@ -184,22 +197,23 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
     tokenRef.current = r.token;
     if (!r.changed || !r.rows) return;
     const map = new Map(r.rows.map((x) => [x.partId, x]));
-    // แทนเฉพาะแถวที่ค่าเปลี่ยนจริง (แถวอื่นคงอ็อบเจกต์เดิม = ไม่วาดใหม่)
-    setRows((cur) => {
-      if (!cur) return cur;
-      let dirty = false;
-      const next = cur.map((p) => {
-        const u = map.get(p.partId);
-        if (!u) return p;
-        for (const f of Object.keys(u) as (keyof Product)[])
-          if (p[f] !== u[f]) {
-            dirty = true;
-            return { ...p, ...u };
-          }
-        return p;
-      });
-      return dirty ? next : cur;
+    const cur = rowsRef.current;
+    if (!cur) return;
+    // แทนเฉพาะแถวที่ค่าเปลี่ยนจริง (แถวอื่นคงอ็อบเจกต์เดิม = ไม่วาดใหม่) + แถวที่เปลี่ยนกระพริบให้เห็น
+    const hit: number[] = [];
+    const next = cur.map((p) => {
+      const u = map.get(p.partId);
+      if (!u) return p;
+      for (const f of Object.keys(u) as (keyof Product)[])
+        if (p[f] !== u[f]) {
+          hit.push(p.partId);
+          return { ...p, ...u };
+        }
+      return p;
     });
+    if (hit.length === 0) return;
+    setRows(next);
+    if (hit.length <= 50) flashRows(hit);
     setMeta((m) => (m && (JSON.stringify(m.counts) !== JSON.stringify(r.counts) || JSON.stringify(m.coilSum) !== JSON.stringify(r.coilSum)) ? { ...m, counts: r.counts, coilSum: r.coilSum } : m));
   }, [stkId]);
 
