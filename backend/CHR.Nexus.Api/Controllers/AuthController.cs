@@ -1,3 +1,4 @@
+using CHR.Nexus.Api.Web;
 using CHR.Nexus.Api.Web.Auth;
 using Nexus.Models;
 using Nexus.Services;
@@ -35,13 +36,23 @@ public sealed class AuthController : ControllerBase
         var auth = new AuthService();
         UserSession session;
         try { session = auth.Authenticate(req.UserId.Trim(), req.Password); }
-        catch (Exception ex) { return Conflict(new { message = ex.Message }); }   // Online อยู่เครื่องอื่น
+        catch (Exception ex)
+        {
+            // ONLINE ค้างจากเครื่องอื่น แต่เครื่องนั้นไม่ได้ใช้งานแล้ว (ปิดหน้าต่าง / เงียบเกิน 3 นาที) + รหัสผ่านถูก = ปลดสถานะเดิมแล้วเข้าได้เลย
+            string uid0 = req.UserId.Trim();
+            if (!Presence.CanTakeOver(uid0) || !PasswordOk(uid0, req.Password)) return Conflict(new { message = ex.Message });   // Online อยู่เครื่องอื่นจริง
+            auth.UpdateLogoutStatus(uid0);
+            LogService.WriteLog(uid0, "AUTO_OFFLINE", "ปลดสถานะ ONLINE ค้าง (เครื่องเดิมไม่ได้ใช้งานแล้ว) แล้วเข้าสู่ระบบจากเครื่องใหม่", global::Nexus.Core.ClientContext.Machine);
+            try { session = auth.Authenticate(uid0, req.Password); }
+            catch (Exception ex2) { return Conflict(new { message = ex2.Message }); }
+        }
         if (session == null)
         {
             return Unauthorized(new { message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" });
         }
 
         auth.UpdateLoginStats(session.UserId);
+        Presence.LoggedIn(session.UserId, global::Nexus.Core.ClientContext.Machine);
         LogService.WriteLog(session.UserId, "LOGIN", "เข้าสู่ระบบสำเร็จ", global::Nexus.Core.ClientContext.Machine);
         CurrentUser.Forget(_cache, session.UserId);
 
@@ -63,11 +74,36 @@ public sealed class AuthController : ControllerBase
         if (!string.IsNullOrEmpty(uid))
         {
             new AuthService().UpdateLogoutStatus(uid);
+            Presence.LoggedOut(uid);
             LogService.WriteLog(uid, "LOGOUT", "ออกจากระบบสำเร็จ", "");
             CurrentUser.Forget(_cache, uid);
         }
         Response.Cookies.Delete(_opt.CookieName);
         return Ok();
+    }
+
+    // หน้าเว็บยังเปิดอยู่ (ทุก 60 วินาที แม้ซ่อนแท็บ) - Middleware นับเป็นการใช้งานให้แล้ว
+    [Authorize]
+    [HttpPost("ping")]
+    public IActionResult Ping() => NoContent();
+
+    // ปิดหน้าต่าง / ปิด Browser (sendBeacon) -> OFFLINE ภายในราว 20 วินาที ถ้าไม่มีหน้าไหนของผู้ใช้นี้ใช้งานต่อ
+    [Authorize]
+    [HttpPost("bye")]
+    public IActionResult Bye()
+    {
+        Presence.Bye(_me.UserId);
+        return NoContent();
+    }
+
+    private static bool PasswordOk(string uid, string password)
+    {
+        using var conn = new Microsoft.Data.SqlClient.SqlConnection(global::Nexus.Core.GlobalConfig.ConnStr);
+        using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT COUNT(*) FROM Nexus.Users WHERE UserID = @u AND Password = @p AND ISNULL(IsLocked, 0) = 0", conn);
+        cmd.Parameters.AddWithValue("@u", uid);
+        cmd.Parameters.AddWithValue("@p", password ?? "");
+        conn.Open();
+        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
     }
 
     [Authorize]

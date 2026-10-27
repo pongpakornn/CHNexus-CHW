@@ -11,6 +11,20 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   const { me, loading } = useAuth();
   const router = useRouter();
   useEffect(() => installBugReporter(), []); // 🐞 Error ของหน้าเว็บ -> BUG LOG
+  // 🟢 สถานะ ONLINE: ส่ง ping ทุก 60 วินาที (แม้ซ่อนแท็บ) · ปิดหน้าต่าง / ปิด Browser = แจ้ง Server -> OFFLINE ให้เองในไม่กี่วินาที
+  //    (Reload / เปิดหน้าใหม่ทัน = ยัง ONLINE) - ทำให้ Login จากเครื่องอื่นได้ ไม่ค้าง "กำลังใช้งานอยู่ในเครื่องอื่น"
+  const uid = me?.userId;
+  useEffect(() => {
+    if (!uid) return;
+    const ping = () => fetch("/api/auth/ping", { method: "POST", credentials: "same-origin", keepalive: true }).catch(() => {});
+    const t = setInterval(ping, 60_000);
+    const bye = () => navigator.sendBeacon?.("/api/auth/bye");
+    window.addEventListener("pagehide", bye);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("pagehide", bye);
+    };
+  }, [uid]);
   useEffect(() => {
     if (!loading && !me) router.replace("/login");
   }, [me, loading, router]);

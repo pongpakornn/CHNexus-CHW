@@ -67,6 +67,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddControllers();
+builder.Services.AddHostedService<PresenceSweeper>(); // 🟢 ONLINE ค้าง -> OFFLINE อัตโนมัติ
 builder.Services.AddHostedService<LiveWatcher>(); // ⚡ เฝ้าคลังที่มีคนเปิดดู -> แจ้งจอทันทีที่ข้อมูลเปลี่ยน
 builder.Services.AddResponseCaching();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
@@ -81,6 +82,7 @@ app.UseCors();
 app.UseResponseCaching();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<PresenceMiddleware>(); // 🟢 ใช้งานอยู่ = ONLINE · เงียบ / ปิดหน้าต่าง = OFFLINE ให้เอง
 app.UseMiddleware<LivePublishMiddleware>(); // ⚡ บันทึกสำเร็จ -> แจ้งจอที่เปิดอยู่
 app.MapControllers();
 app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTime.Now }));
