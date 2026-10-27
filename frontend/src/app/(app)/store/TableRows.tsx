@@ -113,15 +113,15 @@ export const ProductRow = memo(function ProductRow({
           </td>
         );
       case "CUSTOMER":
-        return <td key={col} className="font-bold">{p.customer}</td>;
+        return <td key={col} className="whitespace-nowrap font-bold">{p.customer}</td>;
       case "PARTA":
-        return <td key={col} className="font-bold">{p.partA}</td>;
+        return <td key={col} className="whitespace-nowrap font-bold">{p.partA}</td>;
       case "PARTB":
-        return <td key={col} className="font-bold">{p.partB}</td>;
+        return <td key={col} className="whitespace-nowrap font-bold">{p.partB}</td>;
       case "PARTNO":
-        return <td key={col} className="font-bold">{p.partNo}</td>;
+        return <td key={col} className="whitespace-nowrap font-bold">{p.partNo}</td>;
       case "MODEL":
-        return <td key={col} className="font-bold">{p.model}</td>;
+        return <td key={col} className="whitespace-nowrap font-bold">{p.model}</td>;
       case "NAME":
         return <td key={col} className="col-name min-w-[200px] font-bold">{p.partName}</td>;
       case "MAXMIN":

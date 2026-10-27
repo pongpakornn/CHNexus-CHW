@@ -765,7 +765,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
             )}
           </>
         ) : (
-          <table className={`data-table store-table w-full ${tight === s.code ? "is-tight" : ""}`}>
+          <table className={`data-table store-table t-center w-full ${tight === s.code ? "is-tight" : ""}`}>
             <thead className="sticky top-0 z-10">
               <tr>
                 {cols.map((col) =>
