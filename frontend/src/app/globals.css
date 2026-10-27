@@ -6890,3 +6890,7 @@ body:has(.modal-bg) .bug-fab {
 .fx {
   grid-template-columns: minmax(0, 1fr);
 }
+
+.bug-src.is-wpf {
+  background: #0d9488;
+}

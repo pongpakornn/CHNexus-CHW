@@ -11,7 +11,7 @@ import { useDebounced } from "@/lib/useDebounced";
 
 type Bug = {
   id: number;
-  source: "API" | "WEB";
+  source: "API" | "WEB" | "WPF";
   severity: "ERROR" | "WARN";
   message: string;
   detail: string | null;
@@ -133,6 +133,7 @@ function BugLogModal({ ready, onClose }: { ready: boolean; onClose: () => void }
               { value: "", label: "ALL" },
               { value: "API", label: "API (SERVER)" },
               { value: "WEB", label: "WEB (BROWSER)" },
+              { value: "WPF", label: "WPF (PROGRAM)" },
             ]}
             onChange={setSource}
           />

@@ -5,92 +5,128 @@ using Nexus.Core;
 
 namespace CHR.Nexus.Api.Web;
 
-// 🟢 สถานะออนไลน์จริง (Nexus.Users.IsOnline): เดิมเป็น 0 เฉพาะตอนกด Logout -> ปิดหน้าต่าง / ปิด Browser / เน็ตหลุด = ค้าง ONLINE
-//    แล้ว Login จากเครื่องอื่นไม่ได้ ("บัญชีนี้กำลังใช้งานอยู่ในเครื่องอื่น")
-//    ตอนนี้: ทุก Request ที่ Login อยู่ = "ยังใช้งาน" (หน้าเว็บส่ง ping ทุก 60 วินาที แม้ซ่อนแท็บ)
-//      - เงียบเกิน 3 นาที = OFFLINE ให้เอง (เขียนเฉพาะฐาน CHR-Nexus) -> Login เครื่องอื่นได้
-//      - ปิดหน้าต่าง = หน้าเว็บส่ง bye -> OFFLINE ภายในราว 20 วินาที (กด Reload / เปิดหน้าใหม่ทัน = ยัง ONLINE)
-//      - ถูกตั้ง OFFLINE แต่ยังใช้งานอยู่ (เช่น Server เพิ่งเริ่ม) = กลับเป็น ONLINE เองใน Request ถัดไป
+// 🟢 สถานะออนไลน์จริง (Nexus.Users.IsOnline + LastSeenAt - database/nexus/11_User_LastSeen.sql)
+//    เดิม IsOnline เป็น 0 เฉพาะตอนกด Logout -> ปิดหน้าต่าง / ปิด Browser / เน็ตหลุด = ค้าง ONLINE แล้ว Login เครื่องอื่นไม่ได้
+//    ตอนนี้ (ตารางผู้ใช้ใช้ร่วมกับโปรแกรม WPF):
+//      - เว็บที่ Login อยู่ = heartbeat: LastSeenAt = ตอนนี้ (เขียนฐานไม่เกิน 1 ครั้ง / 30 วินาที / ผู้ใช้) + IsOnline = 1
+//      - ปิดหน้าต่าง = bye -> LastSeenAt ถอยไป ให้ OFFLINE ในราว 20 วินาที (Reload ทัน = ยัง ONLINE)
+//      - รอบเก็บกวาด: ONLINE + LastSeenAt เก่ากว่า 3 นาที = OFFLINE (ทั้งเว็บ และ WPF ที่ส่ง heartbeat แล้ว)
+//      - LastSeenAt = NULL (WPF เวอร์ชันเก่า) = ไม่แตะ ใช้เงื่อนไขเดิมของ WPF
+//    เก็บในฐาน -> Server เริ่มใหม่ / หลายเครื่อง (pm2) ใช้ค่าเดียวกัน · เขียนเฉพาะ Nexus.Users ในฐาน CHR-Nexus
 public static class Presence
 {
-    public static readonly TimeSpan Idle = TimeSpan.FromMinutes(3);
-    private static readonly TimeSpan ByeGrace = TimeSpan.FromSeconds(20);
-    private static readonly ConcurrentDictionary<string, (DateTime At, string Device)> Seen = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, byte> Offline = new(StringComparer.OrdinalIgnoreCase); // ตั้ง OFFLINE ไปแล้ว รอใช้งานใหม่
-    public static readonly DateTime Started = DateTime.UtcNow;
+    public const int IdleSeconds = 180;
+    private const int ByeGraceSeconds = 20;
+    private static readonly TimeSpan WriteEvery = TimeSpan.FromSeconds(30);
+    private static readonly ConcurrentDictionary<string, DateTime> Written = new(StringComparer.OrdinalIgnoreCase);
+    private static bool? _ready;
 
+    // ยังไม่รัน 11_User_LastSeen.sql = ปิดระบบนี้ (กลับไปใช้แบบเดิม)
+    public static bool Ready
+    {
+        get
+        {
+            if (_ready.HasValue) return _ready.Value;
+            try
+            {
+                using var conn = new SqlConnection(GlobalConfig.ConnStr);
+                using var cmd = new SqlCommand("SELECT CASE WHEN COL_LENGTH('Nexus.Users', 'LastSeenAt') IS NULL THEN 0 ELSE 1 END", conn);
+                conn.Open();
+                _ready = Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+            }
+            catch { return false; }
+            return _ready.Value;
+        }
+    }
+
+    private static string Key(string uid) => (uid ?? "").Trim();
+
+    // Request ของผู้ใช้ที่ Login อยู่ = ยังใช้งาน
     public static void Touch(string uid, string device)
     {
-        if (string.IsNullOrEmpty(uid)) return;
-        bool first = !Seen.ContainsKey(uid); // ครั้งแรกตั้งแต่ Server เริ่ม = ยืนยัน ONLINE ในฐานให้ตรงกับที่ใช้งานจริง
-        Seen[uid] = (DateTime.UtcNow, device ?? "");
-        if (Offline.TryRemove(uid, out _) || first) SetOnline(uid, device);
+        uid = Key(uid);
+        if (uid.Length == 0 || !Ready) return;
+        var now = DateTime.UtcNow;
+        if (Written.TryGetValue(uid, out var at) && now - at < WriteEvery) return;
+        Written[uid] = now;
+        Exec("UPDATE Nexus.Users SET LastSeenAt = SYSDATETIME(), IsOnline = 1, LastSession = ISNULL(@pc, LastSession) WHERE UserID = @u AND ISNULL(IsLocked, 0) = 0",
+             uid, string.IsNullOrEmpty(device) ? null : device);
     }
 
-    // ปิดหน้าต่าง: ถือว่าเงียบไปแล้ว เหลือเวลาอีก ByeGrace ก่อน OFFLINE
+    // ปิดหน้าต่าง: เหลือเวลา ByeGrace ก่อน OFFLINE (มี Request ใหม่ก่อนนั้น = ยัง ONLINE)
     public static void Bye(string uid)
     {
-        if (string.IsNullOrEmpty(uid)) return;
-        if (Seen.TryGetValue(uid, out var s)) Seen[uid] = (DateTime.UtcNow - Idle + ByeGrace, s.Device);
+        uid = Key(uid);
+        if (uid.Length == 0 || !Ready) return;
+        Written.TryRemove(uid, out _);
+        Exec($"UPDATE Nexus.Users SET LastSeenAt = DATEADD(SECOND, -{IdleSeconds - ByeGraceSeconds}, SYSDATETIME()) WHERE UserID = @u", uid, null);
     }
 
-    // Login / Logout เอง
-    public static void LoggedIn(string uid, string device) { Offline.TryRemove(uid ?? "", out _); Seen[uid] = (DateTime.UtcNow, device ?? ""); }
-    public static void LoggedOut(string uid) { Seen.TryRemove(uid ?? "", out _); Offline.TryRemove(uid ?? "", out _); }
-
-    // ยังใช้งานอยู่จริงไหม (ใช้ตอน Login เครื่องอื่น: ONLINE ค้างแต่เงียบเกิน 3 นาที = ให้เข้าได้)
-    public static bool IsActive(string uid) => Seen.TryGetValue(uid ?? "", out var s) && DateTime.UtcNow - s.At < Idle;
-
-    // Login จากเครื่องอื่นขณะ ONLINE ค้าง: เคยเห็นแต่เงียบเกิน 3 นาที / ไม่เคยเห็นเลยตั้งแต่ Server เริ่มเกิน 3 นาที = เครื่องเดิมไม่ได้ใช้แล้ว
-    public static bool CanTakeOver(string uid) =>
-        Seen.TryGetValue(uid ?? "", out var s) ? DateTime.UtcNow - s.At >= Idle : DateTime.UtcNow - Started >= Idle;
-
-    // รอบเก็บกวาด (ทุก 30 วินาที): ONLINE ในฐานแต่ไม่มีการใช้งานเกิน 3 นาที = OFFLINE
-    //   Server เพิ่งเริ่มยังไม่ครบ 3 นาที = รอก่อน (ให้คนที่เปิดหน้าอยู่ได้ ping เข้ามาก่อน)
-    public static int Sweep()
+    public static void LoggedIn(string uid)
     {
-        if (DateTime.UtcNow - Started < Idle) return 0;
-        var online = new List<string>();
-        using var conn = new SqlConnection(GlobalConfig.ConnStr);
-        conn.Open();
-        using (var cmd = new SqlCommand("SELECT UserID FROM Nexus.Users WHERE IsOnline = 1", conn) { CommandTimeout = 10 })
-        using (var r = cmd.ExecuteReader())
-            while (r.Read()) online.Add(r.GetString(0));
-        var stale = online.Where(u => !IsActive(u)).ToList();
-        foreach (var u in stale)
-        {
-            using var up = new SqlCommand("UPDATE Nexus.Users SET IsOnline = 0 WHERE UserID = @u AND IsOnline = 1", conn) { CommandTimeout = 10 };
-            up.Parameters.AddWithValue("@u", u);
-            if (up.ExecuteNonQuery() > 0)
-            {
-                Offline[u] = 1;
-                global::Nexus.Services.LogService.WriteLog(u, "AUTO_OFFLINE", "ไม่มีการใช้งานเกิน 3 นาที / ปิดหน้าต่าง -> ตั้งเป็น OFFLINE ให้อัตโนมัติ", "");
-            }
-        }
-        // ล้างรายการเก่าในหน่วยความจำ
-        foreach (var k in Seen.Where(x => DateTime.UtcNow - x.Value.At > TimeSpan.FromHours(1)).Select(x => x.Key).ToList()) Seen.TryRemove(k, out _);
-        return stale.Count;
+        uid = Key(uid);
+        Written[uid] = DateTime.UtcNow;
+        if (Ready) Exec("UPDATE Nexus.Users SET LastSeenAt = SYSDATETIME() WHERE UserID = @u", uid, null);
     }
 
-    private static void SetOnline(string uid, string device)
+    public static void LoggedOut(string uid) => Written.TryRemove(Key(uid), out _);
+
+    // Login จากเครื่องอื่นขณะ ONLINE ค้าง: ปลดได้เมื่อเครื่องเดิมไม่ได้ส่ง heartbeat เกิน 3 นาที
+    //   หรือเป็น session ของเว็บที่ไม่เคยส่ง heartbeat (ก่อนมีระบบนี้) · WPF เวอร์ชันเก่า (ไม่มี LastSeenAt) = ไม่ปลด
+    public static bool CanTakeOver(string uid)
+    {
+        if (!Ready) return false;
+        using var conn = new SqlConnection(GlobalConfig.ConnStr);
+        using var cmd = new SqlCommand($@"SELECT COUNT(*) FROM Nexus.Users WHERE UserID = @u AND IsOnline = 1 AND (
+                                             (LastSeenAt IS NOT NULL AND LastSeenAt < DATEADD(SECOND, -{IdleSeconds}, SYSDATETIME()))
+                                          OR (LastSeenAt IS NULL AND LastSession LIKE 'WEB-%'))", conn);
+        cmd.Parameters.AddWithValue("@u", Key(uid));
+        conn.Open();
+        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+    }
+
+    // รอบเก็บกวาด: ONLINE แต่ heartbeat เงียบเกิน 3 นาที (และไม่ได้เพิ่ง Login) = OFFLINE + ลง Activity Log
+    public static List<(string User, string Session, int Quiet)> Sweep()
+    {
+        var done = new List<(string, string, int)>();
+        if (!Ready) return done;
+        using var conn = new SqlConnection(GlobalConfig.ConnStr);
+        using var cmd = new SqlCommand($@"
+            UPDATE Nexus.Users SET IsOnline = 0
+            OUTPUT inserted.UserID, inserted.LastSession, DATEDIFF(SECOND, inserted.LastSeenAt, SYSDATETIME())
+             WHERE IsOnline = 1 AND LastSeenAt IS NOT NULL
+               AND LastSeenAt < DATEADD(SECOND, -{IdleSeconds}, SYSDATETIME())
+               AND (LastLogin IS NULL OR LastLogin < DATEADD(SECOND, -{IdleSeconds}, GETDATE()))", conn) { CommandTimeout = 15 };
+        conn.Open();
+        using (var r = cmd.ExecuteReader())
+            while (r.Read()) done.Add((r.GetString(0).Trim(), r.IsDBNull(1) ? "" : r.GetString(1), r.IsDBNull(2) ? 0 : r.GetInt32(2)));
+        foreach (var (u, s, q) in done)
+        {
+            Written.TryRemove(u, out _);
+            global::Nexus.Services.LogService.WriteLog(u, "AUTO_OFFLINE", $"ไม่มีการใช้งาน {q} วินาที (ปิดหน้าต่าง / ปิดโปรแกรม / เน็ตหลุด) -> ตั้งเป็น OFFLINE ให้อัตโนมัติ • เครื่อง {s}", "");
+        }
+        return done;
+    }
+
+    private static void Exec(string sql, string uid, string device)
     {
         Task.Run(() =>
         {
             try
             {
                 using var conn = new SqlConnection(GlobalConfig.ConnStr);
-                using var cmd = new SqlCommand("UPDATE Nexus.Users SET IsOnline = 1, LastSession = @pc WHERE UserID = @u AND ISNULL(IsLocked, 0) = 0", conn) { CommandTimeout = 10 };
-                cmd.Parameters.AddWithValue("@pc", string.IsNullOrEmpty(device) ? DBNull.Value : device);
+                using var cmd = new SqlCommand(sql, conn) { CommandTimeout = 10 };
                 cmd.Parameters.AddWithValue("@u", uid);
+                if (sql.Contains("@pc")) cmd.Parameters.AddWithValue("@pc", (object)device ?? DBNull.Value);
                 conn.Open();
                 cmd.ExecuteNonQuery();
             }
-            catch { /* รอบหน้าลองใหม่ */ }
+            catch { Written.TryRemove(uid, out _); /* รอบหน้าลองใหม่ */ }
         });
     }
 }
 
-// ทุก Request ที่ Login อยู่ = ยังใช้งาน
+// ทุก Request ที่ Login อยู่ = ยังใช้งาน (ยกเว้น bye / logout)
 public sealed class PresenceMiddleware
 {
     private readonly RequestDelegate _next;
@@ -98,7 +134,7 @@ public sealed class PresenceMiddleware
 
     public Task Invoke(HttpContext ctx)
     {
-        if (ctx.User?.Identity?.IsAuthenticated == true && !ctx.Request.Path.StartsWithSegments("/api/auth/bye"))
+        if (ctx.User?.Identity?.IsAuthenticated == true && !ctx.Request.Path.StartsWithSegments("/api/auth/bye") && !ctx.Request.Path.StartsWithSegments("/api/auth/logout"))
             Presence.Touch(ctx.User.FindFirstValue(ClaimTypes.NameIdentifier), ctx.User.FindFirstValue("device"));
         return _next(ctx);
     }
@@ -117,8 +153,8 @@ public sealed class PresenceSweeper : BackgroundService
             try { await Task.Delay(TimeSpan.FromSeconds(30), ct); } catch (OperationCanceledException) { return; }
             try
             {
-                int n = Presence.Sweep();
-                if (n > 0) _log.LogInformation("Presence: {Count} user(s) set OFFLINE", n);
+                var n = Presence.Sweep();
+                if (n.Count > 0) _log.LogInformation("Presence: {Count} user(s) set OFFLINE", n.Count);
             }
             catch (Exception ex) { _log.LogDebug(ex, "Presence sweep"); }
         }

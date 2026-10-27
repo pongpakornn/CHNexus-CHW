@@ -52,7 +52,7 @@ public sealed class AuthController : ControllerBase
         }
 
         auth.UpdateLoginStats(session.UserId);
-        Presence.LoggedIn(session.UserId, global::Nexus.Core.ClientContext.Machine);
+        Presence.LoggedIn(session.UserId);
         LogService.WriteLog(session.UserId, "LOGIN", "เข้าสู่ระบบสำเร็จ", global::Nexus.Core.ClientContext.Machine);
         CurrentUser.Forget(_cache, session.UserId);
 
