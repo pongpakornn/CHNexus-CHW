@@ -32,7 +32,9 @@ export type RowActions = {
 };
 
 const COIL_HEAD: Record<string, string> = { NO: "NO.", COILNO: "COIL NO.", MOTHER: "MASTER COIL", COIL: "STOCK (COIL)", TON: "WEIGHT (TON)", RECEIVED: "RECEIVED", REMARK: "REMARK" };
-const coilCell = (key: string, r: CoilRow) => ({ NO: r.no, COILNO: r.coilNo, MOTHER: r.motherCoil, WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[key] ?? "";
+// Master ทั้งม้วน (กรอกแค่ MASTER COIL ไม่มี COIL NO) = ไม่มี Master อ้างถึง -> ช่อง MASTER COIL แสดงเลขของม้วนนั้นเอง
+export const masterOf = (r: CoilRow) => (r.motherCoil && r.motherCoil.trim() !== "-" ? r.motherCoil : r.coilNo);
+const coilCell = (key: string, r: CoilRow) => ({ NO: r.no, COILNO: r.coilNo, MOTHER: masterOf(r), WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[key] ?? "";
 
 // 📋 แถวสินค้า 1 แถว + แถว Coil ใต้แถว (memo: วาดใหม่เฉพาะเมื่อสินค้านี้ / Coil ของสินค้านี้เปลี่ยน)
 export const ProductRow = memo(function ProductRow({

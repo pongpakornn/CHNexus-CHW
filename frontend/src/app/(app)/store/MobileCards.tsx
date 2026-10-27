@@ -2,7 +2,7 @@
 
 import { memo, useState, useSyncExternalStore } from "react";
 import { StatusLamp } from "./StatusLamp";
-import { CoilRemark, type CoilRow, type CoilState, type Field, type RowActions, type RowCfg } from "./TableRows";
+import { CoilRemark, masterOf, type CoilRow, type CoilState, type Field, type RowActions, type RowCfg } from "./TableRows";
 import { STATUS_COLOR, cardTone, type Product } from "./types";
 
 // 📱 จอมือถือ (กว้าง < 768): แสดงสินค้าเป็นการ์ดแทนตาราง (ไม่ต้องเลื่อนซ้าย-ขวาเพื่อดูยอด)
@@ -203,7 +203,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
 });
 
 const COIL_LABEL: Record<string, string> = { COILNO: "COIL NO.", MOTHER: "MASTER COIL", WEIGHT: "WEIGHT", COIL: "STOCK (COIL)", TON: "TON", RECEIVED: "RECEIVED" };
-const coilVal = (k: string, r: CoilRow) => ({ COILNO: r.coilNo, MOTHER: r.motherCoil, WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[k] ?? "";
+const coilVal = (k: string, r: CoilRow) => ({ COILNO: r.coilNo, MOTHER: masterOf(r), WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[k] ?? "";
 
 // 🧲 Coil บนมือถือ: แถบ MASTER COIL -> Coil ลูกเป็นการ์ดเล็ก (เลข Coil ใหญ่ + ค่าอื่นเป็นคู่ ชื่อ : ค่า)
 function MobileCoils({ list, cfg, act }: { list: CoilState; cfg: RowCfg; act: RowActions }) {
