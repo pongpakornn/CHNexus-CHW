@@ -69,7 +69,7 @@ public sealed class SetupController : AppController
                 var l = pr.TryGetValue(s.StkId, out var x) ? x : new PRExcelLayout { StockId = s.StkId, Entries = PRExcelLayout.DefaultEntries() };
                 return new
                 {
-                    s.StkId, s.Code, keepPr = auto.TryGetValue(s.StkId, out bool on) && on, path = l.Path ?? "", l.StartRow, entries = Entries(l.Entries),
+                    s.StkId, s.Code, s.Name, s.StockType, keepPr = auto.TryGetValue(s.StkId, out bool on) && on, path = l.Path ?? "", l.StartRow, entries = Entries(l.Entries),
                     fileFound = l.HasPath && System.IO.File.Exists(Storage.MapExternal(l.Path))
                 };
             }),
@@ -79,7 +79,7 @@ public sealed class SetupController : AppController
                 var l = rpa.TryGetValue(s.StkId, out var x) ? x : new ScanRpaLayout { StockId = s.StkId, Entries = ScanRpaLayout.DefaultEntries() };
                 return new
                 {
-                    s.StkId, s.Code, path = l.Path ?? "", l.StartRow, entries = Entries(l.Entries), addSheet = l.IsSheetMode, baseSheet = l.TemplateSheet ?? "",
+                    s.StkId, s.Code, s.Name, s.StockType, path = l.Path ?? "", l.StartRow, entries = Entries(l.Entries), addSheet = l.IsSheetMode, baseSheet = l.TemplateSheet ?? "",
                     sheetName = l.SheetName ?? "", dateMode = (l.DateMode ?? "PICK").ToUpperInvariant(), txTypes = l.TxTypes ?? "",
                     fileFound = l.HasPath && System.IO.File.Exists(Storage.MapExternal(l.Path))
                 };

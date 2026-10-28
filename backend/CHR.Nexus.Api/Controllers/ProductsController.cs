@@ -41,7 +41,7 @@ public sealed class ProductsController : AppController
             customFields = new CustomFieldService().GetDefs().Where(d => stocks.Any(s => s.StkId == d.StockId))
                                                    .Select(d => new { d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, d.Unit, options = d.Options.Select(o => o.Value) }),
             // สิทธิ์ต่อคลัง: VIEW = ดูอย่างเดียว / ADD,EDIT = ติ๊กสินค้าเข้าคลัง + แก้ไข / DEL = ลบ
-            stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.IsMain, s.CountCoil, s.ShowCoilRows, s.IsLiveView, canView = true,
+            stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.StockType, s.IsMain, s.CountCoil, s.ShowCoilRows, s.IsLiveView, canView = true,
                                               canAdd = Me.CanAddInStock(s), canEdit = Me.CanEditStock(s), canDelete = Me.CanDeleteInStock(s) }),
             columns = ProductControlColumns.All.Select(c => new { key = c.Key, label = c.Label }),
             layouts = stocks.Select(s => (int?)s.StkId).Prepend(null).Select(id => new { stkId = id ?? 0, layout = LayoutOf(layouts, id) }),

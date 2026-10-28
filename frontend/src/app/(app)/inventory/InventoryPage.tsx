@@ -3,6 +3,7 @@
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
+import { StockTile } from "@/components/ui/StockTile";
 import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
@@ -504,29 +505,22 @@ export default function InventoryPage() {
     }
   };
 
-  // ชิปเลือกคลัง: ดูอย่างเดียว (VIEW) / คลังที่ไม่มีสิทธิ์ ADD-EDIT = ล็อก (กดไม่ได้ ค่าคงเดิม)
+  // การ์ดเลือกคลัง (แบบ STOCK TYPE): ดูอย่างเดียว (VIEW) / คลังที่ไม่มีสิทธิ์ ADD-EDIT = ล็อก (กดไม่ได้ ค่าคงเดิม)
   const stockChip = (s: InvStock, on: boolean, i: number) => {
     const id = s.isMain ? ("main" as const) : s.stkId;
     const locked = (!!viewId && !editId) || !(editId ? s.canEdit : s.canAdd);
     return (
-      <button
+      <StockTile
         key={String(id)}
-        type="button"
+        code={s.code}
+        index={i}
+        type={s.stockType}
+        on={on}
+        locked={locked}
+        sub={s.isMain ? "MAIN" : undefined}
         title={locked ? `${s.name} • ไม่มีสิทธิ์${editId ? "แก้ไข" : "เพิ่ม"}ในคลังนี้ (ดูอย่างเดียว)` : s.name}
-        disabled={locked}
-        aria-pressed={on}
         onClick={() => toggleStock(id)}
-        className={`stk-pick ${on ? "is-on" : ""} ${locked ? "is-locked" : ""}`}
-        style={{ "--i": i } as React.CSSProperties}
-      >
-        <span className="stk-pick-box" aria-hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12.5l4.5 4.5L19 7.5" />
-          </svg>
-        </span>
-        {s.code}
-        {locked && <span className="stk-pick-lock">🔒</span>}
-      </button>
+      />
     );
   };
 
@@ -733,7 +727,7 @@ export default function InventoryPage() {
                 <div className="mt-4 flex flex-col gap-3 border-t border-line/60 pt-4 lg:flex-row lg:items-end">
                   <div className="min-w-0 flex-1">
                     <span className="mb-2 block text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="st-grid">
                       {meta.stocks.map((s, i) => stockChip(s, s.isMain ? inMain : others.includes(s.stkId), i))}
                     </div>
                   </div>

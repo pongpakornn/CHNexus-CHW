@@ -8,6 +8,7 @@ import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Empty, Loading } from "@/components/ui/Page";
 import { api, upload } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
+import { StockTile } from "@/components/ui/StockTile";
 import { useDebounced } from "@/lib/useDebounced";
 
 type Section = "PR" | "EXCEL" | "DEPT";
@@ -223,6 +224,8 @@ type Opt = { key: string; label: string };
 type XRow = {
   stkId: number;
   code: string;
+  name?: string;
+  stockType?: string | null;
   keepPr?: boolean;
   path: string;
   startRow: number;
@@ -388,33 +391,29 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
         <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
           <div>
             <span className={L}>1. STOCK</span>
-            <div className="grid max-h-[55vh] gap-1 overflow-auto">
-              {rows.map((r) => (
-                <button
+            <div className="st-grid is-col max-h-[62vh] overflow-auto p-1">
+              {rows.map((r, i) => (
+                <StockTile
                   key={r.stkId}
+                  role="radio"
+                  code={r.code}
+                  index={i}
+                  type={r.stockType}
+                  on={r.stkId === row.stkId}
+                  dirty={isChanged(r, isRpa)}
+                  title={r.name}
                   onClick={() => {
                     setCur(r.stkId);
                     setSheets([]);
                   }}
-                  className={`fm-item is-col ${r.stkId === row.stkId ? "is-on" : ""}`}
-                  style={{ "--i": rows.indexOf(r) } as React.CSSProperties}
-                >
-                  <div className="font-extrabold">
-                    {r.code}
-                    {isChanged(r, isRpa) && (
-                      <span className="ml-1 text-warning" title="Changed - not saved yet">
-                        ●
-                      </span>
-                    )}
-                  </div>
-                  <div className="truncate text-[11px] font-semibold opacity-75">
-                    {isRpa
+                  sub={
+                    isRpa
                       ? !r.path.trim()
                         ? "no Excel file"
                         : (r.addSheet ? "ADD SHEET · " : "CONTINUE · ") + r.path.split(/[\\/]/).pop()
-                      : (r.keepPr ? "KEEP PR · " : "") + (r.path.trim() ? r.path.split(/[\\/]/).pop() : "no Excel file")}
-                  </div>
-                </button>
+                      : (r.keepPr ? "KEEP PR · " : "") + (r.path.trim() ? r.path.split(/[\\/]/).pop() : "no Excel file")
+                  }
+                />
               ))}
             </div>
           </div>
