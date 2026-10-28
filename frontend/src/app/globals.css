@@ -7140,3 +7140,42 @@ body:has(.modal-bg) .bug-fab {
     animation: none;
   }
 }
+
+/* 🔎 ชิปตัวกรอง (NOT DEDUCTED / DEDUCTED): สถานะ + จำนวน */
+.flt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 100px;
+  border: 1.5px solid #e2e0ea;
+  background: #fff;
+  padding: 4px 6px 4px 12px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink);
+  transition: all 0.25s ease;
+}
+.flt-chip b {
+  min-width: 22px;
+  border-radius: 100px;
+  background: #f1eef7;
+  padding: 1px 7px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--accent);
+  transition: all 0.25s ease;
+}
+.flt-chip:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.flt-chip.is-on {
+  border-color: transparent;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent));
+  color: #fff;
+  box-shadow: 0 8px 16px -10px var(--accent);
+}
+.flt-chip.is-on b {
+  background: rgb(255 255 255 / 0.25);
+  color: #fff;
+}

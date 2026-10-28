@@ -54,6 +54,9 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
   const [sel, setSel] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [reg, setReg] = useState<Row | null>(null);
+  // 🔎 ตัวกรอง (กรองในหน้าจอ ไม่ต้องโหลดใหม่): สถานะ + คลังที่รับเข้า
+  const [view, setView] = useState("ALL");
+  const [stk, setStk] = useState("");
   const k = useDebounced(key, 250);
 
   const seq = useRef(0); // คำขอล่าสุด - ผลของช่วงวันที่เก่าที่ตอบช้ากว่าไม่ทับรายการ
@@ -85,7 +88,9 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
 
   async function exportRows() {
     try {
-      await download("/scanner/deduct/export", undefined, { deducted, key: k, from, to, ids: sel });
+      const ids = sel.length > 0 ? sel : filtered ? (rows ?? []).filter((r) => (!stk || r.stockCode === stk) && viewFn(r)).map((r) => r.missId) : [];
+      if (filtered && ids.length === 0) return toast.show("WARNING", "ไม่มีรายการตามตัวกรองให้ Export", "warn");
+      await download("/scanner/deduct/export", undefined, { deducted, key: k, from, to, ids });
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     }
@@ -130,8 +135,27 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
     }
   }
 
-  const all = rows ?? [];
-  const allSel = all.length > 0 && sel.length === all.length;
+  // ชิปตัวกรอง: ป้ายที่ยังไม่รับเข้า = รอดำเนินการ / ไม่มี PD CODE / Master Coil อยู่ในคลังต้นทาง / รับเข้าแล้ว (ยังไม่ตัด)
+  //               ป้ายที่ตัดแล้ว = ตัดด้วย Master Coil / ยังไม่ได้ตัด
+  const VIEWS: [string, string, (r: Row) => boolean][] = deducted
+    ? [
+        ["ALL", "ALL", () => true],
+        ["MASTER", "CUT BY MASTER COIL", (r) => r.how === "MASTER COIL"],
+        ["NOTCUT", "NOT CUT YET", (r) => r.how === "NONE"],
+      ]
+    : [
+        ["ALL", "ALL", () => true],
+        ["WAITING", "WAITING", (r) => r.isPending],
+        ["NOPD", "NO PD CODE", (r) => !r.hasProduct],
+        ["INSOURCE", "MASTER COIL IN SOURCE", (r) => r.motherNow !== null],
+        ["RECEIVED", "RECEIVED (NOT CUT)", (r) => r.status === "RECEIVED"],
+      ];
+  const base = (rows ?? []).filter((r) => !stk || r.stockCode === stk);
+  const viewFn = (VIEWS.find((v) => v[0] === view) ?? VIEWS[0])[2];
+  const all = base.filter(viewFn);
+  const stockCodes = [...new Set((rows ?? []).map((r) => r.stockCode))].sort();
+  const filtered = view !== "ALL" || !!stk;
+  const allSel = all.length > 0 && all.every((r) => sel.includes(r.missId));
 
   return (
     <>
@@ -160,6 +184,35 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
           <SearchBox className="min-w-[240px] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา Coil / Master Coil / PD CODE / ผู้สแกน" />
           <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
         </div>
+        {/* ตัวกรองสถานะ (จำนวนตามคลังที่เลือก) + คลังที่รับเข้า */}
+        {rows && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">FILTER</span>
+            {VIEWS.map(([k2, label, fn]) => {
+              const n = base.filter(fn).length;
+              return (
+                <button key={k2} type="button" className={`flt-chip ${view === k2 ? "is-on" : ""}`} onClick={() => setView(k2)} aria-pressed={view === k2}>
+                  {label} <b>{n.toLocaleString()}</b>
+                </button>
+              );
+            })}
+            {stockCodes.length > 1 && (
+              <MenuSelect
+                compact
+                className="w-[190px]"
+                label="STOCK"
+                value={stk}
+                options={[{ value: "", label: "ALL STOCKS" }, ...stockCodes.map((c) => ({ value: c, label: c }))]}
+                onChange={setStk}
+              />
+            )}
+            {filtered && (
+              <button type="button" className="fill-btn is-xs" onClick={() => (setView("ALL"), setStk(""))}>
+                ✕ CLEAR
+              </button>
+            )}
+          </div>
+        )}
         {!rows ? (
           <Loading />
         ) : (
