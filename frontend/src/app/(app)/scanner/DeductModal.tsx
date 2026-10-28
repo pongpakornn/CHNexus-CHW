@@ -9,7 +9,7 @@ import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
 import { PartPicker, type PartOption } from "@/components/ui/PartPicker";
 import { api, download } from "@/lib/api";
 import { MenuSelect } from "@/components/ui/MenuSelect";
-import { daysAgo, parseNum, qty, today } from "@/lib/format";
+import { parseNum, qty, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 
 type Row = {
@@ -46,7 +46,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
   const toast = useToast();
   const dlg = useDialogs();
   const [key, setKey] = useState("");
-  const [from, setFrom] = useState(deducted ? today() : daysAgo(60));
+  const [from, setFrom] = useState(today()); // เปิดหน้าต่าง = วันนี้ทั้ง FROM / TO (เลือกช่วงอื่นได้ที่ปุ่มลัด / ปฏิทิน)
   const [to, setTo] = useState(today());
   const [rows, setRows] = useState<Row[] | null>(null);
   const [canAct, setCanAct] = useState(false);
