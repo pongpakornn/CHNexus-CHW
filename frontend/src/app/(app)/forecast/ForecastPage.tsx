@@ -368,18 +368,20 @@ export default function ForecastPage() {
         </div>
       </Modal>
 
-      {/* 📤 EXPORT: เลือกเดือน (1 เดือน = 1 ชีท) */}
+      {/* 📤 EXPORT: เลือกเดือน (1 เดือน = 1 ชีท) - การ์ดเดือนแยกตามปี · ปุ่มลัด · สรุปจำนวนชีท */}
       <Modal
         open={exportOpen}
+        wide
         title="📤 EXPORT FORECAST / ORDER / DELIVERY"
         onClose={() => setExportOpen(false)}
         footer={
           <>
-            <button className="btn-ghost" onClick={() => setExportOpen(false)}>
+            <span className="mr-auto text-xs font-bold text-ink-soft">{pick.length > 0 ? `${pick.length} SHEET(S) • 1 เดือน = 1 ชีท` : "เลือกอย่างน้อย 1 เดือน"}</span>
+            <button className="fill-btn" onClick={() => setExportOpen(false)}>
               CANCEL
             </button>
             <button
-              className="btn bg-success"
+              className="cta-btn is-green"
               disabled={pick.length === 0}
               onClick={() => {
                 setExportOpen(false);
@@ -393,18 +395,77 @@ export default function ForecastPage() {
           </>
         }
       >
-        <p className="mb-3 text-sm font-semibold text-ink-soft">Tick ALL MONTHS or the months you want • one sheet per month{k ? ` • search: ${k}` : ""}</p>
-        <label className="mb-2 flex items-center gap-2 font-extrabold">
-          <input type="checkbox" checked={pick.length === months.length} onChange={(e) => setPick(e.target.checked ? months.map((m) => m.key) : [])} /> ALL MONTHS
-        </label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {months.map((m) => (
-            <label key={m.key} className={`flex items-center gap-2 rounded-lg border p-2 text-sm font-bold ${pick.includes(m.key) ? "border-accent" : "border-line"}`}>
-              <input type="checkbox" checked={pick.includes(m.key)} onChange={(e) => setPick((p) => (e.target.checked ? [...p, m.key] : p.filter((x) => x !== m.key)))} />
-              {m.label}
-            </label>
-          ))}
-        </div>
+        {(() => {
+          const allOn = months.length > 0 && pick.length === months.length;
+          const years = [...new Set(months.map((m) => m.label.split(" ").pop() ?? ""))];
+          const quick: [string, string[]][] = [
+            ["LAST 3", months.slice(0, 3).map((m) => m.key)],
+            ["LAST 6", months.slice(0, 6).map((m) => m.key)],
+            ...years.map((y) => [`YEAR ${y}`, months.filter((m) => m.label.endsWith(y)).map((m) => m.key)] as [string, string[]]),
+          ];
+          const same = (a: string[]) => a.length === pick.length && a.every((x) => pick.includes(x));
+          return (
+            <div className="grid gap-4">
+              {/* หัว: เลือกทั้งหมด (สวิตช์) + จำนวนที่เลือก + ปุ่มลัด */}
+              <div className="fx-hero">
+                <label className={`sw ${allOn ? "is-on" : ""}`}>
+                  <input type="checkbox" className="sr-only" checked={allOn} onChange={(e) => setPick(e.target.checked ? months.map((m) => m.key) : [])} />
+                  <span className="sw-track" />
+                  ALL MONTHS
+                </label>
+                <span className="fx-count" key={pick.length}>
+                  <b>{pick.length}</b> / {months.length} MONTHS
+                </span>
+                <span className="ml-auto flex flex-wrap gap-1.5">
+                  {quick.map(([label, keys]) => (
+                    <button key={label} type="button" className={`flt-chip ${keys.length > 0 && same(keys) ? "is-on" : ""}`} onClick={() => setPick(keys)}>
+                      {label}
+                    </button>
+                  ))}
+                  <button type="button" className="fill-btn is-xs" disabled={pick.length === 0} onClick={() => setPick([])}>
+                    ✕ CLEAR
+                  </button>
+                </span>
+              </div>
+              {k && <div className="text-xs font-bold text-accent">🔎 เฉพาะผลค้นหา: {k}</div>}
+              {/* การ์ดเดือนแยกตามปี */}
+              {years.map((y) => (
+                <section key={y} className="grid gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="fx-year">{y}</span>
+                    <span className="h-px flex-1 bg-[#ece9f3]" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                    {months
+                      .filter((m) => m.label.endsWith(y))
+                      .map((m, i) => {
+                        const on = pick.includes(m.key);
+                        return (
+                          <button
+                            key={m.key}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={on}
+                            className={`fx-month ${on ? "is-on" : ""}`}
+                            style={{ "--i": i } as React.CSSProperties}
+                            onClick={() => setPick((p) => (on ? p.filter((x) => x !== m.key) : [...p, m.key]))}
+                          >
+                            <span className="fx-month-check" aria-hidden>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 12.5l4.5 4.5L19 7.5" />
+                              </svg>
+                            </span>
+                            <b>{m.label.split(" ")[0]}</b>
+                            <small>{y}</small>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          );
+        })()}
       </Modal>
     </PageBody>
   );
