@@ -16,7 +16,18 @@ type Opt = { key: string; label: string };
 type COpt = { id: number; value: string; uses: number };
 type CField = { fieldId: number; stockId: number; key: string; label: string; type: string; values: number; unit: string | null; options: COpt[]; suggest?: boolean; autoFrom?: string | null; isNew?: boolean };
 // หน่วยที่ใช้บ่อยของช่อง NUMBER (กดเลือก หรือพิมพ์เอง)
-const UNITS = ["KG", "TON", "G", "PCS", "BOX", "SET", "M", "CM", "MM", "L"];
+const UNITS = ["KG", "TON", "G", "PCS", "BOX", "SET", "M", "CM", "MM", "L", "SEC", "MIN", "HR", "DAY", "WEEK", "MONTH", "YEAR"];
+// กลุ่มหน่วย (TYPES & UNITS)
+const UNIT_GROUPS = [
+  { value: "WEIGHT", label: "น้ำหนัก (WEIGHT)" },
+  { value: "COUNT", label: "จำนวน (COUNT)" },
+  { value: "LENGTH", label: "ความยาว (LENGTH)" },
+  { value: "VOLUME", label: "ปริมาตร (VOLUME)" },
+  { value: "TIME", label: "เวลา (TIME)" },
+  { value: "OTHER", label: "อื่นๆ (OTHER)" },
+];
+type FType = { id: number; name: string; baseType: string; unit: string | null };
+type FUnit = { id: number; unit: string; group: string };
 // ช่องของระบบที่ใช้เป็นต้นทางของการเติมอัตโนมัติ
 const AUTO_SRC: Opt[] = [
   { key: "SUPPLIER", label: "SUPPLIER" },
@@ -52,6 +63,9 @@ type Data = {
   hasCustomFields: boolean;
   hasDropdown: boolean;
   hasHelpers?: boolean;
+  hasPresets?: boolean;
+  fieldTypes?: FType[];
+  fieldUnits?: FUnit[];
   customFields: CField[];
   hasQrFields: boolean;
 };
@@ -73,7 +87,13 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   // ➕ CUSTOM FIELDS: ช่องใหม่ / ช่องที่กำลังแก้
-  const [nf, setNf] = useState({ label: "", type: "TEXT", unit: "", suggest: false, auto: false, autoFrom: "" });
+  const [nf, setNf] = useState({ label: "", type: "TEXT", unit: "", suggest: false, auto: false, autoFrom: "", preset: "" });
+  // แท็บบนของ CUSTOM FIELDS: ตามคลัง / ช่องทั้งหมด / ชนิด + หน่วย
+  const [cfMode, setCfMode] = useState<"STOCK" | "ALL" | "TYPES">("STOCK");
+  const [nt, setNt] = useState({ name: "", baseType: "NUMBER", unit: "" });
+  const [et, setEt] = useState<FType | null>(null);
+  const [nu, setNu] = useState({ unit: "", group: "TIME" });
+  const [eu, setEu] = useState<FUnit | null>(null);
   const [ef, setEf] = useState<{ id: number; label: string; type: string; unit: string; suggest: boolean; auto: boolean; autoFrom: string } | null>(null);
   // ▾ DROPDOWN LISTS: ช่องที่เลือก / รายการใหม่ / รายการที่กำลังแก้
   const [lf, setLf] = useState(0);
@@ -169,6 +189,37 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   // ช่วยกรอก: แสดงค่าที่เคยกรอก + เติมอัตโนมัติจากช่องต้นทาง (ส่งเฉพาะเมื่อฐานรองรับ)
   const helperBody = (h: { suggest: boolean; auto: boolean; autoFrom: string }) =>
     data?.hasHelpers ? { suggest: h.suggest, autoFrom: h.auto && h.autoFrom ? h.autoFrom : null } : {};
+  // 🧩 TYPES & UNITS: เพิ่ม / แก้ / ลบ ชนิดสำเร็จรูป + หน่วย
+  async function presetRun(fn: () => Promise<{ message: string }>) {
+    try {
+      const r = await fn();
+      toast.show("TYPES & UNITS", r.message, "ok");
+      setChanged(true);
+      load();
+    } catch (e) {
+      toast.show("WARNING", (e as Error).message, "warn");
+    }
+  }
+  const saveType = (t: { name: string; baseType: string; unit: string | null }, id?: number) =>
+    presetRun(() => api(id ? `/products/admin/field-types/${id}` : "/products/admin/field-types", { method: id ? "PUT" : "POST", body: { name: t.name, baseType: t.baseType, unit: t.baseType === "NUMBER" ? t.unit : null } })).then(() => (id ? setEt(null) : setNt({ name: "", baseType: t.baseType, unit: "" })));
+  const saveUnit = (u: { unit: string; group: string }, id?: number) =>
+    presetRun(() => api(id ? `/products/admin/field-units/${id}` : "/products/admin/field-units", { method: id ? "PUT" : "POST", body: u })).then(() => (id ? setEu(null) : setNu({ unit: "", group: u.group })));
+  async function delPreset(kind: "types" | "units", id: number, name: string) {
+    if (!(await dlg.confirm({ title: "DELETE", danger: true, ok: "🗑 DELETE", message: `ลบ "${name}"?\n\nช่องที่สร้าง / ใช้อยู่แล้วไม่เปลี่ยน` }))) return;
+    presetRun(() => api(`/products/admin/field-${kind}/${id}/delete`, { method: "POST" }));
+  }
+  // หน่วยให้เลือก: จากตั้งค่า (TYPES & UNITS) · ฐานยังไม่รองรับ = รายการเริ่มต้น
+  const unitList = (data?.fieldUnits?.length ? data.fieldUnits.map((u) => u.unit) : UNITS);
+  // TYPE ตอนเพิ่มช่อง: ชนิดพื้นฐาน + ชนิดสำเร็จรูป (P:id = ชนิดพื้นฐาน + หน่วยเริ่มต้น)
+  const typeOptions = [
+    ...(data?.hasDropdown ? CF_TYPES : CF_TYPES.filter((t) => t.value !== "SELECT")),
+    ...(data?.fieldTypes ?? []).map((t) => ({ value: `P:${t.id}`, label: `🧩 ${t.name} (${typeName(t.baseType)}${t.unit ? ` • ${t.unit}` : ""})` })),
+  ];
+  const pickType = (v: string) => {
+    const p = v.startsWith("P:") ? data?.fieldTypes?.find((t) => `P:${t.id}` === v) : null;
+    setNf(p ? { ...nf, preset: v, type: p.baseType, unit: p.unit ?? "" } : { ...nf, preset: "", type: v });
+  };
+
   // ใช้ช่องที่มีอยู่แล้วของคลังอื่น
   async function copyField(f: CField) {
     const code = stockOf(cur)?.code ?? "";
@@ -195,7 +246,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     try {
       const r = await api<{ message: string }>("/products/admin/fields", { method: "POST", body: { stkId: cur, label, type: nf.type, unit: nf.type === "NUMBER" ? nf.unit : null, ...helperBody(nf) } });
       toast.show("CUSTOM FIELD", r.message + (nf.type === "SELECT" ? "\nเพิ่มรายการให้เลือกได้ที่เมนู DROPDOWN LISTS" : ""), "ok");
-      setNf({ label: "", type: nf.type, unit: "", suggest: false, auto: false, autoFrom: "" });
+      setNf({ label: "", type: nf.type, unit: "", suggest: false, auto: false, autoFrom: "", preset: "" });
       setChanged(true);
       load();
     } catch (e) {
@@ -529,6 +580,149 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
 
           {tab === "FIELDS" && (
             <div key="fields" className="adm-pane grid content-start gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-extrabold text-ink-soft">VIEW</span>
+                {(
+                  [
+                    ["STOCK", "🏬 FIELDS BY STOCK"],
+                    ["ALL", `☰ ALL FIELDS (${data.customFields.length})`],
+                    ["TYPES", "🧩 TYPES & UNITS"],
+                  ] as const
+                ).map(([k, t]) => fill(cfMode === k, t, () => (setCfMode(k), setEf(null), setEt(null), setEu(null)), `cfm-${k}`))}
+              </div>
+              {cfMode === "ALL" && (
+                <div className="adm-box grid content-start gap-3">
+                  <div className="adm-title">ช่องกรอกเพิ่มเองทั้งหมด • กด EDIT เพื่อแก้ (ชื่อ / ชนิด / หน่วย / ช่วยกรอก) หรือ DELETE เพื่อลบ</div>
+                  {data.customFields.length === 0 && <div className="py-3 text-sm font-bold text-ink-soft">ยังไม่มีช่องเพิ่มเอง</div>}
+                  {data.stocks
+                    .filter((st) => data.customFields.some((f) => f.stockId === st.stkId))
+                    .map((st) => (
+                      <div key={st.stkId} className="grid gap-2">
+                        <div className="text-[12px] font-extrabold text-accent">{st.code}</div>
+                        {data.customFields
+                          .filter((f) => f.stockId === st.stkId)
+                          .map((f, i) => (
+                            <div key={f.fieldId} className="cf-row" style={{ "--i": i } as React.CSSProperties}>
+                              <span className="cf-key">{f.key}</span>
+                              <b className="min-w-0 flex-1 truncate text-[14px] text-[#1f2350]">
+                                {f.label}
+                                {f.isNew && <NewDot />}
+                              </b>
+                              {f.suggest && <span className="cf-type">☰ SUGGEST</span>}
+                              {f.autoFrom && <span className="cf-type">⚡ AUTO ← {autoName(f.autoFrom)}</span>}
+                              <span className="cf-type">
+                                {typeName(f.type)}
+                                {f.unit ? ` • ${f.unit}` : ""}
+                              </span>
+                              <span className="text-[11px] font-bold text-ink-soft">{f.values.toLocaleString()} ค่า</span>
+                              <button
+                                className="fill-btn is-xs"
+                                onClick={() => (setCur(f.stockId), setCfMode("STOCK"), setEf({ id: f.fieldId, label: f.label, type: f.type, unit: f.unit ?? "", suggest: !!f.suggest, auto: !!f.autoFrom, autoFrom: f.autoFrom ?? "" }))}
+                              >
+                                ✏ EDIT
+                              </button>
+                              <button className="fill-btn is-xs text-danger" onClick={() => deleteField(f)}>
+                                🗑 DELETE
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+                </div>
+              )}
+              {cfMode === "TYPES" &&
+                (!data.hasPresets ? (
+                  <div className="adm-sum is-warn">ฐานข้อมูลยังไม่รองรับ - รัน database/nexus/15_Custom_Field_Types_Units.sql บนฐาน CHR-Nexus</div>
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="adm-box grid content-start gap-2">
+                      <div className="adm-title mb-1">🧩 ชนิดข้อมูลสำเร็จรูป (TYPE) • เลือกได้ในช่อง TYPE ตอนเพิ่มช่อง</div>
+                      <p className="text-[11px] font-semibold text-ink-soft">ชนิดพื้นฐาน TEXT / NUMBER / DATE / DROPDOWN มีเสมอ · สร้างชนิดของตัวเองได้ เช่น WEIGHT = NUMBER + KG · CYCLE TIME = NUMBER + SEC</p>
+                      {(data.fieldTypes ?? []).length === 0 && <div className="py-2 text-sm font-bold text-ink-soft">ยังไม่มีชนิดสำเร็จรูป - เพิ่มได้ด้านล่าง</div>}
+                      {(data.fieldTypes ?? []).map((t, i) =>
+                        et?.id === t.id ? (
+                          <div key={t.id} className="cf-row is-edit">
+                            <input className="field fx-in min-w-0 flex-1" autoFocus maxLength={40} value={et.name} onChange={(e) => setEt({ ...et, name: e.target.value })} />
+                            <MenuSelect compact className="w-[170px]" value={et.baseType} options={CF_TYPES} onChange={(v) => setEt({ ...et, baseType: v })} />
+                            {et.baseType === "NUMBER" && <MenuSelect compact className="w-[110px]" value={et.unit ?? ""} options={[{ value: "", label: "— ไม่มี —" }, ...unitList.map((u) => ({ value: u, label: u }))]} onChange={(v) => setEt({ ...et, unit: v })} />}
+                            <button className="cta-btn is-purple is-sm" onClick={() => saveType(et, et.id)}>
+                              💾 SAVE
+                            </button>
+                            <button className="fill-btn is-xs" onClick={() => setEt(null)}>
+                              CANCEL
+                            </button>
+                          </div>
+                        ) : (
+                          <div key={t.id} className="cf-row" style={{ "--i": i } as React.CSSProperties}>
+                            <b className="min-w-0 flex-1 truncate text-[14px] text-[#1f2350]">🧩 {t.name}</b>
+                            <span className="cf-type">
+                              {typeName(t.baseType)}
+                              {t.unit ? ` • ${t.unit}` : ""}
+                            </span>
+                            <button className="fill-btn is-xs" onClick={() => setEt(t)}>
+                              ✏ EDIT
+                            </button>
+                            <button className="fill-btn is-xs text-danger" onClick={() => delPreset("types", t.id, t.name)}>
+                              🗑 DELETE
+                            </button>
+                          </div>
+                        ),
+                      )}
+                      <div className="cf-row is-edit mt-2">
+                        <input className="field fx-in min-w-0 flex-1" maxLength={40} placeholder="ชื่อชนิด เช่น WEIGHT / CYCLE TIME" value={nt.name} onChange={(e) => setNt({ ...nt, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && nt.name.trim() && saveType(nt)} />
+                        <MenuSelect compact className="w-[170px]" value={nt.baseType} options={CF_TYPES} onChange={(v) => setNt({ ...nt, baseType: v })} />
+                        {nt.baseType === "NUMBER" && <MenuSelect compact className="w-[110px]" value={nt.unit} options={[{ value: "", label: "— ไม่มี —" }, ...unitList.map((u) => ({ value: u, label: u }))]} onChange={(v) => setNt({ ...nt, unit: v })} />}
+                        <button className="cta-btn is-purple is-sm" disabled={!nt.name.trim()} onClick={() => saveType(nt)}>
+                          ＋ ADD TYPE
+                        </button>
+                      </div>
+                    </div>
+                    <div className="adm-box grid content-start gap-2">
+                      <div className="adm-title mb-1">📏 หน่วย (UNIT) ของช่อง NUMBER</div>
+                      {UNIT_GROUPS.filter((g) => (data.fieldUnits ?? []).some((u) => u.group === g.value)).map((g) => (
+                        <div key={g.value} className="grid gap-1.5">
+                          <span className="text-[11px] font-extrabold text-ink-soft">{g.label}</span>
+                          <div className="flex flex-wrap gap-2">
+                            {(data.fieldUnits ?? [])
+                              .filter((u) => u.group === g.value)
+                              .map((u) =>
+                                eu?.id === u.id ? (
+                                  <span key={u.id} className="flex items-center gap-1.5">
+                                    <input className="field fx-in w-[90px]" autoFocus maxLength={20} value={eu.unit} onChange={(e) => setEu({ ...eu, unit: e.target.value })} onKeyDown={(e) => (e.key === "Enter" ? saveUnit(eu, eu.id) : e.key === "Escape" && setEu(null))} />
+                                    <MenuSelect compact className="w-[150px]" value={eu.group} options={UNIT_GROUPS} onChange={(v) => setEu({ ...eu, group: v })} />
+                                    <button className="cta-btn is-purple is-sm" onClick={() => saveUnit(eu, eu.id)}>
+                                      💾
+                                    </button>
+                                    <button className="fill-btn is-xs" onClick={() => setEu(null)}>
+                                      ✕
+                                    </button>
+                                  </span>
+                                ) : (
+                                  <span key={u.id} className="unit-chip is-edit">
+                                    <button type="button" title="แก้ไข" onClick={() => setEu(u)}>
+                                      {u.unit}
+                                    </button>
+                                    <button type="button" className="unit-x" title="ลบ" onClick={() => delPreset("units", u.id, u.unit)}>
+                                      ×
+                                    </button>
+                                  </span>
+                                ),
+                              )}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="cf-row is-edit mt-2">
+                        <input className="field fx-in min-w-0 flex-1" maxLength={20} placeholder="หน่วยใหม่ เช่น RPM / %" value={nu.unit} onChange={(e) => setNu({ ...nu, unit: e.target.value })} onKeyDown={(e) => e.key === "Enter" && nu.unit.trim() && saveUnit(nu)} />
+                        <MenuSelect compact className="w-[170px]" value={nu.group} options={UNIT_GROUPS} onChange={(v) => setNu({ ...nu, group: v })} />
+                        <button className="cta-btn is-purple is-sm" disabled={!nu.unit.trim()} onClick={() => saveUnit(nu)}>
+                          ＋ ADD UNIT
+                        </button>
+                      </div>
+                      <p className="text-[11px] font-semibold text-ink-soft">กดที่หน่วยเพื่อแก้ไข · × เพื่อลบ · ช่องที่ใช้หน่วยอยู่แล้วไม่เปลี่ยน</p>
+                    </div>
+                  </div>
+                ))}
+              {cfMode === "STOCK" && (<>
               <div className="adm-title">SELECT STOCK</div>
               <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {data.stocks.map((st, i) =>
@@ -595,14 +789,14 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                     </label>
                     <div className="fx">
                       <span className="fx-cap">ชนิดข้อมูล (TYPE)</span>
-                      <MenuSelect compact className="w-full" value={nf.type} options={data.hasDropdown ? CF_TYPES : CF_TYPES.filter((t) => t.value !== "SELECT")} onChange={(v) => setNf({ ...nf, type: v })} />
+                      <MenuSelect compact className="w-full" value={nf.preset || nf.type} options={typeOptions} onChange={pickType} />
                     </div>
                     {nf.type === "NUMBER" && (
                       <label className="fx">
                         <span className="fx-cap">หน่วย (UNIT) - ไม่บังคับ</span>
                         <input className="field fx-in" maxLength={20} list="cf-units" placeholder="เลือกด้านล่าง หรือพิมพ์เอง" value={nf.unit} onChange={(e) => setNf({ ...nf, unit: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addField()} />
                         <span className="unit-chips">
-                          {UNITS.map((u) => (
+                          {unitList.map((u) => (
                             <button key={u} type="button" className={`unit-chip ${nf.unit.trim().toUpperCase() === u ? "is-on" : ""}`} onClick={() => setNf({ ...nf, unit: nf.unit.trim().toUpperCase() === u ? "" : u })}>
                               {u}
                             </button>
@@ -632,7 +826,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                       ) : null;
                     })()}
                     <datalist id="cf-units">
-                      {UNITS.map((u) => (
+                      {unitList.map((u) => (
                         <option key={u} value={u} />
                       ))}
                     </datalist>
@@ -642,6 +836,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                   </div>
                 </div>
               ) : null}
+              </>)}
             </div>
           )}
 

@@ -7560,3 +7560,24 @@ body:has(.modal-bg) .bug-fab {
   padding: 10px 12px;
 }
 @media (prefers-reduced-motion: reduce) { .cf-new { animation: none; } }
+
+/* 🧩 TYPES & UNITS: ชิปหน่วยแบบแก้ / ลบได้ */
+.unit-chip.is-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+}
+.unit-chip.is-edit > button:first-child { font: inherit; color: inherit; }
+.unit-chip .unit-x {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ink-soft);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.unit-chip .unit-x:hover { background: #fee2e2; color: #dc2626; }

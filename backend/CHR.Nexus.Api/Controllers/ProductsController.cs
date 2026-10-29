@@ -610,6 +610,9 @@ public sealed class ProductsController : AppController
                 d.Suggest, d.AutoFrom, isNew = IsNew(d)
             }),
             hasHelpers = CustomFieldService.HasHelpers,
+            hasPresets = FieldPresetService.Ready,
+            fieldTypes = new FieldPresetService().GetTypes().Select(t => new { t.Id, t.Name, baseType = t.BaseType, t.Unit }),
+            fieldUnits = new FieldPresetService().GetUnits().Select(u => new { u.Id, u.Unit, group = u.Group }),
             hasQrFields = DbSchema.HasQrFields
         });
     }
@@ -706,6 +709,65 @@ public sealed class ProductsController : AppController
         }
         catch (InvalidOperationException ex) { return Fail(ex.Message); }
     }
+
+    // 🧩 TYPES & UNITS (Level 1): ชนิดสำเร็จรูป (ชนิดพื้นฐาน + หน่วย) / รายการหน่วยของช่อง NUMBER - เพิ่ม / แก้ / ลบ · ลง Activity Log
+    public sealed record TypeSave(string Name, string BaseType, string Unit);
+    public sealed record UnitSave(string Unit, string Group);
+
+    private IActionResult Preset(Func<string> run)
+    {
+        if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        try { return Ok(new { message = run() }); }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    [HttpPost("admin/field-types")]
+    public IActionResult AddType([FromBody] TypeSave r) => Preset(() =>
+    {
+        new FieldPresetService().SaveType(0, r?.Name, r?.BaseType, r?.Unit, Uid);
+        LogService.WriteLog(Uid, "CUSTOM_FIELD_TYPE", $"ADD {r?.Name} = {r?.BaseType} {r?.Unit}", "");
+        return "เพิ่มชนิดแล้ว";
+    });
+
+    [HttpPut("admin/field-types/{id:int}")]
+    public IActionResult EditType(int id, [FromBody] TypeSave r) => Preset(() =>
+    {
+        new FieldPresetService().SaveType(id, r?.Name, r?.BaseType, r?.Unit, Uid);
+        LogService.WriteLog(Uid, "CUSTOM_FIELD_TYPE", $"EDIT #{id} -> {r?.Name} = {r?.BaseType} {r?.Unit}", "");
+        return "แก้ไขชนิดแล้ว";
+    });
+
+    [HttpPost("admin/field-types/{id:int}/delete")]
+    public IActionResult DeleteType(int id) => Preset(() =>
+    {
+        new FieldPresetService().DeleteType(id);
+        LogService.WriteLog(Uid, "CUSTOM_FIELD_TYPE", $"DELETE #{id}", "");
+        return "ลบชนิดแล้ว (ช่องที่สร้างจากชนิดนี้ไว้แล้วไม่เปลี่ยน)";
+    });
+
+    [HttpPost("admin/field-units")]
+    public IActionResult AddUnit([FromBody] UnitSave r) => Preset(() =>
+    {
+        new FieldPresetService().SaveUnit(0, r?.Unit, r?.Group, Uid);
+        LogService.WriteLog(Uid, "CUSTOM_FIELD_UNIT", $"ADD {r?.Unit} ({r?.Group})", "");
+        return "เพิ่มหน่วยแล้ว";
+    });
+
+    [HttpPut("admin/field-units/{id:int}")]
+    public IActionResult EditUnit(int id, [FromBody] UnitSave r) => Preset(() =>
+    {
+        new FieldPresetService().SaveUnit(id, r?.Unit, r?.Group, Uid);
+        LogService.WriteLog(Uid, "CUSTOM_FIELD_UNIT", $"EDIT #{id} -> {r?.Unit} ({r?.Group})", "");
+        return "แก้ไขหน่วยแล้ว";
+    });
+
+    [HttpPost("admin/field-units/{id:int}/delete")]
+    public IActionResult DeleteUnit(int id) => Preset(() =>
+    {
+        new FieldPresetService().DeleteUnit(id);
+        LogService.WriteLog(Uid, "CUSTOM_FIELD_UNIT", $"DELETE #{id}", "");
+        return "ลบหน่วยแล้ว (ช่องที่ใช้หน่วยนี้อยู่ไม่เปลี่ยน)";
+    });
 
     // ใช้ช่องที่มีอยู่แล้วกับคลังอื่น (ชื่อ / ชนิด / หน่วย / รายการ DROPDOWN / ช่วยกรอก เดียวกัน)
     public sealed record FieldCopy(int StkId);
