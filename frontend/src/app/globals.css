@@ -7482,7 +7482,7 @@ body:has(.modal-bg) .bug-fab {
     animation: none;
   }
 }
-/* 🔐 Login: กันสีไฮไลต์ของ Browser ตอนเลือกรหัสที่บันทึกไว้ (autofill) - ให้เป็นสีช่องของระบบ */
+/* 🔐 Login: กันสีไฮไลต์ของ Browser ตอนเลือกรหัสที่บันทึกไว้ (autofill) → ใช้สีช่องของระบบ */
 .lg-field:-webkit-autofill,
 .lg-field:-webkit-autofill:hover,
 .lg-field:-webkit-autofill:focus,
