@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CHR.Nexus.Api.Web;
 using CHR.Nexus.Api.Web.Scanner;
 using Nexus.Helpers;
@@ -83,6 +83,44 @@ public sealed class ScannerActionsController : AppController
         {
             message = $"{r.PartCode}  {r.LabelQtyText} → {r.StockCode}\n" +
                       (d.Deducted > 0 ? $"ตัด {d.SourceCode} {Qty.Plain(d.Deducted)} ({d.SourcePartCode} เหลือ {Qty.Plain(d.SourceAfter)})" : $"ยังไม่ได้ตัด {r.SourceCode}") + "\nย้ายไปที่ DEDUCTED แล้ว"
+        });
+    }
+
+    // ⚡ APPROVE READY: รายการที่ตัดได้ครบตอนนี้ (Ids = ป้ายที่แสดงในหน้าต่าง) = มี PD CODE + Master Coil ในคลังต้นทางเหลือพอตามป้าย
+    //    ไล่ตามลำดับที่สแกน หักน้ำหนักที่ใช้ไปของ Master Coil ทีละใบ (ใบที่เหลือไม่พอ = ข้าม ค้างไว้) · ไม่มี PD CODE / ไม่มี Master Coil = ค้างไว้
+    public sealed record ReadyRequest(List<int> Ids);
+
+    [HttpPost("deduct/approve-ready")]
+    public IActionResult ApproveReady([FromBody] ReadyRequest req)
+    {
+        if (!CanAct) return Deny("ต้องมีสิทธิ์ APPROVE ของ Multi-Scanner");
+        var svc = new DeductMissService();
+        var rows = svc.GetRows("", new DateTime(2000, 1, 1), DateTime.Today, Scope().DeductStockIds)
+                      .Where(r => r.HasProduct && r.MotherNow.HasValue && (req?.Ids == null || req.Ids.Contains(r.MissId)))
+                      .OrderBy(r => r.ScanDate).ThenBy(r => r.MissId).ToList();
+        var left = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        int done = 0, skipped = 0;
+        decimal kg = 0;
+        var errors = new List<string>();
+        foreach (var r in rows)
+        {
+            string key = r.SourceStockId + "|" + r.MotherCoil;
+            decimal have = left.TryGetValue(key, out var v) ? v : r.MotherNow.Value;
+            if (have < r.LabelQty) { skipped++; continue; }
+            var res = svc.Receive(r, r.PartId.Value, r.LabelQty, Uid, "APPROVED");
+            if (!res.Ok) { errors.Add($"{r.CoilNo}: {res.Message}"); continue; }
+            decimal cut = res.Deduct?.Deducted ?? 0;
+            left[key] = have - cut;
+            kg += cut;
+            done++;
+        }
+        if (done == 0 && errors.Count == 0) return Fail("ไม่มีรายการที่ตัดได้ครบตอนนี้\n(ไม่มี PD CODE / ไม่มี Master Coil ในคลังต้นทาง / น้ำหนักไม่พอ)");
+        return Ok(new
+        {
+            message = $"APPROVE แล้ว {done} ป้าย • ตัด Master Coil รวม {Qty.Plain(kg)} KG" +
+                      (skipped > 0 ? $"\nข้าม {skipped} ป้าย (Master Coil เหลือไม่พอ)" : "") +
+                      (errors.Count > 0 ? "\n\nไม่สำเร็จ:\n" + string.Join("\n", errors.Take(10)) : ""),
+            done
         });
     }
 

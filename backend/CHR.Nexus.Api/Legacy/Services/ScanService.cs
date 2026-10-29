@@ -371,6 +371,31 @@ namespace Nexus.Services
             public bool HasCoilNo => !string.IsNullOrWhiteSpace(CoilNo);
         }
 
+        // Master Coil จากเลข Coil ลูก: ตัดส่วนท้าย -ตัวเลข (CWE1747C-006 -> CWE1747C · CXZ0722A-012-001 -> CXZ0722A-012) · ไม่มีรูปแบบนี้ = null
+        public static string MotherFromCoilNo(string coilNo)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match((coilNo ?? "").Trim(), @"^(.+)-\d+$");
+            return m.Success ? m.Groups[1].Value : null;
+        }
+
+        // เลข Master Coil ของป้ายไม่มีในคลังต้นทาง แต่เลขจาก COIL NO มี -> ใช้เลขจาก COIL NO แทน (ป้ายเดิมที่มีอยู่จริงไม่เปลี่ยน)
+        private static void ResolveMother(SqlConnection conn, SqlTransaction trans, CoilLabel coil, int stkId)
+        {
+            string fromNo = MotherFromCoilNo(coil.CoilNo);
+            if (fromNo == null || string.Equals(fromNo, coil.MotherCoil?.Trim(), StringComparison.OrdinalIgnoreCase)) return;
+            bool Has(string m)
+            {
+                if (string.IsNullOrWhiteSpace(m)) return false;
+                using (var cmd = new SqlCommand("SELECT COUNT(*) FROM Nexus.Coils WHERE (CoilNo = @m OR MotherCoil = @m) AND StockID = @s AND Status = 'IN'", conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@m", m.Trim());
+                    cmd.Parameters.AddWithValue("@s", stkId);
+                    return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+                }
+            }
+            if (!Has(coil.MotherCoil) && Has(fromNo)) coil.MotherCoil = fromNo;
+        }
+
         public class CoilState
         {
             public int CoilId { get; set; }
@@ -727,6 +752,8 @@ namespace Nexus.Services
 
                         // 🧲 ทะเบียน Coil: Coil ลูกนี้อยู่ในคลังต้นทาง -> สินค้าของลูกนั้น / ไม่เจอลูก -> สินค้าที่มี Master Coilเดียวกันในคลังต้นทาง
                         int coilPart = 0; string how = null;
+                        // 🔎 เลข Master Coil บนป้ายไม่มีในคลังต้นทาง (เช่นป้ายพิมพ์ขาดเหลือ "2635") -> ใช้เลขจาก COIL NO ตัดท้าย -ตัวเลข (26355026302-024 -> 26355026302) ถ้ามีในคลังต้นทาง
+                        if (coil != null && Nexus.Helpers.DbSchema.HasCoilRegister) ResolveMother(conn, trans, coil, sourceStkId);
                         if (coil != null && Nexus.Helpers.DbSchema.HasCoilRegister)
                         {
                             if (coil.HasCoilNo)

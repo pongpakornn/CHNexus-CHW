@@ -114,12 +114,18 @@ namespace Nexus.Services
                 SELECT m.MissID, m.TransactionID, m.ScanDate, m.CoilNo, m.MotherCoil, m.LabelQty, m.Deducted, m.Reason, m.UserID, m.Barcode,
                        m.PartID, m.StockID, m.SourceStockID, {(st ? "m.Status, m.FormatID" : "'RECEIVED' AS Status, CAST(NULL AS int) AS FormatID")},
                        p.PartCode, p.Description, s.StockCode, src.StockCode AS SourceCode,
-                       MotherNow = (SELECT TOP 1 c.WeightKG FROM Nexus.Coils c WHERE c.CoilNo = m.MotherCoil AND c.StockID = m.SourceStockID AND c.Status = 'IN')
+                       MotherNow = mo.WeightKG, ISNULL(mo.CoilNo, m.MotherCoil) AS MotherUse
                 FROM Nexus.DeductMisses m
                 LEFT JOIN Nexus.ScanTransactions t ON t.TransactionID = m.TransactionID
                 LEFT JOIN Nexus.Parts p ON p.PartID = m.PartID
                 LEFT JOIN Nexus.Stocks s ON s.StockID = m.StockID
                 LEFT JOIN Nexus.Stocks src ON src.StockID = m.SourceStockID
+                -- Master Coil ในคลังต้นทาง: เลขบนป้ายก่อน · ไม่มี = เลขจาก COIL NO ตัดท้าย -ตัวเลข (ป้ายพิมพ์ขาด เช่น 2635 -> 26355026302)
+                OUTER APPLY (SELECT CASE WHEN CHARINDEX('-', REVERSE(m.CoilNo)) > 1 AND RIGHT(m.CoilNo, CHARINDEX('-', REVERSE(m.CoilNo)) - 1) NOT LIKE '%[^0-9]%'
+                                         THEN LEFT(m.CoilNo, LEN(m.CoilNo) - CHARINDEX('-', REVERSE(m.CoilNo))) END AS FromNo) d
+                OUTER APPLY (SELECT TOP 1 c.CoilNo, c.WeightKG FROM Nexus.Coils c
+                             WHERE c.StockID = m.SourceStockID AND c.Status = 'IN' AND (c.CoilNo = m.MotherCoil OR c.CoilNo = d.FromNo)
+                             ORDER BY CASE WHEN c.CoilNo = m.MotherCoil THEN 0 ELSE 1 END) mo
                 WHERE {Visible} AND m.ScanDate >= @from AND m.ScanDate < @to
                   AND (@k = '' OR m.CoilNo LIKE '%' + @k + '%' OR m.MotherCoil LIKE '%' + @k + '%' OR p.PartCode LIKE '%' + @k + '%'
                        OR p.Description LIKE '%' + @k + '%' OR m.UserID LIKE '%' + @k + '%' OR m.Barcode LIKE '%' + @k + '%')
@@ -138,7 +144,7 @@ namespace Nexus.Services
                             TxId = r["TransactionID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["TransactionID"]),
                             ScanDate = Convert.ToDateTime(r["ScanDate"]),
                             CoilNo = r["CoilNo"]?.ToString() ?? "",
-                            MotherCoil = r["MotherCoil"]?.ToString() ?? "",
+                            MotherCoil = r["MotherUse"]?.ToString() ?? "",
                             LabelQty = Qty.Read(r["LabelQty"]),
                             Deducted = Qty.Read(r["Deducted"]),
                             Reason = r["Reason"].ToString(),

@@ -104,6 +104,35 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
     await act(() => api<{ message: string }>(`/scanner/deduct/${r.missId}/approve`, { method: "POST" }), "Approved");
   }
 
+  // ⚡ ป้ายที่ตัดได้ครบตอนนี้: มี PD CODE + Master Coil ในคลังต้นทางเหลือพอ (ไล่ตามลำดับสแกน หักน้ำหนักทีละใบ เหมือนฝั่ง Server)
+  const ready = (() => {
+    const left = new Map<string, number>();
+    return [...(rows ?? [])]
+      .filter((r) => r.hasProduct && r.motherNow !== null)
+      .sort((a, b) => a.missId - b.missId)
+      .filter((r) => {
+        const key = `${r.sourceCode}|${r.motherCoil}`;
+        const have = left.get(key) ?? r.motherNow!;
+        if (have < r.labelQty) return false;
+        left.set(key, have - r.labelQty);
+        return true;
+      });
+  })();
+
+  async function approveReady() {
+    const total = ready.reduce((a, r) => a + r.labelQty, 0);
+    const list = ready.slice(0, 8).map((r) => `• ${r.coilNo}  ${qty(r.labelQty)} KG ← ${r.motherCoil}`).join("\n");
+    if (
+      !(await dlg.confirm({
+        title: "⚡ APPROVE READY",
+        message: `APPROVE ป้ายที่ตัด Master Coil ได้ครบตอนนี้ ${ready.length} ป้าย (${qty(total)} KG)\n\n${list}${ready.length > 8 ? `\n… อีก ${ready.length - 8} ป้าย` : ""}\n\nรับเข้าคลังตามป้าย + ตัด Master Coil ในคลังต้นทาง\nป้ายที่ไม่มี PD CODE / ไม่มี Master Coil ยังค้างไว้เหมือนเดิม`,
+        ok: `⚡ APPROVE ${ready.length}`,
+      }))
+    )
+      return;
+    await act(() => api<{ message: string }>("/scanner/deduct/approve-ready", { method: "POST", body: { ids: ready.map((r) => r.missId) } }), "Approved");
+  }
+
   async function remove(r: Row) {
     const extra =
       r.status === "RECEIVED"
@@ -169,6 +198,11 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
             <span className="mr-auto self-center text-xs font-bold text-ink-soft">
               {status} • {sel.length} SELECTED{!deducted && !canAct ? " • ACTION = APPROVE of Multi-Scanner" : ""}
             </span>
+            {!deducted && canAct && (
+              <button className="btn bg-accent" onClick={approveReady} disabled={busy || ready.length === 0} title="APPROVE ทุกป้ายในช่วงวันที่นี้ที่มี PD CODE และ Master Coil ในคลังต้นทางเหลือพอตัดครบ">
+                ⚡ APPROVE READY ({ready.length})
+              </button>
+            )}
             <button className="btn bg-success" onClick={exportRows} disabled={all.length === 0}>
               📤 EXPORT {sel.length > 0 ? `(${sel.length})` : ""}
             </button>

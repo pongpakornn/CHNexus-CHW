@@ -7501,3 +7501,9 @@ body:has(.modal-bg) .bug-fab {
   -webkit-text-fill-color: #fff;
   box-shadow: 0 0 0 1000px #29292c inset;
 }
+
+/* SHOW PRODUCTION: เส้นแบ่งแถวต้องเลื่อนไปกับข้อมูล - ตาราง collapse วาดเส้นที่ระดับตาราง (ไม่ขยับตาม transform ของ tbody) -> แยกเส้นให้อยู่กับช่อง */
+.prod-scroll table.store-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
