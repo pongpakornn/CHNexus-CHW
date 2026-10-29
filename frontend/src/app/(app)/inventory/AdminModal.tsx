@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toasts";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { useDialogs } from "@/components/ui/Dialogs";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Loading } from "@/components/ui/Page";
@@ -13,7 +14,25 @@ import type { Layout } from "./types";
 
 type Opt = { key: string; label: string };
 type COpt = { id: number; value: string; uses: number };
-type CField = { fieldId: number; stockId: number; key: string; label: string; type: string; values: number; unit: string | null; options: COpt[] };
+type CField = { fieldId: number; stockId: number; key: string; label: string; type: string; values: number; unit: string | null; options: COpt[]; suggest?: boolean; autoFrom?: string | null; isNew?: boolean };
+// หน่วยที่ใช้บ่อยของช่อง NUMBER (กดเลือก หรือพิมพ์เอง)
+const UNITS = ["KG", "TON", "G", "PCS", "BOX", "SET", "M", "CM", "MM", "L"];
+// ช่องของระบบที่ใช้เป็นต้นทางของการเติมอัตโนมัติ
+const AUTO_SRC: Opt[] = [
+  { key: "SUPPLIER", label: "SUPPLIER" },
+  { key: "CUSTOMER", label: "CUSTOMER" },
+  { key: "CATEGORY", label: "CATEGORY" },
+  { key: "MODEL", label: "MODEL" },
+  { key: "CODE", label: "PRODUCT CODE" },
+  { key: "NAME", label: "PRODUCT NAME" },
+  { key: "PARTA", label: "PART A" },
+  { key: "PARTB", label: "PART B" },
+  { key: "PARTNO", label: "PART NO" },
+  { key: "BIN", label: "BIN" },
+  { key: "PACKSIZE", label: "PACKSIZE" },
+];
+// ป้าย NEW (ช่องที่สร้างไม่เกิน 4 สัปดาห์ - Server ตัดสิน)
+const NewDot = () => <span className="cf-new" title="ช่องใหม่ (แสดง 4 สัปดาห์)">NEW</span>;
 const CF_TYPES = [
   { value: "TEXT", label: "TEXT (ข้อความ)" },
   { value: "NUMBER", label: "NUMBER (ตัวเลข + หน่วย)" },
@@ -32,6 +51,7 @@ type Data = {
   hasFormFields: boolean;
   hasCustomFields: boolean;
   hasDropdown: boolean;
+  hasHelpers?: boolean;
   customFields: CField[];
   hasQrFields: boolean;
 };
@@ -53,8 +73,8 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   // ➕ CUSTOM FIELDS: ช่องใหม่ / ช่องที่กำลังแก้
-  const [nf, setNf] = useState({ label: "", type: "TEXT", unit: "" });
-  const [ef, setEf] = useState<{ id: number; label: string; type: string; unit: string } | null>(null);
+  const [nf, setNf] = useState({ label: "", type: "TEXT", unit: "", suggest: false, auto: false, autoFrom: "" });
+  const [ef, setEf] = useState<{ id: number; label: string; type: string; unit: string; suggest: boolean; auto: boolean; autoFrom: string } | null>(null);
   // ▾ DROPDOWN LISTS: ช่องที่เลือก / รายการใหม่ / รายการที่กำลังแก้
   const [lf, setLf] = useState(0);
   const [nopt, setNopt] = useState("");
@@ -146,6 +166,23 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     }
   }
 
+  // ช่วยกรอก: แสดงค่าที่เคยกรอก + เติมอัตโนมัติจากช่องต้นทาง (ส่งเฉพาะเมื่อฐานรองรับ)
+  const helperBody = (h: { suggest: boolean; auto: boolean; autoFrom: string }) =>
+    data?.hasHelpers ? { suggest: h.suggest, autoFrom: h.auto && h.autoFrom ? h.autoFrom : null } : {};
+  // ใช้ช่องที่มีอยู่แล้วของคลังอื่น
+  async function copyField(f: CField) {
+    const code = stockOf(cur)?.code ?? "";
+    if (!(await dlg.confirm({ title: "USE FIELD", ok: "＋ ADD", message: `เพิ่มช่อง "${f.label}" (${typeName(f.type)}${f.unit ? ` • ${f.unit}` : ""}) จากคลัง ${stockOf(f.stockId)?.code ?? ""} ให้คลัง ${code}?\n\nชนิด / หน่วย / รายการ DROPDOWN / การช่วยกรอก เหมือนเดิม · ค่าของสินค้าแยกตามคลัง` }))) return;
+    try {
+      const r = await api<{ message: string }>(`/products/admin/fields/${f.fieldId}/copy`, { method: "POST", body: { stkId: cur } });
+      toast.show("CUSTOM FIELD", r.message, "ok");
+      setChanged(true);
+      load();
+    } catch (e) {
+      toast.show("WARNING", (e as Error).message, "warn");
+    }
+  }
+
   // ➕ เพิ่ม / แก้ / ลบ ช่องกรอกของคลัง (ยืนยันก่อนทุกครั้ง)
   async function addField() {
     if (!data || !cur) return;
@@ -156,9 +193,9 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
 
 แล้วเลือกให้แสดงได้ที่ FORM FIELDS / TABLE COLUMNS และหน้า Store (EDIT STOCK) · Template Excel ใช้ตาม FORM FIELDS` }))) return;
     try {
-      const r = await api<{ message: string }>("/products/admin/fields", { method: "POST", body: { stkId: cur, label, type: nf.type, unit: nf.type === "NUMBER" ? nf.unit : null } });
+      const r = await api<{ message: string }>("/products/admin/fields", { method: "POST", body: { stkId: cur, label, type: nf.type, unit: nf.type === "NUMBER" ? nf.unit : null, ...helperBody(nf) } });
       toast.show("CUSTOM FIELD", r.message + (nf.type === "SELECT" ? "\nเพิ่มรายการให้เลือกได้ที่เมนู DROPDOWN LISTS" : ""), "ok");
-      setNf({ label: "", type: nf.type, unit: "" });
+      setNf({ label: "", type: nf.type, unit: "", suggest: false, auto: false, autoFrom: "" });
       setChanged(true);
       load();
     } catch (e) {
@@ -170,7 +207,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     try {
       if (ef.type === "SELECT" && data?.customFields.find((f) => f.fieldId === ef.id)?.type !== "SELECT"
         && !(await dlg.confirm({ title: "CHANGE TO DROPDOWN", ok: "CHANGE", message: "เปลี่ยนเป็น DROPDOWN?\nค่าที่สินค้ากรอกไว้แล้วจะกลายเป็นรายการให้เลือกให้อัตโนมัติ" }))) return;
-      const r = await api<{ message: string }>(`/products/admin/fields/${ef.id}`, { method: "PUT", body: { stkId: cur, label: ef.label, type: ef.type, unit: ef.type === "NUMBER" ? ef.unit : null } });
+      const r = await api<{ message: string }>(`/products/admin/fields/${ef.id}`, { method: "PUT", body: { stkId: cur, label: ef.label, type: ef.type, unit: ef.type === "NUMBER" ? ef.unit : null, ...helperBody(ef) } });
       toast.show("CUSTOM FIELD", r.message, "ok");
       setEf(null);
       setChanged(true);
@@ -247,9 +284,30 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     optRun(() => api(`/products/admin/fields/${listField.fieldId}/options/order`, { method: "POST", body: ids }));
   };
 
+  // ชื่อช่องต้นทางของการเติมอัตโนมัติ
+  const autoName = (k: string) => AUTO_SRC.find((o) => o.key === k)?.label ?? data?.customFields.find((f) => f.key === k)?.label ?? k;
+  // ☑ ช่วยกรอก: แสดงค่าที่เคยกรอก / เติมอัตโนมัติจากช่องอื่น (เลือกต้นทางได้ 1 ช่อง)
+  const helperUi = (h: { suggest: boolean; auto: boolean; autoFrom: string }, set: (p: Partial<{ suggest: boolean; auto: boolean; autoFrom: string }>) => void, self?: string) => (
+    <div className="cf-help">
+      <Checkbox checked={h.suggest} onChange={(v) => set({ suggest: v })} label="แสดงค่าที่เคยกรอกไว้ให้เลือก" />
+      <Checkbox checked={h.auto} onChange={(v) => set({ auto: v, autoFrom: v ? h.autoFrom || "SUPPLIER" : h.autoFrom })} label="เติมอัตโนมัติจากช่อง" />
+      {h.auto && (
+        <MenuSelect
+          compact
+          className="w-full"
+          value={h.autoFrom || "SUPPLIER"}
+          options={[...AUTO_SRC, ...(data?.customFields ?? []).filter((f) => f.stockId === cur && f.key !== self).map((f) => ({ key: f.key, label: `${f.label} (ช่องเพิ่มเอง)` }))].map((o) => ({ value: o.key, label: o.label }))}
+          onChange={(v) => set({ autoFrom: v })}
+        />
+      )}
+      {h.auto && <p className="text-[11px] font-semibold text-ink-soft">กรอก {autoName(h.autoFrom || "SUPPLIER")} แล้วช่องนี้เติมค่าจากสินค้าที่เคยกรอก {autoName(h.autoFrom || "SUPPLIER")} เดียวกันให้เอง</p>}
+    </div>
+  );
+
   const l = layouts[cur];
   // ช่องกรอกเพิ่มเองของคลังที่เลือก -> ตัวเลือกใน FORM FIELDS / TABLE COLUMNS
-  const cfOpts = (stk: number): Opt[] => (data?.customFields ?? []).filter((f) => f.stockId === stk).map((f) => ({ key: f.key, label: `➕ ${f.label}` }));
+  const cfOpts = (stk: number): Opt[] => (data?.customFields ?? []).filter((f) => f.stockId === stk).map((f) => ({ key: f.key, label: f.label }));
+  const newKeys = new Set((data?.customFields ?? []).filter((f) => f.isNew).map((f) => f.key));
   const labelOf = (opts: Opt[], k: string) => opts.find((o) => o.key === k)?.label ?? data?.customFields.find((f) => f.key === k)?.label ?? k;
   const stockOf = (id: number) => data?.stocks.find((s) => s.stkId === id);
   const picked = data ? data.stocks.filter((s) => chosen.includes(s.stkId)) : [];
@@ -273,6 +331,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
               ◀
             </button>
             <span className="px-0.5">{labelOf(opts, k)}</span>
+            {newKeys.has(k) && <NewDot />}
             {(Array.isArray(locked) ? locked.includes(k) : k === locked) ? (
               <span className="ord-lock" title="จำเป็นต้องมี">
                 🔒
@@ -287,7 +346,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
       </div>
       {opts.some((o) => !list.includes(o.key)) && (
         <div className="flex flex-wrap gap-2 border-t border-dashed border-line pt-3">
-          {opts.filter((o) => !list.includes(o.key)).map((o) => fill(false, `＋ ${o.label}`, () => onChange([...list, o.key]), o.key, "is-add"))}
+          {opts.filter((o) => !list.includes(o.key)).map((o) => fill(false, <>＋ {o.label}{newKeys.has(o.key) && <NewDot />}</>, () => onChange([...list, o.key]), o.key, "is-add"))}
         </div>
       )}
     </div>
@@ -490,18 +549,24 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                           <div key={f.fieldId} className="cf-row is-edit">
                             <input className="field fx-in min-w-0 flex-1" autoFocus maxLength={60} value={ef.label} onChange={(e) => setEf({ ...ef, label: e.target.value })} onKeyDown={(e) => (e.key === "Enter" ? saveField() : e.key === "Escape" && setEf(null))} />
                             <MenuSelect compact className="w-[210px]" value={ef.type} options={CF_TYPES} onChange={(v) => setEf({ ...ef, type: v })} />
-                            {ef.type === "NUMBER" && <input className="field fx-in w-[110px]" maxLength={20} placeholder="หน่วย เช่น KG" value={ef.unit} onChange={(e) => setEf({ ...ef, unit: e.target.value })} />}
+                            {ef.type === "NUMBER" && <input className="field fx-in w-[110px]" maxLength={20} list="cf-units" placeholder="หน่วย เช่น KG" value={ef.unit} onChange={(e) => setEf({ ...ef, unit: e.target.value })} />}
                             <button className="cta-btn is-purple is-sm" onClick={saveField}>
                               💾 SAVE
                             </button>
                             <button className="fill-btn is-xs" onClick={() => setEf(null)}>
                               CANCEL
                             </button>
+                            {data.hasHelpers && <div className="basis-full">{helperUi(ef, (p) => setEf({ ...ef, ...p }), f.key)}</div>}
                           </div>
                         ) : (
                           <div key={f.fieldId} className="cf-row" style={{ "--i": i } as React.CSSProperties}>
                             <span className="cf-key">{f.key}</span>
-                            <b className="min-w-0 flex-1 truncate text-[14px] text-[#1f2350]">{f.label}</b>
+                            <b className="min-w-0 flex-1 truncate text-[14px] text-[#1f2350]">
+                              {f.label}
+                              {f.isNew && <NewDot />}
+                            </b>
+                            {f.suggest && <span className="cf-type" title="ตอนกรอกแสดงค่าที่เคยกรอกให้เลือก">☰ SUGGEST</span>}
+                            {f.autoFrom && <span className="cf-type" title="เติมค่าให้อัตโนมัติจากช่องนี้">⚡ AUTO ← {autoName(f.autoFrom)}</span>}
                             <span className="cf-type">
                               {typeName(f.type)}
                               {f.unit ? ` • ${f.unit}` : ""}
@@ -512,7 +577,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                               </button>
                             )}
                             <span className="text-[11px] font-bold text-ink-soft">{f.values.toLocaleString()} ค่า</span>
-                            <button className="fill-btn is-xs" onClick={() => setEf({ id: f.fieldId, label: f.label, type: f.type, unit: f.unit ?? "" })}>
+                            <button className="fill-btn is-xs" onClick={() => setEf({ id: f.fieldId, label: f.label, type: f.type, unit: f.unit ?? "", suggest: !!f.suggest, auto: !!f.autoFrom, autoFrom: f.autoFrom ?? "" })}>
                               ✏ EDIT
                             </button>
                             <button className="fill-btn is-xs text-danger" onClick={() => deleteField(f)}>
@@ -535,13 +600,42 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                     {nf.type === "NUMBER" && (
                       <label className="fx">
                         <span className="fx-cap">หน่วย (UNIT) - ไม่บังคับ</span>
-                        <input className="field fx-in" maxLength={20} placeholder="เช่น KG / PCS / MM" value={nf.unit} onChange={(e) => setNf({ ...nf, unit: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addField()} />
+                        <input className="field fx-in" maxLength={20} list="cf-units" placeholder="เลือกด้านล่าง หรือพิมพ์เอง" value={nf.unit} onChange={(e) => setNf({ ...nf, unit: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addField()} />
+                        <span className="unit-chips">
+                          {UNITS.map((u) => (
+                            <button key={u} type="button" className={`unit-chip ${nf.unit.trim().toUpperCase() === u ? "is-on" : ""}`} onClick={() => setNf({ ...nf, unit: nf.unit.trim().toUpperCase() === u ? "" : u })}>
+                              {u}
+                            </button>
+                          ))}
+                        </span>
                       </label>
                     )}
+                    {data.hasHelpers && helperUi(nf, (p) => setNf({ ...nf, ...p }))}
                     {nf.type === "SELECT" && <p className="text-[11px] font-bold text-accent">▾ เพิ่มแล้วไปเพิ่มรายการให้เลือกที่เมนู DROPDOWN LISTS</p>}
                     <button className="cta-btn is-purple" onClick={addField} disabled={!nf.label.trim()}>
                       ＋ ADD FIELD
                     </button>
+                    {(() => {
+                      // ช่องของคลังอื่นที่คลังนี้ยังไม่มี (ชื่อไม่ซ้ำ) -> กดเพื่อใช้กับคลังนี้
+                      const mine = new Set(data.customFields.filter((f) => f.stockId === cur).map((f) => f.label));
+                      const seen = new Set<string>();
+                      const others = data.customFields.filter((f) => f.stockId !== cur && !mine.has(f.label) && !seen.has(f.label) && (seen.add(f.label), true));
+                      return others.length > 0 ? (
+                        <div className="grid gap-2 border-t border-dashed border-line pt-3">
+                          <span className="fx-cap">ใช้ช่องที่มีอยู่แล้วของคลังอื่น</span>
+                          <div className="flex flex-wrap gap-2">
+                            {others.map((f) =>
+                              fill(false, <>＋ {f.label}<small className="ml-1 opacity-60">{stockOf(f.stockId)?.code}</small>{f.isNew && <NewDot />}</>, () => copyField(f), `cp-${f.fieldId}`, "is-add"),
+                            )}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+                    <datalist id="cf-units">
+                      {UNITS.map((u) => (
+                        <option key={u} value={u} />
+                      ))}
+                    </datalist>
                     <p className="text-[11px] font-semibold leading-relaxed text-ink-soft">
                       เพิ่มแล้ว: เลือกให้แสดงที่ FORM FIELDS (ช่องกรอก + Template / Import Excel ใช้ชื่อช่องเป็นหัวคอลัมน์) · TABLE COLUMNS (ตารางหน้านี้) · หน้า Store &gt; EDIT STOCK &gt; TABLE COLUMNS (ตารางคลัง)
                     </p>

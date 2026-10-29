@@ -110,8 +110,8 @@ namespace Nexus.Models
         public bool CanDeleteStock(StockModel s) => s != null && !s.IsMain && CanDeleteStore;
         // DEL ของคลัง (ติ๊ก DEL ที่สิทธิ์คลังนั้น) = ลบสินค้าในคลังนั้นจากหน้า Product Control ได้
         public bool CanDeleteInStock(StockModel s) => s != null && CanViewStock(s) && P(s.PermSysId, p => p.CanDelete);
-        // Product Control: ติ๊กสินค้าใหม่เข้าคลังได้ (ADD หรือ EDIT ที่สิทธิ์คลังนั้น)
-        public bool CanAddInStock(StockModel s) => s != null && CanViewStock(s) && P(s.PermSysId, p => p.CanAdd || p.CanEdit);
+        // Product Control: ติ๊กสินค้าใหม่เข้าคลังได้ = คลังที่มีสิทธิ์ VIEW (สิทธิ์ ADD ของหน้า Product Control ตรวจแยกที่ CanAddProduct)
+        public bool CanAddInStock(StockModel s) => s != null && CanViewStock(s);
         public bool CanImportStock(StockModel s) => s != null && s.InExcel && CanViewStock(s) && P(s.PermSysId, p => p.CanAdd);
 
         // แก้รหัสคลังแล้ว ชื่อสิทธิ์ในฐานข้อมูลเปลี่ยนตาม -> เปลี่ยนในข้อมูลผู้ใช้ที่ Login อยู่ด้วย ไม่ต้อง Login ใหม่

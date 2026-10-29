@@ -40,6 +40,9 @@ namespace Nexus.Services
         public int ValueCount { get; set; }
         public string Unit { get; set; }   // หน่วยของช่อง NUMBER เช่น KG
         public List<CustomFieldOption> Options { get; set; } = new();   // รายการของช่อง DROPDOWN
+        public DateTime? CreatedAt { get; set; }   // สร้างเมื่อ (ป้าย NEW 4 สัปดาห์)
+        public bool Suggest { get; set; }          // แสดงค่าที่เคยกรอกให้เลือก (14_Custom_Field_Suggest_Auto.sql)
+        public string AutoFrom { get; set; }       // ช่องต้นทางที่เติมค่าให้อัตโนมัติ เช่น SUPPLIER / CODE / CF12
 
         // ค่าที่แสดงในตาราง: ตัวเลข + หน่วย (12 KG)
         public string Display(string value) =>
@@ -87,22 +90,50 @@ namespace Nexus.Services
             }
         }
 
+        // 14_Custom_Field_Suggest_Auto.sql: ช่วยกรอก (แสดงค่าที่เคยกรอก / เติมอัตโนมัติจากช่องอื่น)
+        private static bool? _v3;
+        public static bool HasHelpers
+        {
+            get
+            {
+                if (_v3 == true) return true;
+                try
+                {
+                    using var conn = new SqlConnection(GlobalConfig.ConnStr);
+                    using var cmd = new SqlCommand("SELECT CASE WHEN COL_LENGTH('Nexus.PartFieldDefs','Suggest') IS NOT NULL AND COL_LENGTH('Nexus.PartFieldDefs','AutoFrom') IS NOT NULL THEN 1 ELSE 0 END", conn);
+                    conn.Open();
+                    _v3 = Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+                }
+                catch { _v3 = false; }
+                return _v3 == true;
+            }
+        }
+
+        // ช่องต้นทางของระบบที่ใช้เติมค่าอัตโนมัติ -> คอลัมน์ใน Nexus.Parts
+        public static readonly Dictionary<string, string> AutoSources = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SUPPLIER"] = "Supplier", ["CUSTOMER"] = "Customer", ["CATEGORY"] = "Category", ["MODEL"] = "Model", ["CODE"] = "PartCode",
+            ["PARTA"] = "PartA", ["PARTB"] = "PartB", ["PARTNO"] = "PartNumber", ["NAME"] = "Description", ["BIN"] = "Bin", ["PACKSIZE"] = "PackSize"
+        };
+
         // ช่องทั้งหมด (stockId = null) หรือเฉพาะคลัง · ช่อง DROPDOWN พร้อมรายการ (เรียงตามลำดับ)
         public List<CustomFieldDef> GetDefs(int? stockId = null)
         {
             var list = new List<CustomFieldDef>();
             if (!Ready) return list;
-            bool v2 = HasUnitAndOptions;
+            bool v2 = HasUnitAndOptions, v3 = HasHelpers;
             using var conn = new SqlConnection(_cs);
             conn.Open();
             using (var cmd = new SqlCommand($@"SELECT d.FieldID, d.StockID, d.Label, d.DataType, d.SortNo,
-                                                      (SELECT COUNT(*) FROM Nexus.PartFieldValues v WHERE v.FieldID = d.FieldID), {(v2 ? "d.Unit" : "NULL")}
+                                                      (SELECT COUNT(*) FROM Nexus.PartFieldValues v WHERE v.FieldID = d.FieldID), {(v2 ? "d.Unit" : "NULL")},
+                                                      d.CreatedAt, {(v3 ? "d.Suggest, d.AutoFrom" : "CAST(0 AS BIT), NULL")}
                                                FROM Nexus.PartFieldDefs d WHERE (@s IS NULL OR d.StockID = @s) ORDER BY d.StockID, d.SortNo, d.FieldID", conn))
             {
                 cmd.Parameters.AddWithValue("@s", (object)stockId ?? DBNull.Value);
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
-                    list.Add(new CustomFieldDef { FieldId = r.GetInt32(0), StockId = r.GetInt32(1), Label = r.GetString(2), DataType = r.GetString(3), SortNo = r.GetInt32(4), ValueCount = r.GetInt32(5), Unit = r.IsDBNull(6) ? null : r.GetString(6) });
+                    list.Add(new CustomFieldDef { FieldId = r.GetInt32(0), StockId = r.GetInt32(1), Label = r.GetString(2), DataType = r.GetString(3), SortNo = r.GetInt32(4), ValueCount = r.GetInt32(5), Unit = r.IsDBNull(6) ? null : r.GetString(6),
+                                                  CreatedAt = r.IsDBNull(7) ? null : r.GetDateTime(7), Suggest = !r.IsDBNull(8) && r.GetBoolean(8), AutoFrom = r.IsDBNull(9) ? null : r.GetString(9) });
             }
             if (v2 && list.Any(d => d.DataType == "SELECT"))
                 using (var cmd = new SqlCommand(@"SELECT o.FieldID, o.OptionID, o.Value, o.SortNo,
@@ -213,6 +244,97 @@ namespace Nexus.Services
             try { cmd.ExecuteNonQuery(); }
             catch (SqlException ex) when (ex.Number == 50001 || ex.Number == 2627) { throw new InvalidOperationException($"มีช่อง \"{label}\" ในคลังนี้แล้ว"); }
             return (old, new CustomFieldDef { FieldId = fieldId, StockId = old.StockId, Label = label, DataType = type, SortNo = old.SortNo, Unit = unit });
+        }
+
+        // ---------------------------------------------------------------- ช่วยกรอก
+        // ตั้ง "แสดงค่าที่เคยกรอก" + "เติมอัตโนมัติจากช่อง" (ต้นทาง = ช่องของระบบ หรือช่องเพิ่มเองของคลังเดียวกัน ไม่ใช่ตัวเอง)
+        public void SetHelpers(int fieldId, bool suggest, string autoFrom, string userId)
+        {
+            if (!HasHelpers) throw new InvalidOperationException("ฐานข้อมูลยังไม่รองรับการช่วยกรอก กรุณารัน database/nexus/14_Custom_Field_Suggest_Auto.sql");
+            var d = GetDefs().FirstOrDefault(x => x.FieldId == fieldId) ?? throw new InvalidOperationException("ไม่พบช่องนี้ (อาจถูกลบไปแล้ว)");
+            autoFrom = string.IsNullOrWhiteSpace(autoFrom) ? null : autoFrom.Trim().ToUpperInvariant();
+            if (autoFrom != null && !AutoSources.ContainsKey(autoFrom))
+            {
+                int src = CustomFields.IdOf(autoFrom);
+                if (src == 0 || src == fieldId || !GetDefs(d.StockId).Any(x => x.FieldId == src)) throw new InvalidOperationException("ช่องต้นทางของการเติมอัตโนมัติไม่ถูกต้อง");
+            }
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("UPDATE Nexus.PartFieldDefs SET Suggest = @g, AutoFrom = @a, UpdatedAt = SYSDATETIME(), UpdatedBy = @u WHERE FieldID = @id", conn);
+            cmd.Parameters.AddWithValue("@g", suggest);
+            cmd.Parameters.AddWithValue("@a", (object)autoFrom ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", fieldId);
+            conn.Open();
+            cmd.ExecuteNonQuery();
+        }
+
+        // ใช้ช่องที่มีอยู่แล้วกับคลังอื่น: สร้างช่องชื่อ / ชนิด / หน่วย / การช่วยกรอกเดียวกัน + รายการ DROPDOWN (ค่าของสินค้าแยกตามคลัง)
+        public CustomFieldDef CopyTo(int fieldId, int stockId, string userId)
+        {
+            var src = GetDefs().FirstOrDefault(x => x.FieldId == fieldId) ?? throw new InvalidOperationException("ไม่พบช่องนี้ (อาจถูกลบไปแล้ว)");
+            if (src.StockId == stockId) throw new InvalidOperationException("ช่องนี้อยู่ในคลังนี้แล้ว");
+            var d = Add(stockId, src.Label, src.DataType, userId, src.Unit);
+            if (src.DataType == "SELECT" && src.Options.Count > 0)
+            {
+                using var conn = new SqlConnection(_cs);
+                using var cmd = new SqlCommand(@"INSERT INTO Nexus.PartFieldOptions (FieldID, Value, SortNo, CreatedBy)
+                                                 SELECT @to, o.Value, o.SortNo, @u FROM Nexus.PartFieldOptions o WHERE o.FieldID = @from", conn);
+                cmd.Parameters.AddWithValue("@to", d.FieldId);
+                cmd.Parameters.AddWithValue("@from", fieldId);
+                cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                conn.Open();
+                cmd.ExecuteNonQuery();
+            }
+            // ต้นทางเป็นช่องของระบบ = ใช้ได้ทุกคลัง · ต้นทางเป็นช่องเพิ่มเองของคลังเดิม = ไม่คัดลอก
+            if (HasHelpers && (src.Suggest || (src.AutoFrom != null && AutoSources.ContainsKey(src.AutoFrom))))
+                SetHelpers(d.FieldId, src.Suggest, src.AutoFrom != null && AutoSources.ContainsKey(src.AutoFrom) ? src.AutoFrom : null, userId);
+            return d;
+        }
+
+        // ค่าที่เคยกรอกของช่องชื่อเดียวกันทุกคลัง (ใช้บ่อยก่อน) สูงสุด 200 ค่า
+        public List<string> Suggestions(int fieldId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand(@"SELECT TOP 200 v.Value FROM Nexus.PartFieldValues v
+                                             JOIN Nexus.PartFieldDefs d ON d.FieldID = v.FieldID
+                                             WHERE d.Label = (SELECT Label FROM Nexus.PartFieldDefs WHERE FieldID = @id) AND LTRIM(RTRIM(v.Value)) <> ''
+                                             GROUP BY v.Value ORDER BY COUNT(*) DESC, v.Value", conn);
+            cmd.Parameters.AddWithValue("@id", fieldId);
+            conn.Open();
+            var list = new List<string>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(r.GetString(0));
+            return list;
+        }
+
+        // เติมอัตโนมัติ: ค่าล่าสุดของช่องนี้ (ชื่อเดียวกันทุกคลัง) จากสินค้าที่ช่องต้นทาง = value · ไม่เจอ = null
+        public string AutoValue(int fieldId, string value)
+        {
+            value = (value ?? "").Trim();
+            if (value.Length == 0 || !HasHelpers) return null;
+            var d = GetDefs().FirstOrDefault(x => x.FieldId == fieldId);
+            if (d?.AutoFrom == null) return null;
+            string match;
+            int srcField = 0;
+            if (AutoSources.TryGetValue(d.AutoFrom, out var col)) match = $"LTRIM(RTRIM(p.[{col}])) = @v";
+            else
+            {
+                srcField = CustomFields.IdOf(d.AutoFrom);
+                if (srcField == 0) return null;
+                match = @"EXISTS (SELECT 1 FROM Nexus.PartFieldValues s JOIN Nexus.PartFieldDefs sd ON sd.FieldID = s.FieldID
+                                  WHERE s.PartID = p.PartID AND sd.Label = (SELECT Label FROM Nexus.PartFieldDefs WHERE FieldID = @src) AND LTRIM(RTRIM(s.Value)) = @v)";
+            }
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand($@"SELECT TOP 1 v.Value FROM Nexus.PartFieldValues v
+                                             JOIN Nexus.PartFieldDefs d ON d.FieldID = v.FieldID
+                                             JOIN Nexus.Parts p ON p.PartID = v.PartID
+                                             WHERE d.Label = @l AND LTRIM(RTRIM(v.Value)) <> '' AND {match}
+                                             ORDER BY v.UpdatedAt DESC", conn);
+            cmd.Parameters.AddWithValue("@l", d.Label);
+            cmd.Parameters.AddWithValue("@v", value);
+            cmd.Parameters.AddWithValue("@src", srcField);
+            conn.Open();
+            return cmd.ExecuteScalar() as string;
         }
 
         // ---------------------------------------------------------------- รายการของ DROPDOWN

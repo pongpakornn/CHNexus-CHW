@@ -378,6 +378,47 @@ namespace Nexus.Services
             return m.Success ? m.Groups[1].Value : null;
         }
 
+        // 🧾 PR จากการตัดคลังต้นทาง (KEEP PR ของคลังต้นทางเปิดอยู่) - เลข PR / แผนก / ผู้รับ แบบเดียวกับ trg_ScanTransactions_AutoPR
+        //    พังเมื่อไร = ย้อนเฉพาะส่วน PR (savepoint) การสแกนยังบันทึกได้ + ลง SystemLogs
+        private static void AutoPrForDeduct(SqlConnection conn, SqlTransaction trans, int stkId, int partId, decimal qty, int txId, string userId, string route)
+        {
+            using (var sp = new SqlCommand("SAVE TRANSACTION autopr_deduct", conn, trans)) sp.ExecuteNonQuery();
+            try
+            {
+                using var cmd = new SqlCommand(@"
+                    IF COL_LENGTH('Nexus.Stocks', 'AutoPR') IS NULL OR NOT EXISTS (SELECT 1 FROM Nexus.Stocks WHERE StockID = @s AND ISNULL(AutoPR, 0) = 1) RETURN;
+                    DECLARE @prefix VARCHAR(4) = RIGHT(CAST(YEAR(GETDATE()) AS VARCHAR(4)), 2) + 'PR';
+                    DECLARE @dept NVARCHAR(200) = ISNULL((SELECT TOP 1 LookupValue FROM Nexus.PRLookups WHERE FieldName = 'DEPT' ORDER BY LastUsed DESC), N'41304134-บำรุงรักษาแม่พิมพ์');
+                    DECLARE @target NVARCHAR(200) = ISNULL((SELECT TOP 1 LookupValue FROM Nexus.PRLookups WHERE FieldName = 'TARGET' ORDER BY LastUsed DESC), N'ชนนิกานต์');
+                    DECLARE @last INT = ISNULL((SELECT MAX(TRY_CAST(RIGHT(PRNumber, 8) AS INT)) FROM Nexus.PRHeaders WITH (UPDLOCK, HOLDLOCK)
+                                                WHERE PRNumber LIKE @prefix + '%' AND LEN(PRNumber) = 12), 0);
+                    DECLARE @no VARCHAR(12) = @prefix + RIGHT('00000000' + CAST(@last + 1 AS VARCHAR(8)), 8);
+                    INSERT INTO Nexus.PRHeaders (PRNumber, PRDate, UserID, RequesterName, RequestDepartment, TargetDepartment, Status, Remark,
+                                                 IsExported, Source, ScanTransactionID, CreatedAt, StockID)
+                    SELECT @no, CAST(GETDATE() AS DATE), @u, u.FullName, @dept, @target, N'Waiting', N'AUTO: DEDUCT (' + @route + N')',
+                           'N', 'DEDUCT', @tx, GETDATE(), @s
+                    FROM (SELECT 1 AS x) z LEFT JOIN Nexus.Users u ON u.UserID = @u;
+                    INSERT INTO Nexus.PRDetails (PRNumber, Description, RequestQuantity, Unit, PartID)
+                    SELECT @no, p.Description, CAST(ROUND(@q, 0) AS INT), ISNULL(s.Unit, 'KG'), p.PartID
+                    FROM Nexus.Parts p JOIN Nexus.Stocks s ON s.StockID = @s WHERE p.PartID = @p;", conn, trans);
+                cmd.Parameters.AddWithValue("@s", stkId);
+                cmd.Parameters.AddWithValue("@p", partId);
+                cmd.Parameters.Add(Nexus.Helpers.QtyParam.Of("@q", qty));
+                cmd.Parameters.AddWithValue("@tx", txId);
+                cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@route", route ?? "");
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                using (var rb = new SqlCommand("ROLLBACK TRANSACTION autopr_deduct", conn, trans)) rb.ExecuteNonQuery();
+                using var log = new SqlCommand("INSERT INTO Nexus.SystemLogs (UserID, ActionType, Description, Reference, LogDate) VALUES (@u, 'AUTO_PR_ERROR', @d, '', GETDATE())", conn, trans);
+                log.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                log.Parameters.AddWithValue("@d", "Deduct -> PR failed: " + ex.Message);
+                log.ExecuteNonQuery();
+            }
+        }
+
         // เลข Master Coil ของป้ายไม่มีในคลังต้นทาง แต่เลขจาก COIL NO มี -> ใช้เลขจาก COIL NO แทน (ป้ายเดิมที่มีอยู่จริงไม่เปลี่ยน)
         private static void ResolveMother(SqlConnection conn, SqlTransaction trans, CoilLabel coil, int stkId)
         {
@@ -911,6 +952,9 @@ namespace Nexus.Services
 
                         // 🧲 Master Coilในคลังต้นทาง: หักน้ำหนักที่ตัดออก / เหลือ 0 = Master Coilหมด (OUT) - บันทึก CoilMoves ผูกรายการสแกน (ยกเลิกแล้วคืนได้)
                         if (how == "MASTER COIL" && result.Deducted > 0) ConsumeMotherCoil(conn, trans, coil.MotherCoil.Trim(), sourceStkId, srcPart, result.Deducted, txId, userId);
+
+                        // 🧾 ตัดคลังต้นทางที่เปิด KEEP PR (เช่น STOCK-PANTA) = สร้าง PR "Waiting" ของคลังต้นทาง เหมือนสแกนออก
+                        if (result.Deducted > 0 && srcPart > 0) AutoPrForDeduct(conn, trans, sourceStkId, srcPart, result.Deducted, txId, userId, $"{result.SourceCode} -> {stock?.Code}");
 
                         // 🧲 ย้าย Coil ลูก (มีอยู่ในคลังต้นทาง) / เพิ่มใหม่ เข้าคลังที่รับ - น้ำหนักตามป้าย (รายการเดิมที่รับไปแล้ว = ทำไปแล้ว)
                         if (stock.CountCoil && !remainder && existingTxId == null) CoilReceive(conn, trans, coil, ptId, stock.StkId, qty, txId, userId);

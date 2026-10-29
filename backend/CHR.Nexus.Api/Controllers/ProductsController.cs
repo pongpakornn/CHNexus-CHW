@@ -39,7 +39,8 @@ public sealed class ProductsController : AppController
             can = new { add = Me.CanAddProduct, edit = Me.CanEditProduct, delete = Me.CanDeleteProduct, admin = Me.UserLevel == 1 },
             canAll,
             customFields = new CustomFieldService().GetDefs().Where(d => stocks.Any(s => s.StkId == d.StockId))
-                                                   .Select(d => new { d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, d.Unit, options = d.Options.Select(o => o.Value) }),
+                                                   .Select(d => new { d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, d.Unit, options = d.Options.Select(o => o.Value),
+                                                                     d.Suggest, d.AutoFrom, isNew = IsNew(d) }),
             // สิทธิ์ต่อคลัง: VIEW = ดูอย่างเดียว / ADD,EDIT = ติ๊กสินค้าเข้าคลัง + แก้ไข / DEL = ลบ
             stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.StockType, s.IsMain, s.CountCoil, s.ShowCoilRows, s.IsLiveView, canView = true,
                                               canAdd = Me.CanAddInStock(s), canEdit = Me.CanEditStock(s), canDelete = Me.CanDeleteInStock(s) }),
@@ -605,8 +606,10 @@ public sealed class ProductsController : AppController
             customFields = new CustomFieldService().GetDefs().Select(d => new
             {
                 d.FieldId, d.StockId, key = d.Key, d.Label, type = d.DataType, values = d.ValueCount, d.Unit,
-                options = d.Options.Select(o => new { id = o.OptionId, o.Value, o.Uses })
+                options = d.Options.Select(o => new { id = o.OptionId, o.Value, o.Uses }),
+                d.Suggest, d.AutoFrom, isNew = IsNew(d)
             }),
+            hasHelpers = CustomFieldService.HasHelpers,
             hasQrFields = DbSchema.HasQrFields
         });
     }
@@ -661,7 +664,16 @@ public sealed class ProductsController : AppController
     }
 
     // ➕ CUSTOM FIELDS (Level 1): เพิ่ม / แก้ชื่อ-ชนิด / ลบ ช่องกรอกของคลัง · ทุกครั้งลง Activity Log
-    public sealed record FieldSave(int StkId, string Label, string Type, string Unit = null);
+    public sealed record FieldSave(int StkId, string Label, string Type, string Unit = null, bool? Suggest = null, string AutoFrom = null);
+
+    // ป้าย NEW: ช่องที่สร้างไม่เกิน 4 สัปดาห์
+    private static bool IsNew(CustomFieldDef d) => d.CreatedAt.HasValue && d.CreatedAt.Value > DateTime.Now.AddDays(-28);
+
+    // ตั้งช่วยกรอกหลังเพิ่ม / แก้ (ส่งมาเฉพาะเมื่อฐานรองรับ)
+    private static void ApplyHelpers(int fieldId, FieldSave r, string uid)
+    {
+        if (r?.Suggest.HasValue == true && CustomFieldService.HasHelpers) new CustomFieldService().SetHelpers(fieldId, r.Suggest.Value, r.AutoFrom, uid);
+    }
 
     [HttpPost("admin/fields")]
     public IActionResult AddField([FromBody] FieldSave r)
@@ -673,6 +685,7 @@ public sealed class ProductsController : AppController
         try
         {
             var d = new CustomFieldService().Add(s.StkId, r.Label, r.Type, Uid, r.Unit);
+            ApplyHelpers(d.FieldId, r, Uid);
             LogService.WriteLog(Uid, "CUSTOM_FIELD_ADD", $"{s.Code} | {d.Key} {d.Label} ({d.DataType}{(d.Unit == null ? "" : " " + d.Unit)})", s.Code);
             return Ok(new { message = $"เพิ่มช่อง \"{d.Label}\" ให้ {s.Code} แล้ว\nเลือกแสดงได้ที่ FORM FIELDS / TABLE COLUMNS และหน้า Store (EDIT STOCK)", key = d.Key });
         }
@@ -686,11 +699,47 @@ public sealed class ProductsController : AppController
         try
         {
             var (o, n) = new CustomFieldService().Update(id, r?.Label, r?.Type, Uid, r?.Unit);
+            ApplyHelpers(id, r, Uid);
             string code = _stocks.GetStocks().FirstOrDefault(x => x.StkId == o.StockId)?.Code ?? "";
             LogService.WriteLog(Uid, "CUSTOM_FIELD_EDIT", $"{code} | {o.Key} | {o.Label} ({o.DataType}{(o.Unit == null ? "" : " " + o.Unit)}) -> {n.Label} ({n.DataType}{(n.Unit == null ? "" : " " + n.Unit)})", code);
             return Ok(new { message = "แก้ไขช่องแล้ว" });
         }
         catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    // ใช้ช่องที่มีอยู่แล้วกับคลังอื่น (ชื่อ / ชนิด / หน่วย / รายการ DROPDOWN / ช่วยกรอก เดียวกัน)
+    public sealed record FieldCopy(int StkId);
+
+    [HttpPost("admin/fields/{id:int}/copy")]
+    public IActionResult CopyField(int id, [FromBody] FieldCopy r)
+    {
+        if (Me?.UserLevel != 1) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        var s = _stocks.GetStocks().FirstOrDefault(x => x.StkId == r?.StkId);
+        if (s == null) return Fail("กรุณาเลือกคลัง");
+        try
+        {
+            var d = new CustomFieldService().CopyTo(id, s.StkId, Uid);
+            LogService.WriteLog(Uid, "CUSTOM_FIELD_ADD", $"{s.Code} | {d.Key} {d.Label} ({d.DataType}{(d.Unit == null ? "" : " " + d.Unit)}) copied from CF{id}", s.Code);
+            return Ok(new { message = $"เพิ่มช่อง \"{d.Label}\" ให้ {s.Code} แล้ว\nเลือกแสดงได้ที่ FORM FIELDS / TABLE COLUMNS และหน้า Store (EDIT STOCK)", key = d.Key });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+    }
+
+    // ช่วยกรอก (หน้าลงทะเบียน): ค่าที่เคยกรอก / ค่าที่เติมอัตโนมัติจากช่องต้นทาง
+    [HttpGet("fields/{id:int}/suggest")]
+    public IActionResult FieldSuggest(int id)
+    {
+        if (Me == null) return Deny();
+        try { return Ok(new CustomFieldService().Suggestions(id)); }
+        catch (Exception ex) { return Fail(ex, "โหลดรายการไม่สำเร็จ"); }
+    }
+
+    [HttpGet("fields/{id:int}/auto")]
+    public IActionResult FieldAuto(int id, [FromQuery] string value)
+    {
+        if (Me == null) return Deny();
+        try { return Ok(new { value = new CustomFieldService().AutoValue(id, value) }); }
+        catch (Exception ex) { return Fail(ex, "เติมอัตโนมัติไม่สำเร็จ"); }
     }
 
     [HttpPost("admin/fields/{id:int}/delete")]

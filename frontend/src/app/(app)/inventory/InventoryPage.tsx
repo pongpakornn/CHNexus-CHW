@@ -178,6 +178,42 @@ export default function InventoryPage() {
     return g;
   }, [rows, layout]);
 
+  // ☰ ช่วยกรอก: ค่าที่เคยกรอก (โหลดครั้งแรกที่คลิกช่อง)
+  const [cfSug, setCfSug] = useState<Record<number, string[]>>({});
+  const loadSug = (id: number) => {
+    if (cfSug[id]) return;
+    setCfSug((m) => ({ ...m, [id]: [] }));
+    api<string[]>(`/products/fields/${id}/suggest`)
+      .then((list) => setCfSug((m) => ({ ...m, [id]: list })))
+      .catch(() => {});
+  };
+  // ⚡ เติมอัตโนมัติ: ช่องต้นทางเปลี่ยน -> หาค่าจากสินค้าที่เคยกรอกค่าต้นทางเดียวกัน (เติมเฉพาะช่องว่าง / ช่องที่ระบบเติมไว้เอง)
+  const autoSet = useRef<Record<string, string>>({});
+  const SRC_FORM: Record<string, keyof Form> = { SUPPLIER: "supplier", CUSTOMER: "customer", CATEGORY: "category", MODEL: "model", CODE: "partCode", NAME: "partName", PARTA: "partA", PARTB: "partB", PARTNO: "partNo", BIN: "bin", PACKSIZE: "packSize" };
+  const srcOf = (from: string) => (SRC_FORM[from] ? String(form[SRC_FORM[from]] ?? "") : (form.cf[from] ?? "")).trim();
+  const autoDeps = (meta?.customFields ?? []).filter((d) => d.autoFrom).map((d) => `${d.key}=${srcOf(d.autoFrom!)}`).join("|");
+  useEffect(() => {
+    if (!autoDeps || (viewId && !editId)) return;
+    const t = setTimeout(() => {
+      for (const d of (meta?.customFields ?? []).filter((x) => x.autoFrom && (formStk == null || x.stockId === formStk))) {
+        const v = srcOf(d.autoFrom!);
+        if (!v) continue;
+        api<{ value: string | null }>(`/products/fields/${d.fieldId}/auto`, { query: { value: v } })
+          .then((r) => {
+            if (!r.value) return;
+            setForm((f) => {
+              const cur = f.cf[d.key] ?? "";
+              if (cur && cur !== autoSet.current[d.key]) return f; // ผู้ใช้กรอกเองแล้ว = ไม่ทับ
+              autoSet.current[d.key] = r.value!;
+              return { ...f, cf: { ...f.cf, [d.key]: r.value! } };
+            });
+          })
+          .catch(() => {});
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [autoDeps]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!meta) return <Loading />;
   const filterStock = meta.stocks.find((s) => s.stkId === filter) ?? null;
   // 🔒 สิทธิ์ของหน้า (ProductControl) + สิทธิ์ของคลังที่ดูอยู่ (ALL STOCKS = มีสิทธิ์อย่างน้อย 1 คลัง)
@@ -209,6 +245,8 @@ export default function InventoryPage() {
         <span className="mb-1 block truncate text-[11px] font-extrabold uppercase text-ink-soft" title={d.label}>
           {d.label}
           {d.unit ? ` (${d.unit})` : ""}
+          {d.isNew && <span className="cf-new">NEW</span>}
+          {d.autoFrom && <span className="ml-1 text-accent" title="เติมอัตโนมัติ">⚡</span>}
         </span>
         {d.type === "SELECT" ? (
           <MenuSelect
@@ -219,13 +257,24 @@ export default function InventoryPage() {
             onChange={(v) => setForm({ ...form, cf: { ...form.cf, [k]: v } })}
           />
         ) : (
+        <>
         <input
           className="field"
           type={d.type === "DATE" ? "date" : "text"}
           inputMode={d.type === "NUMBER" ? "decimal" : undefined}
+          list={d.suggest && d.type !== "DATE" ? `dl-cf-${d.fieldId}` : undefined}
+          onFocus={d.suggest ? () => loadSug(d.fieldId) : undefined}
           value={form.cf[k] ?? ""}
           onChange={(e) => setForm({ ...form, cf: { ...form.cf, [k]: d.type === "NUMBER" ? e.target.value.replace(/[^\d.,-]/g, "") : e.target.value } })}
         />
+        {d.suggest && (
+          <datalist id={`dl-cf-${d.fieldId}`}>
+            {(cfSug[d.fieldId] ?? []).map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+        )}
+        </>
         )}
       </label>
     );
@@ -793,7 +842,14 @@ export default function InventoryPage() {
                       {g.key && <GroupRow colSpan={ncols} label={layout?.groupBy ?? ""} value={g.key} count={groupCounts[g.key] ?? g.items.length} collapsed={collapsed.has(g.key)} onToggle={() => toggleGroup(g.key)} />}
                       {!collapsed.has(g.key) && g.items.map((p) => (
                         <Fragment key={p.ptId}>
-                          <tr className={`${viewId === p.ptId ? "bg-accent-soft/40" : ""} ${p.isShow ? "" : "[&>td:not(:last-child)]:opacity-50"}`}>
+                          {/* สินค้าที่มี Coil: กดที่ไหนก็ได้ในแถว = กาง / พับรายการ Master Coil / Coil (ยกเว้นปุ่ม / ช่องติ๊ก) */}
+                          <tr
+                            className={`${viewId === p.ptId ? "bg-accent-soft/40" : ""} ${p.isShow ? "" : "[&>td:not(:last-child)]:opacity-50"} ${coilStk && p.coilCount > 0 ? "cursor-pointer" : ""}`}
+                            onClick={(e) => {
+                              if (!coilStk || p.coilCount <= 0 || (e.target as HTMLElement).closest("button, input, a, label, select")) return;
+                              void toggleCoils(p);
+                            }}
+                          >
                             <td>
                               <input type="checkbox" checked={ticked.includes(p.ptId)} onChange={(e) => setTicked((t) => (e.target.checked ? [...t, p.ptId] : t.filter((x) => x !== p.ptId)))} />
                             </td>
