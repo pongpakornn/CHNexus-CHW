@@ -3,7 +3,7 @@
 #        powershell -ExecutionPolicy Bypass -File scripts\create-shortcut.ps1 -Url http://<IP เครื่องที่รันระบบ>:3000
 #   โลโก้ดาวน์โหลดจากระบบ (<Url>/favicon.ico) มาเก็บที่ %LocalAppData%\CHR-Nexus\chr-nexus.ico
 param(
-    [string]$Url = "http://localhost:3000",
+    [string]$Url = "http://192.168.10.56:3003",
     [string]$Name = "CHR-Nexus"
 )
 $ErrorActionPreference = "Stop"
@@ -18,6 +18,15 @@ try {
     # เปิดระบบไม่ได้ตอนนี้ -> ใช้ไฟล์โลโก้ในโปรเจค (ถ้ารันจากโฟลเดอร์โปรเจค)
     $local = Join-Path $PSScriptRoot "..\frontend\src\app\favicon.ico"
     if (Test-Path $local) { Copy-Item $local $ico -Force } else { Write-Warning "ดาวน์โหลดโลโก้ไม่ได้ ($Url) - Shortcut จะใช้ไอคอนของ Browser" }
+}
+
+# ตั้งชื่อไฟล์ไอคอนตามเนื้อไฟล์ (โลโก้เปลี่ยน = ชื่อไฟล์เปลี่ยน) - Windows จำไอคอนตามชื่อไฟล์ ถ้าใช้ชื่อเดิมจะยังโชว์โลโก้เก่า
+if (Test-Path $ico) {
+    $tag = (Get-FileHash $ico -Algorithm MD5).Hash.Substring(0, 8).ToLower()
+    $named = Join-Path $dir "chr-nexus-$tag.ico"
+    Move-Item $ico $named -Force
+    Get-ChildItem $dir -Filter "chr-nexus-*.ico" | Where-Object { $_.FullName -ne $named } | Remove-Item -Force -ErrorAction SilentlyContinue
+    $ico = $named
 }
 
 $desktop = [Environment]::GetFolderPath("Desktop")
