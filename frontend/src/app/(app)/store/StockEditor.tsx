@@ -29,6 +29,11 @@ const COLUMNS: [string, string][] = [
   ["COIL", "STOCK (COIL)"],
   ["PCS", "STOCK (PCS)"],
   ["REMARK", "REMARK"],
+  // ช่องข้อมูลสินค้าจาก Product Control
+  ["SUPPLIER", "SUPPLIER"],
+  ["CATEGORY", "CATEGORY"],
+  ["PACKSIZE", "PACK SIZE"],
+  ["BIN", "BIN"],
 ];
 const SUB_ROWS: [string, string][] = [
   ["COILNO", "COIL NO"],

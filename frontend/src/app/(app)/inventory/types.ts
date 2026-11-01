@@ -1,5 +1,5 @@
 export type InvStock = { stkId: number; code: string; name: string; stockType?: string | null; isMain: boolean; countCoil: boolean; showCoilRows: boolean; isLiveView: boolean; canView: boolean; canAdd: boolean; canEdit: boolean; canDelete: boolean };
-export type Layout = { stockId: number; columns: string[]; groupBy: string; qrFields: string[]; qrLabel: string[]; formFields: string[] };
+export type Layout = { stockId: number; columns: string[]; groupBy: string; qrFields: string[]; qrLabel: string[]; qrSep?: string; formFields: string[] };
 export type Meta = {
   can: { add: boolean; edit: boolean; delete: boolean; admin: boolean };
   /** มีสิทธิ์ดูทุกคลัง = เลือก ALL STOCKS ได้ */

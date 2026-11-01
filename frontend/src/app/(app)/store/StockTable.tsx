@@ -494,7 +494,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const s = meta.stock;
   const cols = meta.columns;
   const header = (c: string) =>
-    ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS" })[c] ??
+    ({ NO: "NO.", IMAGE: "IMAGE", CUSTOMER: "CUSTOMER", CODE: "PD CODE", PARTA: "PART A", PARTB: "PART B", PARTNO: "PART NO", MODEL: "MODEL", NAME: "PRODUCT NAME", QTY: s.qtyHeader, BOX: s.boxHeader, PCS: "STOCK (PCS)", REMARK: "REMARK", STATUS: "STATUS", SUPPLIER: "SUPPLIER", CATEGORY: "CATEGORY", PACKSIZE: "PACK SIZE", BIN: "BIN" })[c] ??
     meta.customFields?.find((f) => f.key === c)?.label ??
     c;
   const width = cfg.width;

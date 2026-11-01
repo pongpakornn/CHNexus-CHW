@@ -58,6 +58,17 @@ namespace Nexus.Services
             note = null;
             if (codes == null || codes.Count == 0) return null;
             int start = 0;
+            // ค้นด้วยช่องที่กำหนดเอง (เช่น PART NO): รหัสหลักก่อน แล้วรหัสสำรอง - ไม่ค้นช่องอื่น
+            if (fmt?.MatchField is string field)
+            {
+                foreach (string c in codes)
+                {
+                    var byField = GetPartByField(field, c, out note, preferStocks);
+                    if (byField != null) { note = null; return byField; }
+                    if (note != null) return null;
+                }
+                return null;
+            }
             if (fmt != null && fmt.MatchByName)
             {
                 var byName = GetPartByName(codes[0], out note, preferStocks);
@@ -70,6 +81,73 @@ namespace Nexus.Services
                 if (part != null) { note = null; return part; }
             }
             return null;
+        }
+
+        // 🔎 รหัสจากป้าย -> สินค้าที่ช่องนั้นตรงกัน (ไม่สนตัวพิมพ์เล็ก/ใหญ่ / เว้นวรรคหัว-ท้าย)
+        //   field = PCODE / PARTA / PARTB / PARTNO / MODEL / QRCODE / CF<n> (ช่องเพิ่มเอง - Nexus.PartFieldValues)
+        //   เจอหลายรายการ -> เลือกตัวที่อยู่คลังที่รับ (preferStocks) / ยังซ้ำ = ไม่บันทึก (กันลงผิดสินค้า) + note แจ้งผู้ใช้
+        public ScanItemModel GetPartByField(string field, string code, out string note, ICollection<int> preferStocks = null)
+        {
+            note = null;
+            string key = (code ?? "").Trim();
+            if (key.Length == 0) return null;
+
+            string where;
+            switch (field)
+            {
+                case "PCODE": where = "p.PartCode = @k"; break;
+                case "PARTA": where = "LTRIM(RTRIM(p.PartA)) = @k"; break;
+                case "PARTB": if (!Helpers.DbSchema.HasPartB) return null; where = "LTRIM(RTRIM(p.PartB)) = @k"; break;
+                case "PARTNO": where = "LTRIM(RTRIM(p.PartNumber)) = @k"; break;
+                case "MODEL": where = "LTRIM(RTRIM(p.Model)) = @k"; break;
+                case "QRCODE": where = "LTRIM(RTRIM(p.QRCode)) = @k"; break;
+                default:
+                    int fid = CustomFields.IdOf(field);
+                    if (fid <= 0 || !CustomFieldService.Ready) return null;
+                    where = $"EXISTS (SELECT 1 FROM Nexus.PartFieldValues v WHERE v.FieldID = {fid} AND v.PartID = p.PartID AND LTRIM(RTRIM(v.Value)) = @k)";
+                    break;
+            }
+
+            var rows = new List<NameRow>();
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand($@"SELECT p.PartID, p.PartCode, p.Description, p.PackSize,
+                                                      InStocks = STUFF((SELECT ',' + CAST(ps.StockID AS VARCHAR(10)) FROM Nexus.PartStocks ps WHERE ps.PartID = p.PartID FOR XML PATH('')), 1, 1, ''),
+                                                      InMain = CASE WHEN ISNULL(p.IsShowInMaster, 0) = 1 THEN 1 ELSE 0 END
+                                               FROM Nexus.Parts p WITH (NOLOCK) WHERE p.IsActive = 1 AND {where}", conn))
+            {
+                cmd.Parameters.AddWithValue("@k", key);
+                conn.Open();
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read())
+                        rows.Add(new NameRow
+                        {
+                            Id = Convert.ToInt32(r["PartID"]), Code = r["PartCode"].ToString(), Name = r["Description"].ToString(),
+                            Pack = r["PackSize"] == DBNull.Value ? 1 : Convert.ToInt32(r["PackSize"]),
+                            Stocks = new HashSet<int>(r["InStocks"].ToString().Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)),
+                            InMain = Convert.ToInt32(r["InMain"]) == 1
+                        });
+            }
+            if (rows.Count == 0) return null;
+
+            var hit = rows.Count == 1 ? rows[0] : null;
+            if (hit == null && preferStocks != null && preferStocks.Count > 0)
+            {
+                HashSet<int> mainIds = new HashSet<int>();
+                using (var conn = new SqlConnection(_connectionString))
+                using (var cmd = new SqlCommand("SELECT StockID FROM Nexus.Stocks WHERE IsMain = 1", conn))
+                {
+                    conn.Open();
+                    using (var r = cmd.ExecuteReader()) while (r.Read()) mainIds.Add(r.GetInt32(0));
+                }
+                var mine = rows.Where(x => preferStocks.Any(s => x.Stocks.Contains(s) || (x.InMain && mainIds.Contains(s)))).ToList();
+                if (mine.Count == 1) hit = mine[0];
+            }
+            if (hit == null)
+            {
+                note = $"รหัส {key} ตรงกับสินค้าในระบบ {rows.Count} รายการ ({string.Join(", ", rows.Take(3).Select(x => x.Code))}{(rows.Count > 3 ? " ..." : "")}) กรุณาแก้ข้อมูลให้ไม่ซ้ำ";
+                return null;
+            }
+            return new ScanItemModel { PartId = hit.Id, PartCode = hit.Code, PartName = hit.Name, PartNo = string.Empty, PartACode = hit.Code, Qty = hit.Pack, UpdateTime = DateTime.Now };
         }
 
         // ชื่อสินค้าจากป้าย -> สินค้าในระบบ (เทียบแบบ NormalizeName)

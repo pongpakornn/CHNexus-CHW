@@ -42,6 +42,31 @@ namespace Nexus.Models
 
         public bool MatchByName => string.Equals(MatchBy, "NAME", StringComparison.OrdinalIgnoreCase);
 
+        // 🔎 ค้นด้วยช่องเดียวที่กำหนดเอง (ไม่ล็อกที่ PRODUCT CODE): PCODE / PARTA / PARTB / PARTNO / MODEL / QRCODE / CF<n> (ช่องเพิ่มเอง)
+        //   CODE = รหัสใดก็ได้ (PRODUCT CODE / QR / PART A / PART NO - ค่าเดิม) / NAME = ชื่อสินค้า
+        public static readonly (string Key, string Label)[] MatchFields =
+        {
+            ("PCODE", "PRODUCT CODE"), ("PARTA", "PART A"), ("PARTB", "PART B"), ("PARTNO", "PART NO"), ("MODEL", "MODEL"), ("QRCODE", "QR CODE")
+        };
+        private static readonly Regex CustomKeyRx = new Regex(@"^CF\d{1,8}$", RegexOptions.IgnoreCase);
+
+        // ค่าที่บันทึกได้ (ไม่รู้จัก = CODE เดิม)
+        public static string CleanMatchBy(string v)
+        {
+            string k = (v ?? "").Trim().ToUpperInvariant();
+            return k == "NAME" || MatchFields.Any(f => f.Key == k) || CustomKeyRx.IsMatch(k) ? k : "CODE";
+        }
+
+        // ช่องที่ใช้ค้น (null = CODE / NAME แบบเดิม)
+        public string MatchField
+        {
+            get
+            {
+                string k = CleanMatchBy(MatchBy);
+                return k == "CODE" || k == "NAME" ? null : k;
+            }
+        }
+
         public List<int> NamePositions()
         {
             var list = (NameFields ?? "").Split(new[] { ',', '+', ' ' }, StringSplitOptions.RemoveEmptyEntries)

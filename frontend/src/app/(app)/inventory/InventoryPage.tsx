@@ -148,9 +148,10 @@ export default function InventoryPage() {
     listRef.current?.scrollTo({ top: 0 });
   };
 
-  // PRODUCT CODE: แนะนำสินค้าที่มีแล้ว (เลือก = ดึงข้อมูลทั้งหมดมาแก้)
+  // PRODUCT CODE: แนะนำสินค้าที่มีแล้ว (เลือก = ดึงข้อมูลมาใส่ช่องเพื่อลงทะเบียนใหม่ - แก้สินค้าเดิมกด EDIT ในตาราง)
+  const pickedCode = useRef<string | null>(null);
   useEffect(() => {
-    if (editId || codeKey.trim().length < 2) {
+    if (editId || viewId || codeKey.trim().length < 2 || codeKey === pickedCode.current) {
       queueMicrotask(() => setCodeSuggest([]));
       return;
     }
@@ -161,7 +162,7 @@ export default function InventoryPage() {
     return () => {
       alive = false;
     };
-  }, [codeKey, editId]);
+  }, [codeKey, editId, viewId]);
 
   const [collapsed, toggleGroup] = useCollapsed();
   const groups = useMemo(() => {
@@ -281,6 +282,7 @@ export default function InventoryPage() {
   };
 
   function clear() {
+    pickedCode.current = null;
     setForm(EMPTY_FORM);
     setEditId(null);
     setViewId(null);
@@ -292,6 +294,19 @@ export default function InventoryPage() {
     if (fs?.canAdd) {
       setInMain(fs.isMain);
       setOthers(fs.isMain ? [] : [fs.stkId]);
+    }
+  }
+
+  // 📋 เลือกจากรายการแนะนำ: คัดลอกข้อมูลมาใส่ช่องอย่างเดียว (ยังเป็นการลงทะเบียนใหม่ - ไม่แตะสินค้าเดิม · คลังที่เลือกไว้คงเดิม)
+  async function copyFrom(p: Part) {
+    pickedCode.current = p.partCode;
+    setForm({ ...formOf(p) });
+    setCoilText(null);
+    try {
+      const d = await api<{ partWeight: number | null; cf?: Record<string, string> }>(`/products/${p.ptId}/detail`, { query: { code: p.partCode, stkId: filter ?? undefined } });
+      setForm((f) => (f.partCode === p.partCode ? { ...f, partWeight: d.partWeight == null ? "" : String(d.partWeight), cf: { ...(d.cf ?? {}) } } : f));
+    } catch {
+      /* ใช้ข้อมูลจากรายการแนะนำ */
     }
   }
 
@@ -720,7 +735,7 @@ export default function InventoryPage() {
                           <Fragment key={k}>
                         <div className="relative">
                           {input("PRODUCT CODE", "partCode")}
-                          {codeSuggest.length > 0 && !editId && (
+                          {codeSuggest.length > 0 && !editId && !viewId && (
                             <div className="absolute z-30 mt-1 max-h-60 w-[min(360px,80vw)] overflow-auto rounded-xl border border-line bg-surface shadow-xl">
                               {codeSuggest.map((p) => (
                                 <button
@@ -729,9 +744,8 @@ export default function InventoryPage() {
                                   className="block w-full border-b border-line/60 px-3 py-2 text-left hover:bg-surface-2"
                                   onClick={() => {
                                     setCodeSuggest([]);
-                                    fill(p, can.edit);
-                                    search(p.partCode);
-                                    toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาแล้ว - แก้ / เพิ่ม Coil แล้วกด SAVE CHANGES`, "info");
+                                    copyFrom(p);
+                                    toast.show("PRODUCT CODE", `ดึงข้อมูล ${p.partCode} มาใส่ช่องแล้ว - แก้ค่าที่ต้องการแล้วกด ＋ PART REGISTRATION เพื่อเพิ่มใหม่ (แก้สินค้าเดิมกด EDIT ในตาราง)`, "info");
                                   }}
                                 >
                                   <div className="text-sm font-extrabold text-primary">
@@ -789,9 +803,25 @@ export default function InventoryPage() {
                       )
                     ) : (
                       can.add && (
+                        <>
+                        {/* ↺ RESET: ล้างข้อมูลในช่องทั้งหมดเพื่อกรอกใหม่ (คลังที่เลือกไว้คงเดิม) */}
+                        <button
+                          type="button"
+                          className="btn-ghost min-w-[120px]"
+                          disabled={busy}
+                          onClick={() => {
+                            pickedCode.current = null;
+                            setForm(EMPTY_FORM);
+                            setCoilText(null);
+                            setViewId(null);
+                          }}
+                        >
+                          ↺ RESET
+                        </button>
                         <button className="btn bg-accent min-w-[180px]" disabled={busy} onClick={() => save(false)}>
                           ＋ PART REGISTRATION
                         </button>
+                        </>
                       )
                     )}
                   </div>

@@ -6,9 +6,10 @@ import { useToast } from "@/components/Toasts";
 import { DateRange } from "@/components/ui/DateRange";
 import { useDialogs } from "@/components/ui/Dialogs";
 import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
-import { PartPicker, type PartOption } from "@/components/ui/PartPicker";
+import { PartPicker, PartSuggestInput, type PartOption } from "@/components/ui/PartPicker";
 import { api, download } from "@/lib/api";
 import { MenuSelect } from "@/components/ui/MenuSelect";
+import { DrawIcon } from "@/components/ui/DrawIcon";
 import { parseNum, qty, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 
@@ -323,8 +324,8 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                       <td className="whitespace-nowrap">
                         {/* ปุ่มเรียงตั้ง: คอลัมน์แคบ ตารางพอดีจอ Mac / iPad */}
                         <div className="flex flex-col items-stretch gap-1">
-                          <button className="btn bg-success px-2 py-1 text-xs" disabled={busy} onClick={() => approve(r)}>
-                            ✔ APPROVE
+                          <button className="btn bg-success act-draw px-2 py-1 text-xs" disabled={busy} onClick={() => approve(r)}>
+                            <DrawIcon kind="approve" /> APPROVE
                           </button>
                           {r.status !== "RECEIVED" && (
                             <button className="btn bg-info px-2 py-1 text-xs" disabled={busy} onClick={() => setReg(r)}>
@@ -472,7 +473,12 @@ function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: Reg
           <div className="grid gap-3 sm:grid-cols-[1fr_1.6fr_110px]">
             <label className="block">
               <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PRODUCT CODE *</span>
-              <input className="field" value={code} onChange={(e) => setCode(e.target.value)} />
+              <PartSuggestInput
+                value={code}
+                onChange={setCode}
+                stkId={stk}
+                onPick={(p) => (setCode(p.partCode), setName(p.partName ?? ""), setPack(p.packSize == null ? "" : String(p.packSize)))}
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PRODUCT NAME</span>

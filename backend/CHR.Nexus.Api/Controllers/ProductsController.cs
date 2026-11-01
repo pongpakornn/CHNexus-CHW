@@ -572,8 +572,8 @@ public sealed class ProductsController : AppController
             var qrFields = lay.QrFields.ToList(); var labelFields = lay.QrLabel.ToList();
             bool needCoils = qrFields.Concat(labelFields).Any(k => k == "MOTHER" || k == "COILNO");
             var coils = needCoils ? new ProductControlLayoutService().GetCoils(req.StkId) : null;
-            string pdf = new ExportService().GenerateA4Pdf(items, qrFields, labelFields, coils);
-            string qrText = QrFormat.Sample(qrFields);
+            string pdf = new ExportService().GenerateA4Pdf(items, qrFields, labelFields, coils, lay.QrSep);
+            string qrText = QrFormat.Sample(qrFields, lay.QrSep);
             if (req.Mode == "ALL")
                 LogService.WriteLog(Uid, "EXPORT_QR_PDF", $"Exported QR Code to PDF: ALL IN {stockName} ({items.Count:N0} items) | QR: {qrText}", stockName);
             else
@@ -613,11 +613,12 @@ public sealed class ProductsController : AppController
             hasPresets = FieldPresetService.Ready,
             fieldTypes = new FieldPresetService().GetTypes().Select(t => new { t.Id, t.Name, baseType = t.BaseType, t.Unit }),
             fieldUnits = new FieldPresetService().GetUnits().Select(u => new { u.Id, u.Unit, group = u.Group }),
-            hasQrFields = DbSchema.HasQrFields
+            hasQrFields = DbSchema.HasQrFields,
+            hasQrSep = DbSchema.HasQrSep
         });
     }
 
-    public sealed record LayoutSave(int StkId, List<string> Columns, string GroupBy, List<string> QrFields, List<string> QrLabel, List<string> FormFields = null);
+    public sealed record LayoutSave(int StkId, List<string> Columns, string GroupBy, List<string> QrFields, List<string> QrLabel, List<string> FormFields = null, string QrSep = null);
 
     [HttpPost("admin/layouts")]
     public IActionResult SaveLayouts([FromBody] List<LayoutSave> list)
@@ -645,6 +646,10 @@ public sealed class ProductsController : AppController
                     return Fail("ฐานข้อมูลยังไม่รองรับรูปแบบนี้ กรุณารัน Database/Update_20261017b.sql ก่อน");
                 l.QrFields = qf;
                 l.QrLabel = QrFormat.Parse(string.Join(",", r.QrLabel ?? new()), QrFormat.DefaultLabel);
+                string sep = QrFormat.CleanSep(r.QrSep);
+                if (!DbSchema.HasQrSep && sep != QrFormat.DefaultSep)
+                    return Fail("ฐานข้อมูลยังไม่รองรับการตั้งตัวคั่น QR กรุณารัน database/nexus/16_Qr_Separator.sql ก่อน");
+                l.QrSep = sep;
             }
             if (r.FormFields != null)
             {
@@ -659,7 +664,7 @@ public sealed class ProductsController : AppController
             bool qr = list.Any(r => r.QrFields != null);
             LogService.WriteLog(Uid, qr ? "PRODUCT_CONTROL_QR" : "PRODUCT_CONTROL_LAYOUT",
                 string.Join(" | ", save.Select(l => qr
-                    ? $"{l.StockId}: QR {QrFormat.Sample(l.QrFields)} / LABEL {string.Join(", ", l.QrLabel.Select(ProductControlColumns.Label))}"
+                    ? $"{l.StockId}: QR {QrFormat.Sample(l.QrFields, l.QrSep)} / LABEL {string.Join(", ", l.QrLabel.Select(ProductControlColumns.Label))}"
                     : $"{l.StockId}: {l.GroupBy} | {string.Join(",", l.Columns)}")), "");
             return Ok(new { message = "บันทึกแล้ว" });
         }

@@ -35,6 +35,7 @@ public sealed class StoreController : AppController
             "NO" => s.ColNo, "IMAGE" => s.ColImage, "CUSTOMER" => s.ColCustomer, "CODE" => s.ColCode, "PARTA" => s.ColPartA, "PARTB" => s.ColPartB,
             "PARTNO" => s.ColPartNo, "MODEL" => s.ColModel, "NAME" => s.ColName, "MAXMIN" => s.UseMaxMin, "QTY" => s.ColQty,
             "BOX" or "COIL" => s.ShowBoxColumn, "PCS" => s.ColStockPcs, "REMARK" => s.ColRemark,
+            "SUPPLIER" or "CATEGORY" or "PACKSIZE" or "BIN" => s.HasColumn(k),
             // ➕ ช่องกรอกเพิ่มเองของคลังนี้ (ติ๊กไว้ใน ADD / EDIT STOCK) - ช่องที่ถูกลบแล้ว = ไม่แสดง
             _ => CustomFields.IsKey(k) && cf.Any(d => d.FieldId == CustomFields.IdOf(k))
         };
@@ -86,8 +87,15 @@ public sealed class StoreController : AppController
         var s = _stocks.GetStock(stkId);
         if (s == null) return NotFound();
         var cf = new CustomFieldService().GetDefs(s.StkId);
-        // คอลัมน์ที่ติ๊ก (ตามลำดับ) - ช่องกรอกเพิ่มเองที่ถูกลบแล้วไม่ต้องส่ง
-        var cols = s.ColumnOrderList().Where(k => !CustomFields.IsKey(k) || cf.Any(d => d.FieldId == CustomFields.IdOf(k))).ToList();
+        // คอลัมน์ที่ติ๊ก (ตามลำดับ) - เฉพาะที่เปิดอยู่จริง (ColumnOrderList ต่อท้ายคอลัมน์ที่ไม่ได้ติ๊กไว้ด้วย) / ช่องกรอกเพิ่มเองที่ถูกลบแล้วไม่ต้องส่ง
+        bool Ticked(string k) => k switch
+        {
+            "NO" => s.ColNo, "IMAGE" => s.ColImage, "CUSTOMER" => s.ColCustomer, "CODE" => s.ColCode, "PARTA" => s.ColPartA, "PARTB" => s.ColPartB,
+            "PARTNO" => s.ColPartNo, "MODEL" => s.ColModel, "NAME" => s.ColName, "MAXMIN" => s.UseMaxMin, "QTY" => s.ColQty,
+            "BOX" => s.ColStockBox, "COIL" => s.CountCoil, "PCS" => s.ColStockPcs, "REMARK" => s.ColRemark,
+            _ => CustomFields.IsKey(k) ? cf.Any(d => d.FieldId == CustomFields.IdOf(k)) : s.HasColumn(k)
+        };
+        var cols = s.ColumnOrderList().Where(Ticked).ToList();
         return Ok(new { stock = s, columns = cols, coilRowOrder = s.CoilRowOrder(), formats = _stocks.GetFormats().Select(f => new { f.FmtId, f.Name, f.IsActive }),
                         customFields = cf.Select(d => new { key = d.Key, d.Label, type = d.DataType }) });
     }
@@ -578,11 +586,15 @@ public sealed class StoreController : AppController
     public IActionResult Formats()
     {
         if (Me?.CanManageFormats != true) return Deny();
+        var stocks = _stocks.GetStocks();
         return Ok(new
         {
             canAdd = Me.CanAddStore, canEdit = Me.CanEditStore, canDelete = Me.CanDeleteStore,
             formats = _stocks.GetFormats(),
-            stocks = _stocks.GetStocks().Select(s => new { s.StkId, s.Code, s.Name, display = s.DisplayName })
+            stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, display = s.DisplayName }),
+            // MATCH BY: ช่องที่ใช้ค้นสินค้า (กำหนดเอง) + ช่องเพิ่มเองของแต่ละคลัง
+            matchFields = BarcodeFormatModel.MatchFields.Select(f => new { key = f.Key, label = f.Label })
+                .Concat(new CustomFieldService().GetDefs().Select(d => new { key = d.Key, label = $"{d.Label} ({stocks.FirstOrDefault(s => s.StkId == d.StockId)?.Code ?? "-"})" }))
         });
     }
 
@@ -611,7 +623,7 @@ public sealed class StoreController : AppController
         {
             var part = new ScanService().FindPart(f, codes, out string note);
             lookup = part != null ? $"FOUND IN SYSTEM:  {part.PartCode}  •  {part.PartName}"
-                                  : "NOT FOUND IN SYSTEM" + (string.IsNullOrEmpty(note) ? "  (no product has this " + (f.MatchByName ? "name" : "code") + ")" : "  -  " + note);
+                                  : "NOT FOUND IN SYSTEM" + (string.IsNullOrEmpty(note) ? "  (no product has this " + (f.MatchByName ? "name" : f.MatchField ?? "code") + ")" : "  -  " + note);
         }
         return Ok(new { ok, fields, codes, qty, coilNo, mother, lookup, minFields = RequiredMinFields(f), namePositions = f.NamePositions() });
     }
@@ -633,7 +645,7 @@ public sealed class StoreController : AppController
         f.DelimMode = f.DelimMode == "SPACES" ? "SPACES" : "CHAR";
         if (f.SplitBySpaces && string.IsNullOrEmpty(f.Delimiter)) f.Delimiter = " ";
         f.CodePrefix = f.CodePrefix is "DIGIT" or "CUT" ? f.CodePrefix : "NONE";
-        f.MatchBy = f.MatchBy == "NAME" ? "NAME" : "CODE";
+        f.MatchBy = BarcodeFormatModel.CleanMatchBy(f.MatchBy);
         if (string.IsNullOrEmpty(f.Name)) return Fail("กรุณากรอกชื่อรูปแบบ (FORMAT NAME)");
         if (!f.SplitBySpaces && string.IsNullOrEmpty(f.Delimiter)) return Fail("กรุณากรอกตัวคั่น (DELIMITER) เช่น ; หรือเลือก SPLIT FIELDS BY = ANY SPACES");
         if (f.CodePrefix == "CUT" && !(f.CodeCut > 0)) return Fail("กรุณากรอกจำนวนตัวอักษรที่ต้องการตัด (N)");
@@ -650,7 +662,7 @@ public sealed class StoreController : AppController
             bool isNew = f.FmtId == 0;
             int id = _stocks.SaveFormat(f, Uid);
             LogService.WriteLog(Uid, isNew ? "BARCODE_FMT_CREATE" : "BARCODE_FMT_UPDATE",
-                $"{f.Name} | Delim: {f.Delimiter} | Code#{f.CodePos} Alt#{f.AltCodePos} Qty#{f.QtyPos} Min{f.MinFields} Coil#{f.CoilNoPos} Master#{f.MotherCoilPos} | Match: {(f.MatchByName ? "NAME#" + string.Join(",", f.NamePositions()) : "CODE")} | Active: {f.IsActive} | DeductStk: {f.SourceStkId}", f.Name);
+                $"{f.Name} | Delim: {f.Delimiter} | Code#{f.CodePos} Alt#{f.AltCodePos} Qty#{f.QtyPos} Min{f.MinFields} Coil#{f.CoilNoPos} Master#{f.MotherCoilPos} | Match: {(f.MatchByName ? "NAME#" + string.Join(",", f.NamePositions()) : f.MatchBy)} | Active: {f.IsActive} | DeductStk: {f.SourceStkId}", f.Name);
             return Ok(new { id, message = $"บันทึกรูปแบบ {f.Name} สำเร็จ" });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกรูปแบบบาร์โค้ดไม่สำเร็จ"); }

@@ -31,7 +31,7 @@ type Fmt = {
   sampleText: string;
   isActive: boolean;
 };
-type Data = { canAdd: boolean; canEdit: boolean; canDelete: boolean; formats: Fmt[]; stocks: { stkId: number; display: string }[] };
+type Data = { canAdd: boolean; canEdit: boolean; canDelete: boolean; formats: Fmt[]; stocks: { stkId: number; display: string }[]; matchFields?: { key: string; label: string }[] };
 type Test = { ok: boolean; fields: string[]; codes: string[]; qty: number | null; coilNo: string | null; mother: string | null; lookup: string | null; minFields: number; namePositions: number[] };
 
 const BLANK: Fmt = {
@@ -130,6 +130,12 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
   }
 
   const canSave = f && (f.fmtId === 0 ? data?.canAdd : data?.canEdit);
+  // MATCH BY: CODE = รหัสใดก็ได้ (เดิม) / NAME = ชื่อสินค้า / หรือเลือกช่องเดียวเอง เช่น PART NO / ช่องเพิ่มเองของคลัง
+  const matchOpts = [
+    { value: "CODE", label: "PRODUCT CODE (ค่าเดิม)" },
+    { value: "NAME", label: "PRODUCT NAME" },
+    ...(data?.matchFields ?? []).map((x) => ({ value: x.key, label: x.label })),
+  ];
   const set = <K extends keyof Fmt>(k: K, v: Fmt[K]) => f && setF({ ...f, [k]: v });
   const txt = (label: string, k: keyof Fmt, opt: { num?: boolean; disabled?: boolean; ph?: string; mono?: boolean } = {}) => (
     <label className={`fx ${opt.disabled ? "is-off" : ""}`}>
@@ -262,10 +268,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
                 "MATCH PRODUCT",
                 "หาสินค้าจากรหัส / ชื่อ",
                 <>
-                  {pick("MATCH BY", "matchBy", [
-                    { value: "CODE", label: "PRODUCT CODE" },
-                    { value: "NAME", label: "PRODUCT NAME" },
-                  ])}
+                  {pick("MATCH BY", "matchBy", matchOpts)}
                   {pick("CODE PREFIX", "codePrefix", [
                     { value: "NONE", label: "NONE" },
                     { value: "DIGIT", label: "CUT 1st DIGIT (2A250 → A250)" },
@@ -317,7 +320,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
                 {test && f.sampleText && (
                   <div className="mt-3 grid gap-1 text-sm font-bold">
                     <div className={test.ok ? "text-success" : "text-danger"}>
-                      {test.ok ? `✔ MATCH • ${f.matchBy === "NAME" ? "NAME" : "CODE"}: ${test.codes.join(" / ")}${test.qty !== null ? ` • QTY ${test.qty}` : ""}` : "✖ ป้ายนี้ไม่ตรงกับรูปแบบ"}
+                      {test.ok ? `✔ MATCH • ${matchOpts.find((o) => o.value === f.matchBy)?.label ?? "CODE"}:${test.codes.join(" / ")}${test.qty !== null ? ` • QTY ${test.qty}` : ""}` : "✖ ป้ายนี้ไม่ตรงกับรูปแบบ"}
                     </div>
                     {(test.coilNo || test.mother) && (
                       <div className="text-warning">

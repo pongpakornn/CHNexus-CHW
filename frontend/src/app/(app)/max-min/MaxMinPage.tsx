@@ -4,6 +4,7 @@ import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
+import { CalcChoiceModal } from "@/components/ui/CalcChoiceModal";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -545,30 +546,7 @@ export default function MaxMinPage() {
       </Modal>
 
       {/* 📊 IMPORT FORECAST & ORDER: คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว */}
-      <Modal open={!!choice} wide title={choice?.title ?? ""} onClose={() => setChoice(null)}>
-        <p className="mb-4 whitespace-pre-line text-sm font-semibold">{choice?.text}</p>
-        <div className="grid gap-3 md:grid-cols-2">
-          {(
-            [
-              ["CALC", choice?.calc, "#e11d48", GLYPH.calc, "IMPORT + CALCULATE"],
-              ["ONLY", choice?.only, "#0284c7", GLYPH.upload, "IMPORT ONLY"],
-            ] as const
-          ).map(([mode, label, col, d, tag], i) => (
-            <ChoiceCard
-              key={mode}
-              delay={i}
-              color={col}
-              icon={<Glyph d={d} />}
-              title={label}
-              meta={tag}
-              onClick={() => {
-                setChoice(null);
-                pickFile(mode);
-              }}
-            />
-          ))}
-        </div>
-      </Modal>
+      <CalcChoiceModal choice={choice} onClose={() => setChoice(null)} onPick={(calc) => pickFile(calc ? "CALC" : "ONLY")} />
     </PageBody>
   );
 }

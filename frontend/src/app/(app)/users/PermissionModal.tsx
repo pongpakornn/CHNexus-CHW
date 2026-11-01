@@ -99,7 +99,7 @@ export function PermissionModal({
     on.length === 0
       ? "⛔ NOT SET - this user cannot scan (the scan page asks them to contact the Admin)"
       : "STOCKS : " +
-        on.map((i) => i.code + (i.priority ? " ★" : "") + (i.deduct ? " (DEDUCTED)" : "") + (i.askEmployee ? " (EMP ID)" : "") + (i.askDepartment ? " (DEPT)" : "")).join(",  ") +
+        on.map((i) => i.code + (i.priority ? " ★" : "") + (i.deduct ? " (DEDUCTED)" : "") + (i.askEmployee ? " (EMP ID)" : "") + (i.askDepartment ? " (DEPT)" : "") + (i.qrDateFmt || i.qrRefField || i.qrRunStart ? " (QR+)" : "")).join(",  ") +
         (on.length > 1 ? "   (scan together)" : "");
 
   async function save() {
@@ -141,6 +141,60 @@ export function PermissionModal({
       {label && <span>{HEAD[k]}</span>}
     </button>
   );
+
+  // 📷 ต่อท้าย QR ที่บันทึกตอนสแกนรับเข้า: DATE (เปลี่ยนตามวันจริง) + REF (ค่าของสินค้าที่สแกน) + RUNNING (วันใหม่เริ่มใหม่)
+  //    คั่นด้วยตัวคั่นของ QR คลังนั้น เช่น 5T072-4943-1  20 -> 5T072-4943-1  20 2610 KUBOTA 0001
+  const qrRow = (s: ScanStock) => {
+    const sc = data?.scanner;
+    const dis = readOnly || !s.on;
+    const sep = s.qrSep ?? "|";
+    const date = sc?.qrDateFormats?.find((f) => f.key === s.qrDateFmt)?.sample;
+    const refs = [...(sc?.qrRefFields ?? []), ...(s.qrRefCustom ?? []).map((f) => ({ key: f.key, label: `➕ ${f.label}` }))];
+    const ref = refs.find((f) => f.key === s.qrRefField)?.label.replace("➕ ", "");
+    const tail = [date, ref && `<${ref}>`, s.qrRunStart].filter(Boolean);
+    return (
+      <div className="flex w-full flex-wrap items-center gap-2 border-t border-dashed border-line pt-2">
+        <span className="text-[10px] font-extrabold tracking-wide text-ink-soft">QR + </span>
+        <label className="flex items-center gap-1.5 text-[10px] font-extrabold text-ink-soft">
+          DATE
+          <MenuSelect
+            compact
+            className="w-[150px]"
+            disabled={dis}
+            value={s.qrDateFmt ?? ""}
+            options={[{ value: "", label: "— NONE —" }, ...(sc?.qrDateFormats ?? []).map((f) => ({ value: f.key, label: `${f.key} (${f.sample})` }))]}
+            onChange={(v) => setStock(s.stkId, { qrDateFmt: v || null })}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-[10px] font-extrabold text-ink-soft">
+          REF
+          <MenuSelect
+            compact
+            className="w-[170px]"
+            disabled={dis}
+            value={s.qrRefField ?? ""}
+            options={[{ value: "", label: "— NONE —" }, ...refs.map((f) => ({ value: f.key, label: f.label }))]}
+            onChange={(v) => setStock(s.stkId, { qrRefField: v || null })}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-[10px] font-extrabold text-ink-soft">
+          RUNNING
+          <input
+            className="field !h-8 !w-[90px] text-center font-mono text-xs"
+            placeholder="0001"
+            inputMode="numeric"
+            maxLength={9}
+            disabled={dis}
+            value={s.qrRunStart ?? ""}
+            onChange={(e) => setStock(s.stkId, { qrRunStart: e.target.value.replace(/\D/g, "") || null })}
+          />
+        </label>
+        <span className="ml-auto truncate font-mono text-[11px] font-bold text-accent" title="ตัวอย่าง QR ที่บันทึกตอนสแกนรับเข้า (RUNNING เริ่มใหม่ทุกวัน)">
+          {tail.length ? `QR${sep}${tail.join(sep)}` : "ไม่ต่อท้าย QR"}
+        </span>
+      </div>
+    );
+  };
 
   // คลังที่สแกนได้ของ Multi-Scanner (แถวขยาย / การ์ดบนมือถือใช้ร่วมกัน)
   const scanBox = (
@@ -185,6 +239,7 @@ export function PermissionModal({
               onChange={(v) => setStock(s.stkId, { display: v })}
             />
           </label>
+          {data?.scanner?.hasQrSuffix && qrRow(s)}
         </div>
       ))}
     </div>

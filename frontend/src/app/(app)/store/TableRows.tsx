@@ -126,6 +126,14 @@ export const ProductRow = memo(function ProductRow({
         return <td key={col} className="whitespace-nowrap font-bold">{p.model}</td>;
       case "NAME":
         return <td key={col} className="col-name min-w-[200px] font-bold">{p.partName}</td>;
+      case "SUPPLIER":
+        return <td key={col} className="whitespace-nowrap font-bold">{p.supplier}</td>;
+      case "CATEGORY":
+        return <td key={col} className="whitespace-nowrap font-bold">{p.category}</td>;
+      case "PACKSIZE":
+        return <td key={col} className="whitespace-nowrap text-right font-bold tabular-nums">{p.packSize}</td>;
+      case "BIN":
+        return <td key={col} className="whitespace-nowrap font-bold">{p.bin}</td>;
       case "MAXMIN":
         return (
           <Fragment key={col}>

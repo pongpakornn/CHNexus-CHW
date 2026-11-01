@@ -21,6 +21,7 @@ namespace Nexus.Services
             public List<int> DeductIds { get; set; } = new List<int>();   // คลังที่เห็นปุ่ม DEDUCTED / NOT DEDUCTED (Update_20261016.sql)
             public List<int> EmployeeIds { get; set; } = new List<int>(); // คลังที่ต้องกรอก EMPLOYEE ID ก่อนสแกน (Update_20261020b.sql)
             public List<int> DepartmentIds { get; set; } = new List<int>(); // คลังที่ต้องเลือก DEPARTMENT ก่อนสแกน
+            public Dictionary<int, QrSuffix> QrSuffixes { get; set; } = new Dictionary<int, QrSuffix>(); // ต่อท้าย QR ตอนรับเข้า (17_Scan_Qr_Suffix.sql)
             public bool IsSet => StockIds.Count > 0;
         }
 
@@ -31,6 +32,7 @@ namespace Nexus.Services
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand("SELECT StockID, IsPriority, " + (DbSchema.HasScanDeduct ? "ShowDeduct" : "CAST(0 AS bit) AS ShowDeduct") +
                                             (DbSchema.HasScanWho ? ", AskEmployee, AskDepartment" : ", CAST(0 AS bit) AS AskEmployee, CAST(0 AS bit) AS AskDepartment") +
+                                            (DbSchema.HasScanQrSuffix ? ", QrDateFmt, QrRefField, QrRunStart" : "") +
                                             " FROM Nexus.UserScanStocks WHERE UserID = @u ORDER BY StockID", conn))
             {
                 cmd.Parameters.AddWithValue("@u", userId);
@@ -44,6 +46,11 @@ namespace Nexus.Services
                         if (Convert.ToBoolean(r["ShowDeduct"])) a.DeductIds.Add(id);
                         if (Convert.ToBoolean(r["AskEmployee"])) a.EmployeeIds.Add(id);
                         if (Convert.ToBoolean(r["AskDepartment"])) a.DepartmentIds.Add(id);
+                        if (DbSchema.HasScanQrSuffix)
+                        {
+                            var q = QrSuffix.Clean(r["QrDateFmt"] as string, r["QrRefField"] as string, r["QrRunStart"] as string);
+                            if (q != null) a.QrSuffixes[id] = q;
+                        }
                     }
             }
             return a;
@@ -74,11 +81,11 @@ namespace Nexus.Services
         // แทนที่คลังของผู้ใช้ทั้งชุด (ว่าง = ยังไม่ได้กำหนด -> สแกนไม่ได้)
         //   employeeIds / departmentIds = null -> คง EMPLOYEE ID / DEPARTMENT เดิมของแต่ละคลังไว้ (เช่น Level 1 เปลี่ยนคลังที่หน้าสแกน)
         public void SaveAssignment(string userId, IEnumerable<int> stockIds, int? priorityId, string by, IEnumerable<int> deductIds = null,
-                                   IEnumerable<int> employeeIds = null, IEnumerable<int> departmentIds = null)
+                                   IEnumerable<int> employeeIds = null, IEnumerable<int> departmentIds = null, IDictionary<int, QrSuffix> qrSuffixes = null)
         {
             var ids = (stockIds ?? Enumerable.Empty<int>()).Distinct().ToList();
             var deduct = new HashSet<int>(deductIds ?? Enumerable.Empty<int>());
-            bool hasDeduct = DbSchema.HasScanDeduct, hasWho = DbSchema.HasScanWho;
+            bool hasDeduct = DbSchema.HasScanDeduct, hasWho = DbSchema.HasScanWho, hasQr = DbSchema.HasScanQrSuffix;
             var emp = employeeIds != null ? new HashSet<int>(employeeIds) : null;
             var dept = departmentIds != null ? new HashSet<int>(departmentIds) : null;
             using (var conn = new SqlConnection(_cs))
@@ -100,6 +107,18 @@ namespace Nexus.Services
                                 }
                             emp ??= oe; dept ??= od;
                         }
+                    var oldQr = new Dictionary<int, QrSuffix>();
+                    if (hasQr && qrSuffixes == null)
+                        using (var old = new SqlCommand("SELECT StockID, QrDateFmt, QrRefField, QrRunStart FROM Nexus.UserScanStocks WHERE UserID = @u", conn, tr))
+                        {
+                            old.Parameters.AddWithValue("@u", userId);
+                            using (var r = old.ExecuteReader())
+                                while (r.Read())
+                                {
+                                    var q = QrSuffix.Clean(r["QrDateFmt"] as string, r["QrRefField"] as string, r["QrRunStart"] as string);
+                                    if (q != null) oldQr[Convert.ToInt32(r["StockID"])] = q;
+                                }
+                        }
                     using (var del = new SqlCommand("DELETE FROM Nexus.UserScanStocks WHERE UserID = @u", conn, tr))
                     {
                         del.Parameters.AddWithValue("@u", userId);
@@ -120,6 +139,22 @@ namespace Nexus.Services
                             ins.Parameters.AddWithValue("@p", priorityId.HasValue && priorityId.Value == id);
                             ins.Parameters.AddWithValue("@by", (object)by ?? DBNull.Value);
                             ins.ExecuteNonQuery();
+                        }
+                    // ต่อท้าย QR (DATE / REF / RUNNING) - qrSuffixes = null -> คงค่าเดิมของแต่ละคลังไว้
+                    if (hasQr)
+                        foreach (int id in ids)
+                        {
+                            var q = (qrSuffixes ?? oldQr).TryGetValue(id, out var x) ? x : null;
+                            if (q == null) continue;
+                            using (var up = new SqlCommand("UPDATE Nexus.UserScanStocks SET QrDateFmt = @df, QrRefField = @rf, QrRunStart = @rs WHERE UserID = @u AND StockID = @s", conn, tr))
+                            {
+                                up.Parameters.AddWithValue("@df", (object)q.DateFmt ?? DBNull.Value);
+                                up.Parameters.AddWithValue("@rf", (object)q.RefField ?? DBNull.Value);
+                                up.Parameters.AddWithValue("@rs", (object)q.RunStart ?? DBNull.Value);
+                                up.Parameters.AddWithValue("@u", userId);
+                                up.Parameters.AddWithValue("@s", id);
+                                up.ExecuteNonQuery();
+                            }
                         }
                     tr.Commit();
                 }

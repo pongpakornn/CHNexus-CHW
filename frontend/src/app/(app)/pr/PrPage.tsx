@@ -1,6 +1,7 @@
 "use client";
 
 import { RowAction } from "@/components/ui/RowAction";
+import { DrawIcon } from "@/components/ui/DrawIcon";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { MenuSelect } from "@/components/ui/MenuSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -341,11 +342,11 @@ export default function PrPage() {
           <div className="flex items-end gap-2 min-[480px]:col-span-2 md:col-span-3 xl:col-span-1">
             {can.submit && !viewing && (
               <button className="cta-btn is-green flex-1" disabled={busy || (meta.hasPrStock && !stock)} onClick={submit}>
-                📨 SUBMIT PR
+                SUBMIT PR
               </button>
             )}
             <button className="cta-btn flex-1" onClick={() => setApprovedOpen(true)}>
-              📋 APPROVED LIST
+              APPROVED LIST
             </button>
           </div>
         </Card>
@@ -409,11 +410,11 @@ export default function PrPage() {
                           <RowAction kind="view" active={viewing?.prNumber === p.prNumber} onClick={() => (viewing?.prNumber === p.prNumber ? clear() : (setViewing(p), setF({ requester: p.requester, dept: p.department, remark: p.remark, target: p.targetDept })))} />
                           {can.approve && p.status === "Waiting" && (
                             <>
-                              <button className="cta-btn is-green is-sm" onClick={() => setApprove(p)}>
-                                ✔ APPROVE
+                              <button className="cta-btn is-green is-sm act-draw" onClick={() => setApprove(p)}>
+                                <DrawIcon kind="approve" /> APPROVE
                               </button>
-                              <button className="cta-btn is-red is-sm" onClick={() => reject(p)}>
-                                ✖ REJECT
+                              <button className="cta-btn is-red is-sm act-draw" onClick={() => reject(p)}>
+                                <DrawIcon kind="reject" /> REJECT
                               </button>
                             </>
                           )}

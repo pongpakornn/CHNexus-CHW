@@ -105,6 +105,10 @@ namespace Nexus.Models
         //   คีย์: NO IMAGE CUSTOMER CODE PARTA PARTB PARTNO MODEL NAME MAXMIN QTY BOX COIL PCS REMARK - ว่าง = ลำดับเดิม
         public string ColumnOrder { get; set; }
         public static readonly string[] DefaultColumnOrder = { "NO", "IMAGE", "CUSTOMER", "CODE", "PARTA", "PARTB", "PARTNO", "MODEL", "NAME", "MAXMIN", "QTY", "BOX", "COIL", "PCS", "REMARK" };
+        // ช่องข้อมูลสินค้าจาก Product Control ที่เลือกแสดงในตาราง Store ได้ (ไม่มีคอลัมน์ Col* ในฐาน - ติ๊ก = อยู่ใน ColumnOrder)
+        public static readonly string[] ExtraColumns = { "SUPPLIER", "CATEGORY", "PACKSIZE", "BIN" };
+        public bool HasColumn(string key) =>
+            (ColumnOrder ?? "").Split(',').Any(k => string.Equals(k.Trim(), key, StringComparison.OrdinalIgnoreCase));
         public List<string> ColumnOrderList()
         {
             var list = new List<string>();
@@ -112,7 +116,7 @@ namespace Nexus.Models
             {
                 string key = k.Trim().ToUpperInvariant();
                 // CF12 = ช่องกรอกเพิ่มเองของคลัง (Inventory Registration > ADMIN > CUSTOM FIELDS) - แสดงเมื่อติ๊กเท่านั้น
-                if (key.Length > 0 && (System.Array.IndexOf(DefaultColumnOrder, key) >= 0 || Nexus.Services.CustomFields.IsKey(key)) && !list.Contains(key)) list.Add(key);
+                if (key.Length > 0 && (System.Array.IndexOf(DefaultColumnOrder, key) >= 0 || System.Array.IndexOf(ExtraColumns, key) >= 0 || Nexus.Services.CustomFields.IsKey(key)) && !list.Contains(key)) list.Add(key);
             }
             foreach (string k in DefaultColumnOrder) if (!list.Contains(k)) list.Add(k);   // คอลัมน์ที่ไม่ได้ระบุ = ต่อท้ายตามลำดับเดิม
             return list;

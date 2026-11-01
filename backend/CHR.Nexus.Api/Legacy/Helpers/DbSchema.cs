@@ -148,6 +148,27 @@ namespace Nexus.Helpers
             }
         }
 
+        // database/nexus/16_Qr_Separator.sql: Nexus.ProductControlSettings.QrSep (ตัวคั่นช่องใน QR ระบบ ตั้งเองต่อคลัง)
+        private static bool? _qrSep;
+        public static bool HasQrSep
+        {
+            get
+            {
+                if (_qrSep.HasValue) return _qrSep.Value;
+                try
+                {
+                    using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+                    using (var cmd = new SqlCommand("SELECT CASE WHEN COL_LENGTH('Nexus.ProductControlSettings', 'QrSep') IS NOT NULL THEN 1 ELSE 0 END", conn))
+                    {
+                        conn.Open();
+                        _qrSep = Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+                    }
+                }
+                catch { return false; }
+                return _qrSep.Value;
+            }
+        }
+
         // Update_20261020b.sql: EMPLOYEE ID / DEPARTMENT ที่หน้า Multi-Scanner (Nexus.UserScanStocks.AskEmployee / AskDepartment +
         //   Nexus.ScanTransactions.EmployeeID / Department) · Nexus.ScanDepartments (Dropdown แผนก) · Nexus.ScanRpaLayouts (EXPORT RPA)
         private static bool? _scanWho, _scanDepartments, _scanRpa;
@@ -161,6 +182,9 @@ namespace Nexus.Helpers
         public static bool HasScanWho => _scanWho ?? (_scanWho = ColumnIn("Nexus.ScanTransactions", "EmployeeID")) ?? false;
         public static bool HasScanDepartments => _scanDepartments ?? (_scanDepartments = TableExists("Nexus.ScanDepartments")) ?? false;
         public static bool HasScanRpa => _scanRpa ?? (_scanRpa = TableExists("Nexus.ScanRpaLayouts")) ?? false;
+        // database/nexus/17_Scan_Qr_Suffix.sql: ต่อท้าย QR ตอนสแกนรับเข้า (DATE / REF / RUNNING ต่อ UserID + คลัง) + เลขรันนิ่งรายวันของคลัง
+        private static bool? _scanQrSuffix;
+        public static bool HasScanQrSuffix => _scanQrSuffix ?? (_scanQrSuffix = ColumnIn("Nexus.UserScanStocks", "QrRunStart") is bool c && TableExists("Nexus.ScanQrRunning") is bool t ? c && t : (bool?)null) ?? false;
 
         private static bool? ColumnIn(string table, string column)
         {

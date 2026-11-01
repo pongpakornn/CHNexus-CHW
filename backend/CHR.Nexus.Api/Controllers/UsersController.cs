@@ -160,19 +160,31 @@ public sealed class UsersController : AppController
             var map = new ScanService().GetScanDisplayMap(u.UserId);
             var formats = new StockService().GetFormats();
             var eligible = DbSchema.HasScanDeduct ? ScannerSetupService.DeductStockIds(all, formats) : new HashSet<int>();
+            // 📷 ต่อท้าย QR ตอนรับเข้า: ตัวคั่นของ QR แต่ละคลัง (ADMIN > QR CODE) + ช่องเพิ่มเองของคลัง (เลือกเป็น REF ได้)
+            bool hasQr = DbSchema.HasScanQrSuffix;
+            var qrLay = hasQr ? new ProductControlLayoutService().GetAll() : new();
+            var cfDefs = hasQr ? new CustomFieldService().GetDefs() : new();
             scanner = new
             {
                 hasWho = DbSchema.HasScanWho,
+                hasQrSuffix = hasQr,
+                qrDateFormats = QrSuffix.DateFormats.Select(f => new { key = f.Key, sample = f.Sample }),
+                qrRefFields = QrSuffix.RefFields.Select(f => new { key = f.Key, label = f.Label }),
                 stocks = stocks.Select(s =>
                 {
                     string cur = map.TryGetValue(s.StkId, out string v) ? v : ScanDisplay.Default;
                     bool on = a.StockIds.Contains(s.StkId);
+                    var q = on && a.QrSuffixes.TryGetValue(s.StkId, out var qx) ? qx : null;
+                    var lay = qrLay.TryGetValue(s.StkId, out var l) ? l : qrLay.TryGetValue(0, out var l0) ? l0 : null;
                     return new
                     {
                         s.StkId, s.Code, s.Name, canOut = s.CanScanOut, deductEligible = eligible.Contains(s.StkId),
                         on, priority = on && a.PriorityId == s.StkId, deduct = on && eligible.Contains(s.StkId) && a.DeductIds.Contains(s.StkId),
                         askEmployee = on && a.EmployeeIds.Contains(s.StkId), askDepartment = on && a.DepartmentIds.Contains(s.StkId),
-                        display = cur, options = DisplayOptions.For(s, formats, cur).Select(o => new { key = o.Key, label = o.Label })
+                        display = cur, options = DisplayOptions.For(s, formats, cur).Select(o => new { key = o.Key, label = o.Label }),
+                        qrDateFmt = q?.DateFmt, qrRefField = q?.RefField, qrRunStart = q?.RunStart,
+                        qrSep = QrFormat.CleanSep(lay?.QrSep),
+                        qrRefCustom = cfDefs.Where(d => d.StockId == s.StkId).Select(d => new { key = d.Key, label = d.Label })
                     };
                 })
             };
@@ -205,6 +217,9 @@ public sealed class UsersController : AppController
         public bool AskEmployee { get; set; }
         public bool AskDepartment { get; set; }
         public string Display { get; set; }
+        public string QrDateFmt { get; set; }
+        public string QrRefField { get; set; }
+        public string QrRunStart { get; set; }
     }
 
     public sealed class SavePermsRequest
@@ -258,9 +273,22 @@ public sealed class UsersController : AppController
                                      !ded.OrderBy(x => x).SequenceEqual(a.DeductIds.OrderBy(x => x)) ||
                                      !emp.OrderBy(x => x).SequenceEqual(a.EmployeeIds.OrderBy(x => x)) ||
                                      !dept.OrderBy(x => x).SequenceEqual(a.DepartmentIds.OrderBy(x => x));
+                // 📷 ต่อท้าย QR ตอนรับเข้า (DATE / REF / RUNNING) ต่อคลัง
+                Dictionary<int, QrSuffix> qr = null;
+                if (DbSchema.HasScanQrSuffix)
+                {
+                    qr = new Dictionary<int, QrSuffix>();
+                    foreach (var c in on)
+                    {
+                        var q = QrSuffix.Clean(c.QrDateFmt, c.QrRefField, c.QrRunStart);
+                        if (q != null) qr[c.StkId] = q;
+                    }
+                    string Txt(QrSuffix q) => q == null ? "" : $"{q.DateFmt}/{q.RefField}/{q.RunStart}";
+                    if (qr.Keys.Union(a.QrSuffixes.Keys).Any(id => Txt(qr.GetValueOrDefault(id)) != Txt(a.QrSuffixes.GetValueOrDefault(id)))) stocksChanged = true;
+                }
                 var disp = on.Where(c => !string.IsNullOrEmpty(c.Display) && c.Display != (map.TryGetValue(c.StkId, out var v) ? v : ScanDisplay.Default))
                              .ToDictionary(c => c.StkId, c => c.Display);
-                if (stocksChanged) new ScannerSetupService().SaveAssignment(u.UserId, ids, prio, Uid, ded, emp, dept);
+                if (stocksChanged) new ScannerSetupService().SaveAssignment(u.UserId, ids, prio, Uid, ded, emp, dept, qr);
                 if (disp.Count > 0) new ScanService().SaveScanDisplayMap(disp, u.UserId);
                 if (stocksChanged || disp.Count > 0)
                 {
@@ -269,6 +297,7 @@ public sealed class UsersController : AppController
                         (ded.Count > 0 ? $" | Deducted: {string.Join(",", ded)}" : "") +
                         (emp.Count > 0 ? $" | Employee ID: {string.Join(",", emp)}" : "") +
                         (dept.Count > 0 ? $" | Department: {string.Join(",", dept)}" : "") +
+                        (qr?.Count > 0 ? " | QR Suffix: " + string.Join(",", qr.Select(kv => $"{kv.Key}={kv.Value.DateFmt}/{kv.Value.RefField}/{kv.Value.RunStart}")) : "") +
                         (disp.Count > 0 ? " | Display: " + string.Join(",", disp.Select(kv => $"{kv.Key}={kv.Value}")) : ""), u.UserId);
                     scanNote = "\nคลังสแกน / DISPLAY มีผลที่หน้าสแกนทันที";
                 }

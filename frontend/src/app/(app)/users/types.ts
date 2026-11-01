@@ -39,12 +39,25 @@ export type ScanStock = {
   askDepartment: boolean;
   display: string;
   options: { key: string; label: string }[];
+  /** 📷 ต่อท้าย QR ตอนรับเข้า (DATE / REF / RUNNING) - null = ไม่ใส่ */
+  qrDateFmt?: string | null;
+  qrRefField?: string | null;
+  qrRunStart?: string | null;
+  /** ตัวคั่นของ QR คลังนี้ (ADMIN > QR CODE) / ช่องเพิ่มเองของคลัง (เลือกเป็น REF ได้) */
+  qrSep?: string;
+  qrRefCustom?: { key: string; label: string }[];
 };
 
 export type PermData = {
   user: User;
   rows: PermRow[];
-  scanner: { hasWho: boolean; stocks: ScanStock[] } | null;
+  scanner: {
+    hasWho: boolean;
+    stocks: ScanStock[];
+    hasQrSuffix?: boolean;
+    qrDateFormats?: { key: string; sample: string }[];
+    qrRefFields?: { key: string; label: string }[];
+  } | null;
   contacts: string | null;
 };
 

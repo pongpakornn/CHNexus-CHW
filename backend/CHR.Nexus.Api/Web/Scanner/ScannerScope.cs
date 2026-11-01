@@ -19,6 +19,7 @@ public sealed class ScannerScope
     public bool NotAssigned { get; private set; }
     public HashSet<int> AskEmployee { get; } = new();
     public HashSet<int> AskDepartment { get; } = new();
+    public Dictionary<int, QrSuffix> QrSuffixes { get; } = new();   // ต่อท้าย QR ตอนรับเข้า (DATE / REF / RUNNING) ต่อคลัง
     public HashSet<int> EligibleDeduct { get; } = new();
     public List<int> AssignedDeduct { get; } = new();
     public string AssignToken { get; }
@@ -61,6 +62,7 @@ public sealed class ScannerScope
             AssignedDeduct.AddRange(a.DeductIds);
             foreach (var id in a.EmployeeIds) AskEmployee.Add(id);
             foreach (var id in a.DepartmentIds) AskDepartment.Add(id);
+            foreach (var kv in a.QrSuffixes) QrSuffixes[kv.Key] = kv.Value;
             Apply(false, a.StockIds, a.PriorityId);
         }
         else

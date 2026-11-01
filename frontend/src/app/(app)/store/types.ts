@@ -112,4 +112,8 @@ export const COLUMN_LABEL: Record<string, string> = {
   COIL: "STOCK (COIL)",
   PCS: "STOCK (PCS)",
   REMARK: "REMARK",
+  SUPPLIER: "SUPPLIER",
+  CATEGORY: "CATEGORY",
+  PACKSIZE: "PACK SIZE",
+  BIN: "BIN",
 };

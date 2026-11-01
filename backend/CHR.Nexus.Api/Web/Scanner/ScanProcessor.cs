@@ -244,8 +244,7 @@ public sealed class ScanProcessor
         bool remainder = IsRemainderMode;
 
         _lookupNote = null;
-        var part = isSupplierScan ? FindPartByCodes(supplierFmt, supplierCodes) : _scanService.GetPartByScan(finalSearchCode);
-        ScanItemModel result = null;
+        var part = isSupplierScan ? FindPartByCodes(supplierFmt, supplierCodes) : _scanService.GetPartByScan(finalSearchCode);        ScanItemModel result = null;
         if (part != null)
         {
             bool dec = stock.AllowDecimal;
@@ -278,6 +277,10 @@ public sealed class ScanProcessor
             }
             else
             {
+                // 📷 ต่อท้าย QR ที่บันทึก (DATE / REF / RUNNING ที่ Admin ตั้งให้คลังนี้) - ทุกสถานะ (IN / OUT / RETURN) ด้วย QR ระบบ / รหัสสินค้า
+                //    รูปแบบป้าย Supplier ที่ไม่ได้ตั้ง STARTS WITH อ่าน QR ระบบของคลังได้ด้วย -> QR ที่ตรงรูปแบบ QR ของคลังยังต่อท้ายให้
+                if (!isPackingCardScan && (!isSupplierScan || (string.IsNullOrWhiteSpace(supplierFmt.MatchStart) && IsOwnQr(rawBarcodeFull, stock))))
+                    rawBarcodeFull = WithQrSuffix(rawBarcodeFull, stock, part);
                 int? deductFrom = isSupplierScan ? DeductSourceFor(supplierFmt) : null;
                 bool useDeduct = !isOut && deductFrom.HasValue && deductFrom.Value != stock.StkId;
                 bool isSaved;
@@ -416,6 +419,9 @@ public sealed class ScanProcessor
 
         if (!IsTestMode)
         {
+            // 📷 ต่อท้าย QR (DATE / REF / RUNNING) เหมือนสแกนเข้า / ออก - ป้าย Supplier ที่ตั้ง STARTS WITH = ไม่ต่อ
+            if (matchedFmt == null || (string.IsNullOrWhiteSpace(matchedFmt.MatchStart) && IsOwnQr(rawBarcodeFull, stock)))
+                rawBarcodeFull = WithQrSuffix(rawBarcodeFull, stock, part);
             bool isSaved = _scanService.UpdateStock(part.PartId, part.PartCode, part.PartACode, qty, uid, rawBarcodeFull, "RETURN", stock, who: who);
             if (!isSaved) return ScanResult.Err("บันทึกการคืนเหล็กไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
             string returnRef = ((stock.IsMain ? "" : $"STOCK: {stock.Code}") + (who?.LogText ?? "")).TrimStart(' ', '|');
@@ -549,7 +555,10 @@ public sealed class ScanProcessor
         matchedFmt = MatchSupplier(raw, SelectedStock, out List<string> codes, out _);
         if (matchedFmt != null) return codes;
         string trimmed = raw.Trim();
-        return new List<string> { trimmed.IndexOf(QrFormat.Sep) >= 0 ? SysQrCode(trimmed, SelectedStock) : trimmed };
+        if (trimmed.IndexOf(QrFormat.Sep) >= 0) return new List<string> { SysQrCode(trimmed, SelectedStock) };
+        // ▣ QR ระบบที่ตั้งตัวคั่นเอง: ใช้เมื่อเจอ PRODUCT CODE จริงเท่านั้น ไม่เจอ = แบบเดิม
+        string own = SysQrCode(trimmed, SelectedStock, out bool isOwnQr);
+        return new List<string> { isOwnQr ? own : trimmed };
     }
 
     // ▣ QR ระบบ: รูปแบบที่ 2 ต่อคลัง (Nexus.ProductControlSettings.QrFields) - เก็บไว้ 30 วินาทีเหมือนเดิม
@@ -570,8 +579,12 @@ public sealed class ScanProcessor
         }
     }
 
-    private string SysQrCode(string raw, StockModel stock)
+    private string SysQrCode(string raw, StockModel stock) => SysQrCode(raw, stock, out _);
+
+    // found = อ่านได้จาก QR ระบบที่ตั้งตัวคั่นเอง (เจอ PRODUCT CODE จริง) - QR แบบ | / รหัสทั่วไป = false (ทำงานแบบเดิมทุกอย่าง)
+    private string SysQrCode(string raw, StockModel stock, out bool found)
     {
+        found = false;
         string t = (raw ?? "").Trim();
         string Legacy(string s)
         {
@@ -580,7 +593,13 @@ public sealed class ScanProcessor
             string first = parts[0].Trim();
             return first.Length > 2 && char.IsDigit(first[0]) && char.IsLetter(first[1]) ? first.Substring(1) : first;
         }
-        if (t.IndexOf(QrFormat.Sep) < 0) return Legacy(t);
+        if (t.IndexOf(QrFormat.Sep) < 0)
+        {
+            // ▣ QR ระบบที่ตั้งตัวคั่นเอง (ADMIN > QR CODE) - ไม่เจอ PRODUCT CODE = แบบเดิม
+            string own = OwnSepQrCode(t, stock);
+            if (own != null) { found = true; return own; }
+            return Legacy(t);
+        }
 
         var fields = t.Split(QrFormat.Sep).Select(x => x.Trim()).ToArray();
         var lay = QrLayouts();
@@ -596,11 +615,88 @@ public sealed class ScanProcessor
 
         try
         {
-            var found = new ProductControlLayoutService().ExistingCodes(idx.Select(i => fields[i]));
-            foreach (int i in idx) if (found.Contains(fields[i])) return fields[i];
+            var found2 = new ProductControlLayoutService().ExistingCodes(idx.Select(i => fields[i]));
+            foreach (int i in idx) if (found2.Contains(fields[i])) return fields[i];
         }
         catch { }
         return idx[0] == 0 ? Legacy(t) : fields[idx[0]];
+    }
+
+    // ▣ QR ระบบที่ตั้งตัวคั่นเอง (เว้นวรรค / ; / , / Tab ...) ของคลังที่สแกนอยู่ -> PRODUCT CODE ที่มีในระบบจริง / ไม่ใช่ = null
+    //   ลองช่อง PRODUCT CODE ตามรูปแบบก่อน แล้วช่องอื่น (ชื่อสินค้ามีเว้นวรรค = ตำแหน่งช่องเลื่อนได้) - ใช้รหัสตามจริง ไม่ตัดเลขหัว
+    private string OwnSepQrCode(string t, StockModel stock)
+    {
+        var own = QrLayoutsFor(stock).Where(l => l.QrSep != QrFormat.DefaultSep && !string.IsNullOrEmpty(l.QrSep) && t.Contains(l.QrSep)).ToList();
+        foreach (string sep in own.Select(l => l.QrSep).Distinct())
+        {
+            var fields = t.Split(new[] { sep }, StringSplitOptions.None).Select(x => x.Trim()).ToArray();
+            // ช่องรหัสตามรูปแบบก่อน (PRODUCT CODE / PART NO / PART A / PART B / QR CODE / MODEL) แล้วค่อยช่องอื่น
+            var order = new List<int>();
+            foreach (var l in own.Where(l => l.QrSep == sep))
+                foreach (string key in new[] { "CODE", "PARTNO", "PARTA", "PARTB", "QRCODE", "MODEL" })
+                {
+                    int pos = l.QrFields.IndexOf(key);
+                    if (pos >= 0) order.Add(pos);
+                }
+            for (int i = 0; i < fields.Length; i++) order.Add(i);
+            var candidates = order.Distinct().Where(i => i < fields.Length && fields[i].Length > 0).Select(i => fields[i]).Distinct().ToList();
+            if (candidates.Count == 0) continue;
+            try
+            {
+                var exist = new ProductControlLayoutService().ExistingCodes(candidates);
+                string hit = candidates.FirstOrDefault(c => exist.Contains(c));
+                if (hit != null) return hit;
+                // ไม่ใช่ PRODUCT CODE -> หาแบบเดียวกับหน้าแสกน (QR / PART A / PART NO) ตามจริง ไม่ตัดเลขหัว
+                hit = candidates.FirstOrDefault(c => _scanService.GetPartByScan(c) != null);
+                if (hit != null) return hit;
+            }
+            catch { }
+        }
+        return null;
+    }
+
+    // 📷 QR + DATE + REF + RUNNING คั่นด้วยตัวคั่นของ QR คลังนั้น เช่น 5T072-4943-1  20 -> 5T072-4943-1  20 2610 KUBOTA 0001
+    //    ป้ายที่ต่อท้ายไปแล้ว (ช่องเกินรูปแบบ QR ของคลัง) = ไม่ต่อซ้ำ · อ่านค่าไม่ได้ = บันทึก QR เดิม (ไม่ขวางการสแกน)
+    private string WithQrSuffix(string raw, StockModel stock, ScanItemModel part)
+    {
+        if (!DbSchema.HasScanQrSuffix || stock == null || !_scope.QrSuffixes.TryGetValue(stock.StkId, out var q)) return raw;
+        try
+        {
+            var lay = QrLayouts();
+            var l = lay.TryGetValue(stock.StkId, out var x) ? x : lay.TryGetValue(0, out var all) ? all : null;
+            string sep = QrFormat.CleanSep(l?.QrSep);
+            if (l != null && raw.Split(new[] { sep }, StringSplitOptions.None).Length > l.QrFields.Count) return raw;
+
+            var now = DateTime.Now;
+            var parts = new List<string> { q.DateText(now), QrSuffix.RefValue(part.PartId, q.RefField), q.NextRunning(stock.StkId, now) }
+                .Where(v => !string.IsNullOrEmpty(v)).Select(v => sep.Trim().Length > 0 ? v.Replace(sep, "/") : v).ToList();
+            return parts.Count == 0 ? raw : raw + sep + string.Join(sep, parts);
+        }
+        catch (Exception ex)
+        {
+            try { LogService.WriteLog(Uid, "QR_SUFFIX_ERROR", $"{stock.Code} | {raw} | {ex.Message}", part.PartCode); } catch { }
+            return raw;
+        }
+    }
+
+    // QR ระบบของคลังนี้ที่ตั้งตัวคั่นเอง (ไม่ใช่ |) - จำนวนช่องไม่เกินรูปแบบ QR ของคลัง
+    private bool IsOwnQr(string raw, StockModel stock)
+    {
+        if (stock == null) return false;
+        var lay = QrLayouts();
+        var l = lay.TryGetValue(stock.StkId, out var x) ? x : lay.TryGetValue(0, out var all) ? all : null;
+        if (l == null || string.IsNullOrEmpty(l.QrSep) || l.QrSep == QrFormat.DefaultSep || !raw.Contains(l.QrSep)) return false;
+        int n = raw.Split(new[] { l.QrSep }, StringSplitOptions.None).Length;
+        return n >= 2 && n <= l.QrFields.Count;
+    }
+
+    // ▣ รูปแบบ QR ของคลังที่สแกนอยู่ (+ ALL STOCKS)
+    private List<ProductControlLayout> QrLayoutsFor(StockModel stock)
+    {
+        var lay = QrLayouts();
+        var ids = stock != null ? new List<int> { stock.StkId } : ScopeStocks.Select(s => s.StkId).ToList();
+        ids.Add(0);
+        return ids.Distinct().Select(id => lay.TryGetValue(id, out var l) ? l : null).Where(l => l != null).ToList();
     }
 
     public static string CheckChannel(StockModel stock, bool isOut, bool isPickList, BarcodeFormatModel supplierFmt,

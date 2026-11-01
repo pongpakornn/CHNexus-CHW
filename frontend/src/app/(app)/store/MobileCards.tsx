@@ -105,6 +105,10 @@ const META: [string, keyof Product, string][] = [
   ["PARTB", "partB", "PART B"],
   ["PARTNO", "partNo", "PART NO"],
   ["MODEL", "model", "MODEL"],
+  ["SUPPLIER", "supplier", "SUPPLIER"],
+  ["CATEGORY", "category", "CATEGORY"],
+  ["PACKSIZE", "packSize", "PACK SIZE"],
+  ["BIN", "bin", "BIN"],
 ];
 
 // 📦 การ์ดสินค้า 1 ใบ (memo เหมือนแถวตาราง: วาดใหม่เฉพาะเมื่อสินค้านี้ / Coil ของสินค้านี้เปลี่ยน)

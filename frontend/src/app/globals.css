@@ -24,6 +24,10 @@
 }
 
 @theme inline {
+  /* 🎞 การเคลื่อนไหวทั้งระบบใช้จังหวะเดียวกับ Dropdown (ลื่น ๆ ช่วงท้ายค่อย ๆ หยุด) */
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  --default-transition-duration: 250ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -77,7 +81,7 @@ body {
   vertical-align: middle;
 }
 .data-table tbody tr {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .data-table tbody tr:hover {
   background: #f8f6fd;
@@ -175,8 +179,8 @@ html {
   border: 1px solid #eceaf5;
   padding: 10px 12px;
   background: linear-gradient(90deg, #faf9ff, #fff 60%);
-  animation: top-in 0.5s cubic-bezier(0.25, 1, 0.5, 1) var(--d, 0ms) both;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, translate 0.25s ease;
+  animation: top-in 0.5s var(--ease-drop) var(--d, 0ms) both;
+  transition: border-color 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop), translate 0.25s var(--ease-drop);
 }
 .top-row:hover {
   translate: 0 -1px;
@@ -373,7 +377,7 @@ main :has(> .data-table.is-stacked) {
 .btn {
   @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold tracking-wide text-white disabled:opacity-50 disabled:pointer-events-none;
   box-shadow: 0 6px 14px -8px rgb(20 20 40 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
-  transition: translate 0.2s ease, filter 0.2s ease, box-shadow 0.25s ease, background-color 0.25s ease, scale 0.15s ease;
+  transition: translate 0.45s var(--ease-drop), filter 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), background-color 0.45s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .btn:hover {
   translate: 0 -1px;
@@ -385,7 +389,7 @@ main :has(> .data-table.is-stacked) {
 }
 .btn-ghost {
   @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#e2e4f0] bg-surface px-4 py-2 text-sm font-extrabold text-ink disabled:opacity-50 disabled:pointer-events-none;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease, translate 0.2s ease, scale 0.15s ease;
+  transition: border-color 0.45s var(--ease-drop), color 0.45s var(--ease-drop), background-color 0.45s var(--ease-drop), translate 0.45s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .btn-ghost:hover {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
@@ -398,7 +402,7 @@ main :has(> .data-table.is-stacked) {
 }
 .field {
   @apply w-full rounded-xl border border-[#e2e4f0] bg-surface px-3.5 py-2 text-sm font-semibold text-ink outline-none;
-  transition: border-color 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease;
+  transition: border-color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), background-color 0.2s var(--ease-drop);
 }
 .field:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 45%, #e2e4f0);
@@ -419,7 +423,7 @@ select.field {
 input[type="date"].field::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s var(--ease-drop);
 }
 input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   opacity: 1;
@@ -506,7 +510,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }
 }
 .menu-pop {
-  animation: menu-pop 0.22s ease-out both;
+  animation: menu-pop 0.22s var(--ease-drop) both;
 }
 .profile-bubble {
   transition: transform 0.2s, box-shadow 0.2s;
@@ -521,7 +525,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 }
 .toast-card {
   /* backwards = หลังเข้าเสร็จไม่ค้างทับ transition ตอนจางหาย */
-  animation: toast-in 0.3s ease-out backwards;
+  animation: toast-in 0.3s var(--ease-drop) backwards;
 }
 @keyframes toast-tube {
   from { transform: scaleX(1); }
@@ -543,7 +547,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   will-change: width;
 }
 .sb-text {
-  transition: opacity 0.4s ease, translate 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: opacity 0.4s var(--ease-drop), translate 0.6s cubic-bezier(0.25, 1, 0.5, 1);
   transition-delay: 0.12s;
 }
 .sb-text.opacity-0 {
@@ -554,7 +558,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   transition: translate 0.55s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .sb-dim {
-  transition: opacity 0.45s ease;
+  transition: opacity 0.45s var(--ease-drop);
 }
 
 /* ปุ่มเมนูสามขีด: Sidebar กางอยู่ = สามขีด · พับ / ปิด = ขีดบน / กลางพับเป็นลูกศร แล้วทั้งปุ่มหมุน 90 องศา */
@@ -616,7 +620,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   transition: background-color 0.3s, transform 0.15s;
 }
 .support-btn svg {
-  transition: transform 0.4s ease-in-out;
+  transition: transform 0.4s var(--ease-drop);
 }
 .support-btn:hover {
   background: #2563eb;
@@ -659,7 +663,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   pointer-events: none;
   background: linear-gradient(90deg, var(--accent) 0%, #8d72d8 55%, rgb(141 114 216 / 0.55) 100%);
   box-shadow: 0 10px 24px -12px rgb(103 80 164 / 0.95), inset 0 1px 0 rgb(255 255 255 / 0.12);
-  transition: transform 0.55s cubic-bezier(0.34, 1.45, 0.64, 1), height 0.3s ease, opacity 0.3s ease;
+  transition: transform 0.55s cubic-bezier(0.34, 1.45, 0.64, 1), height 0.3s var(--ease-drop), opacity 0.3s var(--ease-drop);
 }
 .sb-glider::before {
   content: "";
@@ -715,14 +719,14 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 }
 .stat-card:hover::after {
   transform: translateX(330%) skewX(-18deg);
-  transition: transform 0.9s ease-out;
+  transition: transform 0.9s var(--ease-drop);
 }
 @keyframes coil-line {
   from { opacity: 0; transform: translateX(-10px); }
 }
 .coil-line {
-  animation: coil-line 0.45s cubic-bezier(0.25, 1, 0.5, 1) both;
-  transition: transform 0.25s ease;
+  animation: coil-line 0.45s var(--ease-drop) both;
+  transition: transform 0.25s var(--ease-drop);
 }
 .stat-card:hover .coil-line {
   transform: translateX(3px);
@@ -792,7 +796,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 .show-card {
   border: 1px solid #ece6f5;
   box-shadow: 0 1px 2px rgb(40 30 90 / 0.05), 0 14px 28px -20px rgb(60 40 130 / 0.35);
-  transition: box-shadow 0.35s ease, translate 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: box-shadow 0.35s var(--ease-drop), translate 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   contain: layout paint;
 }
 .show-card::after {
@@ -801,7 +805,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   inset: 0;
   background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.55) 50%, transparent 65%);
   translate: -110% 0;
-  transition: translate 0.9s ease;
+  transition: translate 0.9s var(--ease-drop);
   pointer-events: none;
 }
 .show-card:hover {
@@ -819,7 +823,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   animation: show-float 4.6s ease-in-out infinite;
 }
 .show-tile {
-  transition: translate 0.25s ease, box-shadow 0.25s ease;
+  transition: translate 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop);
 }
 .show-tile:hover {
   translate: 0 -2px;
@@ -836,7 +840,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 }
 .gauge-fill {
   transform-origin: left;
-  animation: gauge-in 0.9s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: gauge-in 0.9s var(--ease-drop) both;
   transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
@@ -850,7 +854,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   border-radius: 7px;
   background: #f1ecfc;
   color: var(--accent);
-  transition: rotate 0.45s cubic-bezier(0.34, 1.4, 0.64, 1), background-color 0.3s ease, color 0.3s ease, scale 0.25s ease, box-shadow 0.3s ease;
+  transition: rotate 0.45s cubic-bezier(0.34, 1.4, 0.64, 1), background-color 0.3s var(--ease-drop), color 0.3s var(--ease-drop), scale 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .row-chev.is-open {
   rotate: 90deg;
@@ -869,7 +873,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   rotate: 90deg;
 }
 .mat-row {
-  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: background-color 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop);
 }
 .mat-row:hover {
   background: #faf8ff;
@@ -886,7 +890,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 }
 /* กางลงเฉพาะแถวที่เพิ่งกดเปิด (SHOW COILS เปิดทีเดียวหลายร้อยแถว = แสดงทันที ไม่เล่นพร้อมกัน) */
 .coil-slide.is-anim {
-  animation: coil-open 0.45s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: coil-open 0.45s var(--ease-drop) both;
 }
 /* กล่อง Coil ที่อยู่นอกจอ: ข้ามการจัดวาง / วาด จนกว่าจะเลื่อนมาถึง */
 .coil-box {
@@ -907,7 +911,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   to { grid-template-rows: 0fr; opacity: 0; translate: 0 -8px; }
 }
 .coil-remark {
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop), box-shadow 0.2s var(--ease-drop);
 }
 .coil-remark:hover {
   background: #f4effd;
@@ -918,10 +922,10 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 .swap-out {
   opacity: 0.45;
   filter: saturate(0.6);
-  transition: opacity 0.2s ease, filter 0.2s ease;
+  transition: opacity 0.2s var(--ease-drop), filter 0.2s var(--ease-drop);
 }
 .swap-in {
-  transition: opacity 0.3s ease, filter 0.3s ease;
+  transition: opacity 0.3s var(--ease-drop), filter 0.3s var(--ease-drop);
 }
 @keyframes swap-row {
   from { opacity: 0; transform: translateY(10px); }
@@ -930,7 +934,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   from { opacity: 0; transform: translateY(8px); }
 }
 .swap-in tbody tr:nth-child(-n + 30) {
-  animation: swap-row 0.42s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: swap-row 0.42s var(--ease-drop) both;
 }
 .swap-in tbody tr:nth-child(2) { animation-delay: 44ms; }
 .swap-in tbody tr:nth-child(3) { animation-delay: 66ms; }
@@ -962,12 +966,12 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
 .swap-in tbody tr:nth-child(29) { animation-delay: 638ms; }
 .swap-in tbody tr:nth-child(30) { animation-delay: 660ms; }
 div.swap-in:has(> .show-strip) {
-  animation: swap-fade 0.45s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: swap-fade 0.45s var(--ease-drop) both;
 }
 
 /* 🎛️ เมนูวงกลม Excel (EXPORT / IMPORT / TEMPLATE / COIL TEMPLATE): กางเป็นเสี้ยววงกลมซ้าย-ล่าง · ชี้รายการ = ยกออก + การ์ดดำอธิบาย */
 .rm-caption {
-  transition: opacity 0.25s ease, translate 0.3s ease;
+  transition: opacity 0.25s var(--ease-drop), translate 0.3s var(--ease-drop);
 }
 .rm.is-open .rm-caption {
   opacity: 0;
@@ -983,7 +987,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 9999px;
   background: linear-gradient(145deg, #3b82f6, #1d4ed8);
   box-shadow: 0 8px 18px -6px rgb(29 78 216 / 0.55);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.3s ease;
+  transition: transform 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop), background 0.3s var(--ease-drop);
 }
 .rm-fab:hover {
   box-shadow: 0 10px 22px -6px rgb(29 78 216 / 0.65);
@@ -1014,14 +1018,14 @@ div.swap-in:has(> .show-strip) {
   visibility: hidden;
   pointer-events: none;
   transform: translate(0, 0) scale(0.4);
-  transition: transform 0.3s ease, opacity 0.2s ease, visibility 0s linear 0.3s;
+  transition: transform 0.3s var(--ease-drop), opacity 0.2s var(--ease-drop), visibility 0s linear 0.3s;
 }
 .rm.is-open .rm-item {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transform: translate(var(--dx), var(--dy)) scale(1);
-  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d), opacity 0.25s ease var(--d), visibility 0s linear 0s;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d), opacity 0.25s var(--ease-drop) var(--d), visibility 0s linear 0s;
 }
 .rm.is-open .rm-item:hover,
 .rm.is-open .rm-item:focus-within {
@@ -1043,7 +1047,7 @@ div.swap-in:has(> .show-strip) {
   background: #fff;
   color: var(--c);
   box-shadow: 2px 2px 10px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(15 30 60 / 0.06);
-  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .rm-item:hover .rm-btn,
 .rm-btn:focus-visible {
@@ -1082,7 +1086,7 @@ div.swap-in:has(> .show-strip) {
   box-shadow: 0 14px 34px rgb(0 0 0 / 0.28), 0 0 0 1px rgb(255 255 255 / 0.08);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity 0.25s var(--ease-drop), transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .rm-tip::before {
   content: "";
@@ -1173,7 +1177,7 @@ div.swap-in:has(> .show-strip) {
   /* อยู่เหนือการ์ด MAX / MIN ด้านล่าง: เมนูวงกลมที่กางลงมากดได้ (animation ทำให้หัวเป็นชั้นของตัวเอง) */
   position: relative;
   z-index: 40;
-  animation: stk-head-in 0.45s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+  animation: stk-head-in 0.45s var(--ease-drop) backwards;
 }
 .stk-tile {
   transition: rotate 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1201,7 +1205,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 0.06em;
   box-shadow: 0 1px 2px rgb(20 25 60 / 0.05), 0 8px 18px -14px rgb(60 40 130 / 0.45);
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, translate 0.3s ease;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop), translate 0.3s var(--ease-drop);
 }
 .back-txt {
   padding-right: 9px;
@@ -1214,7 +1218,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 9999px;
   background: #f1ecfc;
   color: var(--accent);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s var(--ease-drop);
 }
 .back-btn:hover {
   background: var(--accent);
@@ -1263,11 +1267,11 @@ div.swap-in:has(> .show-strip) {
 .dlg-bg {
   background: rgb(15 18 30 / 0.42);
   backdrop-filter: blur(5px);
-  animation: dlg-bg-in 0.25s ease-out both;
+  animation: dlg-bg-in 0.25s var(--ease-drop) both;
 }
 .dlg-bg.is-leaving {
   opacity: 0;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.18s var(--ease-drop);
 }
 .dlg-card {
   overflow: hidden;
@@ -1303,7 +1307,7 @@ div.swap-in:has(> .show-strip) {
   height: 32px;
   border-radius: 9999px;
   color: var(--ink-soft, #6b6880);
-  transition: background-color 0.2s ease, rotate 0.3s ease;
+  transition: background-color 0.2s var(--ease-drop), rotate 0.3s var(--ease-drop);
 }
 .dlg-x:hover {
   background: #f1f0f5;
@@ -1315,7 +1319,7 @@ div.swap-in:has(> .show-strip) {
   font-size: 13.5px;
   font-weight: 800;
   letter-spacing: 0.06em;
-  transition: translate 0.2s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease;
+  transition: translate 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), background-color 0.25s var(--ease-drop), filter 0.25s var(--ease-drop);
 }
 .dlg-btn:active {
   scale: 0.97;
@@ -1483,7 +1487,7 @@ div.swap-in:has(> .show-strip) {
   box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 14px 30px -22px rgb(40 45 110 / 0.32);
 }
 .sc-in {
-  animation: sc-in 0.45s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+  animation: sc-in 0.45s var(--ease-drop) backwards;
 }
 .sc-logo {
   background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 60%, white), var(--accent));
@@ -1542,7 +1546,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.3s ease, translate 0.2s ease, scale 0.15s ease;
+  transition: background-color 0.25s var(--ease-drop), color 0.25s var(--ease-drop), border-color 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop), translate 0.2s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .sc-mode {
   border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent);
@@ -1579,7 +1583,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 9px;
   color: var(--c);
   background: color-mix(in srgb, var(--c) 12%, transparent);
-  transition: background-color 0.25s ease, color 0.25s ease, rotate 0.3s ease;
+  transition: background-color 0.25s var(--ease-drop), color 0.25s var(--ease-drop), rotate 0.3s var(--ease-drop);
 }
 .sc-tool:hover:not(:disabled) {
   translate: 0 -1px;
@@ -1625,7 +1629,7 @@ div.swap-in:has(> .show-strip) {
   color: #fff;
   background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 70%, white));
   box-shadow: 0 10px 20px -14px var(--c);
-  animation: sc-banner 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: sc-banner 0.4s var(--ease-drop) both;
 }
 .sc-banner-ic {
   display: grid;
@@ -1643,7 +1647,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 16px;
   border: 2px solid color-mix(in srgb, var(--tone) 55%, #e2e4f0);
   background: #fff;
-  transition: border-color 0.25s ease, box-shadow 0.3s ease;
+  transition: border-color 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
   overflow: hidden;
 }
 .sc-scan:focus-within {
@@ -1713,7 +1717,7 @@ div.swap-in:has(> .show-strip) {
   color: #fff;
   background: linear-gradient(120deg, #4a4655, #34313b 70%, #45386a);
   box-shadow: 0 10px 22px -14px rgb(30 25 50 / 0.7), inset 0 -3px 0 var(--accent);
-  transition: translate 0.2s ease, box-shadow 0.3s ease;
+  transition: translate 0.2s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .sc-stock.is-click {
   cursor: pointer;
@@ -1737,17 +1741,17 @@ div.swap-in:has(> .show-strip) {
 }
 .sc-stock-chev {
   opacity: 0.7;
-  transition: translate 0.25s ease, opacity 0.25s ease;
+  transition: translate 0.25s var(--ease-drop), opacity 0.25s var(--ease-drop);
 }
 .sc-stock.is-click:hover .sc-stock-chev {
   translate: 3px 0;
   opacity: 1;
 }
 .sc-last {
-  animation: sc-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+  animation: sc-in 0.4s var(--ease-drop) backwards;
 }
 .sc-last.has-scan {
-  animation: sc-pop 0.7s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: sc-pop 0.7s var(--ease-drop) both;
 }
 .sc-photo {
   background: linear-gradient(145deg, #f7f5fc, #eeebf6);
@@ -1801,7 +1805,7 @@ div.swap-in:has(> .show-strip) {
   background: #f1eff6;
 }
 .sc-row {
-  animation: sc-row 0.5s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+  animation: sc-row 0.5s var(--ease-drop) backwards;
 }
 .sc-pill {
   display: inline-flex;
@@ -1852,7 +1856,7 @@ div.swap-in:has(> .show-strip) {
   background: #fff;
   padding: 14px;
   text-align: left;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.25s ease, translate 0.2s ease;
+  transition: border-color 0.2s var(--ease-drop), background-color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), translate 0.2s var(--ease-drop);
 }
 .pick-card:hover {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
@@ -1878,7 +1882,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 12px;
   border: 1px solid #e2e4f0;
   background: #fff;
-  transition: border-color 0.2s ease, box-shadow 0.25s ease;
+  transition: border-color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop);
 }
 .dr-box:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, #e2e4f0);
@@ -1914,7 +1918,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: var(--ink-soft, #6b6880);
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease;
+  transition: background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop);
 }
 .dr-chip:hover {
   color: var(--accent);
@@ -1943,7 +1947,7 @@ div.swap-in:has(> .show-strip) {
   opacity: 0;
   background: linear-gradient(135deg, #8b6fd6, var(--accent));
   box-shadow: 0 6px 14px -6px var(--accent);
-  transition: transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1), width 0.35s ease, opacity 0.25s ease;
+  transition: transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1), width 0.35s var(--ease-drop), opacity 0.25s var(--ease-drop);
 }
 
 /* ☑️ Checkbox ในตาราง / การ์ด: กล่องมุมมน · ชี้ = ขอบม่วง · ติ๊ก = พื้นม่วงเด้ง + เครื่องหมายถูก + วงแสง */
@@ -1969,7 +1973,7 @@ div.swap-in:has(> .show-strip) {
   border: 2px solid #cfcadd;
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.25s ease, scale 0.15s ease;
+  transition: border-color 0.2s var(--ease-drop), background-color 0.25s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .data-table th input[type="checkbox"] {
   border-color: rgb(255 255 255 / 0.55);
@@ -1996,7 +2000,7 @@ div.swap-in:has(> .show-strip) {
 .pick-card input[type="checkbox"]:checked {
   border-color: transparent;
   background: linear-gradient(145deg, #8b6fd6, var(--accent));
-  animation: cb-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), cb-ring 0.6s ease-out;
+  animation: cb-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), cb-ring 0.6s var(--ease-drop);
 }
 .data-table input[type="checkbox"]:checked::after,
 .pick-card input[type="checkbox"]:checked::after {
@@ -2025,7 +2029,7 @@ div.swap-in:has(> .show-strip) {
   letter-spacing: 0.03em;
   background: linear-gradient(135deg, #8b6fd6, var(--accent) 60%, #563f93);
   box-shadow: 0 8px 18px -10px var(--accent), inset 0 1px 0 rgb(255 255 255 / 0.2);
-  transition: translate 0.2s ease, box-shadow 0.3s ease, filter 0.2s ease;
+  transition: translate 0.2s var(--ease-drop), box-shadow 0.3s var(--ease-drop), filter 0.2s var(--ease-drop);
 }
 .ms-btn:hover {
   translate: 0 -1px;
@@ -2057,7 +2061,7 @@ div.swap-in:has(> .show-strip) {
   height: 2.5px;
   border-radius: 50px;
   background: #fff;
-  transition: transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s ease;
+  transition: transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s var(--ease-drop);
 }
 .ms.is-open .ms-bars > span:nth-child(1) {
   transform: translateY(5.5px) rotate(45deg);
@@ -2087,7 +2091,7 @@ div.swap-in:has(> .show-strip) {
   clip-path: inset(10% 50% 90% 50% round 14px);
   opacity: 0;
   pointer-events: none;
-  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s var(--ease-drop);
 }
 .ms-menu.is-long {
   max-height: 320px;
@@ -2112,7 +2116,7 @@ div.swap-in:has(> .show-strip) {
   white-space: nowrap;
   transform: translateY(26px);
   opacity: 0;
-  transition: transform 0.25s ease, opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  transition: transform 0.25s var(--ease-drop), opacity 0.2s var(--ease-drop), background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop);
 }
 .ms-item + .ms-item {
   box-shadow: inset 0 1px 0 #f1eef7;
@@ -2120,7 +2124,7 @@ div.swap-in:has(> .show-strip) {
 .ms.is-open .ms-item {
   transform: none;
   opacity: 1;
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.12s + var(--i) * 0.06s), opacity 0.4s ease calc(0.12s + var(--i) * 0.06s), background-color 0.2s ease, color 0.2s ease;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.12s + var(--i) * 0.06s), opacity 0.4s var(--ease-drop) calc(0.12s + var(--i) * 0.06s), background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop);
 }
 .ms-item:hover,
 .ms-item:focus-visible {
@@ -2158,7 +2162,7 @@ div.swap-in:has(> .show-strip) {
   background: #fff;
   padding: 0 12px 0 5px;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.25s ease, translate 0.2s ease;
+  transition: border-color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), translate 0.2s var(--ease-drop);
 }
 .df:hover {
   border-color: color-mix(in srgb, var(--accent) 50%, #e2e4f0);
@@ -2206,7 +2210,7 @@ div.swap-in:has(> .show-strip) {
 }
 /* 🔎 ช่องค้นหาแบบมีลูกเล่น: ไอคอนเด้งเป็นสีม่วง + เส้นแสงวิ่งใต้ช่องตอนโฟกัส */
 .sb-fancy svg:first-child {
-  transition: color 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), rotate 0.35s ease;
+  transition: color 0.25s var(--ease-drop), scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), rotate 0.35s var(--ease-drop);
 }
 .sb-fancy:focus-within svg:first-child {
   scale: 1.18;
@@ -2249,7 +2253,7 @@ div.swap-in:has(> .show-strip) {
 .dp-chev {
   color: var(--accent);
   opacity: 0.6;
-  transition: rotate 0.35s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.2s ease;
+  transition: rotate 0.35s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.2s var(--ease-drop);
 }
 .dp.is-open .dp-chev {
   rotate: 180deg;
@@ -2272,7 +2276,7 @@ div.swap-in:has(> .show-strip) {
   clip-path: inset(6% 45% 94% 45% round 18px);
   opacity: 0;
   pointer-events: none;
-  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s var(--ease-drop);
 }
 .dp.is-right .dp-pop {
   left: auto;
@@ -2306,7 +2310,7 @@ div.swap-in:has(> .show-strip) {
 .dp-title {
   border-radius: 9px;
   padding: 5px 0;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .dp-title:hover {
   background: rgb(255 255 255 / 0.16);
@@ -2328,7 +2332,7 @@ div.swap-in:has(> .show-strip) {
   background: #faf9fd;
   border: 1px solid #f0edf6;
   animation: dp-row 0.4s cubic-bezier(0.22, 1, 0.36, 1) calc(0.05s + var(--r) * 0.05s) backwards;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease, scale 0.15s ease;
+  transition: background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .dp-cell:hover {
   color: var(--accent);
@@ -2356,7 +2360,7 @@ div.swap-in:has(> .show-strip) {
   height: 30px;
   border-radius: 9px;
   background: rgb(255 255 255 / 0.16);
-  transition: background-color 0.2s ease, scale 0.15s ease;
+  transition: background-color 0.2s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .dp-nav:hover {
   background: rgb(255 255 255 / 0.3);
@@ -2393,7 +2397,7 @@ div.swap-in:has(> .show-strip) {
   font-size: 13px;
   font-weight: 800;
   color: var(--ink, #1f1d24);
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease, scale 0.15s ease;
+  transition: background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .dp.is-open .dp-day,
 .dp-pop.is-open .dp-day {
@@ -2435,7 +2439,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 900;
   letter-spacing: 0.06em;
   color: var(--accent);
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .dp-link:hover {
   background: #f1ecfc;
@@ -2470,7 +2474,7 @@ div.swap-in:has(> .show-strip) {
   background: #fff;
   padding: 12px 16px;
   color: var(--primary);
-  transition: background 0.35s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.35s ease, translate 0.2s ease;
+  transition: background 0.35s var(--ease-drop), color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), box-shadow 0.35s var(--ease-drop), translate 0.2s var(--ease-drop);
 }
 .sk-auto:hover {
   translate: 0 -1px;
@@ -2491,7 +2495,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 13px;
   font-size: 20px;
   background: #fff4e5;
-  transition: rotate 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease;
+  transition: rotate 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s var(--ease-drop);
 }
 .sk-auto.is-on .sk-auto-ic {
   rotate: -12deg;
@@ -2504,7 +2508,7 @@ div.swap-in:has(> .show-strip) {
   height: 28px;
   border-radius: 9999px;
   background: #e4e1ee;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s var(--ease-drop);
 }
 .sk-switch > span {
   position: absolute;
@@ -2536,7 +2540,7 @@ div.swap-in:has(> .show-strip) {
   cursor: pointer;
   outline: none;
   box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 12px 30px -22px rgb(40 45 110 / 0.3);
-  transition: translate 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease, box-shadow 0.35s ease, background 0.35s ease;
+  transition: translate 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s var(--ease-drop), box-shadow 0.35s var(--ease-drop), background 0.35s var(--ease-drop);
 }
 .sk-card:hover {
   translate: 0 -4px;
@@ -2563,7 +2567,7 @@ div.swap-in:has(> .show-strip) {
   inset: 0 0 auto 0;
   height: 4px;
   background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 45%, white));
-  transition: height 0.3s ease;
+  transition: height 0.3s var(--ease-drop);
 }
 .sk-card:hover .sk-bar,
 .sk-card.is-on .sk-bar {
@@ -2581,7 +2585,7 @@ div.swap-in:has(> .show-strip) {
   color: #fff;
   border: 2px solid #d9d5e6;
   background: #fff;
-  transition: background-color 0.3s ease, border-color 0.3s ease, scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .sk-card:hover .sk-check {
   border-color: var(--c);
@@ -2592,12 +2596,12 @@ div.swap-in:has(> .show-strip) {
   height: 16px;
   stroke-dasharray: 24;
   stroke-dashoffset: 24;
-  transition: stroke-dashoffset 0.35s ease 0.08s;
+  transition: stroke-dashoffset 0.35s var(--ease-drop) 0.08s;
 }
 .sk-card.is-on .sk-check {
   border-color: var(--c);
   background: var(--c);
-  animation: sk-ring 0.6s ease-out;
+  animation: sk-ring 0.6s var(--ease-drop);
 }
 .sk-card.is-on .sk-check svg {
   stroke-dashoffset: 0;
@@ -2611,7 +2615,7 @@ div.swap-in:has(> .show-strip) {
 }
 .sk-art {
   opacity: 0.55;
-  transition: opacity 0.4s ease, rotate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.4s var(--ease-drop), rotate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .sk-card:hover .sk-art,
 .sk-card.is-on .sk-art {
@@ -2671,7 +2675,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 900;
   color: #b45309;
   background: #fffaf2;
-  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.3s ease, scale 0.15s ease;
+  transition: background 0.25s var(--ease-drop), color 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .sk-prio:hover {
   background: #fff1dc;
@@ -2706,7 +2710,7 @@ div.swap-in:has(> .show-strip) {
   color: #3730a3;
   text-align: left;
   background: linear-gradient(90deg, #eef1ff, #f7f8ff 55%, #fff);
-  transition: box-shadow 0.25s ease;
+  transition: box-shadow 0.25s var(--ease-drop);
 }
 .mc-group:active {
   scale: 0.99;
@@ -2782,7 +2786,7 @@ div.swap-in:has(> .show-strip) {
   background: #faf9fd;
   padding: 7px 10px;
   text-align: left;
-  transition: border-color 0.2s ease, background-color 0.2s ease, scale 0.15s ease;
+  transition: border-color 0.2s var(--ease-drop), background-color 0.2s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
 .mc-tile:not(.is-ro):active {
   scale: 0.97;
@@ -2891,7 +2895,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 900;
   color: var(--accent);
   background: #f8f5fe;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .mc-coil-btn svg {
   transition: rotate 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
@@ -2926,7 +2930,7 @@ div.swap-in:has(> .show-strip) {
   background: #fff;
 }
 .swap-in .mc-card {
-  animation: swap-row 0.42s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: swap-row 0.42s var(--ease-drop) both;
 }
 .prod-scroll .mc-list[data-slide] {
   will-change: transform;
@@ -2940,7 +2944,7 @@ div.swap-in:has(> .show-strip) {
   pointer-events: none;
   /* ปิดอยู่ = display:none (ไม่กินพื้นที่เลื่อนของหน้า) · ยังเล่นแอนิเมชันเปิด/ปิดได้ด้วย allow-discrete */
   display: none;
-  transition: clip-path 0.38s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease, transform 0.38s cubic-bezier(0.25, 1, 0.5, 1), display 0.38s allow-discrete;
+  transition: clip-path 0.38s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s var(--ease-drop), transform 0.38s cubic-bezier(0.25, 1, 0.5, 1), display 0.38s allow-discrete;
 }
 .cat-drop.is-open {
   display: block;
@@ -2960,7 +2964,7 @@ div.swap-in:has(> .show-strip) {
   from { opacity: 0; transform: translateY(-6px); }
 }
 .cat-drop.is-open .cat-item {
-  animation: cat-item 0.32s cubic-bezier(0.25, 1, 0.5, 1) var(--d, 0ms) both;
+  animation: cat-item 0.32s var(--ease-drop) var(--d, 0ms) both;
 }
 
 /* การ์ดที่ทยอยเข้ามาทีละใบ (หน่วงเวลาด้วย style animationDelay) */
@@ -2968,7 +2972,7 @@ div.swap-in:has(> .show-strip) {
   from { opacity: 0; transform: translateY(14px) scale(0.98); }
 }
 .card-in {
-  animation: card-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.5s var(--ease-drop) backwards;
 }
 
 /* ปุ่มเม็ดยาสีขาว: ชี้ = พื้นฟ้าเรืองแสง (ขนาดปุ่มไม่เปลี่ยน) · กด = ยุบลง (BARCODE FORMATS) */
@@ -2987,7 +2991,7 @@ div.swap-in:has(> .show-strip) {
   letter-spacing: 1.5px;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease, transform 0.1s;
+  transition: background-color 0.4s var(--ease-drop), color 0.4s var(--ease-drop), box-shadow 0.4s var(--ease-drop), transform 0.1s;
 }
 .pill-btn:hover {
   background: #2563eb;
@@ -3019,7 +3023,7 @@ div.swap-in:has(> .show-strip) {
   letter-spacing: 1px;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease, transform 0.1s;
+  transition: background-color 0.35s var(--ease-drop), color 0.35s var(--ease-drop), box-shadow 0.35s var(--ease-drop), transform 0.1s;
 }
 .gear-btn svg {
   width: 17px;
@@ -3116,7 +3120,7 @@ div.swap-in:has(> .show-strip) {
 .modal-bg {
   background: rgb(15 18 30 / 0.42);
   backdrop-filter: blur(5px);
-  animation: modal-bg-in 0.25s ease-out both;
+  animation: modal-bg-in 0.25s var(--ease-drop) both;
 }
 .modal-in {
   box-shadow: 0 30px 70px -20px rgb(20 20 50 / 0.45);
@@ -3130,7 +3134,7 @@ div.swap-in:has(> .show-strip) {
 }
 .modal-bg.is-leaving {
   opacity: 0;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.18s var(--ease-drop);
 }
 .modal-bg.is-leaving .modal-in {
   animation: dlg-out 0.18s ease both;
@@ -3145,7 +3149,7 @@ div.swap-in:has(> .show-strip) {
   width: 32px;
   height: 32px;
   border-radius: 9999px;
-  transition: background-color 0.2s ease, rotate 0.3s ease;
+  transition: background-color 0.2s var(--ease-drop), rotate 0.3s var(--ease-drop);
 }
 .modal-x:hover {
   background: rgb(255 255 255 / 0.16);
@@ -3172,7 +3176,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 50%;
   background: rgb(37 99 235 / 0.06);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s var(--ease-drop);
 }
 .cbx svg {
   position: relative;
@@ -3182,7 +3186,7 @@ div.swap-in:has(> .show-strip) {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: all 0.2s ease;
+  transition: all 0.2s var(--ease-drop);
 }
 .cbx svg path {
   stroke-dasharray: 60;
@@ -3252,7 +3256,7 @@ div.swap-in:has(> .show-strip) {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   box-shadow: 0 6px 16px -6px rgb(37 99 235 / 0.8);
   cursor: pointer;
-  transition: width 0.3s ease, box-shadow 0.3s ease, transform 0.1s;
+  transition: width 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop), transform 0.1s;
 }
 .add-btn .sign {
   display: grid;
@@ -3262,7 +3266,7 @@ div.swap-in:has(> .show-strip) {
   font-size: 26px;
   font-weight: 500;
   line-height: 1;
-  transition: all 0.3s ease;
+  transition: all 0.3s var(--ease-drop);
 }
 .add-btn .text {
   position: absolute;
@@ -3276,7 +3280,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
-  transition: all 0.3s ease;
+  transition: all 0.3s var(--ease-drop);
 }
 .add-btn:hover,
 .add-btn:focus-visible {
@@ -3303,7 +3307,7 @@ div.swap-in:has(> .show-strip) {
   from { opacity: 0; transform: translateY(8px) scale(0.985); filter: blur(2px); }
 }
 .view-in {
-  animation: view-in 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: view-in 0.38s var(--ease-drop) both;
 }
 
 /* แผงกาง / พับแบบนุ่ม (ความสูงวิ่งจาก 0 ถึงความสูงจริง) - .fold-gap = ดึงช่องว่าง gap-4 ของหน้ากลับตอนพับ */
@@ -3456,7 +3460,7 @@ div.swap-in:has(> .show-strip) {
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
   backdrop-filter: blur(14px) saturate(1.3);
   transition: left 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  animation: menu-pop 0.18s ease-out both;
+  animation: menu-pop 0.18s var(--ease-drop) both;
 }
 .fc-chart svg:focus-visible {
   outline: 2px solid #1f5eff;
@@ -3889,7 +3893,7 @@ div.swap-in:has(> .show-strip) {
   background: color-mix(in srgb, var(--c) 14%, #fff);
   color: var(--c);
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease, transform 0.2s ease;
+  transition: color 0.2s var(--ease-drop), background-color 0.2s var(--ease-drop), border-color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop), transform 0.2s var(--ease-drop);
 }
 .ra:hover:not(:disabled),
 .ra:focus-visible,
@@ -4067,7 +4071,7 @@ div.swap-in:has(> .show-strip) {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  transition: gap 0.2s ease;
+  transition: gap 0.2s var(--ease-drop);
 }
 .ra-bin-top,
 .ra-bin-body {
@@ -4205,7 +4209,7 @@ div.swap-in:has(> .show-strip) {
 }
 .adm-pane {
   min-width: 0;
-  animation: adm-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: adm-in 0.32s var(--ease-drop) both;
 }
 @keyframes adm-in {
   from {
@@ -4287,7 +4291,7 @@ div.swap-in:has(> .show-strip) {
   height: 14px;
   stroke-dasharray: 20;
   stroke-dashoffset: 20;
-  transition: stroke-dashoffset 0.35s ease 0.08s;
+  transition: stroke-dashoffset 0.35s var(--ease-drop) 0.08s;
 }
 .adm-card.is-on {
   border-color: var(--c);
@@ -4390,7 +4394,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 0.02em;
   color: var(--f);
-  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all 0.45s var(--ease-drop);
 }
 .fill-btn::before {
   content: "";
@@ -4509,7 +4513,7 @@ div.swap-in:has(> .show-strip) {
   width: 100%;
   align-items: flex-start;
   padding: 16px 14px 14px 16px;
-  animation: card-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.45s var(--ease-drop) backwards;
 }
 .ch-card:disabled {
   opacity: 0.5;
@@ -4564,7 +4568,7 @@ div.swap-in:has(> .show-strip) {
   white-space: nowrap;
   color: #fff;
   cursor: pointer;
-  transition: all 0.5s;
+  transition: all 0.45s var(--ease-drop);
 }
 .cta-btn:hover:not(:disabled) {
   background-color: color-mix(in srgb, var(--b) 72%, white);
@@ -4687,7 +4691,7 @@ div.swap-in:has(> .show-strip) {
 
 /* ✨ เปิดหน้า: ส่วนต่างๆ ของหน้าทยอยเลื่อนขึ้นมา (ไม่กระทบตอนอัพเดทข้อมูล เพราะเล่นครั้งเดียวตอนวาดครั้งแรก) */
 .page-in > * {
-  animation: page-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: page-rise 0.5s var(--ease-drop) backwards;
 }
 .page-in > *:nth-child(2) {
   animation-delay: 60ms;
@@ -4766,10 +4770,10 @@ div.swap-in:has(> .show-strip) {
   color: transparent;
 }
 .yr-num.from-right {
-  animation: yr-right 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: yr-right 0.4s var(--ease-drop);
 }
 .yr-num.from-left {
-  animation: yr-left 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: yr-left 0.4s var(--ease-drop);
 }
 @keyframes yr-right {
   from {
@@ -4814,7 +4818,7 @@ div.swap-in:has(> .show-strip) {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, white), var(--c));
-  animation: wd-grow 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s backwards;
+  animation: wd-grow 0.8s var(--ease-drop) 0.15s backwards;
 }
 @keyframes wd-grow {
   from {
@@ -4838,7 +4842,7 @@ div.swap-in:has(> .show-strip) {
   padding: 12px;
   box-shadow: 0 10px 24px -22px rgb(40 45 110 / 0.5);
   transition: border-color 0.25s, box-shadow 0.3s, transform 0.3s;
-  animation: card-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.45s var(--ease-drop) backwards;
 }
 .wd-month:hover {
   border-color: color-mix(in srgb, var(--accent) 35%, #e6e4f0);
@@ -4927,7 +4931,7 @@ div.swap-in:has(> .show-strip) {
   font-size: 12px;
   font-weight: 700;
   color: var(--primary);
-  animation: page-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: page-rise 0.35s var(--ease-drop);
 }
 .fm-fx {
   display: grid;
@@ -5030,7 +5034,7 @@ div.swap-in:has(> .show-strip) {
   border: 1px solid #ebe9f3;
   background: var(--surface);
   padding: 8px 12px;
-  animation: card-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.4s var(--ease-drop) backwards;
 }
 .pm-contact {
   display: flex;
@@ -5102,7 +5106,7 @@ div.swap-in:has(> .show-strip) {
   background: var(--surface);
   padding: 12px;
   box-shadow: 0 10px 22px -20px rgb(40 45 110 / 0.5);
-  animation: card-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.4s var(--ease-drop) backwards;
 }
 .pm-stock {
   display: flex;
@@ -5142,7 +5146,7 @@ div.swap-in:has(> .show-strip) {
   height: 15px;
   stroke-dasharray: 20;
   stroke-dashoffset: 20;
-  transition: stroke-dashoffset 0.3s ease 0.05s;
+  transition: stroke-dashoffset 0.3s var(--ease-drop) 0.05s;
 }
 .pf:hover:not(:disabled) {
   border-color: var(--c);
@@ -5201,7 +5205,7 @@ div.swap-in:has(> .show-strip) {
   border: 1px solid #ebe9f3;
   background: var(--surface);
   padding: 10px;
-  animation: card-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.4s var(--ease-drop) backwards;
   transition: border-color 0.2s, box-shadow 0.25s;
 }
 .ct-row:focus-within {
@@ -5232,7 +5236,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 16px;
   background: #fff;
   padding: 12px;
-  animation: page-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: page-rise 0.35s var(--ease-drop);
 }
 .ct-bell {
   display: grid;
@@ -5318,7 +5322,7 @@ div.swap-in:has(> .show-strip) {
   gap: 8px;
   background: linear-gradient(180deg, #f8f6fd, #fbfaff);
   padding: 12px 14px;
-  animation: page-rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: page-rise 0.3s var(--ease-drop);
 }
 .cp-sum {
   display: flex;
@@ -5338,7 +5342,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 14px;
   border: 1px solid #e6e1f7;
   background: #fff;
-  animation: card-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: card-in 0.35s var(--ease-drop) backwards;
 }
 .cp-master {
   display: flex;
@@ -5411,7 +5415,7 @@ div.swap-in:has(> .show-strip) {
   color: var(--ink-soft);
 }
 .reg-fields > * {
-  animation: page-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: page-rise 0.35s var(--ease-drop) backwards;
 }
 .reg-fields > *:nth-child(2) {
   animation-delay: 25ms;
@@ -5499,7 +5503,7 @@ div.swap-in:has(> .show-strip) {
 .fm-prev {
   display: grid;
   gap: 4px;
-  animation: page-rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: page-rise 0.3s var(--ease-drop) backwards;
 }
 .fm-prev span {
   font-size: 9.5px;
@@ -5819,7 +5823,7 @@ div.swap-in:has(> .show-strip) {
 
 /* 👥 USER MANAGEMENT: ตารางผู้ใช้ (Desktop) */
 .um-row {
-  animation: page-rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: page-rise 0.4s var(--ease-drop) backwards;
   transition: background-color 0.2s;
 }
 .um-row:hover {
@@ -5903,7 +5907,7 @@ div.swap-in:has(> .show-strip) {
 .ms-menu.is-open .ms-item {
   transform: none;
   opacity: 1;
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.12s + var(--i) * 0.06s), opacity 0.4s ease calc(0.12s + var(--i) * 0.06s), background-color 0.2s ease, color 0.2s ease;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.12s + var(--i) * 0.06s), opacity 0.4s var(--ease-drop) calc(0.12s + var(--i) * 0.06s), background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop);
 }
 .ms-menu.is-up .ms-item {
   transform: translateY(-26px);
@@ -5947,7 +5951,7 @@ div.swap-in:has(> .show-strip) {
 .modal-in .modal-body > *,
 .modal-in .modal-body > .grid > *,
 .modal-in .adm-main > * {
-  animation: mdl-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: mdl-rise 0.5s var(--ease-drop) backwards;
   animation-delay: 0.16s;
 }
 .modal-in .modal-body > .grid > *:nth-child(2),
@@ -5978,7 +5982,7 @@ div.swap-in:has(> .show-strip) {
   }
 }
 .modal-bg.is-leaving {
-  transition: opacity 0.22s ease, backdrop-filter 0.22s ease;
+  transition: opacity 0.22s var(--ease-drop), backdrop-filter 0.22s var(--ease-drop);
   backdrop-filter: blur(0);
 }
 .modal-bg.is-leaving .modal-in {
@@ -5993,7 +5997,7 @@ div.swap-in:has(> .show-strip) {
 }
 /* footer ปุ่มเลื่อนเข้าตามมา */
 .modal-in > :last-child:not(.modal-body) > * {
-  animation: mdl-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s backwards;
+  animation: mdl-rise 0.45s var(--ease-drop) 0.3s backwards;
 }
 
 /* ✏️ ช่องกรอก (fx): ป้ายเปลี่ยนสีเมื่อพิมพ์ · ขีดไล่สีใต้ช่อง · ช่องลอยขึ้นเล็กน้อย */
@@ -6009,7 +6013,7 @@ div.swap-in:has(> .show-strip) {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  transition: color 0.25s ease, transform 0.25s ease;
+  transition: color 0.25s var(--ease-drop), transform 0.25s var(--ease-drop);
 }
 .fx:focus-within > .fx-cap {
   color: var(--accent);
@@ -6023,7 +6027,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 12px;
   background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, #e2e4f0, #e2e4f0) border-box;
   border: 1.5px solid transparent;
-  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
+  transition: background 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop), transform 0.25s var(--ease-drop);
 }
 .field.fx-in:hover:not(:disabled) {
   background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, #e2e4f0), #e2e4f0) border-box;
@@ -6079,9 +6083,9 @@ div.swap-in:has(> .show-strip) {
   font-size: 13px;
   font-weight: 800;
   color: var(--ink);
-  animation: fm-slide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: fm-slide 0.4s var(--ease-drop) backwards;
   animation-delay: calc(0.15s + var(--i, 0) * 40ms);
-  transition: background-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.3s ease;
+  transition: background-color 0.25s var(--ease-drop), color 0.25s var(--ease-drop), transform 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .fm-item:hover {
   background: #f3effc;
@@ -6134,9 +6138,9 @@ div.swap-in:has(> .show-strip) {
   border: 1px solid #ece9f3;
   background: #fff;
   padding: 14px;
-  animation: mdl-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: mdl-rise 0.5s var(--ease-drop) backwards;
   animation-delay: calc(0.12s + var(--d, 0ms));
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .fm-group:focus-within {
   border-color: color-mix(in srgb, var(--accent) 35%, #ece9f3);
@@ -6217,13 +6221,13 @@ div.swap-in:has(> .show-strip) {
 
 /* ☑ Checkbox: ติ๊กออก = เครื่องหมายถูกหดกลับก่อน แล้ววาดกรอบสี่เหลี่ยมกลับมา (ย้อนลำดับตอนติ๊ก) + เด้งเล็กน้อย */
 .cbx svg polyline {
-  transition: stroke-dashoffset 0.2s ease-in, stroke 0.2s ease;
+  transition: stroke-dashoffset 0.2s ease-in, stroke 0.2s var(--ease-drop);
 }
 .cbx svg path {
-  transition: stroke-dashoffset 0.32s ease-out 0.14s, stroke 0.2s ease;
+  transition: stroke-dashoffset 0.32s var(--ease-drop) 0.14s, stroke 0.2s var(--ease-drop);
 }
 .cbx svg {
-  transition: stroke 0.2s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transition: stroke 0.2s var(--ease-drop), transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 .cbx:active svg {
   transform: scale(0.82);
@@ -6247,7 +6251,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   color: var(--ink);
   isolation: isolate;
-  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+  transition: color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), transform 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .col-chip::before {
   content: "";
@@ -6289,7 +6293,7 @@ div.swap-in:has(> .show-strip) {
   border: 1.5px dashed #cfcbd9;
   font-size: 10.5px;
   font-weight: 900;
-  transition: border-color 0.3s ease, background-color 0.3s ease;
+  transition: border-color 0.3s var(--ease-drop), background-color 0.3s var(--ease-drop);
 }
 .col-chip.is-on .col-no {
   border: 0;
@@ -6327,7 +6331,7 @@ div.swap-in:has(> .show-strip) {
   border: 1px solid #ece9f3;
   background: #fff;
   padding: 16px;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  transition: border-color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop), transform 0.3s var(--ease-drop);
 }
 .se-sec:hover {
   border-color: color-mix(in srgb, var(--accent) 25%, #ece9f3);
@@ -6382,7 +6386,7 @@ div.swap-in:has(> .show-strip) {
   color: var(--ink);
   animation: fm-pop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
   animation-delay: calc(var(--i, 0) * 35ms);
-  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+  transition: color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), transform 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .stk-pick::before {
   content: "";
@@ -6418,7 +6422,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 6px;
   border: 1.5px solid #cfcbd9;
   background: #fff;
-  transition: border-color 0.3s ease, background-color 0.3s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transition: border-color 0.3s var(--ease-drop), background-color 0.3s var(--ease-drop), transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 .stk-pick-box svg {
   width: 12px;
@@ -6434,7 +6438,7 @@ div.swap-in:has(> .show-strip) {
 }
 .stk-pick.is-on .stk-pick-box svg {
   stroke-dashoffset: 0;
-  transition: stroke-dashoffset 0.35s ease-out 0.12s;
+  transition: stroke-dashoffset 0.35s var(--ease-drop) 0.12s;
 }
 .stk-pick.is-locked {
   cursor: not-allowed;
@@ -6501,7 +6505,7 @@ div.swap-in:has(> .show-strip) {
   flex: none;
   border-radius: 3mm;
   box-shadow: 0 6mm 14mm -8mm rgb(40 30 90 / 0.45), 0 0 0 0.3mm rgb(0 0 0 / 0.06);
-  animation: pk-pv-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: pk-pv-in 0.45s var(--ease-drop) backwards;
 }
 .pk-pv-stack > :nth-child(2) {
   animation-delay: 70ms;
@@ -6536,9 +6540,9 @@ div.swap-in:has(> .show-strip) {
   background: #fff;
   padding: 10px 12px 10px 16px;
   cursor: pointer;
-  animation: fm-slide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: fm-slide 0.4s var(--ease-drop) backwards;
   animation-delay: calc(0.1s + var(--i, 0) * 40ms);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
+  transition: border-color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop), transform 0.25s var(--ease-drop);
 }
 .su-row:hover {
   transform: translateX(3px);
@@ -6560,8 +6564,8 @@ div.swap-in:has(> .show-strip) {
   padding: 14px 16px;
   background: linear-gradient(120deg, color-mix(in srgb, var(--c) 12%, #fff), #fff 70%);
   border: 1px solid color-mix(in srgb, var(--c) 22%, #ece9f3);
-  animation: mdl-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s backwards;
-  transition: background 0.4s ease, border-color 0.4s ease;
+  animation: mdl-rise 0.5s var(--ease-drop) 0.1s backwards;
+  transition: background 0.4s var(--ease-drop), border-color 0.4s var(--ease-drop);
 }
 .ue-avatar {
   display: grid;
@@ -6576,7 +6580,7 @@ div.swap-in:has(> .show-strip) {
   color: #fff;
   box-shadow: 0 10px 20px -10px var(--c);
   animation: dlg-icon-in 0.6s cubic-bezier(0.3, 1.5, 0.5, 1) 0.2s backwards;
-  transition: background 0.4s ease;
+  transition: background 0.4s var(--ease-drop);
 }
 .ue-badge {
   border-radius: 100px;
@@ -6586,7 +6590,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 900;
   letter-spacing: 0.06em;
   color: #fff;
-  transition: background-color 0.4s ease;
+  transition: background-color 0.4s var(--ease-drop);
 }
 .ue-badge.is-lock {
   background: #475569;
@@ -6604,7 +6608,7 @@ div.swap-in:has(> .show-strip) {
   padding: 11px 12px;
   color: var(--ink);
   isolation: isolate;
-  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+  transition: color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), transform 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .ue-lv::before {
   content: "";
@@ -6638,7 +6642,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 99px;
   border: 2px solid var(--c);
   background: #fff;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .ue-lv.is-on .ue-lv-dot {
   border-color: #fff;
@@ -6661,7 +6665,7 @@ div.swap-in:has(> .show-strip) {
   height: 4px;
   border-radius: 4px;
   background: #ebe8f1;
-  transition: background-color 0.35s ease;
+  transition: background-color 0.35s var(--ease-drop);
 }
 .ue-meter[data-s="1"] i:nth-child(-n + 1) {
   background: #ef4444;
@@ -6716,12 +6720,12 @@ div.swap-in:has(> .show-strip) {
   color: #fff;
   box-shadow: 0 14px 28px -12px rgb(20 20 40 / 0.6);
   animation: fm-pop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.3s backwards;
-  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.3s var(--ease-drop);
 }
 .bug-fab svg {
   width: 24px;
   height: 24px;
-  transition: transform 0.4s ease;
+  transition: transform 0.4s var(--ease-drop);
 }
 .bug-fab:hover {
   transform: translateY(-3px) scale(1.06);
@@ -6767,9 +6771,9 @@ div.swap-in:has(> .show-strip) {
   border-radius: 16px;
   border: 1px solid #ece9f3;
   background: #fff;
-  animation: fm-slide 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: fm-slide 0.35s var(--ease-drop) backwards;
   animation-delay: calc(var(--i, 0) * 30ms);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .bug-row.is-new {
   border-color: rgb(225 29 72 / 0.35);
@@ -6785,7 +6789,7 @@ div.swap-in:has(> .show-strip) {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .bug-row-main:hover {
   background: #faf8ff;
@@ -6862,7 +6866,7 @@ div.swap-in:has(> .show-strip) {
 }
 tr.live-flash > td,
 .mc-card.live-flash {
-  animation: live-flash 1.6s ease-out;
+  animation: live-flash 1.6s var(--ease-drop);
 }
 @media (prefers-reduced-motion: reduce) {
   tr.live-flash > td,
@@ -6884,7 +6888,7 @@ body:has(.modal-bg) .profile-bubble,
 body:has(.modal-bg) .bug-fab {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s var(--ease-drop);
 }
 
 .fx {
@@ -6907,7 +6911,7 @@ body:has(.modal-bg) .bug-fab {
   background: #fff;
   padding: 10px 12px 10px 14px;
   box-shadow: inset 4px 0 0 var(--c);
-  animation: fm-slide 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: fm-slide 0.35s var(--ease-drop) backwards;
   animation-delay: calc(var(--i, 0) * 25ms);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -6927,7 +6931,7 @@ body:has(.modal-bg) .bug-fab {
   font-weight: 900;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
-  transition: all 0.25s ease;
+  transition: all 0.25s var(--ease-drop);
 }
 .sc-lock.is-on {
   border-color: transparent;
@@ -6949,9 +6953,9 @@ body:has(.modal-bg) .bug-fab {
   border: 1px solid #ece9f3;
   background: #fff;
   padding: 9px 12px;
-  animation: fm-slide 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: fm-slide 0.35s var(--ease-drop) backwards;
   animation-delay: calc(var(--i, 0) * 35ms);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: border-color 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop);
 }
 .cf-row:hover {
   border-color: color-mix(in srgb, var(--accent) 35%, #ece9f3);
@@ -7000,8 +7004,8 @@ body:has(.modal-bg) .bug-fab {
   padding: 16px 16px 14px;
   outline: none;
   box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 12px 30px -22px rgb(40 45 110 / 0.28);
-  animation: mdl-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+  animation: mdl-rise 0.45s var(--ease-drop) backwards;
+  transition: transform 0.3s var(--ease-drop), box-shadow 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), background 0.3s var(--ease-drop);
 }
 .pr-card:hover,
 .pr-card:focus-visible {
@@ -7018,7 +7022,7 @@ body:has(.modal-bg) .bug-fab {
   height: 4px;
   background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 45%, white));
   opacity: 0.45;
-  transition: opacity 0.3s ease, height 0.3s ease;
+  transition: opacity 0.3s var(--ease-drop), height 0.3s var(--ease-drop);
 }
 .pr-card.is-on .pr-card-bar,
 .pr-card:hover .pr-card-bar {
@@ -7057,9 +7061,9 @@ body:has(.modal-bg) .bug-fab {
   gap: 8px;
   border-radius: 12px;
   padding: 3px 4px 3px 2px;
-  animation: fm-slide 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: fm-slide 0.3s var(--ease-drop) backwards;
   animation-delay: calc(var(--i, 0) * 20ms);
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .dept-row:hover {
   background: #f8f6fd;
@@ -7081,7 +7085,7 @@ body:has(.modal-bg) .bug-fab {
   flex: none;
   gap: 4px;
   opacity: 0.55;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s var(--ease-drop);
 }
 .dept-row:hover .dept-acts,
 .dept-row:focus-within .dept-acts {
@@ -7096,7 +7100,7 @@ body:has(.modal-bg) .bug-fab {
   border: 1px solid #e6e3ee;
   background: #fff;
   color: var(--ink-soft);
-  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition: color 0.2s var(--ease-drop), background-color 0.2s var(--ease-drop), border-color 0.2s var(--ease-drop), transform 0.2s var(--ease-drop);
 }
 .dept-btn svg {
   width: 15px;
@@ -7124,7 +7128,7 @@ body:has(.modal-bg) .bug-fab {
   cursor: pointer;
   background: color-mix(in srgb, #2563eb 12%, transparent);
   color: #2563eb;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-drop);
 }
 .cf-type.is-list:hover {
   background: color-mix(in srgb, #2563eb 20%, transparent);
@@ -7153,7 +7157,7 @@ body:has(.modal-bg) .bug-fab {
   font-size: 11.5px;
   font-weight: 800;
   color: var(--ink);
-  transition: all 0.25s ease;
+  transition: all 0.25s var(--ease-drop);
 }
 .flt-chip b {
   min-width: 22px;
@@ -7163,7 +7167,7 @@ body:has(.modal-bg) .bug-fab {
   text-align: center;
   font-size: 11px;
   color: var(--accent);
-  transition: all 0.25s ease;
+  transition: all 0.25s var(--ease-drop);
 }
 .flt-chip:hover {
   border-color: var(--accent);
@@ -7207,7 +7211,7 @@ body:has(.modal-bg) .bug-fab {
   color: var(--ink);
   animation: fm-pop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
   animation-delay: calc(var(--i, 0) * 30ms);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.3s ease, color 0.2s ease, background 0.3s ease;
+  transition: transform 0.2s var(--ease-drop), border-color 0.2s var(--ease-drop), box-shadow 0.3s var(--ease-drop), color 0.2s var(--ease-drop), background 0.3s var(--ease-drop);
 }
 .st-tile:hover:not(:disabled) {
   transform: translateY(-2px);
@@ -7225,7 +7229,7 @@ body:has(.modal-bg) .bug-fab {
   height: 36px;
   place-items: center;
   border-radius: 11px;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s var(--ease-drop);
 }
 .st-tile:hover:not(:disabled) .st-tile-ic {
   transform: scale(1.1);
@@ -7313,7 +7317,7 @@ body:has(.modal-bg) .bug-fab {
   color: var(--ink);
   animation: fm-pop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
   animation-delay: calc(var(--i, 0) * 35ms);
-  transition: color 0.3s ease, border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
+  transition: color 0.3s var(--ease-drop), border-color 0.3s var(--ease-drop), transform 0.25s var(--ease-drop), box-shadow 0.3s var(--ease-drop);
 }
 .fx-month::before {
   content: "";
@@ -7323,7 +7327,7 @@ body:has(.modal-bg) .bug-fab {
   background: linear-gradient(145deg, #8b6fd6, var(--accent));
   clip-path: circle(0% at 50% 100%);
   opacity: 0;
-  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s var(--ease-drop);
 }
 .fx-month b {
   font-size: 17px;
@@ -7364,7 +7368,7 @@ body:has(.modal-bg) .bug-fab {
   border: 1.5px solid #d8d4e2;
   background: #fff;
   color: var(--accent);
-  transition: border-color 0.3s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transition: border-color 0.3s var(--ease-drop), transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 .fx-month-check svg {
   width: 12px;
@@ -7379,7 +7383,7 @@ body:has(.modal-bg) .bug-fab {
 }
 .fx-month.is-on .fx-month-check svg {
   stroke-dashoffset: 0;
-  transition: stroke-dashoffset 0.35s ease-out 0.1s;
+  transition: stroke-dashoffset 0.35s var(--ease-drop) 0.1s;
 }
 @media (prefers-reduced-motion: reduce) {
   .fx-month,
@@ -7419,7 +7423,7 @@ body:has(.modal-bg) .bug-fab {
   font-size: 14px;
   color: #fff;
   outline: none;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s var(--ease-drop), background 0.2s var(--ease-drop), box-shadow 0.2s var(--ease-drop);
 }
 .lg-field:hover {
   border-color: rgb(255 255 255 / 0.2);
@@ -7439,7 +7443,7 @@ body:has(.modal-bg) .bug-fab {
   padding: 8px 8px 8px 10px;
   animation: fm-pop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
   animation-delay: calc(0.18s + var(--i, 0) * 50ms);
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s var(--ease-drop), border-color 0.2s var(--ease-drop), transform 0.2s var(--ease-drop);
 }
 .lg-acc:hover {
   background: rgb(255 255 255 / 0.08);
@@ -7470,7 +7474,7 @@ body:has(.modal-bg) .bug-fab {
   border-radius: 9px;
   font-size: 12px;
   color: rgb(255 255 255 / 0.4);
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background 0.2s var(--ease-drop), color 0.2s var(--ease-drop);
 }
 .lg-acc-x:hover {
   background: rgb(239 68 68 / 0.18);
@@ -7491,7 +7495,7 @@ body:has(.modal-bg) .bug-fab {
   caret-color: #fff;
   -webkit-box-shadow: 0 0 0 1000px #29292c inset;
   box-shadow: 0 0 0 1000px #29292c inset;
-  transition: background-color 9999s ease-out 0s;
+  transition: background-color 9999s var(--ease-drop) 0s;
 }
 .lg-field:-webkit-autofill:focus {
   -webkit-box-shadow: 0 0 0 1000px #2e2e32 inset, 0 0 0 3px rgb(103 80 164 / 0.35);
@@ -7546,7 +7550,7 @@ body:has(.modal-bg) .bug-fab {
   font-size: 11px;
   font-weight: 800;
   color: var(--ink-soft);
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+  transition: border-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop), background 0.2s var(--ease-drop), transform 0.15s var(--ease-drop);
 }
 .unit-chip:hover { border-color: var(--accent); color: var(--accent); }
 .unit-chip:active { transform: scale(0.94); }
@@ -7578,6 +7582,178 @@ body:has(.modal-bg) .bug-fab {
   font-size: 12px;
   line-height: 1;
   color: var(--ink-soft);
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background 0.2s var(--ease-drop), color 0.2s var(--ease-drop);
 }
 .unit-chip .unit-x:hover { background: #fee2e2; color: #dc2626; }
+
+/* 🎨 ปุ่มสีเต็ม + เคลื่อนไหวลื่นแบบ Dropdown (cubic-bezier(0.22, 1, 0.36, 1) 0.45s)
+   ปกติ = พื้นสีเต็ม ตัวอักษร / ไอคอนขาว · ชี้ = ยกขึ้นนุ่ม ๆ + สีจางลงเล็กน้อย + แสงใต้ปุ่ม · กด = ยุบ */
+:root {
+  --ease-drop: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 🎯 ปุ่ม Action ในตาราง (RowAction: VIEW / EDIT / HIDE / DELETE / RESET) */
+.ra {
+  border-color: var(--c);
+  background: var(--c);
+  color: #fff;
+  box-shadow: 0 4px 10px -6px var(--c);
+  transition: color 0.45s var(--ease-drop), background-color 0.45s var(--ease-drop), border-color 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), transform 0.45s var(--ease-drop);
+}
+.ra:hover:not(:disabled),
+.ra:focus-visible {
+  border-color: color-mix(in srgb, var(--c) 78%, white);
+  background: color-mix(in srgb, var(--c) 78%, white);
+  color: #fff;
+  box-shadow: 0 12px 20px -10px var(--c);
+}
+.ra:hover:not(:disabled) {
+  transform: translateY(-3px);
+}
+.ra:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.9);
+  transition-duration: 0.15s;
+}
+.ra.is-active {
+  background: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent), 0 8px 16px -8px var(--c);
+}
+.ra-ic,
+.ra-pupil,
+.ra-eye,
+.ra-bin-top {
+  transition-timing-function: var(--ease-drop);
+  transition-duration: 0.45s;
+}
+
+/* 📟 Multi-Scanner: ปุ่มโหมด (SCAN OUT / RETURN / REMAINDER / TEST) + ปุ่มเครื่องมือ (HISTORY / DISPLAY / ...) */
+.sc-mode,
+.sc-tool {
+  border: 1.5px solid transparent;
+  color: #fff;
+  background-color: var(--c);
+  background-image: linear-gradient(135deg, rgb(255 255 255 / 0.2), transparent 70%);
+  box-shadow: 0 6px 14px -10px var(--c), inset 0 1px 0 rgb(255 255 255 / 0.2);
+  transition: background-color 0.45s var(--ease-drop), color 0.45s var(--ease-drop), border-color 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), translate 0.45s var(--ease-drop), scale 0.15s var(--ease-drop);
+}
+.sc-mode:not(.is-on):hover:not(:disabled),
+.sc-mode.is-on:hover:not(:disabled),
+.sc-tool:hover:not(:disabled) {
+  translate: 0 -3px;
+  filter: none;
+  border-color: transparent;
+  color: #fff;
+  background-color: color-mix(in srgb, var(--c) 78%, white);
+  box-shadow: 0 14px 24px -12px var(--c), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+/* เปิดโหมดอยู่ = วงแสงรอบปุ่ม (แยกจากปุ่มที่ยังไม่เปิด) */
+.sc-mode.is-on,
+.sc-mode.is-on:hover:not(:disabled) {
+  background-image: linear-gradient(135deg, rgb(255 255 255 / 0.2), transparent 70%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent), 0 12px 22px -10px var(--c);
+}
+.sc-mode svg {
+  transition: transform 0.45s var(--ease-drop);
+}
+.sc-mode:hover:not(:disabled) svg {
+  transform: scale(1.15) rotate(-8deg);
+}
+.sc-tool-ic {
+  color: #fff;
+  background: rgb(255 255 255 / 0.22);
+  transition: background-color 0.45s var(--ease-drop), color 0.45s var(--ease-drop), rotate 0.45s var(--ease-drop), scale 0.45s var(--ease-drop);
+}
+.sc-tool:hover:not(:disabled) .sc-tool-ic {
+  color: var(--c);
+  background: #fff;
+  rotate: -8deg;
+  scale: 1.08;
+}
+.sc-tool .sc-badge {
+  color: var(--c);
+  background: #fff;
+}
+
+/* ✍️ APPROVE / REJECT (DrawIcon): ชี้ = ติ๊ก / กากบาทถูกลากเขียนใหม่วนไปเรื่อย ๆ แบบปุ่ม EDIT · ปกติ = เส้นเต็ม */
+.di {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  overflow: visible;
+  transition: transform 0.45s var(--ease-drop);
+}
+.di path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+.act-draw:hover:not(:disabled) .di {
+  transform: scale(1.18) rotate(-6deg);
+}
+.act-draw:hover:not(:disabled) .di-approve .di-p1 {
+  animation: di-tick 1.3s var(--ease-drop) infinite;
+}
+.act-draw:hover:not(:disabled) .di-reject .di-p1 {
+  animation: di-x1 1.3s var(--ease-drop) infinite;
+}
+.act-draw:hover:not(:disabled) .di-reject .di-p2 {
+  animation: di-x2 1.3s var(--ease-drop) infinite;
+}
+@keyframes di-tick {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  55% { stroke-dashoffset: 0; opacity: 1; }
+  85% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
+}
+@keyframes di-x1 {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  35% { stroke-dashoffset: 0; opacity: 1; }
+  85% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
+}
+@keyframes di-x2 {
+  0%, 30% { stroke-dashoffset: 1; opacity: 1; }
+  65% { stroke-dashoffset: 0; opacity: 1; }
+  85% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
+}
+/* ปุ่ม APPROVE / REJECT ยกขึ้นนุ่ม ๆ แบบเดียวกัน (แทนการขยายแบบเดิม) */
+.cta-btn.act-draw {
+  transition: background-color 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), transform 0.45s var(--ease-drop);
+}
+.cta-btn.act-draw:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 22px -10px var(--b);
+}
+.cta-btn.act-draw:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.96);
+  transition-duration: 0.15s;
+}
+.btn.act-draw {
+  transition: filter 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), translate 0.45s var(--ease-drop), scale 0.15s var(--ease-drop);
+}
+.btn.act-draw:hover:not(:disabled) {
+  translate: 0 -2px;
+  filter: brightness(1.12);
+  box-shadow: 0 10px 18px -10px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-mode,
+  .sc-tool,
+  .sc-mode svg,
+  .sc-tool-ic,
+  .di,
+  .di path,
+  .act-draw {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* 📟 ปุ่มโหมดที่เปิดอยู่ (SCAN OUT ฯลฯ): กฎเดิมใช้ background แบบย่อ -> สีพื้นหาย ปุ่มเป็นสีขาว · ใส่สีพื้นกลับ */
+.sc-mode.is-on {
+  background-color: var(--c);
+}
+.sc-mode.is-on:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--c) 78%, white);
+}

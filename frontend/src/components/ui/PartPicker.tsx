@@ -87,3 +87,70 @@ export function PartPicker({
     </div>
   );
 }
+
+// ✍️ ช่องพิมพ์ PRODUCT CODE + รายการแนะนำ: เลือก = ดึงข้อมูลมาใส่ช่องอย่างเดียว (onPick) ไม่ได้เปลี่ยนเป็นแก้สินค้าเดิม
+export function PartSuggestInput({
+  value,
+  onChange,
+  onPick,
+  stkId,
+  className = "field",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onPick: (p: PartOption) => void;
+  stkId?: number;
+  className?: string;
+}) {
+  const [list, setList] = useState<PartOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const k = useDebounced(value, 250);
+
+  useEffect(() => {
+    if (k.trim().length < 2) return;
+    let alive = true;
+    api<PartOption[]>("/lookup/parts", { query: { key: k, stkId } })
+      .then((r) => alive && setList(r))
+      .catch(() => alive && setList([]));
+    return () => {
+      alive = false;
+    };
+  }, [k, stkId]);
+
+  const shown = open && value.trim().length >= 2 && list.length > 0;
+  return (
+    <div className="relative">
+      <input
+        className={className}
+        value={value}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+      />
+      {shown && (
+        <div className="menu-pop absolute z-30 mt-1 max-h-60 w-[min(360px,80vw)] overflow-auto rounded-xl border border-line bg-surface shadow-xl">
+          {list.map((p) => (
+            <button
+              type="button"
+              key={p.partId}
+              className="block w-full border-b border-line/60 px-3 py-2 text-left transition-colors hover:bg-surface-2"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onPick(p);
+                setOpen(false);
+              }}
+            >
+              <div className="text-sm font-extrabold text-primary">
+                {p.partCode} {p.partA && <span className="font-semibold text-ink-soft">• {p.partA}</span>}
+              </div>
+              <div className="truncate text-xs">{p.partName}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

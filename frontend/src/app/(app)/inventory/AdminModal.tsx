@@ -68,7 +68,18 @@ type Data = {
   fieldUnits?: FUnit[];
   customFields: CField[];
   hasQrFields: boolean;
+  hasQrSep?: boolean;
 };
+// ▣ ตัวคั่นช่องใน QR ระบบ (รูปแบบที่ 2) - เลือกสำเร็จรูป หรือพิมพ์เอง (สูงสุด 5 ตัว)
+const QR_SEPS = [
+  { value: "|", label: "|" },
+  { value: " ", label: "SPACE" },
+  { value: ";", label: ";" },
+  { value: ",", label: "," },
+  { value: "\t", label: "TAB" },
+];
+const sepOf = (l: Layout) => l.qrSep || "|";
+const sepText = (s: string) => QR_SEPS.find((x) => x.value === s)?.label ?? s;
 type Tab = "DELETE" | "FIELDS" | "LISTS" | "FORM" | "COLUMNS" | "QR";
 const SIDE_KEY = "inv-admin-side";
 
@@ -145,7 +156,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
   async function saveLayouts(kind: "COLUMNS" | "QR" | "FORM") {
     const list = dirty.map((id) => {
       const l = layouts[id];
-      return kind === "COLUMNS" ? { stkId: id, columns: l.columns, groupBy: l.groupBy } : kind === "FORM" ? { stkId: id, formFields: l.formFields } : { stkId: id, qrFields: l.qrFields, qrLabel: l.qrLabel };
+      return kind === "COLUMNS" ? { stkId: id, columns: l.columns, groupBy: l.groupBy } : kind === "FORM" ? { stkId: id, formFields: l.formFields } : { stkId: id, qrFields: l.qrFields, qrLabel: l.qrLabel, qrSep: sepOf(l) };
     });
     if (kind === "COLUMNS") {
       const empty = dirty.find((id) => layouts[id].columns.length === 0);
@@ -984,8 +995,22 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
                   <div className="adm-box grid content-start gap-5">
                     <div>
-                      <div className="adm-title mb-2">รูปแบบที่ 2 • ข้อมูลใน QR (หน้าสแกนอ่าน คั่นด้วย |)</div>
+                      <div className="adm-title mb-2">รูปแบบที่ 2 • ข้อมูลใน QR (หน้าสแกนอ่าน คั่นด้วย {sepText(sepOf(l))})</div>
                       {orderList(l.qrFields, data.qrFields, (v) => edit((x) => ({ ...x, qrFields: v.includes("CODE") ? v : ["CODE", ...v] })), "CODE")}
+                    </div>
+                    <div>
+                      <div className="adm-title mb-2">ตัวคั่นช่องใน QR (SEPARATOR)</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {QR_SEPS.map((s) => fill(sepOf(l) === s.value, s.label, () => edit((x) => ({ ...x, qrSep: s.value })), `sep-${s.label}`))}
+                        <input
+                          className="field w-24 font-mono"
+                          maxLength={5}
+                          placeholder="กำหนดเอง"
+                          value={QR_SEPS.some((s) => s.value === sepOf(l)) ? "" : sepOf(l)}
+                          onChange={(e) => edit((x) => ({ ...x, qrSep: e.target.value.replace(/[\r\n]/g, "") || "|" }))}
+                        />
+                      </div>
+                      {!data.hasQrSep && sepOf(l) !== "|" && <div className="mt-2 text-xs font-bold text-warning">ฐานข้อมูลยังไม่รองรับการตั้งตัวคั่น (database/nexus/16_Qr_Separator.sql)</div>}
                     </div>
                     <div>
                       <div className="adm-title mb-2">รูปแบบที่ 1 • ข้อความใต้ QR (บรรทัดแรกตัวหนา)</div>
@@ -997,7 +1022,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                   <div className="adm-box">
                     <div className="adm-title mb-3">PREVIEW</div>
                     <div className="mx-auto w-fit rounded-2xl bg-white p-3 shadow-[0_10px_24px_-14px_rgb(55_48_107/0.45)]">
-                      <QrImage text={l.qrFields.map((k) => (k === "CODE" ? "A250-00017" : k === "NAME" ? "SAMPLE NAME" : k)).join("|")} size={140} />
+                      <QrImage text={l.qrFields.map((k) => (k === "CODE" ? "A250-00017" : k === "NAME" ? "SAMPLE NAME" : k)).join(sepOf(l))} size={140} />
                     </div>
                     <div className="mt-3 text-center text-sm">
                       {l.qrLabel.map((k, i) => (
@@ -1006,7 +1031,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                         </div>
                       ))}
                     </div>
-                    <div className="mt-3 break-all rounded-lg bg-surface-2 px-2 py-1.5 text-center font-mono text-[10px] text-ink-soft">{l.qrFields.map((k) => labelOf(data.qrFields, k)).join(" | ")}</div>
+                    <div className="mt-3 break-all rounded-lg bg-surface-2 px-2 py-1.5 text-center font-mono text-[10px] text-ink-soft">{l.qrFields.map((k) => labelOf(data.qrFields, k)).join(` ${sepText(sepOf(l))} `)}</div>
                   </div>
                 </div>
               )}

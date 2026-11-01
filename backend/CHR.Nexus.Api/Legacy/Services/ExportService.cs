@@ -36,8 +36,9 @@ namespace Nexus.Services
         //   qrFields = รูปแบบที่ 2 สิ่งที่อยู่ใน QR (คั่นด้วย |) / labelFields = รูปแบบที่ 1 ข้อความใต้ QR บรรทัดละช่อง (บรรทัดแรกตัวหนา)
         //   ไม่ส่งมา = PRODUCT CODE|PRODUCT NAME และพิมพ์รหัส + ชื่อใต้ QR (ค่าเดิม)
         //   coils = Coil ในคลังต่อสินค้า (ใช้เมื่อเลือกช่อง MASTER COIL / COIL NO)
+        //   qrSep = ตัวคั่นช่องใน QR ของคลัง (ไม่ส่ง = | เดิม)
         public string GenerateA4Pdf(List<ProductControlModel> items, IList<string> qrFields = null, IList<string> labelFields = null,
-                                    IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null)
+                                    IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null, string qrSep = QrFormat.DefaultSep)
         {
             string fullPath = ImportTemplateService.NewPath(ImportTemplateService.Systems.Product, "QR", ".pdf");
 
@@ -61,7 +62,7 @@ namespace Nexus.Services
                                 {
                                     // QR นี้ไม่ได้บันทึกลง Database - เป็น QR เฉพาะสำหรับ "คืนเหล็กที่เหลือจากการผลิต"
                                     // เข้ารหัสแค่ Product Code | Product Name ตามที่ต้องการ
-                                    string qrContent = QrFormat.Content(item, qrFields, coils);
+                                    string qrContent = QrFormat.Content(item, qrFields, coils, qrSep);
 
                                     // สร้าง QR Code (ใช้ ECCLevel.M เพื่อให้สแกนง่ายในขณะที่ข้อมูลค่อนข้างยาว)
                                     QRCodeData qrCodeData = qrGenerator.CreateQrCode(qrContent, QRCodeGenerator.ECCLevel.M);

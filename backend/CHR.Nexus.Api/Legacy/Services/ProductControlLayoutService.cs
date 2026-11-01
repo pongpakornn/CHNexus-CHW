@@ -17,13 +17,15 @@ namespace Nexus.Services
         public List<string> QrFields { get; set; } = new List<string>(QrFormat.DefaultFields);
         // ▣ QR รูปแบบที่ 1 = ข้อความใต้ QR ใน PDF บรรทัดละช่อง (บรรทัดแรกตัวหนา)
         public List<string> QrLabel { get; set; } = new List<string>(QrFormat.DefaultLabel);
+        // ▣ ตัวคั่นช่องในรูปแบบที่ 2 (เช่น | ; , เว้นวรรค) - ตั้งเองต่อคลัง / ค่าเดิม = |
+        public string QrSep { get; set; } = QrFormat.DefaultSep;
         // ✍️ ช่องกรอกลงทะเบียนสินค้าของคลัง (ADMIN > FORM FIELDS) - แยกจากคอลัมน์ตาราง · Template Excel ของคลังใช้ชุดนี้
         public List<string> FormFields { get; set; } = new List<string>(FormFieldList.Default);
         // ค่าเดิม (แอปเวอร์ชันเก่า): CODE = PRODUCT CODE อย่างเดียว / CODE_NAME = อย่างอื่น
         public string QrContent => QrFields.Count == 1 && QrFields[0] == "CODE" ? "CODE" : "CODE_NAME";
 
         public ProductControlLayout Clone() =>
-            new ProductControlLayout { StockId = StockId, Columns = new List<string>(Columns), GroupBy = GroupBy, QrFields = new List<string>(QrFields), QrLabel = new List<string>(QrLabel), FormFields = new List<string>(FormFields) };
+            new ProductControlLayout { StockId = StockId, Columns = new List<string>(Columns), GroupBy = GroupBy, QrFields = new List<string>(QrFields), QrLabel = new List<string>(QrLabel), QrSep = QrSep, FormFields = new List<string>(FormFields) };
     }
 
     // ✍️ ช่องกรอกลงทะเบียนสินค้า: PRODUCT CODE / NAME ต้องมีเสมอ · MOTHER / COILNO / WEIGHT ของคลังที่นับ Coil = ของ Coil
@@ -64,8 +66,17 @@ namespace Nexus.Services
     public static class QrFormat
     {
         public const char Sep = '|';
+        public const string DefaultSep = "|";
         public static readonly string[] DefaultFields = { "CODE", "NAME" };
         public static readonly string[] DefaultLabel = { "CODE", "NAME" };
+
+        // ตัวคั่นที่ตั้งได้ (ว่าง / ยาวเกิน = | เดิม) - เว้นวรรค / Tab ใช้ได้
+        public static string CleanSep(string sep) =>
+            string.IsNullOrEmpty(sep) || sep.Length > 5 || sep.IndexOfAny(new[] { '\r', '\n' }) >= 0 ? DefaultSep : sep;
+
+        // ค่าในช่องมีตัวคั่นอยู่ -> เปลี่ยนเป็น / กันตำแหน่งช่องเลื่อนตอนแสกน (ตัวคั่นเป็นเว้นวรรค = ไม่แตะค่า ชื่อสินค้ามีเว้นวรรคได้)
+        private static string Escape(string v, string sep) =>
+            string.IsNullOrWhiteSpace(sep) ? v : v.Replace(sep, "/");
 
         // ช่องที่เลือกได้ = คอลัมน์ของตาราง Inventory Registration (ไม่รวม IMAGE / QR CODE)
         public static IEnumerable<(string Key, string Label)> Fields => ProductControlColumns.All.Where(c => c.Key != "IMAGE" && c.Key != "QRCODE");
@@ -78,10 +89,10 @@ namespace Nexus.Services
 
         // ค่าของช่องจากสินค้า (ไม่มี = ว่าง) - ตัด | ในค่าออก กันตำแหน่งช่องเลื่อนตอนแสกน
         //   coils = Coil ที่อยู่ในคลัง (MASTER COIL / COIL NO) จาก GetCoils - มี = ใช้เลข Coil ทั้งหมดคั่นด้วย ,
-        public static string Value(Nexus.Models.ProductControlModel m, string key, IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null)
+        public static string Value(Nexus.Models.ProductControlModel m, string key, IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null, string sep = DefaultSep)
         {
             if ((key == "MOTHER" || key == "COILNO") && coils != null && coils.TryGetValue(m.PtId, out var cl))
-                return string.Join(",", key == "MOTHER" ? cl.Mothers : cl.Coils).Replace(Sep, '/');
+                return Escape(string.Join(",", key == "MOTHER" ? cl.Mothers : cl.Coils), sep);
             string v;
             switch (key)
             {
@@ -101,20 +112,22 @@ namespace Nexus.Services
                 default: v = null; break;
             }
             v = (v ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
-            return v == "-" ? "" : v.Replace(Sep, '/');
+            return v == "-" ? "" : Escape(v, sep);
         }
 
-        // ข้อความใน QR เช่น CODE,NAME,PACKSIZE -> I2AB-01002|ถุงพลาสติก ...|100 (ช่องเดียว = ค่าอย่างเดียว ไม่มี |)
-        public static string Content(Nexus.Models.ProductControlModel m, IList<string> fields, IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null)
+        // ข้อความใน QR เช่น CODE,NAME,PACKSIZE -> I2AB-01002|ถุงพลาสติก ...|100 (ช่องเดียว = ค่าอย่างเดียว ไม่มีตัวคั่น)
+        //   sep = ตัวคั่นของคลัง (ADMIN > QR CODE) เช่น เว้นวรรค -> I2AB-01002 ถุงพลาสติก ... 100
+        public static string Content(Nexus.Models.ProductControlModel m, IList<string> fields, IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null, string sep = DefaultSep)
         {
+            sep = CleanSep(sep);
             IEnumerable<string> f = (fields == null || fields.Count == 0) ? DefaultFields : fields;
-            string s = string.Join(Sep.ToString(), f.Select(k => Value(m, k, coils)));
-            return s.Replace(Sep.ToString(), "").Length == 0 ? (m.PartCode ?? "N/A") : s;
+            var values = f.Select(k => Value(m, k, coils, sep)).ToList();
+            return values.All(v => v.Length == 0) ? (m.PartCode ?? "N/A") : string.Join(sep, values);
         }
 
         // ตัวอย่างในหน้าตั้งค่า: แสดงชื่อช่องแทนค่า
-        public static string Sample(IList<string> fields) =>
-            string.Join(Sep.ToString(), fields.Select(k => ProductControlColumns.Label(k)));
+        public static string Sample(IList<string> fields, string sep = DefaultSep) =>
+            string.Join(CleanSep(sep), fields.Select(k => ProductControlColumns.Label(k)));
 
         // ตำแหน่ง PRODUCT CODE ใน QR (เริ่ม 0) - ไม่มี = 0 (QR เดิม)
         public static int CodeIndex(IList<string> fields)
@@ -165,9 +178,9 @@ namespace Nexus.Services
         {
             var map = new Dictionary<int, ProductControlLayout>();
             if (!Nexus.Helpers.DbSchema.HasProductControlSettings) return map;
-            bool qf = Nexus.Helpers.DbSchema.HasQrFields, ff = Nexus.Helpers.DbSchema.HasFormFields;
+            bool qf = Nexus.Helpers.DbSchema.HasQrFields, ff = Nexus.Helpers.DbSchema.HasFormFields, qs = Nexus.Helpers.DbSchema.HasQrSep;
             using (var conn = new SqlConnection(_cs))
-            using (var cmd = new SqlCommand("SELECT StockID, ColumnOrder, GroupBy, QrContent" + (qf ? ", QrFields, QrLabel" : ", NULL, NULL") + (ff ? ", FormFields" : ", NULL") + " FROM Nexus.ProductControlSettings", conn))
+            using (var cmd = new SqlCommand("SELECT StockID, ColumnOrder, GroupBy, QrContent" + (qf ? ", QrFields, QrLabel" : ", NULL, NULL") + (ff ? ", FormFields" : ", NULL") + (qs ? ", QrSep" : ", NULL") + " FROM Nexus.ProductControlSettings", conn))
             {
                 conn.Open();
                 using (var r = cmd.ExecuteReader())
@@ -185,6 +198,7 @@ namespace Nexus.Services
                             QrFields = qf && r[4] != DBNull.Value ? QrFormat.Parse(r[4].ToString(), QrFormat.DefaultFields)
                                      : (qr == "CODE" ? new List<string> { "CODE" } : QrFormat.DefaultFields.ToList()),
                             QrLabel = qf && r[5] != DBNull.Value ? QrFormat.Parse(r[5].ToString(), QrFormat.DefaultLabel) : QrFormat.DefaultLabel.ToList(),
+                            QrSep = QrFormat.CleanSep(r[7] == DBNull.Value ? null : r[7].ToString()),
                             FormFields = r[6] != DBNull.Value ? FormFieldList.Parse(r[6].ToString()) : FormFieldList.Default.ToList()
                         };
                     }
@@ -202,10 +216,10 @@ namespace Nexus.Services
         {
             if (!Nexus.Helpers.DbSchema.HasProductControlSettings)
                 throw new InvalidOperationException("ฐานข้อมูลยังไม่รองรับการตั้งค่านี้ กรุณารัน Database/Update_20261016c.sql");
-            bool qf = Nexus.Helpers.DbSchema.HasQrFields, ff = Nexus.Helpers.DbSchema.HasFormFields;
-            string upd = (qf ? ", QrFields = @qf, QrLabel = @ql" : "") + (ff ? ", FormFields = @ff" : ""),
-                   insCols = (qf ? ", QrFields, QrLabel" : "") + (ff ? ", FormFields" : ""),
-                   insVals = (qf ? ", @qf, @ql" : "") + (ff ? ", @ff" : "");
+            bool qf = Nexus.Helpers.DbSchema.HasQrFields, ff = Nexus.Helpers.DbSchema.HasFormFields, qs = Nexus.Helpers.DbSchema.HasQrSep;
+            string upd = (qf ? ", QrFields = @qf, QrLabel = @ql" : "") + (ff ? ", FormFields = @ff" : "") + (qs ? ", QrSep = @qs" : ""),
+                   insCols = (qf ? ", QrFields, QrLabel" : "") + (ff ? ", FormFields" : "") + (qs ? ", QrSep" : ""),
+                   insVals = (qf ? ", @qf, @ql" : "") + (ff ? ", @ff" : "") + (qs ? ", @qs" : "");
             using (var conn = new SqlConnection(_cs))
             {
                 conn.Open();
@@ -227,6 +241,11 @@ namespace Nexus.Services
                                 cmd.Parameters.AddWithValue("@ql", string.Join(",", l.QrLabel));
                             }
                             if (ff) cmd.Parameters.AddWithValue("@ff", string.Join(",", FormFieldList.Normalize(l.FormFields)));
+                            if (qs)
+                            {
+                                string sep = QrFormat.CleanSep(l.QrSep);
+                                cmd.Parameters.AddWithValue("@qs", sep == QrFormat.DefaultSep ? (object)DBNull.Value : sep);
+                            }
                             cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
                             cmd.ExecuteNonQuery();
                         }

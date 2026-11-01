@@ -6,6 +6,7 @@ import { MenuSelect } from "@/components/ui/MenuSelect";
 import { Pager } from "@/components/ui/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { CalcChoiceModal } from "@/components/ui/CalcChoiceModal";
 import { useToast } from "@/components/Toasts";
 import { MonthChart, type MonthPoint } from "@/components/ui/Charts";
 import { useDialogs } from "@/components/ui/Dialogs";
@@ -346,27 +347,14 @@ export default function ForecastPage() {
       </Card>
 
       {/* 📥 IMPORT: คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว */}
-      <Modal open={!!choice} title={choice?.title ?? ""} onClose={() => setChoice(null)}>
-        <p className="mb-4 whitespace-pre-line text-sm font-semibold">{choice?.text}</p>
-        <div className="grid gap-2">
-          {[
-            [true, choice?.calc],
-            [false, choice?.only],
-          ].map(([calc, label]) => (
-            <button
-              key={String(calc)}
-              className="rounded-xl border-2 border-line p-4 text-left font-extrabold text-primary hover:border-accent"
-              onClick={() => {
-                withCalcRef.current = calc as boolean;
-                setChoice(null);
-                fileRef.current?.click();
-              }}
-            >
-              {label as string}
-            </button>
-          ))}
-        </div>
-      </Modal>
+      <CalcChoiceModal
+        choice={choice}
+        onClose={() => setChoice(null)}
+        onPick={(calc) => {
+          withCalcRef.current = calc;
+          fileRef.current?.click();
+        }}
+      />
 
       {/* 📤 EXPORT: เลือกเดือน (1 เดือน = 1 ชีท) - การ์ดเดือนแยกตามปี · ปุ่มลัด · สรุปจำนวนชีท */}
       <Modal
