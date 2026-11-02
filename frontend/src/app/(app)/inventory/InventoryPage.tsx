@@ -13,6 +13,7 @@ import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/
 import { QrImage } from "@/components/ui/QrImage";
 import { RowAction, RowActions } from "@/components/ui/RowAction";
 import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
+import { PickingExport, type PickingReq } from "./PickingExport";
 import { stockIcon } from "@/lib/stockIcons";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
@@ -66,6 +67,8 @@ export default function InventoryPage() {
   const [tplOpen, setTplOpen] = useState(false);
   const [tplOptions, setTplOptions] = useState<{ stkId: number; code: string; name: string; heads: string; countCoil: boolean }[]>([]);
   const [exportOpen, setExportOpen] = useState<{ all: number } | null>(null);
+  const [picking, setPicking] = useState<PickingReq | null>(null);
+  const closePicking = useCallback(() => setPicking(null), []);
   const [codeSuggest, setCodeSuggest] = useState<Part[]>([]);
   const k = useDebounced(key, 300);
   const codeKey = useDebounced(form.partCode, 300);
@@ -964,7 +967,7 @@ export default function InventoryPage() {
       {/* ▣ EXPORT QR: ที่ติ๊กไว้ / ทั้งหมดในคลัง */}
       <Modal open={!!exportOpen} wide title="▣ EXPORT QR" onClose={() => setExportOpen(null)}>
         <p className="mb-4 text-sm font-semibold text-ink-soft">QR CODE ตามรูปแบบที่ตั้งไว้ของ {filterStock?.code ?? "ALL STOCKS"} (ปุ่ม ADMIN &gt; QR CODE)</p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <ChoiceCard
             color="#6750a4"
             icon={<Glyph d={GLYPH.check} />}
@@ -983,8 +986,21 @@ export default function InventoryPage() {
             meta="PDF • QR CODE"
             onClick={() => exportQr("ALL")}
           />
+          <ChoiceCard
+            delay={2}
+            color="#e11d48"
+            icon={<Glyph d={GLYPH.sheet} />}
+            title={`PICKING (${(ticked.length || exportOpen?.all || 0).toLocaleString()})`}
+            detail={`การ์ดแบบ Pick List: RUNNING A0001 · PART A / CUSTOMER · PART NO · PACKSIZE + หน่วย — ${ticked.length ? `เฉพาะ ${ticked.length} รายการที่ติ๊กไว้` : `ทั้งหมดใน ${filterStock?.code ?? "ALL STOCKS"} (ไม่ได้ติ๊ก)`}`}
+            meta="PREVIEW • PRINT / PDF"
+            onClick={() => {
+              setExportOpen(null);
+              setPicking({ mode: ticked.length ? "SELECTED" : "ALL", ids: ticked, stkId: filter, stockName: filterStock?.code ?? "ALL STOCKS" });
+            }}
+          />
         </div>
       </Modal>
+      <PickingExport req={picking} onClose={closePicking} />
 
       {admin && (
         <AdminModal

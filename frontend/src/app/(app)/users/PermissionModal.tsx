@@ -142,6 +142,13 @@ export function PermissionModal({
     </button>
   );
 
+  // RUNNING: ตัวอักษรนำหน้า 0-2 ตัว (A-Z) + เลข 1-8 หลัก เช่น 0001 / A0001 / AB0001
+  const runText = (v: string) => {
+    const t = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const pre = /^[A-Z]*/.exec(t)![0];
+    return pre.slice(0, 2) + t.slice(pre.length).replace(/\D/g, "").slice(0, 8);
+  };
+
   // 📷 ต่อท้าย QR ที่บันทึกตอนสแกนรับเข้า: DATE (เปลี่ยนตามวันจริง) + REF (ค่าของสินค้าที่สแกน) + RUNNING (วันใหม่เริ่มใหม่)
   //    คั่นด้วยตัวคั่นของ QR คลังนั้น เช่น 5T072-4943-1  20 -> 5T072-4943-1  20 2610 KUBOTA 0001
   const qrRow = (s: ScanStock) => {
@@ -180,13 +187,13 @@ export function PermissionModal({
         <label className="flex items-center gap-1.5 text-[10px] font-extrabold text-ink-soft">
           RUNNING
           <input
-            className="field !h-8 !w-[90px] text-center font-mono text-xs"
-            placeholder="0001"
-            inputMode="numeric"
-            maxLength={9}
+            className="field !h-8 !w-[100px] text-center font-mono text-xs"
+            placeholder="A0001"
+            title="ตัวอักษรนำหน้า 0-2 ตัว + เลขเริ่ม เช่น 0001 / A0001 / AB0001 (จำนวนหลักตามที่กรอก)"
+            maxLength={10}
             disabled={dis}
             value={s.qrRunStart ?? ""}
-            onChange={(e) => setStock(s.stkId, { qrRunStart: e.target.value.replace(/\D/g, "") || null })}
+            onChange={(e) => setStock(s.stkId, { qrRunStart: runText(e.target.value) || null })}
           />
         </label>
         <span className="ml-auto truncate font-mono text-[11px] font-bold text-accent" title="ตัวอย่าง QR ที่บันทึกตอนสแกนรับเข้า (RUNNING เริ่มใหม่ทุกวัน)">

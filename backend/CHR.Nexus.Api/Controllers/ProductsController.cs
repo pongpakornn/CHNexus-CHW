@@ -583,6 +583,65 @@ public sealed class ProductsController : AppController
         catch (Exception ex) { return Fail(ex, "Export ไม่สำเร็จ"); }
     }
 
+    public sealed record PickingRequest(string Mode, List<int> Ids, int? StkId, string StockName, string Layout, string Running);
+
+    // ▣ EXPORT QR › PICKING: ข้อมูลการ์ดแบบ Pick List ของสินค้า (หน้าเว็บวาดการ์ด + พิมพ์ / PDF เอง)
+    //   RUNNING (แทน Bill) · GROUP ตามการจัดกลุ่มของตาราง · PART A + CUSTOMER · PART NO · PRODUCT NAME · QUANTITY / PACKSIZE + หน่วยของคลัง
+    //   QR = รูปแบบที่ตั้งไว้ของคลัง (ADMIN > QR CODE) - สแกนได้เหมือนป้าย QR เดิม
+    [HttpPost("picking")]
+    public IActionResult Picking([FromBody] PickingRequest req)
+    {
+        if (Me?.CanViewProductControl != true) return Deny();
+        if (StockDenied(req.StkId) is { } denied) return denied;
+        List<ProductControlModel> items;
+        if (req.Mode == "ALL") items = _svc.GetInventoryForQR("", req.StkId);
+        else
+        {
+            var ids = new HashSet<int>(req.Ids ?? new());
+            items = _svc.GetInventoryForQR("", req.StkId).Where(p => ids.Contains(p.PtId)).ToList();
+            if (items.Count < ids.Count) items = _svc.GetInventoryForQR("", null).Where(p => ids.Contains(p.PtId)).ToList();
+            var order = (req.Ids ?? new()).Select((id, i) => (id, i)).GroupBy(x => x.id).ToDictionary(g => g.Key, g => g.First().i);
+            items = items.OrderBy(p => order.TryGetValue(p.PtId, out int i) ? i : int.MaxValue).ToList();
+        }
+        string stockName = string.IsNullOrWhiteSpace(req.StockName) ? "ALL STOCKS" : req.StockName;
+        if (items.Count == 0) return Fail(req.Mode == "ALL" ? $"ไม่มีสินค้าใน {stockName}" : "กรุณาเลือกรายการที่ต้องการ Export อย่างน้อย 1 รายการครับ");
+        try
+        {
+            var lay = LayoutOf(new ProductControlLayoutService().GetAll(), req.StkId);
+            var qrFields = lay.QrFields.ToList();
+            var coils = qrFields.Any(k => k == "MOTHER" || k == "COILNO") ? new ProductControlLayoutService().GetCoils(req.StkId) : null;
+            string GroupOf(ProductControlModel p)
+            {
+                string g = lay.GroupBy == "CUSTOMER" ? p.Customer : lay.GroupBy == "SUPPLIER" ? p.CustomerCode : p.Category;
+                return string.IsNullOrWhiteSpace(g) || g.Trim() == "-" ? "" : g.Trim();
+            }
+            string T(string v) => string.IsNullOrWhiteSpace(v) || v.Trim() == "-" ? "" : v.Trim();
+            var stock = req.StkId.HasValue ? _stocks.GetStock(req.StkId.Value) : null;
+            var units = new FieldPresetService().GetUnits().Select(u => u.Unit).ToList();
+            return Ok(new
+            {
+                unit = T(stock?.Unit),
+                units,
+                items = items.Select(p => new
+                {
+                    ptId = p.PtId, code = T(p.PartCode), partNo = T(p.PartNo), name = T(p.PartName), partA = T(p.PartA), customer = T(p.Customer),
+                    packSize = T(p.PackSize), group = GroupOf(p), qr = QrFormat.Content(p, qrFields, coils, lay.QrSep)
+                })
+            });
+        }
+        catch (Exception ex) { return Fail(ex, "โหลดข้อมูล PICKING ไม่สำเร็จ"); }
+    }
+
+    // 🖨 PICKING พิมพ์ / PDF แล้ว -> Activity Log
+    [HttpPost("picking/log")]
+    public IActionResult PickingLog([FromBody] PickingRequest req)
+    {
+        if (Me?.CanViewProductControl != true) return Deny();
+        string stockName = string.IsNullOrWhiteSpace(req.StockName) ? "ALL STOCKS" : req.StockName;
+        LogService.WriteLog(Uid, "EXPORT_QR_PICKING", $"Picking cards: {stockName} ({req.Ids?.Count ?? 0:N0} items) | {req.Layout} | RUNNING {req.Running}", stockName);
+        return Ok(new { ok = true });
+    }
+
     // ---------------------------------------------------------------- 🛠 ADMIN (Level 1)
     [HttpGet("admin")]
     public IActionResult Admin()

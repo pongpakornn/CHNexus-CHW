@@ -11,6 +11,7 @@ namespace Nexus.Services
     //   DATE    = วันที่ตอนสแกนตามรูปแบบ (YYMM = 2610 / YYMMDD = 261101 ...) - เปลี่ยนเองตามวันจริง
     //   REF     = ค่าของสินค้าที่สแกน ตามช่องที่เลือก (CUSTOMER = KUBOTA / PART A / PART NO / ช่องเพิ่มเอง ...)
     //   RUNNING = เลขรันของคลังต่อวัน เริ่มที่เลขที่ตั้ง (0001) จำนวนหลักตามที่กรอก - วันใหม่เริ่มใหม่ (Nexus.ScanQrRunning)
+    //             นำหน้าด้วยตัวอักษร 1-2 ตัวได้ เช่น A0001 / AB0001 (ตัวอักษรคงที่ เลขรันต่อ)
     public sealed class QrSuffix
     {
         public string DateFmt { get; set; }
@@ -28,6 +29,11 @@ namespace Nexus.Services
             ("PARTB", "PART B"), ("PARTNO", "PART NO"), ("NAME", "PRODUCT NAME"), ("MODEL", "MODEL")
         };
 
+        // RUNNING = ตัวอักษรนำหน้า 0-2 ตัว (A-Z) + เลข 1-8 หลัก (รวมไม่เกิน 10 = QrRunStart VARCHAR(10))
+        private static readonly Regex RunRx = new Regex(@"^([A-Z]{0,2})(\d{1,8})$");
+        public string RunPrefix => RunStart == null ? "" : RunRx.Match(RunStart).Groups[1].Value;
+        public string RunDigits => RunStart == null ? "" : RunRx.Match(RunStart).Groups[2].Value;
+
         private static readonly Regex CustomKeyRx = new Regex(@"^CF\d{1,9}$", RegexOptions.IgnoreCase);
 
         // ค่าที่บันทึกได้ - ไม่รู้จัก = ไม่ใส่ · ทั้ง 3 ช่องว่าง = null (ไม่ต่อท้าย)
@@ -35,12 +41,12 @@ namespace Nexus.Services
         {
             string df = (dateFmt ?? "").Trim().ToUpperInvariant();
             string rf = (refField ?? "").Trim().ToUpperInvariant();
-            string rs = (runStart ?? "").Trim();
+            string rs = (runStart ?? "").Trim().ToUpperInvariant();
             var q = new QrSuffix
             {
                 DateFmt = DateFormats.Any(f => f.Key == df) ? df : null,
                 RefField = RefFields.Any(f => f.Key == rf) || CustomKeyRx.IsMatch(rf) ? rf : null,
-                RunStart = Regex.IsMatch(rs, @"^\d{1,9}$") ? rs : null
+                RunStart = RunRx.IsMatch(rs) ? rs : null
             };
             return q.DateFmt == null && q.RefField == null && q.RunStart == null ? null : q;
         }
@@ -103,7 +109,7 @@ namespace Nexus.Services
         public string NextRunning(int stockId, DateTime today)
         {
             if (RunStart == null) return null;
-            int start = int.Parse(RunStart);
+            int start = int.Parse(RunDigits);
             for (int attempt = 0; ; attempt++)
             {
                 try
@@ -127,7 +133,7 @@ namespace Nexus.Services
                         cmd.Parameters.AddWithValue("@start", start);
                         conn.Open();
                         int n = Convert.ToInt32(cmd.ExecuteScalar());
-                        return n.ToString().PadLeft(RunStart.Length, '0');
+                        return RunPrefix + n.ToString().PadLeft(RunDigits.Length, '0');
                     }
                 }
                 catch (SqlException ex) when (ex.Number == 2627 && attempt < 3) { /* อีกเครื่องเพิ่งเริ่มวันนี้พร้อมกัน -> ลองใหม่ (ได้เลขถัดไป) */ }
