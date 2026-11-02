@@ -12,11 +12,19 @@ import { api } from "@/lib/api";
 //   Bill -> RUNNING (ตัวอักษรนำหน้า 0-2 ตัว + เลขรัน เช่น A0001) · Group เหมือนเดิม (ตามการจัดกลุ่มของตาราง)
 //   Work Order -> PART A (ขึ้นไปบรรทัดบน) + CUSTOMER บรรทัดเดียวกัน · Product Code -> PART NO. · Product Name เหมือนเดิม
 //   ตัด LOT NO. / Part Name · Production date / Inspection date / Delivery date = เว้นว่างไว้เขียนมือ · Quantity / Packsize + หน่วย
-//   QR = รูปแบบ QR ที่ตั้งไว้ของคลัง (ADMIN > QR CODE)
+//   QR = รูปแบบ QR ที่ตั้งไว้ของคลัง (ADMIN > QR CODE) · LOGO เลือก CHR / CHW
 export type PickingReq = { mode: "SELECTED" | "ALL"; ids: number[]; stkId: number | null; stockName: string };
 
 type Row = { ptId: number; code: string; partNo: string; name: string; partA: string; customer: string; packSize: string; group: string; qr: string };
-type Card = Row & { run: string; qty: string };
+type Card = Row & { run: string; qty: string; logo: Logo };
+
+// โลโก้บนการ์ด: CHR = ซีเอช เรดิเอเตอร์ (ตัวเดิมของ Pick List) · CHW = ซีเอชวัฒนายนต์
+type Logo = "CHR" | "CHW";
+const LOGOS: { key: Logo; src: string; alt: string }[] = [
+  { key: "CHR", src: "/images/picklist/ch-logo.png", alt: "CH. RADIATORS CO.,LTD." },
+  { key: "CHW", src: "/images/picklist/chw-logo.png", alt: "CH WATANAYONT CO.,LTD." },
+];
+const logoKey = (stkId: number | null) => `picking-logo-${stkId ?? 0}`;
 
 const LAYOUT_KEY = "picking-layout";
 const runKey = (stkId: number | null) => `picking-run-${stkId ?? 0}`;
@@ -54,6 +62,7 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
   const [prefix, setPrefix] = useState("A");
   const [start, setStart] = useState("0001");
   const [unit, setUnit] = useState("");
+  const [logo, setLogo] = useState<Logo>("CHR");
   const [printing, setPrinting] = useState<{ items: Card[]; layout: Layout; mode: "print" | "pdf" } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +78,9 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
       const r = readJson<{ prefix: string; next: string }>(runKey(req.stkId));
       setPrefix(r ? cleanPrefix(r.prefix ?? "") : "A");
       setStart(r?.next ? cleanStart(r.next) : "0001");
+      // โลโก้ที่เลือกล่าสุดของคลังนี้ · ยังไม่เคยเลือก = คลังชื่อมี CHW ใช้ CHW นอกนั้น CHR
+      const lg = readJson<Logo>(logoKey(req.stkId));
+      setLogo(lg === "CHR" || lg === "CHW" ? lg : /CHW/i.test(req.stockName) ? "CHW" : "CHR");
     });
     api<{ unit: string; units: string[]; items: Row[] }>("/products/picking", { method: "POST", body: req })
       .then((d) => {
@@ -92,8 +104,9 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
         ...r,
         run: runOf(prefix, start, i),
         qty: r.packSize ? `${r.packSize} ${unit}`.trim() : "",
+        logo,
       })),
-    [data, prefix, start, unit],
+    [data, prefix, start, unit, logo],
   );
 
   function pickLayout(v: Layout) {
@@ -185,7 +198,28 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
       >
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <div className="grid content-start gap-2">
-            <div className="text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">RUNNING (แทน BILL)</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">LOGO</div>
+            <div className="grid grid-cols-2 gap-2">
+              {LOGOS.map((l) => (
+                <button
+                  key={l.key}
+                  type="button"
+                  title={l.alt}
+                  className={`pk-opt !p-2 ${logo === l.key ? "is-on" : ""}`}
+                  onClick={() => {
+                    setLogo(l.key);
+                    if (req) writeJson(logoKey(req.stkId), l.key);
+                  }}
+                >
+                  <span className="grid w-full gap-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={l.src} alt={l.alt} className="h-7 w-full object-contain" draggable={false} />
+                    <b className="text-center text-[12px] font-black text-primary">{l.key}</b>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">RUNNING (แทน BILL)</div>
             <div className="flex items-end gap-2">
               <label className="grid gap-1 text-[10px] font-extrabold text-ink-soft">
                 PREFIX
@@ -287,11 +321,12 @@ function PickingCardView({ c, s, qrMm, logoMm, a4, label }: { c: Card } & CardOp
       ))}
     </div>
   );
+  const lg = LOGOS.find((x) => x.key === c.logo) ?? LOGOS[0];
   const style = { ...(s ? { "--s": s } : {}), ...(qrMm ? { "--qr": `${qrMm}mm` } : {}), ...(logoMm ? { "--logo": `${logoMm}mm` } : {}) } as React.CSSProperties;
   return (
     <div className={`pk-card is-picking ${a4 ? "is-a4" : ""} ${label ? "is-label" : ""}`} style={style}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/images/picklist/ch-logo.png" alt="CH. RADIATORS CO.,LTD." className="pk-logo" draggable={false} />
+      <img src={lg.src} alt={lg.alt} className="pk-logo" draggable={false} />
       <div className="pk-qr">{c.qr ? <QrImage text={c.qr} size={label ? 64 : 96} className="pk-qr-img" /> : <span className="pk-qr-empty" />}</div>
       <div className="pk-div" />
       {row([["Running", c.run], ["Group", c.group]], { stars: [1.6, 1], full: !!label })}
