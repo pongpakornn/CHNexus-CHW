@@ -1,16 +1,16 @@
 "use client";
 
-import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
-import { ActionMenu } from "@/components/ui/ActionMenu";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { Pager } from "@/components/ui/Pager";
+import { GroupRow, useCollapsed } from "@/components/tables/GroupRow";
+import { ActionMenu } from "@/components/menus/ActionMenu";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { Pager } from "@/components/tables/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { CalcChoiceModal } from "@/components/ui/CalcChoiceModal";
-import { useToast } from "@/components/Toasts";
-import { MonthChart, type MonthPoint } from "@/components/ui/Charts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { CalcChoiceModal } from "@/components/modals/CalcChoiceModal";
+import { useToast } from "@/components/notifications/Toasts";
+import { MonthChart, type MonthPoint } from "@/components/charts/Charts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";

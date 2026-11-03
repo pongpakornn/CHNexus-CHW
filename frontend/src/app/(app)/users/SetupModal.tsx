@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { Empty, Loading } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { Empty, Loading } from "@/components/layout/Page";
 import { api, upload } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
-import { StockTile } from "@/components/ui/StockTile";
+import { StockTile } from "@/components/cards/StockTile";
 import { useDebounced } from "@/lib/useDebounced";
 
 type Section = "PR" | "EXCEL" | "DEPT";

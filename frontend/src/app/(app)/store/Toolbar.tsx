@@ -131,4 +131,4 @@ export function CategoryPicker({ label, allLabel, options, value, onChange }: { 
   );
 }
 
-export { Pager } from "@/components/ui/Pager";
+export { Pager } from "@/components/tables/Pager";

@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { DateRange } from "@/components/ui/DateRange";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
-import { PartPicker, PartSuggestInput, type PartOption } from "@/components/ui/PartPicker";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { DateRange } from "@/components/forms/DateRange";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Badge, Empty, Loading, SearchBox } from "@/components/layout/Page";
+import { PartPicker, PartSuggestInput, type PartOption } from "@/components/dropdowns/PartPicker";
 import { api, download } from "@/lib/api";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { DrawIcon } from "@/components/ui/DrawIcon";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { DrawIcon } from "@/components/icons/DrawIcon";
 import { parseNum, qty, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 

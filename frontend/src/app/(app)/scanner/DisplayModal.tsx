@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { api } from "@/lib/api";
 
 type DisplayStock = { stkId: number; code: string; value: string; options: { key: string; label: string }[] };

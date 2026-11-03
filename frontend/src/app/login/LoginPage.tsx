@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { useToast } from "@/components/notifications/Toasts";
+import { Checkbox } from "@/components/forms/Checkbox";
 import { api, ApiError } from "@/lib/api";
 import { useAuth, type Me } from "@/lib/auth";
 import { startPage } from "@/lib/menu";

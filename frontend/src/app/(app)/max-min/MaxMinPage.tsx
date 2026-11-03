@@ -1,17 +1,17 @@
 "use client";
 
-import { RowAction, RowActions } from "@/components/ui/RowAction";
-import { GroupRow, useCollapsed } from "@/components/ui/GroupRow";
-import { ActionMenu } from "@/components/ui/ActionMenu";
-import { ChoiceCard, Glyph, GLYPH } from "@/components/ui/ChoiceCard";
-import { CalcChoiceModal } from "@/components/ui/CalcChoiceModal";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { Pager } from "@/components/ui/Pager";
+import { RowAction, RowActions } from "@/components/button-action/RowAction";
+import { GroupRow, useCollapsed } from "@/components/tables/GroupRow";
+import { ActionMenu } from "@/components/menus/ActionMenu";
+import { ChoiceCard, Glyph, GLYPH } from "@/components/buttons/ChoiceCard";
+import { CalcChoiceModal } from "@/components/modals/CalcChoiceModal";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { Pager } from "@/components/tables/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { FormulaModal } from "./FormulaModal";

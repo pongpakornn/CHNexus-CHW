@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback } from "react";
-import { Loading } from "@/components/ui/Page";
+import { Loading } from "@/components/layout/Page";
 import { StockCards } from "./StockCards";
 import { StockTable } from "./StockTable";
 

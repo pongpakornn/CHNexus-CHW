@@ -1,13 +1,13 @@
 "use client";
 
-import { ActionMenu } from "@/components/ui/ActionMenu";
+import { ActionMenu } from "@/components/menus/ActionMenu";
 import { BugLogButton } from "./BugLogButton";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { Pager } from "@/components/ui/Pager";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { Pager } from "@/components/tables/Pager";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { DateRange } from "@/components/ui/DateRange";
-import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
+import { useToast } from "@/components/notifications/Toasts";
+import { DateRange } from "@/components/forms/DateRange";
+import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download } from "@/lib/api";
 import { today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";

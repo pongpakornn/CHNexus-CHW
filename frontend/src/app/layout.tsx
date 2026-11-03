@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
-import { Providers } from "@/components/Providers";
+import { Providers } from "@/components/layout/Providers";
 import "./globals.css";
 
 const thai = Noto_Sans_Thai({

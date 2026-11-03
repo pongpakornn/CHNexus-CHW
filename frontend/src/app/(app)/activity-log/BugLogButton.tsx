@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { Empty, Loading, SearchBox } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { Empty, Loading, SearchBox } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useDebounced } from "@/lib/useDebounced";

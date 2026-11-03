@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { Checkbox } from "@/components/ui/Checkbox";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { MenuSelect } from "@/components/ui/MenuSelect";
-import { Loading } from "@/components/ui/Page";
-import { QrImage } from "@/components/ui/QrImage";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { Checkbox } from "@/components/forms/Checkbox";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { Loading } from "@/components/layout/Page";
+import { QrImage } from "@/components/print/QrImage";
 import { api } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import type { Layout } from "./types";

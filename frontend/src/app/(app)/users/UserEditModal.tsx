@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@/components/Modal";
+import { Modal } from "@/components/modals/Modal";
 import { api } from "@/lib/api";
 import type { User } from "./types";
 

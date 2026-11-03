@@ -1,14 +1,14 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Empty, Loading, PageBody } from "@/components/ui/Page";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Empty, Loading, PageBody } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";
 import { StatCards, type CoilSum } from "./StatCards";
-import { ActionMenu, type MenuAction } from "@/components/ui/ActionMenu";
+import { ActionMenu, type MenuAction } from "@/components/menus/ActionMenu";
 import { ProductCard, useMobile, type CardLabels } from "./MobileCards";
 import { ShowCards } from "./ShowCards";
 import { StockHeader } from "./StockHeader";

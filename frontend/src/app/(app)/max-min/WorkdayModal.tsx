@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Empty, Loading } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Empty, Loading } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
 import { isoDate } from "@/lib/format";
 import { tileStyle } from "@/lib/stockIcons";

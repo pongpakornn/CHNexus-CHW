@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { Loading } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import type { Contact } from "./types";
 

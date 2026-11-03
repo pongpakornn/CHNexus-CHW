@@ -1,11 +1,11 @@
 "use client";
 
-import { RowAction } from "@/components/ui/RowAction";
-import { ActionMenu } from "@/components/ui/ActionMenu";
+import { RowAction } from "@/components/button-action/RowAction";
+import { ActionMenu } from "@/components/menus/ActionMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { ContactModal } from "./ContactModal";

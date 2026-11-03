@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { DateRange } from "@/components/ui/DateRange";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Badge, Empty, Loading, SearchBox } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { DateRange } from "@/components/forms/DateRange";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Badge, Empty, Loading, SearchBox } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { daysAgo, qty, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";

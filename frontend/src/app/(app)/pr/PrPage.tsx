@@ -1,14 +1,14 @@
 "use client";
 
-import { RowAction } from "@/components/ui/RowAction";
-import { DrawIcon } from "@/components/ui/DrawIcon";
-import { ActionMenu } from "@/components/ui/ActionMenu";
-import { MenuSelect } from "@/components/ui/MenuSelect";
+import { RowAction } from "@/components/button-action/RowAction";
+import { DrawIcon } from "@/components/icons/DrawIcon";
+import { ActionMenu } from "@/components/menus/ActionMenu";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/ui/Page";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { ApprovedModal } from "./ApprovedModal";

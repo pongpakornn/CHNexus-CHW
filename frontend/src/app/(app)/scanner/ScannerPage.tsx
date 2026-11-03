@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { hasThai, toEnglish } from "@/lib/thaiKeyboard";
 import { AdjustModal } from "./AdjustModal";

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { Badge, Empty, Loading, PageBody, PageHeader } from "@/components/ui/Page";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { Badge, Empty, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { qty } from "@/lib/format";
 import { COIL_ICON, stockIcon, tileStyle } from "@/lib/stockIcons";

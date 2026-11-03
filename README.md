@@ -14,12 +14,30 @@
 | Backend API | ASP.NET Core (.NET 10) + Dapper / SqlClient | `backend/CHR.Nexus.Api/` |
 | Database | SQL Server `192.168.10.56` → ฐาน **`CHR-Nexus`** schema `Nexus` (สร้างจาก `CIMS`) | `database/` |
 
-## โครงสร้าง Backend
+## โครงสร้าง Backend (แยกตามระบบ: เปิด folder ชื่อระบบ = เจอทุกไฟล์ของระบบนั้น)
 
-- `Legacy/` = โค้ดจากโปรแกรม CIMS (Services / Models / Helpers) namespace `Nexus.*` — แก้เฉพาะส่วนที่เป็น WPF
-  (รูปภาพ, เปิดไฟล์, ชื่อเครื่อง) เพื่อให้กฎ / ข้อความ / SQL เหมือนเดิมทุกอย่าง
-- `Web/` = ส่วนของเว็บ: Login (JWT ใน Cookie HttpOnly), ผู้ใช้ต่อ Request, ตัวประมวลผลสแกน (`Web/Scanner/ScanProcessor.cs` = `ScanInViewModel.ProcessScan` เดิม)
-- `Controllers/` = API
+`backend/CHR.Nexus.Api/`
+- `Controllers/<ระบบ>/` = API เช่น `Controllers/Dashboard/DashboardController.cs`, `Controllers/Scanner/ScannerController.cs`
+- `Models/<ระบบ>/` = ข้อมูล เช่น `Models/Dashboard/DashboardModel.cs`, `Models/Users/UserSession.cs`
+- `Services/<ระบบ>/` = logic + SQL เช่น `Services/Dashboard/DashboardService.cs`, `Services/Scanner/ScanProcessor.cs`
+  (`Services/Erp/` = อ่าน ERP อย่างเดียว · `Services/Import/` = Import Excel ทุกแบบ · `Services/Chat/`, `Services/Store/` ฯลฯ)
+- `Auth/` = Login (JWT ใน Cookie HttpOnly), ผู้ใช้ต่อ Request, สิทธิ์ (`/api/me`)
+- `Infrastructure/` = ของกลางทั้งระบบ: Connection (`GlobalConfig`), ที่เก็บไฟล์ (`Storage`), Bug Log, Live, Presence, Middleware
+- `Helpers/` = ฟังก์ชันเล็ก ๆ ใช้ร่วมกัน
+- namespace เดิม (`Nexus.*` / `CHR.Nexus.Api.Web*`) ไม่เปลี่ยนตามที่อยู่ไฟล์ — ย้ายไฟล์ได้โดยไม่ต้องแก้โค้ดที่เรียกใช้
+
+ระบบที่มี: ActivityLog · Auth/Users · BugLog · Chat · CustomFields · Dashboard · Erp · Export · Forecast · Images · Import · Live · Lookup · MaxMin · Notifications · PickList · PR · Products · Scanner · Setup · Stock · Store · Support
+
+## โครงสร้าง Frontend
+
+`frontend/src/`
+- `app/(app)/<ระบบ>/` = หน้าของแต่ละระบบ + ชิ้นส่วนที่ใช้เฉพาะหน้านั้น (dashboard, store, scanner, inventory, users …)
+- `components/<ชนิด>/` = ชิ้นส่วนที่ใช้ร่วมกัน
+  - `layout/` (Shell, Page, Providers, AppGate) · `sidebars/` (Sidebar) · `buttons/` (ChoiceCard) · `button-action/` (RowAction)
+  - `dropdowns/` (Select, MenuSelect, PartPicker) · `menus/` (DotsMenu, ActionMenu, SlideMenu) · `modals/` (Modal, Dialogs, CalcChoiceModal)
+  - `forms/` (Checkbox, DateField, DateRange) · `tables/` (FitTables, Pager, GroupRow) · `cards/` (StockTile) · `charts/`
+  - `chat/` · `notifications/` (Bell, Toasts) · `profile/` · `icons/` · `print/` (PickSheets, QrImage)
+- `lib/` = เรียก API, auth, format, hooks
 
 ## เริ่มใช้งาน (เครื่อง Dev)
 

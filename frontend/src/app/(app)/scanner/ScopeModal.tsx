@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { qty } from "@/lib/format";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";

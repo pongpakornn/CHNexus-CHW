@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { MonthChart, type MonthPoint } from "@/components/ui/Charts";
-import { CustomerDonut } from "@/components/ui/CustomerDonut";
+import { useToast } from "@/components/notifications/Toasts";
+import { MonthChart, type MonthPoint } from "@/components/charts/Charts";
+import { CustomerDonut } from "@/components/charts/CustomerDonut";
 import { Icon, type IconName } from "@/components/icons";
-import { Card, Loading, PageBody, PageHeader } from "@/components/ui/Page";
+import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import { useLive } from "@/lib/live";

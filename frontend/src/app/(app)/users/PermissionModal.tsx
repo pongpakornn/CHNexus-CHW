@@ -1,10 +1,10 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { Loading } from "@/components/ui/Page";
-import { MenuSelect } from "@/components/ui/MenuSelect";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { Loading } from "@/components/layout/Page";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { api } from "@/lib/api";
 import type { PermData, PermRow, ScanStock } from "./types";
 

@@ -2,9 +2,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { QrImage } from "@/components/ui/QrImage";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { QrImage } from "@/components/print/QrImage";
 import { type CardOpts, type Layout, LAYOUTS, LayoutOption, SheetPreview, Sheets, fitTexts, makePdf } from "@/components/print/PickSheets";
 import { api } from "@/lib/api";
 

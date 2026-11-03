@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { useToast } from "@/components/Toasts";
-import { Checkbox } from "@/components/ui/Checkbox";
-import { Loading } from "@/components/ui/Page";
-import { Select } from "@/components/ui/Select";
+import { Modal } from "@/components/modals/Modal";
+import { useToast } from "@/components/notifications/Toasts";
+import { Checkbox } from "@/components/forms/Checkbox";
+import { Loading } from "@/components/layout/Page";
+import { Select } from "@/components/dropdowns/Select";
 import { api } from "@/lib/api";
 import { STOCK_TYPES, tileStyle } from "@/lib/stockIcons";
 import { FormatsModal } from "./FormatsModal";

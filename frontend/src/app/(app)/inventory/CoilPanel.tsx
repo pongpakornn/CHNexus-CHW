@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useToast } from "@/components/Toasts";
-import { useDialogs } from "@/components/ui/Dialogs";
-import { RowAction, RowActions } from "@/components/ui/RowAction";
+import { useToast } from "@/components/notifications/Toasts";
+import { useDialogs } from "@/components/modals/Dialogs";
+import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api } from "@/lib/api";
 import { qty } from "@/lib/format";
 
