@@ -547,7 +547,7 @@ namespace Nexus.Services
         public List<UserPermRow> GetPermissions(string userId)
         {
             var have = new Dictionary<string, (bool v, bool a, bool e, bool d, bool ap)>(StringComparer.OrdinalIgnoreCase);
-            var stocks = new List<(string Code, string Name)>();
+            var stocks = new List<(string Code, string Name, bool Coil)>();
             using (var conn = new SqlConnection(_cs))
             {
                 conn.Open();
@@ -561,9 +561,9 @@ namespace Nexus.Services
                             have[r.GetString(0)] = (Y(1), Y(2), Y(3), Y(4), Y(5));
                         }
                 }
-                using (var cmd = new SqlCommand("SELECT StockCode, StockName FROM Nexus.Stocks ORDER BY IsMain DESC, SortNo, StockCode", conn))
+                using (var cmd = new SqlCommand($"SELECT StockCode, StockName, {(Nexus.Helpers.DbSchema.HasCountCoil ? "ISNULL(CountCoil, 0)" : "CAST(0 AS BIT)")} FROM Nexus.Stocks ORDER BY IsMain DESC, SortNo, StockCode", conn))
                 using (var r = cmd.ExecuteReader())
-                    while (r.Read()) stocks.Add((r.GetString(0), r["StockName"]?.ToString()));
+                    while (r.Read()) stocks.Add((r.GetString(0), r["StockName"]?.ToString(), Convert.ToBoolean(r[2])));
             }
 
             UserPermRow Row(string id, string title, string group, string hint)
@@ -572,7 +572,10 @@ namespace Nexus.Services
                 return new UserPermRow { SysId = id, Title = title, Group = group, Hint = hint, View = p.v, Add = p.a, Edit = p.e, Delete = p.d, Approve = p.ap };
             }
             var list = Systems.Select(s => Row(s.SysId, s.Title, "SYSTEM", s.Hint)).ToList();
-            list.AddRange(stocks.Select(s => Row(s.Code, $"{s.Code}  •  {s.Name}", "STOCK", "VIEW = see the stock (remark only)  •  ADD = import excel  •  EDIT = edit Max / Min / Qty / Stock box / pcs")));
+            // คลังที่นับ Coil (Material): APPROVE (+ EDIT) = ปุ่ม MANAGE STOCK (เพิ่ม Master Coil / แก้ไข / โอนย้าย / ปรับปรุงยอด / ประวัติ)
+            list.AddRange(stocks.Select(s => Row(s.Code, $"{s.Code}  •  {s.Name}", "STOCK",
+                "VIEW = see the stock (remark only)  •  ADD = import excel  •  EDIT = edit Max / Min / Qty / Stock box / pcs" +
+                (s.Coil ? "  •  APPROVE (+ EDIT) = 🧲 MANAGE STOCK button (add master coil / edit / transfer / adjust / history)" : ""))));
             if (list.Count > 0) list[0].GroupTitle = "SYSTEMS";
             var firstStock = list.FirstOrDefault(r => r.Group == "STOCK");
             if (firstStock != null) firstStock.GroupTitle = "STOCKS";

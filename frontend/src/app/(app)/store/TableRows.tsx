@@ -3,6 +3,7 @@
 import { Fragment, memo, useState } from "react";
 import { StatusLamp } from "./StatusLamp";
 import { STATUS_COLOR, type Product } from "./types";
+import { AddCoilButton, CoilActions, type CoilAct, type ManageMode } from "./CoilManageButtons";
 
 export type CoilRow = { coilId: number; partId: number; isMother: boolean; no: string; coilNo: string; motherCoil: string; weight: string; ton: string; received: string; remark?: string | null };
 export type Field = "max" | "min" | "qty" | "stockBox" | "stockPcs" | "remark";
@@ -18,6 +19,8 @@ export type RowCfg = {
   unit: string;
   canEdit: boolean;
   isLiveView: boolean;
+  /** 🧲 MANAGE STOCK: ADD = ปุ่ม ＋ ที่ PD CODE · ADJUST = ปุ่ม ACTION ที่แถว Coil ลูก */
+  manage: ManageMode;
 };
 
 // คำสั่งจากแถว -> หน้าตาราง (อ็อบเจกต์คงที่ ไม่ทำให้แถววาดใหม่)
@@ -29,6 +32,8 @@ export type RowActions = {
   closed: (partId: number) => void;
   opened: (partId: number) => void;
   saveCoilRemark: (r: CoilRow, v: string) => void;
+  addCoil: (p: Product) => void;
+  coilAct: (a: CoilAct, r: CoilRow) => void;
 };
 
 const COIL_HEAD: Record<string, string> = { NO: "NO.", COILNO: "COIL NO.", MOTHER: "MASTER COIL", COIL: "STOCK (COIL)", TON: "WEIGHT (TON)", RECEIVED: "RECEIVED", REMARK: "REMARK" };
@@ -112,6 +117,11 @@ export const ProductRow = memo(function ProductRow({
               {p.partCode}
               {cfg.coilsOn && !cfg.rowToggle && <span className="text-[10px]">{coil ? "▲" : "▼"}</span>}
             </button>
+            {cfg.manage === "ADD" && (
+              <span className="ml-2 inline-block align-middle">
+                <AddCoilButton onClick={() => act.addCoil(p)} />
+              </span>
+            )}
           </td>
         );
       case "CUSTOMER":
@@ -185,6 +195,8 @@ export const ProductRow = memo(function ProductRow({
 //    กดเปิดเอง = เลื่อนกางลง (anim) · SHOW COILS / เปิดพร้อมกันหลายแถว = แสดงทันที (ไม่เล่นอนิเมชันพร้อมกันหลายร้อยแถว)
 //    พับ = เลื่อนพับขึ้น แล้วค่อยเอาแถวออก · กล่องที่อยู่นอกจอไม่ถูกวาด (content-visibility)
 function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; list: CoilState; cfg: RowCfg; closing: boolean; anim: boolean; act: RowActions }) {
+  const adj = cfg.manage === "ADJUST";
+  const span = cfg.coilKeys.length + (adj ? 1 : 0);
   const head = (k: string) => (
     <tr key={"h" + k}>
       {cfg.coilKeys.map((kk) => (
@@ -192,6 +204,7 @@ function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; 
           {kk === "WEIGHT" ? `WEIGHT (${cfg.unit}.)` : COIL_HEAD[kk] ?? ""}
         </td>
       ))}
+      {adj && <td className="h-9 w-[132px] !border-b !border-[#ece8f6] bg-[#faf9fd] !px-1 !py-0 text-center !text-[11.5px] font-extrabold tracking-wide text-[#7a7492]">ACTION</td>}
     </tr>
   );
   return (
@@ -220,7 +233,7 @@ function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; 
                         r.isMother ? (
                           <Fragment key={"m" + r.motherCoil}>
                             <tr>
-                              <td colSpan={cfg.coilKeys.length} className={`!border-0 !p-0 ${i > 0 ? "border-t border-[#ebe5f7]" : ""}`}>
+                              <td colSpan={span} className={`!border-0 !p-0 ${i > 0 ? "border-t border-[#ebe5f7]" : ""}`}>
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-[linear-gradient(90deg,#f1ecfc,#faf8fe_70%)] px-4 py-2">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src="/images/store/master-coil.webp" alt="" className="size-7 shrink-0" draggable={false} />
@@ -243,6 +256,11 @@ function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; 
                                 {kk === "REMARK" ? <CoilRemark value={r.remark ?? ""} disabled={cfg.isLiveView} onEditing={act.editing} onSave={(v) => act.saveCoilRemark(r, v)} /> : coilCell(kk, r)}
                               </td>
                             ))}
+                            {adj && (
+                              <td className="!border-[#f1eef7] !px-1 !py-0 text-center">
+                                <CoilActions onAct={(a) => act.coilAct(a, r)} />
+                              </td>
+                            )}
                           </tr>
                         ),
                       )}

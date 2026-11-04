@@ -215,7 +215,9 @@ public sealed class StoreController : AppController
             canEdit = !s.IsLiveView && Me.CanEditStock(s),
             canImport = !s.IsLiveView && Me.CanImportStock(s),
             hasCoilRegister = DbSchema.HasCoilRegister,
-            coilRemark = DbSchema.HasCoilRegister && DbSchema.HasCoilRemark
+            coilRemark = DbSchema.HasCoilRegister && DbSchema.HasCoilRemark,
+            // 🧲 ปุ่ม MANAGE STOCK (คลังนับ Coil: EDIT + APPROVE ของคลังนี้)
+            canManage = DbSchema.HasCoilRegister && Me.CanManageCoils(s)
         });
     }
 

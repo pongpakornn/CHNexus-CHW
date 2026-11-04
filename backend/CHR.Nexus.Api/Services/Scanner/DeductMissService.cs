@@ -308,6 +308,33 @@ namespace Nexus.Services
             return new ActionResult { Ok = true, Deduct = res };
         }
 
+        // ⚡ APPROVE READY: ป้ายที่มี PD CODE + Master Coil ในคลังต้นทางเหลือพอตัดครบ (ไล่ตามลำดับสแกน หักน้ำหนักทีละใบ)
+        //    ใช้ทั้งปุ่ม APPROVE READY (Multi-Scanner) และหลัง MANAGE STOCK ของคลัง Coil (เพิ่ม / แก้ Master Coil แล้วเคลียร์ป้ายที่ค้างให้เอง)
+        //    ids = เฉพาะรายการเหล่านี้ (null = ทุกรายการในคลังที่กำหนด)
+        public sealed class ReadyResult { public int Done; public int Skipped; public decimal Kg; public List<string> Errors = new List<string>(); }
+
+        public ReadyResult ApproveReady(IEnumerable<int> stockIds, ICollection<int> ids, string userId)
+        {
+            var res = new ReadyResult();
+            var rows = GetRows("", new DateTime(2000, 1, 1), DateTime.Today, stockIds)
+                          .Where(r => r.HasProduct && r.MotherNow.HasValue && (ids == null || ids.Contains(r.MissId)))
+                          .OrderBy(r => r.ScanDate).ThenBy(r => r.MissId).ToList();
+            var left = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in rows)
+            {
+                string key = r.SourceStockId + "|" + r.MotherCoil;
+                decimal have = left.TryGetValue(key, out var v) ? v : r.MotherNow.Value;
+                if (have < r.LabelQty) { res.Skipped++; continue; }
+                var a = Receive(r, r.PartId.Value, r.LabelQty, userId, "APPROVED");
+                if (!a.Ok) { res.Errors.Add($"{r.CoilNo}: {a.Message}"); continue; }
+                decimal cut = a.Deduct?.Deducted ?? 0;
+                left[key] = have - cut;
+                res.Kg += cut;
+                res.Done++;
+            }
+            return res;
+        }
+
         // + PRODUCT: เปลี่ยนคลังที่รับเข้าของป้าย (ก่อนรับเข้า)
         public void MoveTarget(int missId, int stockId)
         {

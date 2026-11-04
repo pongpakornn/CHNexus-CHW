@@ -77,9 +77,9 @@ namespace Nexus.Services
         //   คืนข้อความไว้ลง Log (ค่าเดิม -> ค่าใหม่) · ผิดเงื่อนไข = InvalidOperationException (ข้อความภาษาไทยแสดงผู้ใช้)
         private static readonly string[] ManualMoves = { "REGISTER", "IMPORT", "EDIT" };
 
-        private sealed class CoilRec { public int Id, StockId, PartId; public string CoilNo, Mother, Status; public decimal Kg; }
+        internal sealed class CoilRec { public int Id, StockId, PartId; public string CoilNo, Mother, Status; public decimal Kg; }
 
-        private static CoilRec Lock(SqlConnection conn, SqlTransaction trans, int coilId)
+        internal static CoilRec Lock(SqlConnection conn, SqlTransaction trans, int coilId)
         {
             using (var cmd = new SqlCommand("SELECT CoilID, StockID, PartID, CoilNo, MotherCoil, Status, WeightKG FROM Nexus.Coils WITH (UPDLOCK, HOLDLOCK) WHERE CoilID = @id", conn, trans))
             {
@@ -92,7 +92,7 @@ namespace Nexus.Services
         }
 
         //   ยอดในระบบน้อยกว่าที่ต้องหัก (ยอดเคยถูกแก้ / ตัดจากที่อื่นแต่ Coil ยังค้างในทะเบียน) = เหลือ 0 ไม่ติดลบ (ฐานข้อมูลไม่ยอมให้ติดลบ)
-        private static void AddStockQty(SqlConnection conn, SqlTransaction trans, StockModel stock, int ptId, decimal delta)
+        internal static void AddStockQty(SqlConnection conn, SqlTransaction trans, StockModel stock, int ptId, decimal delta)
         {
             if (delta == 0) return;
             using (var cmd = new SqlCommand(stock.IsMain

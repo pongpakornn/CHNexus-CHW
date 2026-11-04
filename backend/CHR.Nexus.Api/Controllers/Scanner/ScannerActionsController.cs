@@ -94,26 +94,10 @@ public sealed class ScannerActionsController : AppController
     public IActionResult ApproveReady([FromBody] ReadyRequest req)
     {
         if (!CanAct) return Deny("ต้องมีสิทธิ์ APPROVE ของ Multi-Scanner");
-        var svc = new DeductMissService();
-        var rows = svc.GetRows("", new DateTime(2000, 1, 1), DateTime.Today, Scope().DeductStockIds)
-                      .Where(r => r.HasProduct && r.MotherNow.HasValue && (req?.Ids == null || req.Ids.Contains(r.MissId)))
-                      .OrderBy(r => r.ScanDate).ThenBy(r => r.MissId).ToList();
-        var left = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-        int done = 0, skipped = 0;
-        decimal kg = 0;
-        var errors = new List<string>();
-        foreach (var r in rows)
-        {
-            string key = r.SourceStockId + "|" + r.MotherCoil;
-            decimal have = left.TryGetValue(key, out var v) ? v : r.MotherNow.Value;
-            if (have < r.LabelQty) { skipped++; continue; }
-            var res = svc.Receive(r, r.PartId.Value, r.LabelQty, Uid, "APPROVED");
-            if (!res.Ok) { errors.Add($"{r.CoilNo}: {res.Message}"); continue; }
-            decimal cut = res.Deduct?.Deducted ?? 0;
-            left[key] = have - cut;
-            kg += cut;
-            done++;
-        }
+        var res = new DeductMissService().ApproveReady(Scope().DeductStockIds, req?.Ids, Uid);
+        int done = res.Done, skipped = res.Skipped;
+        decimal kg = res.Kg;
+        var errors = res.Errors;
         if (done == 0 && errors.Count == 0) return Fail("ไม่มีรายการที่ตัดได้ครบตอนนี้\n(ไม่มี PD CODE / ไม่มี Master Coil ในคลังต้นทาง / น้ำหนักไม่พอ)");
         return Ok(new
         {

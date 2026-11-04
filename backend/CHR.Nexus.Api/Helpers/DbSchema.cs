@@ -186,6 +186,10 @@ namespace Nexus.Helpers
         private static bool? _scanQrSuffix;
         public static bool HasScanQrSuffix => _scanQrSuffix ?? (_scanQrSuffix = ColumnIn("Nexus.UserScanStocks", "QrRunStart") is bool c && TableExists("Nexus.ScanQrRunning") is bool t ? c && t : (bool?)null) ?? false;
 
+        // database/nexus/18_Coil_Manage.sql: ประวัติ MANAGE STOCK ของคลัง Coil (ยังไม่รัน = ถามใหม่ทุกครั้ง รันแล้วใช้ได้ทันทีไม่ต้อง Restart)
+        private static bool _coilManage;
+        public static bool HasCoilManageLog => _coilManage || (_coilManage = TableExists("Nexus.CoilManageLog") ?? false);
+
         private static bool? ColumnIn(string table, string column)
         {
             try

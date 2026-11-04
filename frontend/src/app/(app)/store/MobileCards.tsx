@@ -4,6 +4,7 @@ import { memo, useState, useSyncExternalStore } from "react";
 import { StatusLamp } from "./StatusLamp";
 import { CoilRemark, masterOf, type CoilRow, type CoilState, type Field, type RowActions, type RowCfg } from "./TableRows";
 import { STATUS_COLOR, cardTone, type Product } from "./types";
+import { AddCoilButton, CoilActions } from "./CoilManageButtons";
 
 // 📱 จอมือถือ (กว้าง < 768): แสดงสินค้าเป็นการ์ดแทนตาราง (ไม่ต้องเลื่อนซ้าย-ขวาเพื่อดูยอด)
 const MQ = "(max-width: 767px)";
@@ -155,6 +156,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
           <div className="mt-1 break-all text-[17px] font-black leading-tight text-[#1e2a5a]">{title || "-"}</div>
           {has("NAME") && <div className="mt-0.5 text-[13px] font-semibold leading-snug text-ink-soft">{p.partName}</div>}
         </div>
+        {cfg.manage === "ADD" && <AddCoilButton onClick={() => act.addCoil(p)} />}
         {cfg.cols.includes("STATUS") && <StatusLamp status={p.stockStatus} size={24} className="shrink-0" />}
       </div>
 
@@ -245,6 +247,11 @@ function MobileCoils({ list, cfg, act }: { list: CoilState; cfg: RowCfg; act: Ro
                 </div>
               ))}
             </div>
+            {cfg.manage === "ADJUST" && (
+              <div className="mt-2 flex justify-end border-t border-[#f1eef7] pt-2">
+                <CoilActions onAct={(a) => act.coilAct(a, r)} />
+              </div>
+            )}
             {cfg.coilKeys.includes("REMARK") && (
               <div className="mt-1.5 border-t border-[#f1eef7] pt-1.5 text-[12px]">
                 <CoilRemark value={r.remark ?? ""} disabled={cfg.isLiveView} onEditing={act.editing} onSave={(v) => act.saveCoilRemark(r, v)} />

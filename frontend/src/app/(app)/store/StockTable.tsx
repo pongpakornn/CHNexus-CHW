@@ -15,6 +15,7 @@ import { StockHeader } from "./StockHeader";
 import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg } from "./TableRows";
 import { CategoryPicker, Pager, SearchField } from "./Toolbar";
 import { type Counts, type Product, type Stock } from "./types";
+import { AddCoilModal, AdjustCoilModal, EditCoilModal, ManageBar, ManageHistoryModal, type ManageMode } from "./CoilManage";
 
 type Meta = {
   stock: Stock;
@@ -31,6 +32,8 @@ type Meta = {
   canImport: boolean;
   hasCoilRegister: boolean;
   coilRemark?: boolean;
+  /** 🧲 ปุ่ม MANAGE STOCK (EDIT + APPROVE ของคลังนับ Coil) */
+  canManage?: boolean;
 };
 type Live = { stock: boolean; settings?: string; structure?: string | null; coils?: string | null };
 
@@ -90,6 +93,11 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
   const [animOpen, setAnimOpen] = useState<Set<number>>(new Set()); // แถว Coil ที่เพิ่งกดเปิด (เล่นอนิเมชันกางลง)
   const [loop, setLoop] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 🧲 MANAGE STOCK: โหมด (ADD / ADJUST) + หน้าต่างที่เปิดอยู่
+  const [manage, setManage] = useState<ManageMode>("");
+  const [mAdd, setMAdd] = useState<Product | null>(null);
+  const [mCoil, setMCoil] = useState<{ kind: "edit" | "adjust"; row: CoilRow } | null>(null);
+  const [mHistory, setMHistory] = useState(false);
   // เปลี่ยนตัวกรอง (การ์ด MAX / MIN / ... / หมวด / ค้นหา): ระหว่างโหลด = ตารางจางลง (out) -> ได้ข้อมูล = แถวทยอยเลื่อนเข้า (in)
   const [swap, setSwap] = useState<"idle" | "out" | "in">("idle");
   const swapT = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -400,8 +408,28 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
       unit: mStock.unitDisplay,
       canEdit: !!mCanEdit,
       isLiveView: mStock.isLiveView,
+      manage,
     };
-  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg]);
+  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage]);
+
+  // หลังจัดการ Coil: ยอดล่าสุด + Coil ของสินค้านั้นเปิดให้เห็นผลทันที
+  const afterManage = useCallback(
+    async (partId: number | null) => {
+      tokenRef.current = null;
+      await pullNumbers().catch(() => undefined);
+      if (partId !== null) {
+        try {
+          const r = await api<CoilRow[]>(`/store/${stkId}/coils/${partId}`);
+          setCoils((c) => ({ ...c, [partId]: r }));
+        } catch {
+          /* รอบเรียลไทม์โหลดให้เอง */
+        }
+      }
+      await refreshCoils();
+      loadMeta();
+    },
+    [stkId, pullNumbers, refreshCoils, loadMeta],
+  );
 
   // คำสั่งจากแถว (อ็อบเจกต์คงที่ - อ่านค่าล่าสุดจาก ref) -> แถวที่ memo ไว้ไม่ต้องวาดใหม่
   const act = useMemo<RowActions>(() => {
@@ -487,8 +515,28 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
           refreshCoils();
         }
       },
+      addCoil: (p) => setMAdd(p),
+      // 🚚 TRANSFER: ยืนยัน -> สแกนออกจากคลังนี้ (บันทึกที่ Multi-Scanner) · EDIT / ADJUST = เปิดหน้าต่าง
+      coilAct: async (a, r) => {
+        if (a !== "transfer") return setMCoil({ kind: a, row: r });
+        const code = metaRef.current?.stock.code ?? "";
+        const pc = rowsRef.current?.find((x) => x.partId === r.partId)?.partCode ?? "";
+        const ok = await dlg.confirm({
+          title: "TRANSFER (SCAN OUT)",
+          ok: "🚚 TRANSFER",
+          message: `ต้องการโอนย้าย Coil นี้ออกจาก ${code} หรือไม่?\n\n${pc}\nCoil ${r.coilNo}  •  Master ${r.motherCoil}  •  ${r.weight} KG\n\nระบบจะสแกนออกให้ และบันทึกที่ Multi-Scanner ทันที`,
+        });
+        if (!ok) return;
+        try {
+          const res = await api<{ message: string }>(`/store/${stkId}/manage/coils/${r.coilId}/transfer`, { method: "POST" });
+          await dlg.alert({ title: "TRANSFER", message: res.message });
+          await afterManage(r.partId);
+        } catch (e) {
+          toast.show("ERROR", (e as Error).message, "error");
+        }
+      },
     };
-  }, [stkId, toast, pullNumbers, reload, refreshCoils]);
+  }, [stkId, toast, dlg, pullNumbers, reload, refreshCoils, afterManage]);
 
   if (!meta || !cfg) return <Loading />;
   const s = meta.stock;
@@ -679,6 +727,46 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
 
   const filterBtn = (f: string) => () => setFilter((cur) => (cur === f ? "" : f));
 
+  const partOf = (id: number) => rows?.find((x) => x.partId === id);
+  const done = async (title: string, msg: string, partId: number | null) => {
+    await dlg.alert({ title, message: msg });
+    await afterManage(partId);
+  };
+  // เลือกโหมด: กดซ้ำ = ออก · ADJUST = เปิด SHOW COILS ให้เห็นแถว Coil ลูกทันที
+  const pickMode = (m: ManageMode) => {
+    const next = manage === m ? "" : m;
+    setManage(next);
+    if (next === "ADJUST" && coilsOn && !showCoils) toggleShowCoils(true);
+  };
+  const manageMenu: MenuAction[] = meta.canManage
+    ? [
+        {
+          key: "add",
+          title: manage === "ADD" ? "✓ ADD MASTER COIL" : "ADD MASTER COIL",
+          detail: `แสดงปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Coil No ที่ยังไม่มีในคลัง ${s.code} (กดซ้ำ = ออก)`,
+          color: "#16a34a",
+          icon: "coil",
+          onClick: () => pickMode("ADD"),
+        },
+        {
+          key: "adjust",
+          title: manage === "ADJUST" ? "✓ ADJUST STOCK" : "ADJUST STOCK",
+          detail: "แสดงปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก · แก้น้ำหนัก / โอนย้ายออก / คืนยอด หรือลบออก (กดซ้ำ = ออก)",
+          color: "#ea580c",
+          icon: "calc",
+          onClick: () => pickMode("ADJUST"),
+        },
+        {
+          key: "history",
+          title: "HISTORY",
+          detail: `ประวัติ MANAGE STOCK ของคลัง ${s.code} (วันนี้ / เลือกวันที่) กรอง ADD / EDIT / TRANSFER / ADJUST`,
+          color: "#6750a4",
+          icon: "calendar",
+          onClick: () => setMHistory(true),
+        },
+      ]
+    : [];
+
   return (
     <PageBody>
       <StockHeader
@@ -687,6 +775,21 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         readOnlyNote={meta.canEdit || s.isLiveView ? undefined : "ดู / แก้ REMARK เท่านั้น"}
         actions={
           <>
+            {manageMenu.length > 0 && (
+              <ActionMenu
+                actions={manageMenu}
+                caption={["MANAGE STOCK", manage === "ADD" ? "● ADD MASTER COIL" : manage === "ADJUST" ? "● ADJUST STOCK" : "COIL · ADJUST · HISTORY"]}
+                fabColor="linear-gradient(145deg,#8b6fd6,#6750a4)"
+                label="MANAGE STOCK"
+                fab={
+                  <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="12" cy="12" r="8.5" />
+                    <circle cx="12" cy="12" r="4.5" />
+                    <circle cx="12" cy="12" r="1.3" />
+                  </svg>
+                }
+              />
+            )}
             <ActionMenu actions={menu} />
             {meta.canImport && (
               <input
@@ -748,6 +851,8 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
         </div>
       )}
 
+      <ManageBar mode={manage} onExit={() => setManage("")} />
+
       <div ref={wrapRef}>
       <div
         ref={scrollRef}
@@ -794,6 +899,49 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
       </div>
 
       {rows && rows.length > PAGE && <Pager page={curPage} pages={pages} total={rows.length} size={PAGE} onPage={goPage} />}
+
+      {mAdd && (
+        <AddCoilModal
+          stkId={stkId}
+          stockCode={s.code}
+          product={mAdd}
+          onClose={() => setMAdd(null)}
+          onDone={(msg) => {
+            const id = mAdd.partId;
+            setMAdd(null);
+            done("ADD MASTER COIL", msg, id);
+          }}
+        />
+      )}
+      {mCoil?.kind === "edit" && (
+        <EditCoilModal
+          stkId={stkId}
+          stockCode={s.code}
+          partCode={partOf(mCoil.row.partId)?.partCode ?? ""}
+          row={mCoil.row}
+          onClose={() => setMCoil(null)}
+          onDone={(msg) => {
+            const id = mCoil.row.partId;
+            setMCoil(null);
+            done("EDIT COIL", msg, id);
+          }}
+        />
+      )}
+      {mCoil?.kind === "adjust" && (
+        <AdjustCoilModal
+          stkId={stkId}
+          stockCode={s.code}
+          partCode={partOf(mCoil.row.partId)?.partCode ?? ""}
+          row={mCoil.row}
+          onClose={() => setMCoil(null)}
+          onDone={(msg) => {
+            const id = mCoil.row.partId;
+            setMCoil(null);
+            done("ADJUST STOCK", msg, id);
+          }}
+        />
+      )}
+      {mHistory && <ManageHistoryModal stkId={stkId} stockCode={s.code} onClose={() => setMHistory(false)} />}
     </PageBody>
   );
 }

@@ -113,6 +113,9 @@ namespace Nexus.Models
         // Product Control: ติ๊กสินค้าใหม่เข้าคลังได้ = คลังที่มีสิทธิ์ VIEW (สิทธิ์ ADD ของหน้า Product Control ตรวจแยกที่ CanAddProduct)
         public bool CanAddInStock(StockModel s) => s != null && CanViewStock(s);
         public bool CanImportStock(StockModel s) => s != null && s.InExcel && CanViewStock(s) && P(s.PermSysId, p => p.CanAdd);
+        // 🧲 ปุ่ม MANAGE STOCK (คลังที่นับ Coil / ประเภท Material): EDIT + APPROVE ของคลังนั้น (สิทธิ์ซ้อนอีกชั้นจาก EDIT)
+        //    เพิ่ม Master Coil / Coil No · แก้ไข · โอนย้าย · ปรับปรุงยอด · ประวัติ
+        public bool CanManageCoils(StockModel s) => s != null && s.CountCoil && !s.IsLiveView && CanEditStock(s) && P(s.PermSysId, p => p.CanApprove);
 
         // แก้รหัสคลังแล้ว ชื่อสิทธิ์ในฐานข้อมูลเปลี่ยนตาม -> เปลี่ยนในข้อมูลผู้ใช้ที่ Login อยู่ด้วย ไม่ต้อง Login ใหม่
         public void RenameStockPermission(string oldSysId, string newSysId)
