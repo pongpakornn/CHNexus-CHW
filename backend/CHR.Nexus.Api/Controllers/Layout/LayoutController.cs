@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CHR.Nexus.Api.Web;
 using Nexus.Helpers;
 using Nexus.Services;
@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CHR.Nexus.Api.Controllers;
 
-// 📍 LAYOUT SETUP (เมนู Sidebar): ประเภทตำแหน่ง (RACK1) + ตำแหน่ง (3A 3B 3C) + รูปแบบข้อมูลใน QR + Export QR ตำแหน่ง
-//   สิทธิ์ LayoutSetup: VIEW = ดู + Export QR / ADD = เพิ่ม / EDIT = แก้ชื่อ + รูปแบบ QR / DEL = ลบ · ทุกการเปลี่ยนแปลงลง Activity Log
+// 📍 LAYOUT SETUP (User Management › SETUP › LAYOUT · Admin Level 1): ประเภทตำแหน่ง (RACK1) + ตำแหน่ง (3A 3B 3C) + รูปแบบข้อมูลใน QR + Export QR ตำแหน่ง
+//   ทุกการเปลี่ยนแปลงลง Activity Log
 //   ใช้งานที่ Multi-Scanner: คลังที่เปิดปุ่ม LAYOUT (User Management > PERMISSION > SCAN STOCKS) สแกน QR ตำแหน่งก่อน แล้วสแกนป้ายลูกค้า
 [Route("api/layout")]
 public sealed class LayoutController : AppController

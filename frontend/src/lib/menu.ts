@@ -14,7 +14,6 @@ export const MENU: MenuItem[] = [
   { href: "/store", label: "Store ( Max - Min )", title: "STORE ( MAX - MIN )", icon: "/icons/StoreMaxMin.png", can: "store", ready: true },
   { href: "/scanner", label: "Multi-Scanner", title: "MULTI-SCANNER", icon: "/icons/MultiScanner.png", can: "scanner", ready: true },
   { href: "/inventory", label: "Inventory Registration", title: "INVENTORY REGISTRATION", icon: "/icons/InventoryRegistration.png", can: "productControl", ready: true },
-  { href: "/layout", label: "Layout Setup", title: "LAYOUT SETUP", icon: "/icons/StoreWarehouse.png", can: "layout", ready: true },
   { href: "/pick-list", label: "Pick List", title: "PICK LIST", icon: "/icons/PickList.png", can: "pickList", ready: true },
   { href: "/max-min", label: "Max-Min Calculator", title: "MAX-MIN CALCULATOR", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc", ready: true },
   { href: "/forecast", label: "Forecast / Order", title: "FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast", ready: true },
@@ -24,7 +23,7 @@ export const MENU: MenuItem[] = [
 ];
 
 // หน้าแรกหลัง Login: ลำดับเดียวกับ MainView (Dashboard > Scanner > Inventory > Store > Pick List > PR > Max-Min > Forecast > Log > Users)
-const START_ORDER = ["dashboard", "scanner", "productControl", "store", "pickList", "pr", "maxMinCalc", "forecast", "layout", "activityLog", "userMgmt"];
+const START_ORDER = ["dashboard", "scanner", "productControl", "store", "pickList", "pr", "maxMinCalc", "forecast", "activityLog", "userMgmt"];
 
 export function startPage(can: Record<string, boolean>): string | null {
   for (const key of START_ORDER) if (can[key]) return MENU.find((m) => m.can === key)!.href;

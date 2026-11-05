@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
+import { createPortal } from "react-dom";
+import { Card, Empty, Loading, SearchBox } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { QrImage } from "@/components/print/QrImage";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { LayoutExport } from "./LayoutExport";
-import type { LayoutData, Loc, LType } from "./types";
+import type { LayoutData, Loc, LType } from "./layoutTypes";
 
-// 📍 LAYOUT SETUP (เมนู Sidebar): ตำแหน่งจัดเก็บ
+// 📍 SETUP › LAYOUT (User Management › SETUP · Admin Level 1): ตำแหน่งจัดเก็บ
 //   1) ช่องแรก = ประเภท (RACK1) · ช่องที่สอง = ชื่อตำแหน่ง พิมพ์หลายตัวได้ (3A 3B 3C) -> ADD = บันทึกทันที
 //   2) รูปแบบข้อมูลใน QR (ช่อง + ตัวคั่น) = ค่าที่หน้า Multi-Scanner แสดงเมื่อสแกน เช่น "RACK1 3A" / "3A" · ใต้ QR พิมพ์ "RACK1 : 3A"
 //   3) เลือกตำแหน่ง -> EXPORT QR (A4 / ฉลาก 62 × 40) · ใช้ที่ Multi-Scanner: คลังที่เปิดปุ่ม 📍 LAYOUT (PERMISSION > SCAN STOCKS)
@@ -30,7 +31,7 @@ const up = (v: string) => v.toUpperCase().replace(/[^A-Z0-9_./#-]/g, "");
 const upList = (v: string) => v.toUpperCase().replace(/[^A-Z0-9_./#\s,;-]/g, "");
 const qrOf = (fields: string[], sep: string, type: string, name: string) => fields.map((f) => (f === "TYPE" ? type : name)).join(sep);
 
-export default function LayoutPage() {
+export function LayoutPanel() {
   const toast = useToast();
   const [data, setData] = useState<LayoutData | null>(null);
   const [type, setType] = useState("");
@@ -190,9 +191,7 @@ export default function LayoutPage() {
   if (!data) return <Loading />;
   if (!data.ready)
     return (
-      <PageBody>
-        <Empty>ฐานข้อมูลยังไม่มีตาราง LAYOUT (database/nexus/20_Storage_Layout.sql)</Empty>
-      </PageBody>
+      <Empty>ฐานข้อมูลยังไม่มีตาราง LAYOUT (database/nexus/20_Storage_Layout.sql)</Empty>
     );
 
   const f = fmt ?? { fields: ["TYPE", "NAME"], sep: " " };
@@ -204,22 +203,18 @@ export default function LayoutPage() {
   const dupNames = fmtKey === "NAME" ? [...new Set(allLocs.map((l) => l.locName).filter((n, i, a) => a.indexOf(n) !== i))] : [];
 
   return (
-    <PageBody>
-      <PageHeader
-        icon="/icons/StoreWarehouse.png"
-        title="LAYOUT SETUP"
-        subtitle="ตำแหน่งจัดเก็บ · QR ตำแหน่ง · Multi-Scanner สแกนตำแหน่งก่อน แล้วสแกนป้ายลูกค้า"
-        actions={
-          <>
-            <span className="lo-count">
-              {types.length} TYPE · {total} LOCATION
-            </span>
-            <button className="cta-btn is-purple" disabled={selected.length === 0} onClick={() => setExporting(selected)}>
-              ▣ EXPORT QR {selected.length ? `(${selected.length})` : ""}
-            </button>
-          </>
-        }
-      />
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1 text-xs font-bold text-ink-soft">
+          ตำแหน่งจัดเก็บ · QR ตำแหน่ง · ใช้ที่ Multi-Scanner: เปิดปุ่ม 📍 LAYOUT ต่อคลังที่ PERMISSION › SCAN STOCKS → สแกนตำแหน่งก่อน แล้วสแกนป้ายลูกค้า
+        </span>
+        <span className="lo-count">
+          {types.length} TYPE · {total} LOCATION
+        </span>
+        <button className="cta-btn is-purple" disabled={selected.length === 0} onClick={() => setExporting(selected)}>
+          ▣ EXPORT QR {selected.length ? `(${selected.length})` : ""}
+        </button>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="grid content-start gap-4">
@@ -442,7 +437,8 @@ export default function LayoutPage() {
         </Card>
       </div>
 
-      <LayoutExport items={exporting} onClose={() => setExporting(null)} />
-    </PageBody>
+      {/* หน้าต่าง EXPORT ซ้อนบน SETUP: วางที่ body (ไม่ติดกรอบหน้าต่าง SETUP) */}
+      {exporting && createPortal(<LayoutExport items={exporting} onClose={() => setExporting(null)} />, document.body)}
+    </div>
   );
 }

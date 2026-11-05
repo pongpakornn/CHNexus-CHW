@@ -81,7 +81,6 @@ namespace Nexus.Services
             ("StoreMaxMin", "Store(Max-Min)",            "VIEW = open + stocks (read only)  •  ADD = add stock / barcode format  •  EDIT = stock settings / barcode formats  •  DEL = delete stock"),
             ("MultiScanner", "Multi-Scanner",              "VIEW = open + scan (stocks + DISPLAY: ▸ SCAN STOCKS + DISPLAY below)  •  DEL = adjust scan  •  APPROVE = NOT DEDUCTED action (approve / register / delete)"),
             ("ProductControl", "ProductControl",     "VIEW = open + export QR  •  ADD = register / import  •  EDIT = edit / show-hide / image  •  DEL = delete"),
-            ("LayoutSetup", "Layout Setup",               "VIEW = open + export QR  •  ADD = add type / location  •  EDIT = rename / QR format  •  DEL = delete"),
             ("PackingCard", "Pick List",                  "VIEW = open the page"),
             ("MAXMINCALC",  "Max-Min Calculator",         "VIEW = open  •  EDIT = edit / import / calculate"),
             ("ForecastOrder", "Forecast / Order / Delivery", "VIEW = open + export  •  ADD = import forecast / order / delivery"),

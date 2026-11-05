@@ -7,7 +7,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { QrImage } from "@/components/print/QrImage";
 import { type CardOpts, type Layout, LAYOUTS, LayoutOption, SheetPreview, Sheets, fitTexts, makePdf } from "@/components/print/PickSheets";
 import { api } from "@/lib/api";
-import type { Loc } from "./types";
+import type { Loc } from "./layoutTypes";
 
 // ▣ EXPORT QR ตำแหน่งจัดเก็บ: โลโก้ CHR + QR (ข้อมูลตามรูปแบบที่ตั้ง) + ป้าย "RACK1 : 3A" ใต้ QR
 //   A4 หลายดวงต่อแผ่น (ตัดตามเส้นประ) หรือฉลาก 62 × 40 mm · PDF / PRINT · ลง Activity Log
