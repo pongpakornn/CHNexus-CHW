@@ -74,7 +74,7 @@ function flashRows(ids: number[]) {
   });
 }
 
-export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: number; onBack: () => void; initialFilter?: string }) {
+export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = false }: { stkId: number; onBack: () => void; initialFilter?: string; openMinReport?: boolean }) {
   const toast = useToast();
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -791,7 +791,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
                 }
               />
             )}
-            <MinReportMenu stock={s} />
+            <MinReportMenu stock={s} autoOpen={openMinReport} />
             <ActionMenu actions={menu} />
             {meta.canImport && (
               <input

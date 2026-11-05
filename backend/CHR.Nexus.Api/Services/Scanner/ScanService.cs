@@ -356,8 +356,9 @@ namespace Nexus.Services
                 WHERE st.TransferMode = 'SCAN')" : "Nexus.ScanTransactions";
 
         // EmployeeID / Department ของแถวสแกน (ฐานยังไม่รัน Update_20261020b.sql = ค่าว่าง)
-        private static string WhoCols(string a) => Nexus.Helpers.DbSchema.HasScanWho
-            ? $", {a}.EmployeeID, {a}.Department" : ", CAST(NULL AS nvarchar(30)) AS EmployeeID, CAST(NULL AS nvarchar(100)) AS Department";
+        private static string WhoCols(string a) => (Nexus.Helpers.DbSchema.HasScanWho
+            ? $", {a}.EmployeeID, {a}.Department" : ", CAST(NULL AS nvarchar(30)) AS EmployeeID, CAST(NULL AS nvarchar(100)) AS Department")
+            + (Nexus.Helpers.DbSchema.HasLayout ? $", {a}.Layout" : ", CAST(NULL AS nvarchar(120)) AS Layout");
 
         public List<ScanItemModel> GetTodayTransactions(StockModel stock = null)
         {
@@ -378,7 +379,7 @@ namespace Nexus.Services
                                     ISNULL(m.PartNumber, '') AS PartNumber,
                                     ISNULL(m.Model, '') AS Model,
                                     ISNULL(t.ReferenceNo, '') AS ReferenceNo,
-                                    t.TransactionID
+                                    t.TransactionID, " + (Nexus.Helpers.DbSchema.HasTransferScanTx || Nexus.Helpers.DbSchema.HasLayout ? "t.Layout" : "CAST(NULL AS nvarchar(120)) AS Layout") + @"
                                FROM " + ScanRowsSource + @" t
                                LEFT JOIN Nexus.Parts m ON t.PartID = m.PartID
                                WHERE t.TransactionDate >= CAST(CAST(GETDATE() AS DATE) AS DATETIME)
@@ -410,7 +411,8 @@ namespace Nexus.Services
                                 PartNumber = rdr["PartNumber"].ToString(),
                                 Model = rdr["Model"].ToString(),
                                 RefNo = rdr["ReferenceNo"].ToString(),
-                                IsDeductOut = Convert.ToInt64(rdr["TransactionID"]) < 0
+                                IsDeductOut = Convert.ToInt64(rdr["TransactionID"]) < 0,
+                                Layout = rdr["Layout"] as string
                             });
                         }
                     }
@@ -660,12 +662,16 @@ namespace Nexus.Services
         {
             public string EmployeeId { get; set; }
             public string Department { get; set; }
-            public bool IsEmpty => string.IsNullOrWhiteSpace(EmployeeId) && string.IsNullOrWhiteSpace(Department);
-            public string LogText => (string.IsNullOrWhiteSpace(EmployeeId) ? "" : $" | EMP {EmployeeId.Trim()}") + (string.IsNullOrWhiteSpace(Department) ? "" : $" | DEPT {Department.Trim()}");
+            public string Layout { get; set; }     // 📍 ตำแหน่งจัดเก็บ (QR LAYOUT) -> Nexus.ScanTransactions.Layout
+            public bool IsEmpty => string.IsNullOrWhiteSpace(EmployeeId) && string.IsNullOrWhiteSpace(Department) && string.IsNullOrWhiteSpace(Layout);
+            public string LogText => (string.IsNullOrWhiteSpace(EmployeeId) ? "" : $" | EMP {EmployeeId.Trim()}") + (string.IsNullOrWhiteSpace(Department) ? "" : $" | DEPT {Department.Trim()}")
+                                   + (string.IsNullOrWhiteSpace(Layout) ? "" : $" | LAYOUT {Layout.Trim()}");
         }
 
         // INSERT ของ Nexus.ScanTransactions + ช่อง EmployeeID / Department (ฐานยังไม่รัน Update_20261020b.sql = แบบเดิม)
         private static string WithWho(string insertSql) => !Nexus.Helpers.DbSchema.HasScanWho ? insertSql
+            : Nexus.Helpers.DbSchema.HasLayout
+            ? insertSql.Replace("StockID, BoxChange)", "StockID, BoxChange, EmployeeID, Department, Layout)").Replace("@Box);", "@Box, @Emp, @Dept, @Layout);")
             : insertSql.Replace("StockID, BoxChange)", "StockID, BoxChange, EmployeeID, Department)").Replace("@Box);", "@Box, @Emp, @Dept);");
 
         private static void AddWho(SqlCommand cmd, ScanWho who)
@@ -674,6 +680,11 @@ namespace Nexus.Services
             string emp = who?.EmployeeId?.Trim(), dept = who?.Department?.Trim();
             cmd.Parameters.Add("@Emp", SqlDbType.NVarChar, 30).Value = string.IsNullOrEmpty(emp) ? DBNull.Value : (object)(emp.Length > 30 ? emp.Substring(0, 30) : emp);
             cmd.Parameters.Add("@Dept", SqlDbType.NVarChar, 100).Value = string.IsNullOrEmpty(dept) ? DBNull.Value : (object)(dept.Length > 100 ? dept.Substring(0, 100) : dept);
+            if (Nexus.Helpers.DbSchema.HasLayout)
+            {
+                string lay = who?.Layout?.Trim();
+                cmd.Parameters.Add("@Layout", SqlDbType.NVarChar, 120).Value = string.IsNullOrEmpty(lay) ? DBNull.Value : (object)(lay.Length > 120 ? lay.Substring(0, 120) : lay);
+            }
         }
 
         public bool UpdateStock(int ptId, string partCode, string partACode, decimal qty, string userId, string refNo, string txType = "IN", StockModel stock = null, bool remainder = false, CoilLabel coil = null,

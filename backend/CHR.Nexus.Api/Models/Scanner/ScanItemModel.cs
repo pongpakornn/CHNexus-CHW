@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -20,6 +20,9 @@ namespace Nexus.Models
         private string _productImagePath;
 
         public int PartId { get; set; }
+
+        // 📍 ตำแหน่งจัดเก็บ (QR LAYOUT ที่สแกนก่อนป้าย) ของแถวสแกนนี้
+        public string Layout { get; set; }
 
         // คลังที่รายการนี้ลงจริง (สแกนร่วมหลายคลัง / AUTO ระบบเลือกคลังให้ -> ตารางสรุปแยกยอดตามคลัง)
         public int StkId { get; set; }

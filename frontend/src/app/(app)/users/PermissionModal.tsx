@@ -81,7 +81,7 @@ export function PermissionModal({
       ss.map((s) => {
         if (s.stkId !== id) return s;
         const n = { ...s, ...patch };
-        if (patch.on === false) Object.assign(n, { priority: false, deduct: false, askEmployee: false, askDepartment: false });
+        if (patch.on === false) Object.assign(n, { priority: false, deduct: false, askEmployee: false, askDepartment: false, askLayout: false });
         // เลือกคลังกลุ่มตัดข้ามคลัง = เปิด DEDUCTED ให้ก่อน (ปิดเองได้)
         if (patch.on === true && s.deductEligible && !s.deduct) n.deduct = true;
         return n;
@@ -99,7 +99,7 @@ export function PermissionModal({
     on.length === 0
       ? "⛔ NOT SET - this user cannot scan (the scan page asks them to contact the Admin)"
       : "STOCKS : " +
-        on.map((i) => i.code + (i.priority ? " ★" : "") + (i.deduct ? " (DEDUCTED)" : "") + (i.askEmployee ? " (EMP ID)" : "") + (i.askDepartment ? " (DEPT)" : "") + (i.qrDateFmt || i.qrRefField || i.qrRunStart ? " (QR+)" : "")).join(",  ") +
+        on.map((i) => i.code + (i.priority ? " ★" : "") + (i.deduct ? " (DEDUCTED)" : "") + (i.askEmployee ? " (EMP ID)" : "") + (i.askDepartment ? " (DEPT)" : "") + (i.askLayout ? " (LAYOUT)" : "") + (i.qrDateFmt || i.qrRefField || i.qrRunStart ? " (QR+)" : "")).join(",  ") +
         (on.length > 1 ? "   (scan together)" : "");
 
   async function save() {
@@ -234,6 +234,16 @@ export function PermissionModal({
                 DEPT
               </button>
             </>
+          )}
+          {data?.scanner?.hasLayout && (
+            <button
+              className={`fill-btn is-xs ${s.askLayout ? "is-on" : ""}`}
+              disabled={readOnly || !s.on}
+              title="สแกน QR ตำแหน่งจัดเก็บ (Sidebar > Layout Setup) ก่อนสแกนป้ายลูกค้า · ตำแหน่งบันทึกกับประวัติการสแกน"
+              onClick={() => setStock(s.stkId, { askLayout: !s.askLayout })}
+            >
+              📍 LAYOUT
+            </button>
           )}
           <label className="ml-auto flex items-center gap-1.5 text-[10px] font-extrabold text-ink-soft">
             DISPLAY

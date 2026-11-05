@@ -13,6 +13,8 @@ export type ScanStock = {
   codeHeader: string;
 };
 
+export type LayoutQr = { locId: number; type: string; name: string; qr: string; label: string };
+
 export type ScanFormat = { delimiter: string; spaces: boolean; trimChars: string | null; minFields: number; required: number };
 
 export type ScannerContext = {
@@ -34,6 +36,8 @@ export type ScannerContext = {
   buttons: { scanOut: boolean; return: boolean; remainder: boolean; adjust: boolean; display: boolean; deducted: boolean; notDeducted: boolean; approve: boolean };
   counts: { deductedToday: number; notDeducted: number };
   who: { askEmployee: boolean; askDepartment: boolean; employeeHint: string; departmentHint: string; departments: string[] };
+  /** 📍 LAYOUT: คลังที่เปิดปุ่ม LAYOUT (สิทธิ์ SCAN STOCKS) -> ช่อง LAYOUT + QR ตำแหน่งทั้งหมด (จับคู่ที่ Browser) */
+  layout?: { enabled: boolean; hint: string; stocks: number[]; items: LayoutQr[] };
   codeHeader: string;
   contacts: string;
   formats: ScanFormat[];
@@ -52,6 +56,8 @@ export type ScanRow = {
   time: string;
   isDeductOut: boolean;
   imageUrl: string | null;
+  /** 📍 ตำแหน่งจัดเก็บ ณ ตอนสแกน */
+  layout?: string | null;
 };
 
 export type SummaryRow = {
@@ -76,7 +82,7 @@ export type ScanResult = {
   title: string | null;
   message: string | null;
   item: ScanRow | null;
-  focus: "employee" | "department" | null;
+  focus: "employee" | "department" | "layout" | null;
   candidates: { stkId: number; code: string; name: string }[] | null;
   qtyDecimal: boolean;
   toastTitle: string | null;

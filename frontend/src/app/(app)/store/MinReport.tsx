@@ -9,6 +9,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { MinItemCard } from "@/components/notifications/MinReportAlert";
 import { ReportPreview, days, dt, n0, who, type MinHistory, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { api, download } from "@/lib/api";
+import { refreshNotifications } from "@/lib/support";
 import { daysAgo, today } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { useDebounced } from "@/lib/useDebounced";
@@ -17,14 +18,14 @@ import type { Stock } from "./types";
 // 📋 ปุ่ม MIN REPORT ในหน้าคลัง (ทุกคลัง): รายงานที่แจ้งเตือนอยู่ (ยังไม่ระบุสาเหตุ) · ประวัติรายงาน -> PREVIEW PDF / EXCEL
 type Pending = { ready: boolean; enabled: boolean; stuckDays: number; items: MinItem[] };
 
-export function MinReportMenu({ stock: s }: { stock: Stock }) {
+export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; autoOpen?: boolean }) {
   const toast = useToast();
   const [pend, setPend] = useState<Pending | null>(null);
-  const [open, setOpen] = useState<"" | "pending" | "history">("");
+  const [open, setOpen] = useState<"" | "pending" | "history">(autoOpen ? "pending" : ""); // จากกระดิ่ง (?mr=pending) = เปิดรายการรอรายงานให้เลย
 
   const load = useCallback(() => {
     api<Pending>(`/minreport/stock/${s.stkId}/pending`)
-      .then(setPend)
+      .then((d) => (setPend(d), refreshNotifications()))
       .catch(() => setPend(null));
   }, [s.stkId]);
   useEffect(() => {

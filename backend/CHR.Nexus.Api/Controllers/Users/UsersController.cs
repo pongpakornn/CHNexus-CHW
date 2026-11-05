@@ -1,4 +1,4 @@
-using CHR.Nexus.Api.Web;
+﻿using CHR.Nexus.Api.Web;
 using CHR.Nexus.Api.Web.Auth;
 using CHR.Nexus.Api.Web.Scanner;
 using Nexus.Helpers;
@@ -168,6 +168,7 @@ public sealed class UsersController : AppController
             {
                 hasWho = DbSchema.HasScanWho,
                 hasQrSuffix = hasQr,
+                hasLayout = DbSchema.HasLayout,
                 qrDateFormats = QrSuffix.DateFormats.Select(f => new { key = f.Key, sample = f.Sample }),
                 qrRefFields = QrSuffix.RefFields.Select(f => new { key = f.Key, label = f.Label }),
                 stocks = stocks.Select(s =>
@@ -181,6 +182,7 @@ public sealed class UsersController : AppController
                         s.StkId, s.Code, s.Name, canOut = s.CanScanOut, deductEligible = eligible.Contains(s.StkId),
                         on, priority = on && a.PriorityId == s.StkId, deduct = on && eligible.Contains(s.StkId) && a.DeductIds.Contains(s.StkId),
                         askEmployee = on && a.EmployeeIds.Contains(s.StkId), askDepartment = on && a.DepartmentIds.Contains(s.StkId),
+                        askLayout = on && a.LayoutIds.Contains(s.StkId),
                         display = cur, options = DisplayOptions.For(s, formats, cur).Select(o => new { key = o.Key, label = o.Label }),
                         qrDateFmt = q?.DateFmt, qrRefField = q?.RefField, qrRunStart = q?.RunStart,
                         qrSep = QrFormat.CleanSep(lay?.QrSep),
@@ -216,6 +218,7 @@ public sealed class UsersController : AppController
         public bool Deduct { get; set; }
         public bool AskEmployee { get; set; }
         public bool AskDepartment { get; set; }
+        public bool AskLayout { get; set; }
         public string Display { get; set; }
         public string QrDateFmt { get; set; }
         public string QrRefField { get; set; }
@@ -269,7 +272,9 @@ public sealed class UsersController : AppController
                 var ded = on.Where(c => c.Deduct).Select(c => c.StkId).ToList();
                 var emp = DbSchema.HasScanWho ? on.Where(c => c.AskEmployee).Select(c => c.StkId).ToList() : new List<int>();
                 var dept = DbSchema.HasScanWho ? on.Where(c => c.AskDepartment).Select(c => c.StkId).ToList() : new List<int>();
+                var lay = DbSchema.HasLayout ? on.Where(c => c.AskLayout).Select(c => c.StkId).ToList() : null;
                 bool stocksChanged = !ids.OrderBy(x => x).SequenceEqual(a.StockIds.OrderBy(x => x)) || prio != a.PriorityId ||
+                                     (lay != null && !lay.OrderBy(x => x).SequenceEqual(a.LayoutIds.OrderBy(x => x))) ||
                                      !ded.OrderBy(x => x).SequenceEqual(a.DeductIds.OrderBy(x => x)) ||
                                      !emp.OrderBy(x => x).SequenceEqual(a.EmployeeIds.OrderBy(x => x)) ||
                                      !dept.OrderBy(x => x).SequenceEqual(a.DepartmentIds.OrderBy(x => x));
@@ -288,7 +293,7 @@ public sealed class UsersController : AppController
                 }
                 var disp = on.Where(c => !string.IsNullOrEmpty(c.Display) && c.Display != (map.TryGetValue(c.StkId, out var v) ? v : ScanDisplay.Default))
                              .ToDictionary(c => c.StkId, c => c.Display);
-                if (stocksChanged) new ScannerSetupService().SaveAssignment(u.UserId, ids, prio, Uid, ded, emp, dept, qr);
+                if (stocksChanged) new ScannerSetupService().SaveAssignment(u.UserId, ids, prio, Uid, ded, emp, dept, qr, lay);
                 if (disp.Count > 0) new ScanService().SaveScanDisplayMap(disp, u.UserId);
                 if (stocksChanged || disp.Count > 0)
                 {
@@ -297,6 +302,7 @@ public sealed class UsersController : AppController
                         (ded.Count > 0 ? $" | Deducted: {string.Join(",", ded)}" : "") +
                         (emp.Count > 0 ? $" | Employee ID: {string.Join(",", emp)}" : "") +
                         (dept.Count > 0 ? $" | Department: {string.Join(",", dept)}" : "") +
+                        (lay?.Count > 0 ? $" | Layout: {string.Join(",", lay)}" : "") +
                         (qr?.Count > 0 ? " | QR Suffix: " + string.Join(",", qr.Select(kv => $"{kv.Key}={kv.Value.DateFmt}/{kv.Value.RefField}/{kv.Value.RunStart}")) : "") +
                         (disp.Count > 0 ? " | Display: " + string.Join(",", disp.Select(kv => $"{kv.Key}={kv.Value}")) : ""), u.UserId);
                     scanNote = "\nคลังสแกน / DISPLAY มีผลที่หน้าสแกนทันที";

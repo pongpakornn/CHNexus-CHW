@@ -1,4 +1,4 @@
-using Nexus.Models;
+﻿using Nexus.Models;
 
 namespace CHR.Nexus.Api.Web.Auth;
 
@@ -20,6 +20,10 @@ public sealed record MeDto(
             ["productAdd"] = s.CanAddProduct,
             ["productEdit"] = s.CanEditProduct,
             ["productDelete"] = s.CanDeleteProduct,
+            ["layout"] = s.CanViewLayout,
+            ["layoutAdd"] = s.CanAddLayout,
+            ["layoutEdit"] = s.CanEditLayout,
+            ["layoutDelete"] = s.CanDeleteLayout,
             ["pickList"] = s.CanViewPackingCard,
             ["pr"] = s.CanViewPR,
             ["prSubmit"] = s.CanSubmitPR,

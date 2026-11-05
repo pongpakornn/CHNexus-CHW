@@ -37,6 +37,8 @@ export type ScanStock = {
   deduct: boolean;
   askEmployee: boolean;
   askDepartment: boolean;
+  /** 📍 LAYOUT: สแกน QR ตำแหน่งจัดเก็บก่อนสแกนรับเข้า (Sidebar > Layout Setup) */
+  askLayout?: boolean;
   display: string;
   options: { key: string; label: string }[];
   /** 📷 ต่อท้าย QR ตอนรับเข้า (DATE / REF / RUNNING) - null = ไม่ใส่ */
@@ -55,6 +57,7 @@ export type PermData = {
     hasWho: boolean;
     stocks: ScanStock[];
     hasQrSuffix?: boolean;
+    hasLayout?: boolean;
     qrDateFormats?: { key: string; sample: string }[];
     qrRefFields?: { key: string; label: string }[];
   } | null;

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { useToast } from "@/components/notifications/Toasts";
+import { refreshNotifications } from "@/lib/support";
 import { days, dt, n0, type MinItem } from "@/components/print/MinReportSheet";
 
 // ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ (ทุกหน้า) เมื่อมีสินค้าค้างที่ค่า MIN ครบตามวันที่ตั้ง (SETUP > MIN REPORT)
@@ -27,6 +28,7 @@ export function ReportBox({ item, onDone, onBack }: { item: MinItem; onDone: () 
     try {
       const r = await api<{ message: string }>("/minreport/report", { method: "POST", body: { watchId: item.watchId, reason: reason.trim() } });
       toast.show("REPORTED", r.message, "ok");
+      refreshNotifications();
       onDone();
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");

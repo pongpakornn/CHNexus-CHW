@@ -29,6 +29,7 @@ namespace Nexus.Services
         public string DisplayCode { get; set; }
         public string EmployeeId { get; set; }   // 👷 รหัสพนักงาน / แผนก ที่กรอกตอนสแกน (Update_20261020b.sql)
         public string Department { get; set; }
+        public string Layout { get; set; }    // 📍 ตำแหน่งจัดเก็บ ณ ตอนสแกน
         public string Bin { get; set; }
         public string PartB { get; set; }
         public string Supplier { get; set; }
@@ -69,17 +70,21 @@ namespace Nexus.Services
                    OR ISNULL(p.PartA, '') LIKE '%' + @key + '%' OR ISNULL(p.PartNumber, '') LIKE '%' + @key + '%'
                    OR ISNULL(p.QRCode, '') LIKE '%' + @key + '%' OR ISNULL(t.PartACode, '') LIKE '%' + @key + '%'
                    OR ISNULL(t.ReferenceNo, '') LIKE '%' + @key + '%' OR t.UserID LIKE '%' + @key + '%' OR ISNULL(u.FullName, '') LIKE '%' + @key + '%'" +
-                   (WhoReadable ? " OR ISNULL(t.EmployeeID, '') LIKE '%' + @key + '%' OR ISNULL(t.Department, '') LIKE '%' + @key + '%'" : "") + ")";
+                   (WhoReadable ? " OR ISNULL(t.EmployeeID, '') LIKE '%' + @key + '%' OR ISNULL(t.Department, '') LIKE '%' + @key + '%'" : "") +
+                   (LayoutReadable ? " OR ISNULL(t.Layout, '') LIKE '%' + @key + '%'" : "") + ")";
 
         // ช่อง EmployeeID / Department อ่านได้ไหม (ScanRowsSource แบบรวมแถวตัดคลังต้นทางมีให้เสมอ / ตารางเดิมต้องรัน Update_20261020b.sql)
         private static bool WhoReadable => Nexus.Helpers.DbSchema.HasScanWho || Nexus.Helpers.DbSchema.HasTransferScanTx;
+        // 📍 ตำแหน่งจัดเก็บ (20_Storage_Layout.sql) - ScanRowsSource แบบรวมแถวมีให้เสมอ (NULL ถ้ายังไม่รัน)
+        private static bool LayoutReadable => Nexus.Helpers.DbSchema.HasLayout || Nexus.Helpers.DbSchema.HasTransferScanTx;
 
         private static string Cols => @"t.TransactionDate, ISNULL(s.StockCode, CASE WHEN t.StockID IS NULL THEN 'MAIN' ELSE CAST(t.StockID AS varchar) END) AS StockCode,
                        CASE WHEN ISNULL(t.IsCancelled, 0) = 1 THEN t.TransactionType + ' (CANCELLED)' ELSE t.TransactionType END AS TransactionType, ISNULL(p.PartCode, ISNULL(t.PartACode, '')) AS PartCode, ISNULL(p.Description, '') AS Description,
                        t.Quantity, t.UserID, ISNULL(u.FullName, '') AS FullName, ISNULL(t.ReferenceNo, '') AS ReferenceNo,
                        ISNULL(t.StockID, 0) AS StockID, ISNULL(p.PartA, '') AS PartA, ISNULL(p.PartNumber, '') AS PartNumber, ISNULL(p.Model, '') AS Model,
                        ISNULL(p.Bin, '') AS Bin, ISNULL(p.PartB, '') AS PartB, ISNULL(p.Supplier, '') AS Supplier, ISNULL(p.Customer, '') AS Customer, ISNULL(p.Category, '') AS Category, " +
-                       (WhoReadable ? "ISNULL(t.EmployeeID, '') AS EmployeeID, ISNULL(t.Department, '') AS Department" : "'' AS EmployeeID, '' AS Department");
+                       (WhoReadable ? "ISNULL(t.EmployeeID, '') AS EmployeeID, ISNULL(t.Department, '') AS Department" : "'' AS EmployeeID, '' AS Department") +
+                       (LayoutReadable ? ", ISNULL(t.Layout, '') AS Layout" : ", '' AS Layout");
 
 
         private const string Rank = @"
@@ -165,7 +170,8 @@ namespace Nexus.Services
             Customer = r["Customer"].ToString(),
             Category = r["Category"].ToString(),
             EmployeeId = r["EmployeeID"].ToString(),
-            Department = r["Department"].ToString()
+            Department = r["Department"].ToString(),
+            Layout = r["Layout"].ToString()
         };
 
         // ทุกรายการตามตัวกรอง (ไม่จำกัดแค่หน้าที่แสดง) - oldestFirst = เรียงตามเวลาสแกน (EXPORT RPA)
@@ -195,8 +201,8 @@ namespace Nexus.Services
             {
                 var ws = wb.Worksheets.Add("Scan History");
                 // รูปแบบเดียวกับไฟล์ Export / Template ทั้งระบบ
-                string[] head = { "NO", "DATE TIME", "STOCK", "TYPE", "PRODUCT CODE", "PRODUCT NAME", "QTY", "USER", "EMPLOYEE ID", "DEPARTMENT", "BARCODE" };
-                ImportTemplateService.Header(ws, head, new double[] { 7, 20, 16, 16, 20, 40, 12, 26, 16, 22, 60 });
+                string[] head = { "NO", "DATE TIME", "STOCK", "TYPE", "PRODUCT CODE", "PRODUCT NAME", "QTY", "USER", "EMPLOYEE ID", "DEPARTMENT", "LAYOUT", "BARCODE" };
+                ImportTemplateService.Header(ws, head, new double[] { 7, 20, 16, 16, 20, 40, 12, 26, 16, 22, 16, 60 });
                 int i = 2;
                 foreach (var x in rows)
                 {
@@ -210,11 +216,12 @@ namespace Nexus.Services
                     ws.Cell(i, 8).Value = x.UserText;
                     ws.Cell(i, 9).Value = x.EmployeeId;
                     ws.Cell(i, 10).Value = x.Department;
-                    ws.Cell(i, 11).Value = x.RefNo;
+                    ws.Cell(i, 11).Value = x.Layout;
+                    ws.Cell(i, 12).Value = x.RefNo;
                     i++;
                 }
                 ImportTemplateService.Body(ws, i - 1, head.Length);
-                ImportTemplateService.LeftAlign(ws, i - 1, 6, 11);
+                ImportTemplateService.LeftAlign(ws, i - 1, 6, 12);
                 if (i > 2) ws.Range(2, 1, i - 1, 1).Style.Font.Bold = true;
                 wb.SaveAs(path);
             }

@@ -8590,3 +8590,368 @@ body:has(.modal-bg) .bug-fab {
   overflow: hidden;
   line-height: 1.4;
 }
+
+/* =====================================================================
+   📍 LAYOUT : ตำแหน่งจัดเก็บ (Multi-Scanner ช่อง LAYOUT + หน้า LAYOUT SETUP + ดวง QR ตำแหน่ง)
+   ===================================================================== */
+.sc-layout {
+  display: flex;
+  width: 100%;
+  height: 56px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  padding: 0 10px 0 8px;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.sc-layout.is-set {
+  color: #fff;
+  background: linear-gradient(120deg, #0d9488, #0f766e 70%, #115e59);
+  box-shadow: 0 10px 22px -14px rgb(13 148 136 / 0.9), inset 0 -3px 0 #5eead4;
+}
+.sc-layout.is-empty {
+  color: #b45309;
+  font-size: 13px;
+  font-family: inherit;
+  background: repeating-linear-gradient(135deg, #fffbeb 0 10px, #fef3c7 10px 20px);
+  border: 2px dashed #f59e0b;
+}
+.sc-layout.is-flash {
+  animation: sc-layout-pop 0.6s var(--ease-drop) both;
+}
+@keyframes sc-layout-pop {
+  0% { transform: scale(0.96); box-shadow: 0 0 0 0 rgb(13 148 136 / 0.55); }
+  45% { transform: scale(1.03); }
+  100% { transform: scale(1); box-shadow: 0 0 0 12px transparent; }
+}
+.sc-layout-ic {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.16);
+}
+.sc-layout.is-empty .sc-layout-ic {
+  background: rgb(245 158 11 / 0.14);
+}
+.sc-layout-x {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  font-size: 18px;
+  line-height: 1;
+  color: #fff;
+  background: rgb(255 255 255 / 0.18);
+  transition: background 0.2s;
+}
+.sc-layout-x:hover {
+  background: rgb(255 255 255 / 0.32);
+}
+.sc-layout-tag {
+  display: inline-block;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font: 800 12px/1.5 ui-monospace, Consolas, monospace;
+  color: #0f766e;
+  background: rgb(13 148 136 / 0.12);
+  white-space: nowrap;
+}
+
+/* หน้า LAYOUT SETUP */
+.lo-count {
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.lo-lbl {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft, #6b6880);
+}
+.lo-pick {
+  border-radius: 9999px;
+  border: 1.5px solid #e2def0;
+  background: #fff;
+  padding: 4px 12px;
+  font: 800 12px/1.4 ui-monospace, Consolas, monospace;
+  color: var(--primary);
+  transition: all 0.2s var(--ease-drop);
+}
+.lo-pick:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.lo-pick.is-on {
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.lo-pick:disabled {
+  opacity: 0.55;
+}
+.lo-opt {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-radius: 12px;
+  border: 1.5px solid #e7e4ef;
+  background: #fff;
+  padding: 8px 12px;
+  text-align: left;
+  transition: all 0.2s var(--ease-drop);
+}
+.lo-opt b {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--primary);
+}
+.lo-opt span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft, #6b6880);
+}
+.lo-opt.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.lo-opt:disabled {
+  opacity: 0.6;
+}
+.lo-sample {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  border-radius: 14px;
+  border: 1px solid #ebe7f4;
+  background: linear-gradient(160deg, #faf9fd, #f2f0f8);
+  padding: 10px 8px;
+  text-align: center;
+}
+.lo-sample b {
+  font: 900 14px/1.2 ui-monospace, Consolas, monospace;
+  color: #111;
+}
+.lo-sample small {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-soft, #6b6880);
+  word-break: break-all;
+}
+.lo-sample code {
+  font-weight: 900;
+  color: var(--accent);
+}
+.lo-type {
+  border-radius: 16px;
+  border: 1px solid #ebe7f4;
+  background: linear-gradient(180deg, #fff, #fbfaff);
+  padding: 10px 12px 12px;
+}
+.lo-type > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.lo-tname {
+  font: 900 16px/1.2 ui-monospace, Consolas, monospace;
+  color: var(--primary);
+}
+.lo-tcount {
+  border-radius: 9999px;
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.lo-check,
+.lo-chip-box {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 2px solid #cfcbe0;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  transition: all 0.2s var(--ease-drop);
+}
+.lo-check.is-on,
+.lo-check.is-some {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.lo-ibtn {
+  min-width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary);
+  background: #f2f0f8;
+  transition: all 0.2s var(--ease-drop);
+}
+.lo-ibtn:hover {
+  background: color-mix(in srgb, var(--accent) 16%, #fff);
+}
+.lo-ibtn.is-del:hover,
+.lo-ibtn.is-armed {
+  color: #fff;
+  background: var(--danger, #dc2626);
+}
+.lo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  border-radius: 12px;
+  border: 1.5px solid #e2def0;
+  background: #fff;
+  padding: 4px 12px 4px 8px;
+  font: 900 14px/1.2 ui-monospace, Consolas, monospace;
+  color: #2b2840;
+  transition: all 0.2s var(--ease-drop);
+  user-select: none;
+}
+.lo-chip:hover {
+  border-color: var(--accent);
+  translate: 0 -1px;
+}
+.lo-chip.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.lo-chip.is-on .lo-chip-box {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.fill-btn.is-danger-on {
+  --f: var(--danger, #dc2626);
+  color: #fff;
+  background: var(--danger, #dc2626);
+}
+
+/* ดวง QR ตำแหน่ง (พิมพ์ / PDF): A4 = แนวตั้ง โลโก้ · QR · "RACK1 : 3A" / ฉลาก 62 × 40 = QR ซ้าย ข้อความขวา */
+.lo-card {
+  --qr: 30mm;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 3mm;
+  border: 0.35mm solid #222;
+  background: #fff;
+  color: #111;
+  padding: 1.6mm 2.4mm 1.8mm;
+  font-family: Arial, "Leelawadee UI", Tahoma, sans-serif;
+  overflow: hidden;
+}
+.lo-card-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2mm;
+}
+.lo-logo {
+  height: calc(var(--qr) * 0.17);
+  max-width: 60%;
+  object-fit: contain;
+}
+.lo-card-head span {
+  border-radius: 1mm;
+  padding: 0.3mm 1.6mm;
+  font-size: calc(var(--qr) * 0.085);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: #111;
+}
+.lo-card-qr {
+  display: grid;
+  min-height: 0;
+  width: 100%;
+  place-items: center;
+  padding: 0.8mm 0;
+}
+.lo-card-qr img {
+  width: auto !important;
+  height: min(var(--qr), 100%) !important;
+  max-height: var(--qr);
+  aspect-ratio: 1;
+  border-radius: 0 !important;
+}
+.lo-card-text {
+  width: 100%;
+  min-width: 0;
+}
+.lo-card-label {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+  font-size: calc(var(--qr) * 0.26);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+}
+.lo-card.is-label {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: 2mm;
+  justify-items: stretch;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+.lo-card.is-label .lo-card-qr {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  width: auto;
+  padding: 0;
+}
+.lo-card.is-label .lo-card-head {
+  grid-column: 2;
+}
+.lo-card.is-label .lo-logo {
+  height: 5mm;
+}
+.lo-card.is-label .lo-card-head span {
+  font-size: 2.4mm;
+}
+.lo-card.is-label .lo-card-text {
+  grid-column: 2;
+  align-self: center;
+}
+.lo-card.is-label .lo-card-label {
+  text-align: left;
+  font-size: 7.5mm;
+}

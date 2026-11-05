@@ -22,6 +22,7 @@ type HistoryRow = {
   user: string;
   employeeId: string;
   department: string;
+  layout: string;
   refNo: string;
   isCancelled: boolean;
 };
@@ -199,6 +200,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
                 <th>USER</th>
                 <th>EMP ID</th>
                 <th>DEPARTMENT</th>
+                <th>LAYOUT</th>
                 <th>BARCODE</th>
               </tr>
             </thead>
@@ -218,6 +220,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
                   <td className="h-user whitespace-nowrap">{r.user}</td>
                   <td>{r.employeeId}</td>
                   <td>{r.department}</td>
+                  <td className="whitespace-nowrap">{r.layout ? <span className="sc-layout-tag">📍 {r.layout}</span> : ""}</td>
                   <td className="h-bar min-w-[220px] max-w-[440px] break-all font-mono text-[11.5px] leading-snug" title={r.refNo}>
                     {r.refNo}
                   </td>
@@ -225,7 +228,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
               ))}
               {data && data.rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-ink-soft">
+                  <td colSpan={11} className="py-10 text-center text-ink-soft">
                     ไม่พบรายการ
                   </td>
                 </tr>

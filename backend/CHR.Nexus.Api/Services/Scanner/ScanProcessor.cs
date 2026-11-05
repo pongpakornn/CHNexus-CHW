@@ -1,4 +1,4 @@
-using Nexus.Helpers;
+﻿using Nexus.Helpers;
 using Nexus.Models;
 using Nexus.Services;
 
@@ -16,6 +16,7 @@ public sealed class ScanRequest
     public bool Test { get; set; }
     public string EmployeeId { get; set; }
     public string Department { get; set; }
+    public string Layout { get; set; }        // 📍 ตำแหน่งจัดเก็บที่สแกน QR LAYOUT ไว้ล่าสุด (คลังที่เปิดปุ่ม LAYOUT)
     public int? ChosenStockId { get; set; }
     public decimal? EnteredQty { get; set; }
     public string ClientScope { get; set; }
@@ -35,12 +36,14 @@ public sealed class ScanRowDto
     public DateTime Time { get; set; }
     public bool IsDeductOut { get; set; }
     public string ImageUrl { get; set; }
+    public string Layout { get; set; }        // 📍 ตำแหน่งจัดเก็บ ณ ตอนสแกน
 
     public static ScanRowDto From(ScanItemModel m) => new()
     {
         PartId = m.PartId, StkId = m.StkId, StockCode = m.StockCode, PartCode = m.PartCode, PartName = m.PartName,
         PartACode = m.PartACode, Code = m.CodeText, Qty = m.Qty, Status = m.Status, Time = m.UpdateTime, IsDeductOut = m.IsDeductOut,
-        ImageUrl = m.PartId > 0 ? $"/api/images/part/{m.PartId}" : null
+        ImageUrl = m.PartId > 0 ? $"/api/images/part/{m.PartId}" : null,
+        Layout = string.IsNullOrWhiteSpace(m.Layout) ? null : m.Layout
     };
 }
 
@@ -58,7 +61,7 @@ public sealed class ScanResult
     public string Title { get; set; }
     public string Message { get; set; }
     public ScanRowDto Item { get; set; }
-    public string Focus { get; set; }                 // employee / department
+    public string Focus { get; set; }                 // employee / department / layout
     public List<StockChoiceDto> Candidates { get; set; }
     public bool QtyDecimal { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
@@ -214,7 +217,7 @@ public sealed class ScanProcessor
         string whoError = CheckWho(stock, out ScanService.ScanWho who, out string focus);
         if (whoError != null)
         {
-            var w = ScanResult.Warn(whoError + $"\n\nCode: {rawBarcodeFull}", "EMPLOYEE / DEPARTMENT");
+            var w = ScanResult.Warn(whoError + $"\n\nCode: {rawBarcodeFull}", focus == "layout" ? "SCAN LAYOUT FIRST" : "EMPLOYEE / DEPARTMENT");
             w.Focus = focus;
             return w;
         }
@@ -307,6 +310,7 @@ public sealed class ScanProcessor
                     if (who != null) logRef += who.LogText;
                     LogService.WriteScanLog(uid, isOut ? "SCAN_OUT" : "SCAN_IN", part.PartCode, part.PartACode, originalQty, logRef);
                     part.Qty = originalQty;
+                    part.Layout = who?.Layout;
                     result = part;
                 }
             }
@@ -399,7 +403,7 @@ public sealed class ScanProcessor
         string whoError = CheckWho(stock, out ScanService.ScanWho who, out string focus);
         if (whoError != null)
         {
-            var w = ScanResult.Warn(whoError + $"\n\nCode: {rawBarcodeFull}", "EMPLOYEE / DEPARTMENT");
+            var w = ScanResult.Warn(whoError + $"\n\nCode: {rawBarcodeFull}", focus == "layout" ? "SCAN LAYOUT FIRST" : "EMPLOYEE / DEPARTMENT");
             w.Focus = focus;
             return w;
         }
@@ -429,6 +433,7 @@ public sealed class ScanProcessor
         }
 
         part.Qty = qty;
+        part.Layout = who?.Layout;
         var item = NewItem(part, stock, IsTestMode ? "TEST" : "RETURN", inputCode);
         return new ScanResult { Kind = IsTestMode ? "Test" : "Saved", Item = ScanRowDto.From(item) };
     }
@@ -438,7 +443,8 @@ public sealed class ScanProcessor
         var item = new ScanItemModel
         {
             PartId = result.PartId, PartCode = result.PartCode, PartName = result.PartName, PartNo = result.PartNo, PartACode = result.PartACode,
-            Qty = result.Qty, StkId = stock.StkId, StockCode = stock.Code, ShowStockInCode = IsMultiScope, Status = status, UpdateTime = DateTime.Now
+            Qty = result.Qty, StkId = stock.StkId, StockCode = stock.Code, ShowStockInCode = IsMultiScope, Status = status, UpdateTime = DateTime.Now,
+            Layout = result.Layout
         };
         ApplyDisplay(item, raw, fetchInfo: true);
         return item;
@@ -472,7 +478,20 @@ public sealed class ScanProcessor
         who = null; focus = null;
         if (stock == null || IsTestMode) return null;
         bool emp = _scope.AskEmployee.Contains(stock.StkId), dept = _scope.AskDepartment.Contains(stock.StkId);
-        if (!emp && !dept) return null;
+        // 📍 LAYOUT: สแกนรับเข้า / คืน ต้องสแกน QR ตำแหน่งจัดเก็บก่อน · สแกนออก = บันทึกตำแหน่งให้ถ้าสแกนไว้ (ไม่บังคับ)
+        bool lay = DbSchema.HasLayout && _scope.AskLayout.Contains(stock.StkId);
+        string layout = lay ? (_req.Layout ?? "").Trim() : null;
+        if (lay && layout.Length == 0 && !IsScanOutMode)
+        {
+            focus = "layout";
+            return $"กรุณาสแกน QR LAYOUT (ตำแหน่งจัดเก็บ) ก่อน แล้วค่อยสแกนป้ายลูกค้า\nคลัง {stock.Code} ต้องบันทึกตำแหน่งที่จัดเก็บ";
+        }
+        if (layout?.Length > 120) layout = layout[..120];
+        if (!emp && !dept)
+        {
+            if (!string.IsNullOrEmpty(layout)) who = new ScanService.ScanWho { Layout = layout };
+            return null;
+        }
         if (emp && string.IsNullOrWhiteSpace(_req.EmployeeId))
         {
             focus = "employee";
@@ -489,7 +508,7 @@ public sealed class ScanProcessor
                     : $"กรุณาเลือก DEPARTMENT (แผนก) ก่อนสแกน\nคลัง {stock.Code} ต้องบันทึกแผนกของคนที่สแกน";
             }
         }
-        who = new ScanService.ScanWho { EmployeeId = emp ? _req.EmployeeId.Trim() : null, Department = dept ? _req.Department : null };
+        who = new ScanService.ScanWho { EmployeeId = emp ? _req.EmployeeId.Trim() : null, Department = dept ? _req.Department : null, Layout = string.IsNullOrEmpty(layout) ? null : layout };
         return null;
     }
 

@@ -12,7 +12,7 @@ import { HistoryModal } from "./HistoryModal";
 import { ScopeModal } from "./ScopeModal";
 import { CategoryPicker } from "../store/Toolbar";
 import { StatusPill } from "./Pill";
-import { qtyText, type ScanFormat, type ScannerContext, type ScanResult, type ScanRow, type Today } from "./types";
+import { qtyText, type LayoutQr, type ScanFormat, type ScannerContext, type ScanResult, type ScanRow, type Today } from "./types";
 import { useLive } from "@/lib/live";
 
 // 📷 MULTI-SCANNER (ScanInView + ScanInViewModel) - เงื่อนไขทั้งหมดอยู่ที่ API (ScanProcessor) หน้านี้ส่งบาร์โค้ด + โหมด แล้วแสดงผล
@@ -22,6 +22,29 @@ const MAX_WAIT_INCOMPLETE_MS = 1500;
 
 type Modes = { out: boolean; return: boolean; remainder: boolean; test: boolean };
 type Pending = { barcode: string; chosenStockId?: number; enteredQty?: number };
+
+// 📍 QR LAYOUT (ตำแหน่งจัดเก็บ): ตรงข้อความ QR ตามรูปแบบปัจจุบัน / ป้ายเก่าที่พิมพ์ก่อนเปลี่ยนรูปแบบ (TYPE+NAME หรือ NAME อย่างเดียวถ้าไม่ซ้ำ)
+const LAYOUT_KEY = "chr-scanner-layout";
+const compact = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+function matchLayout(raw: string, items: LayoutQr[]): LayoutQr | null {
+  const t = raw.trim().toUpperCase();
+  if (!t || items.length === 0) return null;
+  const exact = items.find((i) => i.qr.toUpperCase() === t);
+  if (exact) return exact;
+  const c = compact(t);
+  if (!c) return null;
+  const both = items.filter((i) => compact(i.type + i.name) === c);
+  if (both.length === 1) return both[0];
+  const name = items.filter((i) => compact(i.name) === c);
+  return name.length === 1 ? name[0] : null;
+}
+function readLayout() {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function readScope() {
   try {
@@ -63,6 +86,9 @@ export default function ScannerPage() {
   const [barcode, setBarcode] = useState("");
   const [employee, setEmployee] = useState("");
   const [department, setDepartment] = useState("");
+  const [layout, setLayoutState] = useState(""); // 📍 ตำแหน่งที่สแกน QR LAYOUT ไว้ล่าสุด (จำต่อเครื่อง จนกว่าจะสแกนตำแหน่งใหม่ / กด ×)
+  const [layoutFlash, setLayoutFlash] = useState(0);
+  const layoutRef = useRef("");
   const [busy, setBusy] = useState(false);
   const [summaryStk, setSummaryStk] = useState<number | null>(null);
   const [choose, setChoose] = useState<{ result: ScanResult; pending: Pending } | null>(null);
@@ -90,6 +116,26 @@ export default function ScannerPage() {
   }, [modes, ctx]);
 
   const focusScan = useCallback(() => setTimeout(() => inputRef.current?.focus(), 0), []);
+
+  const setLayout = useCallback((v: string) => {
+    layoutRef.current = v;
+    setLayoutState(v);
+    setLayoutFlash((n) => n + 1);
+    try {
+      if (v) localStorage.setItem(LAYOUT_KEY, v);
+      else localStorage.removeItem(LAYOUT_KEY);
+    } catch {
+      /* ไม่จำก็ได้ */
+    }
+  }, []);
+  useEffect(() => {
+    const v = readLayout();
+    if (v)
+      queueMicrotask(() => {
+        layoutRef.current = v;
+        setLayoutState(v);
+      });
+  }, []);
 
   // 📌 LOCK SCAN: ช่องสแกนพร้อมรับตลอดเวลา (เปิดค้างไว้ จำค่าต่อเครื่อง)
   //   - กดปุ่ม / คลิกพื้นที่ว่างในหน้านี้เสร็จ = กลับมาที่ช่องสแกนเอง
@@ -216,7 +262,7 @@ export default function ScannerPage() {
       case "Test":
         if (r.item) {
           setLast(r.item);
-          if (r.kind === "Test") setTestRows((l) => [r.item!, ...l].slice(0, 12));
+          if (r.kind === "Test") setTestRows((l) => [{ ...r.item!, layout: ctxRef.current?.layout?.enabled ? layoutRef.current || null : null }, ...l].slice(0, 12));
           else {
             setToday((t) => (t ? { ...t, rows: [r.item!, ...t.rows] } : t));
             loadToday(false).catch(() => {});
@@ -233,6 +279,10 @@ export default function ScannerPage() {
         toast.show(r.title ?? "WARNING", r.message ?? "", "warn");
         if (r.focus === "employee") setTimeout(() => empRef.current?.focus(), 0);
         if (r.focus === "department") setTimeout(() => deptRef.current?.focus(), 0);
+        if (r.focus === "layout") {
+          setLayoutFlash((n) => n + 1);
+          break;
+        }
         if (r.focus) return;
         break;
       case "Held":
@@ -266,7 +316,7 @@ export default function ScannerPage() {
     try {
       const r = await api<ScanResult>("/scanner/scan", {
         method: "POST",
-        body: { ...p, ...modesRef.current, employeeId: employee, department, clientScope: readScope() },
+        body: { ...p, ...modesRef.current, employeeId: employee, department, layout: c.layout?.enabled ? layoutRef.current : "", clientScope: readScope() },
       });
       handle(r, p);
     } catch (e) {
@@ -280,7 +330,20 @@ export default function ScannerPage() {
   function commit(raw: string) {
     if (timer.current) clearTimeout(timer.current);
     setBarcode("");
-    if (raw.trim()) send({ barcode: raw });
+    if (!raw.trim()) return;
+    // 📍 QR LAYOUT -> เปลี่ยนตำแหน่งจัดเก็บทันที (ไม่ส่งเป็นรายการสแกน) · ป้ายถัดไปบันทึกตำแหน่งนี้ให้
+    const lay = ctxRef.current?.layout;
+    if (lay?.enabled) {
+      const m = matchLayout(raw, lay.items);
+      if (m) {
+        const changed = m.qr !== layoutRef.current;
+        setLayout(m.qr);
+        toast.show("📍 LAYOUT", changed ? `ตำแหน่งจัดเก็บ : ${m.label}\nสแกนป้ายลูกค้าต่อได้เลย` : `ตำแหน่งเดิม : ${m.label}`, "ok");
+        focusScan();
+        return;
+      }
+    }
+    send({ barcode: raw });
   }
 
   const onBarcodeChangeRef = useRef<(v: string) => void>(() => {});
@@ -347,6 +410,8 @@ export default function ScannerPage() {
   const tone = modes.test ? "var(--warning)" : modes.out ? "var(--scanout)" : modes.return ? "var(--return)" : modes.remainder ? "var(--teal)" : "var(--success)";
   const modeLabel = modes.test ? "TEST" : modes.out ? "OUT" : modes.return ? "RETURN" : modes.remainder ? "REMAINDER" : "IN";
   const codeHeader = ctx?.codeHeader ?? "PRODUCT CODE";
+  const layoutOn = !!ctx?.layout?.enabled;
+  const extras = (ctx?.who.askEmployee ? 1 : 0) + (ctx?.who.askDepartment ? 1 : 0) + (layoutOn ? 1 : 0);
 
   if (!ctx) return <div className="grid h-full place-items-center text-ink-soft">⏳ LOADING...</div>;
 
@@ -424,9 +489,9 @@ export default function ScannerPage() {
           {notAssigned && <Banner color="var(--danger)" icon="not">ยังไม่ได้เลือกคลังของ UserID นี้ กรุณาติดต่อ Admin</Banner>}
         </div>
 
-        {/* ช่องสแกน + EMPLOYEE / DEPARTMENT + STOCK */}
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-12">
-          <div className="lg:col-span-5">
+        {/* ช่องสแกน + EMPLOYEE / DEPARTMENT + LAYOUT + STOCK */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
+          <div className={`sm:col-span-2 ${extras === 3 ? "lg:col-span-4" : "lg:col-span-5"}`}>
             <div className="flex items-center gap-2">
               <label className="sc-label">SCAN BARCODE</label>
               <button
@@ -495,7 +560,32 @@ export default function ScannerPage() {
               </select>
             </div>
           )}
-          <div className={ctx.who.askEmployee && ctx.who.askDepartment ? "lg:col-span-3" : ctx.who.askEmployee || ctx.who.askDepartment ? "lg:col-span-5" : "lg:col-span-7"}>
+          {layoutOn && (
+            <div className="lg:col-span-2">
+              <label className="sc-label">
+                📍 LAYOUT <span className="font-semibold normal-case text-accent">{ctx.layout?.hint}</span>
+              </label>
+              <div
+                key={layoutFlash}
+                className={`sc-layout ${layout ? "is-set" : "is-empty"} ${layoutFlash ? "is-flash" : ""}`}
+                title={layout ? "ตำแหน่งจัดเก็บปัจจุบัน - สแกน QR LAYOUT ใหม่เพื่อเปลี่ยน" : "สแกน QR LAYOUT (ตำแหน่งจัดเก็บ) ก่อนสแกนป้ายลูกค้า"}
+              >
+                <span className="sc-layout-ic" aria-hidden>
+                  <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" />
+                    <circle cx="12" cy="9.5" r="2.5" />
+                  </svg>
+                </span>
+                <span className="min-w-0 flex-1 truncate">{layout || "สแกน QR LAYOUT"}</span>
+                {layout && (
+                  <button type="button" className="sc-layout-x" aria-label="ล้างตำแหน่ง" onClick={() => (setLayout(""), focusScan())}>
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <div className={`sm:col-span-2 ${STOCK_SPAN[extras]}`}>
             <label className="sc-label">STOCK</label>
             <button
               onClick={() => (notAssigned ? setLocked(ctx.contacts) : ctx.scope.canChange ? setShowScope(true) : null)}
@@ -544,6 +634,7 @@ export default function ScannerPage() {
           {last && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {last.stockCode && <span className="sc-tag">🏬 {last.stockCode}</span>}
+              {last.layout && <span className="sc-layout-tag">📍 {last.layout}</span>}
               <StatusPill status={last.status} deduct={last.isDeductOut} />
               <span className="text-[11px] font-bold text-ink-soft">{new Date(last.time).toLocaleTimeString("th-TH")}</span>
             </div>
@@ -573,6 +664,7 @@ export default function ScannerPage() {
             <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
+                  {layoutOn && <th>LAYOUT</th>}
                   <th>{codeHeader}</th>
                   <th>QTY</th>
                   <th>STATUS</th>
@@ -582,6 +674,7 @@ export default function ScannerPage() {
               <tbody>
                 {(modes.test ? testRows : rows).map((r, i) => (
                   <tr key={`${r.time}-${r.code}-${i}`} className="sc-row">
+                    {layoutOn && <td className="whitespace-nowrap">{r.layout ? <span className="sc-layout-tag">📍 {r.layout}</span> : <span className="text-ink-soft">-</span>}</td>}
                     <td>
                       <div className="break-all font-extrabold text-primary">{r.code}</div>
                       {multi && <div className="text-[11px] font-bold text-accent">{r.stockCode}</div>}
@@ -596,7 +689,7 @@ export default function ScannerPage() {
                 ))}
                 {(modes.test ? testRows : rows).length === 0 && (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={layoutOn ? 5 : 4}>
                       <EmptyRow />
                     </td>
                   </tr>
@@ -782,6 +875,9 @@ export default function ScannerPage() {
     </div>
   );
 }
+
+// ช่อง STOCK กินที่ที่เหลือของแถว (ช่องสแกน 5 / 4 + ช่องละ 2)
+const STOCK_SPAN = ["lg:col-span-7", "lg:col-span-5", "lg:col-span-3", "lg:col-span-2"];
 
 type Ic = "out" | "return" | "remainder" | "test" | "history" | "display" | "deducted" | "not" | "adjust";
 const ICON: Record<Ic, React.ReactNode> = {

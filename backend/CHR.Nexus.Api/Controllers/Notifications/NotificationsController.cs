@@ -40,6 +40,26 @@ public sealed class NotificationsController : AppController
                 });
         }
 
+        // 📋 MIN REPORT: สินค้าค้างที่ค่า MIN ครบตามวันที่ตั้ง และยังไม่มีใครรายงาน (คลังที่เปิด MIN REPORT ∩ คลังที่ดูได้)
+        if (Me.CanViewStore && global::Nexus.Helpers.DbSchema.HasMinReport)
+        {
+            var mr = new MinReportService();
+            var set = mr.GetSettings();
+            if (set.Enabled && set.Stocks.Count > 0)
+            {
+                var stocks = new StockService().GetStocks().Where(s => set.Stocks.Contains(s.StkId) && Me.CanViewStock(s)).ToList();
+                var pend = stocks.Count == 0 ? new List<MinWatchRow>() : mr.Pending(stocks.Select(s => s.StkId), set.StuckDays);
+                if (pend.Count > 0)
+                    items.Add(new
+                    {
+                        key = "MINREPORT", tone = "danger", title = "MIN REPORT รอรายงาน", count = pend.Count,
+                        detail = $"ค้างที่ค่า MIN ≥ {set.StuckDays} วัน · ยังไม่ระบุสาเหตุ",
+                        rows = pend.GroupBy(p => p.StockId).OrderByDescending(g => g.Count())
+                                   .Select(g => new { label = g.First().StockCode, sub = $"นานสุด {g.Max(x => x.Days):0.#} วัน · กดเพื่อ REPORT", count = g.Count(), href = $"/store?stk={g.Key}&mr=pending" })
+                    });
+            }
+        }
+
         if (Me.CanViewPR)
         {
             var waiting = LiveCache.Get("pr-list", TimeSpan.FromSeconds(15), () => new PRService().GetPRList("", null)).Where(p => string.Equals(p.Status, "Waiting", StringComparison.OrdinalIgnoreCase)).ToList();

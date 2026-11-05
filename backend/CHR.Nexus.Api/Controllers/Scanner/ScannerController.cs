@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using CHR.Nexus.Api.Web.Auth;
 using CHR.Nexus.Api.Web.Scanner;
 using Nexus.Helpers;
@@ -92,6 +92,8 @@ public sealed class ScannerController : ControllerBase
                 departmentHint = HintFor(sc.AskDepartment),
                 departments = asksDept ? setup.GetDepartments() : new List<string>()
             },
+            // 📍 LAYOUT: คลังที่เปิดปุ่ม LAYOUT -> ช่อง LAYOUT (เติมเองเมื่อสแกน QR ตำแหน่ง) + รายการ QR ตำแหน่งทั้งหมด (Browser จับคู่เอง ไม่ต้องถาม Server)
+            layout = LayoutCtx(list.Where(s => sc.AskLayout.Contains(s.StkId)).ToList(), HintFor(sc.AskLayout)),
             codeHeader = HeaderOf(list),
             // ⌛ ใช้ตรวจป้ายที่ยังมาไม่ครบ (ScanInViewModel.LooksIncomplete) - Browser รอตัวอักษรต่อแทนที่จะตัดรอบ
             formats = sc.Formats.Where(f => f.IsActive).Select(f => new
@@ -101,6 +103,18 @@ public sealed class ScannerController : ControllerBase
             }),
             contacts = sc.NotAssigned ? ScannerSetupService.ContactText(setup.GetAdminContacts()) : ""
         });
+    }
+
+    private static object LayoutCtx(List<StockModel> stocks, string hint)
+    {
+        if (!DbSchema.HasLayout || stocks.Count == 0) return new { enabled = false, hint = "", stocks = Array.Empty<int>(), items = Array.Empty<object>() };
+        var svc = new LayoutService();
+        var set = svc.GetSettings();
+        return new
+        {
+            enabled = true, hint, stocks = stocks.Select(s => s.StkId),
+            items = svc.AllLocations().Select(l => new { l.LocId, type = l.TypeName, name = l.LocName, qr = LayoutService.QrText(set, l.TypeName, l.LocName), label = LayoutService.LabelText(l.TypeName, l.LocName) })
+        };
     }
 
     [HttpGet("today")]
@@ -198,7 +212,7 @@ public sealed class ScannerController : ControllerBase
             rows = rows.Select(r => new
             {
                 date = r.DateText, r.StockCode, type = r.TxType, code = r.CodeText, r.PartCode, r.PartName, r.Qty, user = r.UserText,
-                r.EmployeeId, r.Department, r.RefNo, r.IsCancelled
+                r.EmployeeId, r.Department, r.Layout, r.RefNo, r.IsCancelled
             })
         });
     }

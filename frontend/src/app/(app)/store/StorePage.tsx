@@ -12,7 +12,7 @@ function StorePage() {
   const router = useRouter();
   const stk = Number(params.get("stk")) || null;
   const back = useCallback(() => router.push("/store"), [router]);
-  return stk ? <StockTable key={stk} stkId={stk} onBack={back} initialFilter={params.get("f") ?? ""} /> : <StockCards onOpen={(id) => router.push(`/store?stk=${id}`)} />;
+  return stk ? <StockTable key={stk} stkId={stk} onBack={back} initialFilter={params.get("f") ?? ""} openMinReport={params.get("mr") === "pending"} /> : <StockCards onOpen={(id) => router.push(`/store?stk=${id}`)} />;
 }
 
 export default function Page() {

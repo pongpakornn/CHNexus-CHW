@@ -3,16 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useLive } from "@/lib/live";
 import { NOTIFY_REFRESH, openChat, openSupport } from "@/lib/support";
 import { Icon, type IconName } from "@/components/icons";
 import { SlideDetail, SlideMenu, SlideRow, type Tone } from "@/components/menus/SlideMenu";
 
-// 🔔 กระดิ่งมุมขวาบน: สินค้าต่ำกว่า MIN / PR รออนุมัติ / NOT DEDUCTED (ข้อมูลจริงตามสิทธิ์) - กดแล้วเมนูสไลด์ลงมา
+// 🔔 กระดิ่งมุมขวาบน: สินค้าต่ำกว่า MIN / MIN REPORT รอรายงาน / PR รออนุมัติ / NOT DEDUCTED (ข้อมูลจริงตามสิทธิ์) - กดแล้วเมนูสไลด์ลงมา
 type Row = { label: string; sub?: string; count: number; href: string };
 type Item = { key: string; tone: Tone; title: string; count: number; detail: string; rows: Row[] };
 type Data = { total: number; items: Item[]; time: string };
 
-const ICON: Record<string, IconName> = { MIN: "triangle", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
+const ICON: Record<string, IconName> = { MIN: "triangle", MINREPORT: "document", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
 const POLL_MS = 30000;
 
 export function NotificationBell() {
@@ -36,6 +37,7 @@ export function NotificationBell() {
       window.removeEventListener(NOTIFY_REFRESH, load);
     };
   }, [load]);
+  useLive(["minreport"], load); // มีรายการค้าง MIN ใหม่ / รายงานแล้ว = ตัวเลขอัพเดททันที
 
   // ปิดเมื่อกดนอกกล่อง / Esc
   useEffect(() => {
