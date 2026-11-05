@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { MENU } from "@/lib/menu";
 import { Icon } from "@/components/icons";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { MinReportAlert } from "@/components/notifications/MinReportAlert";
 import { ProfileBubble } from "@/components/profile/ProfileBubble";
 import { SupportButton } from "@/components/chat/SupportButton";
 import { SupportChat } from "@/components/chat/SupportChat";
@@ -124,6 +125,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <ProfileBubble />
       <SupportChat />
       <ChatFeed />
+      <MinReportAlert />
     </div>
   );
 }

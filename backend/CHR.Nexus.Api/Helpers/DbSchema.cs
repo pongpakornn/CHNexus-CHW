@@ -190,6 +190,10 @@ namespace Nexus.Helpers
         private static bool _coilManage;
         public static bool HasCoilManageLog => _coilManage || (_coilManage = TableExists("Nexus.CoilManageLog") ?? false);
 
+        // database/nexus/19_Min_Report.sql: 📋 MIN REPORT (ค้างที่ MIN นานเกินกำหนด -> แจ้งเตือน + รายงานสาเหตุ)
+        private static bool _minReport;
+        public static bool HasMinReport => _minReport || (_minReport = TableExists("Nexus.MinReports") == true && TableExists("Nexus.MinWatch") == true && TableExists("Nexus.MinReportSettings") == true);
+
         private static bool? ColumnIn(string table, string column)
         {
             try

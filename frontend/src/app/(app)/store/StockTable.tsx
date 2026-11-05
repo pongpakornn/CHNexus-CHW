@@ -15,6 +15,7 @@ import { StockHeader } from "./StockHeader";
 import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg } from "./TableRows";
 import { CategoryPicker, Pager, SearchField } from "./Toolbar";
 import { type Counts, type Product, type Stock } from "./types";
+import { MinReportMenu } from "./MinReport";
 import { AddCoilModal, AdjustCoilModal, EditCoilModal, ManageBar, ManageHistoryModal, type ManageMode } from "./CoilManage";
 
 type Meta = {
@@ -790,6 +791,7 @@ export function StockTable({ stkId, onBack, initialFilter = "" }: { stkId: numbe
                 }
               />
             )}
+            <MinReportMenu stock={s} />
             <ActionMenu actions={menu} />
             {meta.canImport && (
               <input

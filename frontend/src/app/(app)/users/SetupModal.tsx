@@ -10,10 +10,11 @@ import { api, upload } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import { StockTile } from "@/components/cards/StockTile";
 import { useDebounced } from "@/lib/useDebounced";
+import { MinReportPanel } from "./MinReportPanel";
 
-type Section = "PR" | "EXCEL" | "DEPT";
+type Section = "PR" | "EXCEL" | "DEPT" | "MIN";
 type Dirty = Record<Section, boolean>;
-const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS" };
+const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS", MIN: "MIN REPORT" };
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
 const SIDE_KEY = "setup-side";
@@ -21,6 +22,7 @@ const TABS: [Section, string, string, React.ReactNode][] = [
   ["PR", "PR SETTINGS", "คลังที่เก็บ PR (KEEP PR)", <path key="p" d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" />],
   ["EXCEL", "EXCEL SETUP", "ไฟล์ Excel ของ PR / Export RPA", <path key="e" d="M4 4h16v16H4zM4 9h16M4 14h16M9 9v11M14 9v11" />],
   ["DEPT", "DEPARTMENTS", "แผนกของหน้า Multi-Scanner", <path key="d" d="M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h2M14 11h2" />],
+  ["MIN", "MIN REPORT", "แจ้งเตือนสินค้าค้างที่ค่า MIN", <path key="m" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0M12 8v3.5" />],
 ];
 
 // ⚙ SETUP (SystemSetupWindow - Admin Level 1): 🧾 PR SETTINGS / 📊 EXCEL SETUP / 🏢 DEPARTMENTS
@@ -28,7 +30,7 @@ const TABS: [Section, string, string, React.ReactNode][] = [
 export function SetupModal({ onClose }: { onClose: () => void }) {
   const dlg = useDialogs();
   const [sec, setSec] = useState<Section>("PR");
-  const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false });
+  const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false, MIN: false });
   const [mini, setMini] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const mark = useCallback((s: Section, v: boolean) => setDirty((d) => (d[s] === v ? d : { ...d, [s]: v })), []);
@@ -107,6 +109,9 @@ export function SetupModal({ onClose }: { onClose: () => void }) {
             </div>
             <div hidden={sec !== "DEPT"} className={sec === "DEPT" ? "adm-pane" : ""}>
               <DeptPanel onDirty={(v) => mark("DEPT", v)} />
+            </div>
+            <div hidden={sec !== "MIN"} className={sec === "MIN" ? "adm-pane" : ""}>
+              <MinReportPanel onDirty={(v) => mark("MIN", v)} />
             </div>
           </div>
         </section>

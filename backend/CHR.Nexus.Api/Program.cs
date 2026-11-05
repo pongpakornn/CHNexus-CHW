@@ -70,6 +70,7 @@ builder.Services.AddControllers();
 builder.Services.AddHostedService<PresenceSweeper>(); // 🟢 ONLINE ค้าง -> OFFLINE อัตโนมัติ
 builder.Services.AddHostedService<LiveWatcher>(); // ⚡ เฝ้าคลังที่มีคนเปิดดู -> แจ้งจอทันทีที่ข้อมูลเปลี่ยน
 builder.Services.AddHostedService<RemarkAutoClear>(); // 🚦 ไฟหายแดง -> ลบ REMARK ให้เอง (ทุกคลัง)
+builder.Services.AddHostedService<MinWatchService>(); // 📋 MIN REPORT: บันทึกช่วงที่สินค้าค้างใต้ MIN (คลังที่เปิดใน SETUP)
 builder.Services.AddResponseCaching();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? new[] { "http://localhost:3000" })
