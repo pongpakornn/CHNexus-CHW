@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { useToast } from "@/components/notifications/Toasts";
 import { refreshNotifications } from "@/lib/support";
-import { days, dt, n0, type MinItem } from "@/components/print/MinReportSheet";
+import { days, dt, n0, span, useNow, type MinItem } from "@/components/print/MinReportSheet";
 
 // ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ (ทุกหน้า) เมื่อมีสินค้าค้างที่ค่า MIN ครบตามวันที่ตั้ง (SETUP > MIN REPORT)
 //   REPORT = ระบุสาเหตุ -> CONFIRM (บันทึกว่าใครรายงาน) · CANCEL = ซ่อนชั่วคราว แล้วแจ้งซ้ำตามเวลาที่ตั้ง
@@ -39,7 +39,7 @@ export function ReportBox({ item, onDone, onBack }: { item: MinItem; onDone: () 
   return (
     <div className="mr-rbox">
       <label className="mr-rlbl">
-        หมายเหตุ / สาเหตุที่ค้างอยู่ที่ค่า MIN {days(item.days)} <b>*</b>
+        หมายเหตุ / สาเหตุที่ค้างอยู่ที่ค่า MIN ({item.partCode}) <b>*</b>
       </label>
       <div className="mr-quick">
         {QUICK.map((q) => (
@@ -65,6 +65,7 @@ export function ReportBox({ item, onDone, onBack }: { item: MinItem; onDone: () 
 // แถวสินค้า 1 รายการ: ข้อมูล + ปุ่ม REPORT (กด = กางกล่องกรอกสาเหตุ)
 export function MinItemCard({ item, stuckDays, onReported, showStock = true }: { item: MinItem; stuckDays: number; onReported: () => void; showStock?: boolean }) {
   const [open, setOpen] = useState(false);
+  const now = useNow();
   const late = item.days >= stuckDays;
   return (
     <div className={`mr-card ${late ? "is-late" : ""} ${open ? "is-open" : ""}`}>
@@ -88,7 +89,7 @@ export function MinItemCard({ item, stuckDays, onReported, showStock = true }: {
           </span>
         </div>
         <div className="mr-age">
-          <span className="mr-days">{days(item.days)}</span>
+          <span className="mr-days">{span(item.belowSince, null, now || Date.parse(item.lastSeen))}</span>
           <small>ตั้งแต่ {dt(item.belowSince)}</small>
           {!late && <small className="mr-watch">เฝ้าดู · แจ้งเตือนเมื่อครบ {stuckDays} วัน</small>}
         </div>

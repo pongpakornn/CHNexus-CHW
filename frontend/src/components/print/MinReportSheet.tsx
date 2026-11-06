@@ -4,9 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
-import { useAuth } from "@/lib/auth";
 
-// 📋 MIN REPORT : ชนิดข้อมูล + แผ่นรายงาน A4 แนวนอน (โลโก้ CHR แบบ Pick List) + หน้าต่าง PREVIEW -> EXPORT PDF / EXCEL
+// 📋 MIN REPORT : ชนิดข้อมูล + เอกสาร FM-EN-04-22 "Improvement Plan / All" (A4 แนวนอน · 7 รายการ / หน้า · แยกหน้าตาม Customer / Supplier)
+//   + หน้าต่าง PREVIEW -> EXPORT PDF (วาดในเครื่อง) / EXCEL (แบบฟอร์มเดียวกัน จาก Server: MinReportForm.cs)
 export type MinItem = {
   watchId: number;
   stkId: number;
@@ -22,6 +22,8 @@ export type MinItem = {
   lastSeen: string;
   days: number;
   test?: boolean;
+  customer?: string | null;
+  supplier?: string | null;
 };
 
 export type MinHistory = {
@@ -41,6 +43,10 @@ export type MinHistory = {
   reporterName: string | null;
   reportedAt: string;
   resolvedAt: string | null;
+  lastSeen?: string | null;
+  customer?: string | null;
+  supplier?: string | null;
+  section?: string | null;
 };
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -51,164 +57,206 @@ export const dt = (s: string | null | undefined, time = true) => {
   return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}${time ? ` ${p2(d.getHours())}:${p2(d.getMinutes())}` : ""}`;
 };
 export const n0 = (v: number | null | undefined) => (v === null || v === undefined ? "-" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 3 }));
-export const days = (d: number) => `${Number(d).toLocaleString("en-US", { maximumFractionDigits: 1 })} วัน`;
+export const days = (d: number) => dur(Number(d) * 86_400_000);
+// ⏱ ระยะเวลา: "3 วัน 12 ชม. 30 นาที" (ไม่แสดงหน่วยที่เป็น 0)
+export function dur(ms: number) {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  if (m === 0) return "ไม่ถึง 1 นาที";
+  const d = Math.floor(m / 1440),
+    h = Math.floor((m % 1440) / 60),
+    mi = m % 60;
+  return [d ? `${d} วัน` : "", h ? `${h} ชม.` : "", mi ? `${mi} นาที` : ""].filter(Boolean).join(" ");
+}
+/** ระยะเวลาจาก from ถึง to (ไม่ส่ง to = ถึงตอนนี้ของ now) */
+export const span = (from: string, to: string | null | undefined, now: number) => dur((to ? new Date(to).getTime() : now) - new Date(from).getTime());
+/** เวลาปัจจุบัน (อัพเดททุก 30 วินาที) - 0 = ยังไม่เริ่ม (วาดครั้งแรก) */
+export function useNow(every = 30_000) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const t0 = setTimeout(() => setNow(Date.now()), 0);
+    const t = setInterval(() => setNow(Date.now()), every);
+    return () => (clearTimeout(t0), clearInterval(t));
+  }, [every]);
+  return now;
+}
 export const who = (h: MinHistory) => (h.reporterName ? `${h.reporterName} (${h.reportedBy})` : h.reportedBy);
 
 export type SheetData =
   | { kind: "pending"; stock: string; stuckDays: number; rows: MinItem[] }
   | { kind: "history"; stock: string; from: string; to: string; rows: MinHistory[] };
 
-const PER_PAGE = { pending: 14, history: 8 } as const;
+// 📄 เอกสาร FM-EN-04-22 (ตรงกับ Excel ของ Server) - เลขที่เอกสาร / วันที่เริ่มใช้ ท้ายหน้า
+export const DOC_NO = "FM-EN-04-22 / 0";
+export const DOC_DATE = "05-03-62";
+const PER_PAGE = 7;
+// เส้นแบ่งคอลัมน์ตามแบบฟอร์มจริง: 1 No · 2-3 Problem · 4-5 Countermeasure · 6 Name · 7 Sect · 8-9 Plan · 10 Actual · 11-13 After
+const COLS = [31, 161, 79, 176, 85, 66, 58, 31, 31, 56, 85, 85, 79];
+type Row = { customer: string; supplier: string; problem: [string, string, string, string]; action: string; name: string; sect: string; plan: string; actual: string; after: string };
 
-// แผ่น A4 แนวนอน 1123 × 794 px (ตรงกับ 297 × 210 mm ที่ 96 dpi)
-function Sheets({ data, printedBy }: { data: SheetData; printedBy: string }) {
-  const per = PER_PAGE[data.kind];
-  const pages: number[][] = [];
-  for (let i = 0; i < Math.max(1, data.rows.length); i += per) pages.push(Array.from({ length: Math.min(per, data.rows.length - i) }, (_, k) => i + k));
-  const now = dt(new Date().toISOString());
-  const dayVals = data.kind === "pending" ? data.rows.map((r) => r.days) : data.rows.map((r) => Number(r.daysStuck));
-  const maxD = dayVals.length ? Math.max(...dayVals) : 0;
-  const avgD = dayVals.length ? dayVals.reduce((a, b) => a + b, 0) / dayVals.length : 0;
+const num = (q: number | null, box: string | null, min: number | null, max: number | null) => `STOCK ${n0(q)}${box ? ` (${box} BOX)` : ""} · MIN ${n0(min)} · MAX ${n0(max)}`;
+function rowsOf(data: SheetData, now: number): Row[] {
+  if (data.kind === "pending")
+    return data.rows.map((r) => ({
+      customer: r.customer ?? "",
+      supplier: r.supplier ?? "",
+      problem: [`${r.partCode}  ${r.partName}`, `ค้างที่ค่า MIN ${span(r.belowSince, null, now)}`, `ตั้งแต่ ${dt(r.belowSince)} - ปัจจุบัน`, num(r.qty, r.stockBox, r.min, r.max)],
+      action: "",
+      name: "",
+      sect: "",
+      plan: "",
+      actual: "",
+      after: `ยังค้างที่ค่า MIN (รอระบุสาเหตุ)\nอัพเดทล่าสุด ${dt(r.lastSeen)}`,
+    }));
+  return data.rows.map((r) => ({
+    customer: r.customer ?? "",
+    supplier: r.supplier ?? "",
+    problem: [
+      `${r.partCode}  ${r.partName}`,
+      `ค้างที่ค่า MIN ${span(r.belowSince, r.resolvedAt, now)}`,
+      `ตั้งแต่ ${dt(r.belowSince)} - ${r.resolvedAt ? dt(r.resolvedAt) : "ปัจจุบัน"}`,
+      num(r.qty, r.stockBox, r.minQty, r.maxQty),
+    ],
+    action: r.reason,
+    name: r.reporterName || r.reportedBy,
+    sect: r.section ?? "",
+    plan: "",
+    actual: r.resolvedAt ? dmy(r.resolvedAt) : "",
+    after: (r.resolvedAt ? `กลับมาพ้นค่า MIN แล้ว ${dt(r.resolvedAt)}` : `ยังค้างที่ค่า MIN\nอัพเดทล่าสุด ${dt(r.lastSeen)}`) + `\nรายงาน ${dt(r.reportedAt)} (ค้างมา ${span(r.belowSince, r.reportedAt, now)})`,
+  }));
+}
+const dmy = (s: string) => {
+  const d = new Date(s);
+  return `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${String(d.getFullYear()).slice(2)}`;
+};
+
+// แยกหน้าตาม Customer / Supplier ของสินค้า (อัตโนมัติ) · 7 รายการต่อหน้า
+function pagesOf(rows: Row[]) {
+  const groups = new Map<string, Row[]>();
+  rows.forEach((r) => {
+    const k = `${r.customer}\u0000${r.supplier}`;
+    groups.set(k, [...(groups.get(k) ?? []), r]);
+  });
+  const pages: { customer: string; supplier: string; rows: Row[]; start: number }[] = [];
+  [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([, list]) => {
+      for (let i = 0; i < list.length; i += PER_PAGE) pages.push({ customer: list[0].customer, supplier: list[0].supplier, rows: list.slice(i, i + PER_PAGE), start: i });
+    });
+  return pages.length ? pages : [{ customer: "", supplier: "", rows: [], start: 0 }];
+}
+
+function Sheets({ data, now }: { data: SheetData; now: number }) {
+  const pages = pagesOf(rowsOf(data, now));
+  const subject =
+    data.kind === "pending"
+      ? `MIN REPORT : สินค้าค้างที่ค่า MIN ≥ ${data.stuckDays} วัน (รอระบุสาเหตุ)`
+      : `MIN REPORT : ประวัติรายงานสาเหตุสินค้าค้างที่ค่า MIN (${dt(data.from, false)} - ${dt(data.to, false)})`;
   return (
     <>
-      {pages.map((idx, pi) => (
-        <div key={pi} className="mr-page">
-          <header className="mr-head">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/picklist/ch-logo.png" alt="CH. RADIATORS CO.,LTD." className="mr-logo" draggable={false} />
-            <div className="mr-title">
-              <b>{data.kind === "pending" ? "MIN STOCK ALERT REPORT" : "MIN STOCK REPORT HISTORY"}</b>
-              <span>{data.kind === "pending" ? `รายงานสินค้าค้างที่ค่า MIN ≥ ${data.stuckDays} วัน (รอระบุสาเหตุ)` : "ประวัติรายงานสาเหตุสินค้าค้างที่ค่า MIN"}</span>
-            </div>
-            <dl className="mr-meta">
-              <dt>STOCK</dt>
-              <dd>{data.stock}</dd>
-              <dt>{data.kind === "pending" ? "AS OF" : "PERIOD"}</dt>
-              <dd>{data.kind === "pending" ? now : `${dt(data.from, false)} - ${dt(data.to, false)}`}</dd>
-              <dt>PRINTED BY</dt>
-              <dd>{printedBy}</dd>
-              <dt>PAGE</dt>
-              <dd>
-                {pi + 1} / {pages.length}
-              </dd>
-            </dl>
-          </header>
-          {pi === 0 && (
-            <div className="mr-sum">
-              <span>
-                <b>{data.rows.length}</b> รายการ
-              </span>
-              <span>
-                ค้างนานสุด <b>{days(maxD)}</b>
-              </span>
-              <span>
-                เฉลี่ย <b>{days(avgD)}</b>
-              </span>
-              <span className="mr-sum-note">CHR-Nexus · Store ( Max - Min ) · พิมพ์เมื่อ {now}</span>
-            </div>
-          )}
-          <table className={`mr-tb is-${data.kind}`}>
-            <thead>
-              {data.kind === "pending" ? (
-                <tr>
-                  <th>NO</th>
-                  <th>PART CODE</th>
-                  <th>PART NAME</th>
-                  <th>STOCK</th>
-                  <th>BOX</th>
-                  <th>MIN</th>
-                  <th>MAX</th>
-                  <th>BELOW MIN SINCE</th>
-                  <th>DAYS</th>
-                  <th>REASON (เขียนเพิ่ม)</th>
-                </tr>
-              ) : (
-                <tr>
-                  <th>NO</th>
-                  <th>REPORTED</th>
-                  <th>PART CODE / NAME</th>
-                  <th>STOCK</th>
-                  <th>MIN / MAX</th>
-                  <th>SINCE</th>
-                  <th>DAYS</th>
-                  <th>REASON</th>
-                  <th>REPORTED BY</th>
-                  <th>NORMAL</th>
-                </tr>
-              )}
-            </thead>
+      {pages.map((pg, pi) => (
+        <div key={pi} className="mr-page is-fm">
+          <table className="fm-tb">
+            <colgroup>
+              {COLS.map((w, i) => (
+                <col key={i} style={{ width: `${(w / 1023) * 100}%` }} />
+              ))}
+            </colgroup>
             <tbody>
-              {data.rows.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="mr-empty">
-                    ไม่มีรายการ
-                  </td>
-                </tr>
-              )}
-              {data.kind === "pending"
-                ? idx.map((i) => {
-                    const r = data.rows[i];
-                    return (
-                      <tr key={r.watchId} className={r.days >= data.stuckDays ? "is-late" : ""}>
-                        <td>{i + 1}</td>
-                        <td className="mr-code">{r.partCode}</td>
-                        <td className="mr-name">{r.partName}</td>
-                        <td>{n0(r.qty)}</td>
-                        <td>{r.stockBox ?? "-"}</td>
-                        <td>{n0(r.min)}</td>
-                        <td>{n0(r.max)}</td>
-                        <td>{dt(r.belowSince)}</td>
-                        <td className="mr-days">{days(r.days)}</td>
-                        <td className="mr-blank" />
-                      </tr>
-                    );
-                  })
-                : idx.map((i) => {
-                    const r = data.rows[i];
-                    return (
-                      <tr key={r.reportId}>
-                        <td>{i + 1}</td>
-                        <td>{dt(r.reportedAt)}</td>
-                        <td className="mr-name">
-                          <b>{r.partCode}</b>
-                          <br />
-                          {r.partName}
-                        </td>
-                        <td>
-                          {n0(r.qty)}
-                          {r.stockBox ? ` · ${r.stockBox}` : ""}
-                        </td>
-                        <td>
-                          {n0(r.minQty)} / {n0(r.maxQty)}
-                        </td>
-                        <td>{dt(r.belowSince)}</td>
-                        <td className="mr-days">{days(Number(r.daysStuck))}</td>
-                        <td className="mr-reason">
-                          <div className="mr-rclip">{r.reason}</div>
-                        </td>
-                        <td>{who(r)}</td>
-                        <td>{r.resolvedAt ? dt(r.resolvedAt) : "ยังค้าง"}</td>
-                      </tr>
-                    );
-                  })}
+              <tr className="fm-h">
+                <td rowSpan={3} colSpan={2} className="fm-logo">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/picklist/ch-logo.png" alt="CH. RADIATORS CO.,LTD." draggable={false} />
+                </td>
+                <td rowSpan={3} colSpan={2} className="fm-title">
+                  Improvement Plan / All
+                </td>
+                <td colSpan={4} className="fm-kv is-top">
+                  <span>Customer</span>: <b>{pg.customer || "-"}</b>
+                </td>
+                <td colSpan={2} className="fm-sg">
+                  Prepared
+                </td>
+                <td className="fm-sg">Checked</td>
+                <td className="fm-sg">Checked</td>
+                <td className="fm-sg">Approved</td>
+              </tr>
+              <tr className="fm-h">
+                <td colSpan={4} className="fm-kv">
+                  <span>Supplier</span>: <b>{pg.supplier || "-"}</b>
+                </td>
+                <td rowSpan={3} colSpan={2} className="fm-sign" />
+                <td rowSpan={3} className="fm-sign" />
+                <td rowSpan={3} className="fm-sign" />
+                <td rowSpan={3} className="fm-sign" />
+              </tr>
+              <tr className="fm-h">
+                <td colSpan={4} className="fm-kv is-bot">
+                  <span>Other</span>: <b>STOCK {data.stock}</b>
+                </td>
+              </tr>
+              <tr className="fm-h">
+                <td colSpan={8} className="fm-subject">
+                  Subject : <b>{subject}</b>
+                </td>
+              </tr>
+              <tr className="fm-th">
+                <th rowSpan={2}>No.</th>
+                <th rowSpan={2} colSpan={2} className="is-big">
+                  Problem / Request
+                </th>
+                <th rowSpan={2} colSpan={2} className="is-big">
+                  Countermeasure / Action
+                </th>
+                <th colSpan={2}>In Charge</th>
+                <th colSpan={3}>Finish</th>
+                <th rowSpan={2} colSpan={3} className="is-big">
+                  After action / Evidence
+                </th>
+              </tr>
+              <tr className="fm-th">
+                <th>Name</th>
+                <th>Sect.</th>
+                <th colSpan={2}>Plan</th>
+                <th>Actual</th>
+              </tr>
+              {Array.from({ length: PER_PAGE }, (_, i) => {
+                const r = pg.rows[i];
+                return (
+                  <tr key={i} className={`fm-row ${i === PER_PAGE - 1 ? "is-last" : ""}`}>
+                    <td className="fm-c">{r ? pg.start + i + 1 : ""}</td>
+                    <td colSpan={2} className="fm-prob">
+                      {r && (
+                        <>
+                          <b>{r.problem[0]}</b>
+                          <span className="fm-red">{r.problem[1]}</span>
+                          <span>{r.problem[2]}</span>
+                          <small>{r.problem[3]}</small>
+                        </>
+                      )}
+                    </td>
+                    <td colSpan={2} className="fm-txt">
+                      <div className="fm-clip">{r?.action}</div>
+                    </td>
+                    <td className="fm-c fm-sm">{r?.name}</td>
+                    <td className="fm-c fm-sm">{r?.sect}</td>
+                    <td colSpan={2} className="fm-c fm-sm">
+                      {r?.plan}
+                    </td>
+                    <td className="fm-c fm-sm">{r?.actual}</td>
+                    <td colSpan={3} className="fm-txt">
+                      <div className="fm-clip">{r?.after}</div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {pi === pages.length - 1 && (
-            <div className="mr-sign">
-              {["ผู้รายงาน / Reported by", "ผู้ตรวจสอบ / Checked by", "ผู้อนุมัติ / Approved by"].map((t) => (
-                <div key={t}>
-                  <span />
-                  <b>{t}</b>
-                  <small>วันที่ ........ / ........ / ............</small>
-                </div>
-              ))}
-            </div>
-          )}
-          <footer className="mr-foot">
-            <span>CH. RADIATORS CO.,LTD. · CHR-Nexus MIN REPORT</span>
-            <span>
+          <footer className="fm-foot">
+            <span>{DOC_NO}</span>
+            <span className="fm-pg">
               {pi + 1} / {pages.length}
             </span>
+            <span>{DOC_DATE}</span>
           </footer>
         </div>
       ))}
@@ -235,13 +283,20 @@ async function sheetsToPdf(root: HTMLElement, base: string) {
 // 🖨 PREVIEW: แผ่นจริงย่อพอดีจอ (ทุกขนาดจอ) -> EXPORT PDF (สร้างในเครื่อง) / EXCEL (จาก Server)
 export function ReportPreview({ data, onClose, onExcel, onPdfDone }: { data: SheetData | null; onClose: () => void; onExcel: () => Promise<void>; onPdfDone?: (rows: number) => void }) {
   const toast = useToast();
-  const { me } = useAuth();
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
   const [busy, setBusy] = useState<"" | "pdf" | "xl">("");
   const [render, setRender] = useState(false);
   const off = useRef<HTMLDivElement>(null);
-  const printedBy = me ? `${me.userName ?? me.userId} (${me.userId})` : "-";
+  const live = useNow();
+  // เวลาอ้างอิงของเอกสาร = ตอนเปิด PREVIEW (ไม่ขยับระหว่างดู) · ยังไม่เริ่มนับ = เวลาอัพเดทล่าสุดของข้อมูล
+  const [frozen, setFrozen] = useState(0);
+  useEffect(() => {
+    if (!data) return;
+    const t = setTimeout(() => setFrozen(Date.now()), 0);
+    return () => clearTimeout(t);
+  }, [data]);
+  const now = frozen || live;
 
   useLayoutEffect(() => {
     const el = box.current;
@@ -295,7 +350,7 @@ export function ReportPreview({ data, onClose, onExcel, onPdfDone }: { data: She
       onClose={onClose}
       footer={
         <div className="flex w-full flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-ink-soft">{data ? `${data.rows.length} รายการ · A4 แนวนอน` : ""}</span>
+          <span className="text-xs font-bold text-ink-soft">{data ? `${data.rows.length} รายการ · ${DOC_NO} · A4 แนวนอน · แยกหน้าตาม Customer / Supplier` : ""}</span>
           <button className="cta-btn is-gray ml-auto" onClick={onClose}>
             CLOSE
           </button>
@@ -311,7 +366,7 @@ export function ReportPreview({ data, onClose, onExcel, onPdfDone }: { data: She
       <div ref={box} className="mr-preview">
         {data && (
           <div className="mr-stack" style={{ "--pv": scale, "--pw": `${1123 * scale}px`, "--ph": `${794 * scale}px` } as React.CSSProperties}>
-            <Sheets data={data} printedBy={printedBy} />
+            <Sheets data={data} now={now} />
           </div>
         )}
       </div>
@@ -319,7 +374,7 @@ export function ReportPreview({ data, onClose, onExcel, onPdfDone }: { data: She
         data &&
         createPortal(
           <div ref={off} className="mr-offscreen" aria-hidden>
-            <Sheets data={data} printedBy={printedBy} />
+            <Sheets data={data} now={now} />
           </div>,
           document.body,
         )}

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using CHR.Nexus.Api.Web;
 using Nexus.Helpers;
 using Nexus.Models;
@@ -33,7 +33,7 @@ public sealed class MinReportController : AppController
     private static object Row(MinWatchRow x) => new
     {
         x.WatchId, stkId = x.StockId, x.StockCode, x.PartId, x.PartCode, x.PartName, x.Qty, x.StockBox, min = x.MinQty, max = x.MaxQty,
-        x.BelowSince, x.LastSeen, x.Days, test = x.Source == "TEST"
+        x.BelowSince, x.LastSeen, x.Days, test = x.Source == "TEST", x.Customer, x.Supplier
     };
 
     // ---------------------------------------------------------------- หน้าต่างแจ้งเตือนกลางจอ (ทุกหน้า)
@@ -107,7 +107,7 @@ public sealed class MinReportController : AppController
     }
 
     [HttpGet("stock/{stkId:int}/export")]
-    public IActionResult Export(int stkId, [FromQuery] string kind, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string key)
+    public IActionResult Export(int stkId, [FromQuery] string kind, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string key, [FromQuery] int? id)
     {
         var s = Visible(stkId);
         if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
@@ -120,14 +120,16 @@ public sealed class MinReportController : AppController
             {
                 var (f, t) = Range(from, to);
                 var rows = _svc.History(new[] { stkId }, f, t, key);
-                MinReportService.ExcelHistory(rows, path);
+                if (id.HasValue) rows = rows.Where(r => r.ReportId == id.Value).ToList();   // 👁 PREVIEW รายการเดียว
+                MinReportService.ExcelHistory(rows, s.Code, f, t, path);
                 n = rows.Count;
             }
             else
             {
                 var set = _svc.GetSettings();
                 var rows = _svc.Pending(new[] { stkId }, set.StuckDays, all: true);
-                MinReportService.ExcelPending(rows, set.StuckDays, path);
+                if (id.HasValue) rows = rows.Where(r => r.WatchId == id.Value).ToList();    // 👁 PREVIEW รายการเดียว
+                MinReportService.ExcelPending(rows, set.StuckDays, s.Code, path);
                 n = rows.Count;
             }
             LogService.WriteLog(Uid, "MIN_REPORT_EXPORT", $"Stock: {s.Code} | {(kind == "history" ? "HISTORY" : "PENDING")} | Rows: {n} | Excel", s.Code);

@@ -1,4 +1,4 @@
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Nexus.Core;
@@ -36,6 +36,8 @@ public sealed class MinWatchRow
     public DateTime BelowSince { get; set; }
     public DateTime LastSeen { get; set; }
     public string Source { get; set; }
+    public string Customer { get; set; }
+    public string Supplier { get; set; }
     public double Days => Math.Round((DateTime.Now - BelowSince).TotalDays, 1);
 }
 
@@ -58,6 +60,10 @@ public sealed class MinReportRow
     public string ReporterName { get; set; }
     public DateTime ReportedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
+    public DateTime? LastSeen { get; set; }      // อัพเดทยอดล่าสุดของช่วงนั้น (MinWatch.LastSeen)
+    public string Customer { get; set; }
+    public string Supplier { get; set; }
+    public string Section { get; set; }          // แผนกของผู้รายงาน (Users.Section / Department)
 }
 
 public sealed class MinReportService
@@ -137,8 +143,10 @@ public sealed class MinReportService
         if (ids.Count == 0) return new();
         using var c = Conn();
         return c.Query<MinWatchRow>(@"SELECT w.WatchID AS WatchId, w.StockID AS StockId, s.StockCode, w.PartID AS PartId, w.PartCode, w.PartName, w.Qty, w.StockBox,
-                                            w.MinQty, w.MaxQty, w.BelowSince, w.LastSeen, w.Source
+                                            w.MinQty, w.MaxQty, w.BelowSince, w.LastSeen, w.Source,
+                                            NULLIF(LTRIM(RTRIM(p.Customer)), '') AS Customer, NULLIF(LTRIM(RTRIM(p.Supplier)), '') AS Supplier
                                      FROM Nexus.MinWatch w JOIN Nexus.Stocks s ON s.StockID = w.StockID
+                                     LEFT JOIN Nexus.Parts p ON p.PartID = w.PartID
                                      WHERE w.ResolvedAt IS NULL AND w.ReportID IS NULL AND w.StockID IN @ids
                                        AND (@all = 1 OR w.BelowSince <= DATEADD(DAY, -@stuckDays, GETDATE()))
                                      ORDER BY w.BelowSince, s.StockCode, w.PartCode", new { ids, stuckDays, all = all ? 1 : 0 }).ToList();
@@ -175,8 +183,12 @@ public sealed class MinReportService
         if (ids.Count == 0) return new();
         using var c = Conn();
         return c.Query<MinReportRow>(@"SELECT r.ReportID AS ReportId, r.StockID AS StockId, r.StockCode, r.PartID AS PartId, r.PartCode, r.PartName, r.Qty, r.StockBox, r.MinQty, r.MaxQty,
-                                             r.BelowSince, r.DaysStuck, r.Reason, r.ReportedBy, r.ReporterName, r.ReportedAt, w.ResolvedAt
+                                             r.BelowSince, r.DaysStuck, r.Reason, r.ReportedBy, r.ReporterName, r.ReportedAt, w.ResolvedAt, w.LastSeen,
+                                             NULLIF(LTRIM(RTRIM(p.Customer)), '') AS Customer, NULLIF(LTRIM(RTRIM(p.Supplier)), '') AS Supplier,
+                                             COALESCE(NULLIF(LTRIM(RTRIM(u.Section)), ''), NULLIF(LTRIM(RTRIM(u.Department)), '')) AS Section
                                       FROM Nexus.MinReports r LEFT JOIN Nexus.MinWatch w ON w.WatchID = r.WatchID
+                                      LEFT JOIN Nexus.Parts p ON p.PartID = r.PartID
+                                      LEFT JOIN Nexus.Users u ON u.UserID = r.ReportedBy
                                       WHERE r.StockID IN @ids AND r.ReportedAt >= @from AND r.ReportedAt < DATEADD(DAY, 1, @to)
                                         AND (@key = '' OR r.PartCode LIKE @like OR r.PartName LIKE @like OR r.Reason LIKE @like OR r.ReporterName LIKE @like OR r.ReportedBy LIKE @like)
                                       ORDER BY r.ReportedAt DESC", new { ids, from = from.Date, to = to.Date, key = key ?? "", like = "%" + (key ?? "") + "%" }).ToList();
@@ -201,50 +213,10 @@ public sealed class MinReportService
         return until;
     }
 
-    // ---------------------------------------------------------------- 📤 Excel
-    public static void ExcelPending(List<MinWatchRow> rows, int stuckDays, string path)
-    {
-        using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("MIN REPORT (PENDING)");
-        string[] head = { "NO", "STOCK", "PART CODE", "PART NAME", "STOCK (QTY)", "STOCK (BOX)", "MIN", "MAX", "BELOW MIN SINCE", "DAYS", "STATUS" };
-        Nexus.Services.ImportTemplateService.Header(ws, head, new double[] { 7, 14, 20, 40, 14, 14, 10, 10, 20, 9, 26 });
-        int i = 2;
-        foreach (var x in rows)
-        {
-            ws.Cell(i, 1).Value = i - 1; ws.Cell(i, 2).Value = x.StockCode; ws.Cell(i, 3).Value = x.PartCode; ws.Cell(i, 4).Value = x.PartName;
-            ws.Cell(i, 5).Value = x.Qty; ws.Cell(i, 6).Value = x.StockBox; ws.Cell(i, 7).Value = x.MinQty; ws.Cell(i, 8).Value = x.MaxQty;
-            ws.Cell(i, 9).Value = x.BelowSince; ws.Cell(i, 9).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
-            ws.Cell(i, 10).Value = x.Days;
-            ws.Cell(i, 11).Value = x.Days >= stuckDays ? $"รอรายงาน (ค้าง ≥ {stuckDays} วัน)" : "เฝ้าดู";
-            i++;
-        }
-        Nexus.Services.ImportTemplateService.Body(ws, i - 1, head.Length);
-        Nexus.Services.ImportTemplateService.LeftAlign(ws, i - 1, 3, 4, 11);
-        wb.SaveAs(path);
-    }
+    // ---------------------------------------------------------------- 📤 Excel = แบบฟอร์ม FM-EN-04-22 Improvement Plan / All (MinReportForm)
+    public static void ExcelPending(List<MinWatchRow> rows, int stuckDays, string stock, string path) =>
+        MinReportForm.Save(rows.Select(MinReportForm.From).ToList(), stock, $"MIN REPORT : สินค้าค้างที่ค่า MIN ≥ {stuckDays} วัน (รอระบุสาเหตุ)", path);
 
-    public static void ExcelHistory(List<MinReportRow> rows, string path)
-    {
-        using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("MIN REPORT (HISTORY)");
-        string[] head = { "NO", "REPORTED AT", "STOCK", "PART CODE", "PART NAME", "STOCK (QTY)", "STOCK (BOX)", "MIN", "MAX", "BELOW MIN SINCE", "DAYS", "REASON", "REPORTED BY", "BACK TO NORMAL" };
-        Nexus.Services.ImportTemplateService.Header(ws, head, new double[] { 7, 18, 14, 20, 36, 13, 13, 9, 9, 18, 8, 60, 24, 18 });
-        int i = 2;
-        foreach (var x in rows)
-        {
-            ws.Cell(i, 1).Value = i - 1;
-            ws.Cell(i, 2).Value = x.ReportedAt; ws.Cell(i, 2).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
-            ws.Cell(i, 3).Value = x.StockCode; ws.Cell(i, 4).Value = x.PartCode; ws.Cell(i, 5).Value = x.PartName;
-            ws.Cell(i, 6).Value = x.Qty; ws.Cell(i, 7).Value = x.StockBox; ws.Cell(i, 8).Value = x.MinQty; ws.Cell(i, 9).Value = x.MaxQty;
-            ws.Cell(i, 10).Value = x.BelowSince; ws.Cell(i, 10).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
-            ws.Cell(i, 11).Value = x.DaysStuck; ws.Cell(i, 12).Value = x.Reason;
-            ws.Cell(i, 13).Value = string.IsNullOrWhiteSpace(x.ReporterName) ? x.ReportedBy : $"{x.ReporterName} ({x.ReportedBy})";
-            if (x.ResolvedAt is DateTime r) { ws.Cell(i, 14).Value = r; ws.Cell(i, 14).Style.DateFormat.Format = "yyyy-mm-dd hh:mm"; } else ws.Cell(i, 14).Value = "-";
-            i++;
-        }
-        Nexus.Services.ImportTemplateService.Body(ws, i - 1, head.Length);
-        Nexus.Services.ImportTemplateService.LeftAlign(ws, i - 1, 4, 5, 12, 13);
-        if (i > 2) ws.Range(2, 12, i - 1, 12).Style.Alignment.WrapText = true;
-        wb.SaveAs(path);
-    }
+    public static void ExcelHistory(List<MinReportRow> rows, string stock, DateTime from, DateTime to, string path) =>
+        MinReportForm.Save(rows.Select(MinReportForm.From).ToList(), stock, $"MIN REPORT : ประวัติรายงานสาเหตุสินค้าค้างที่ค่า MIN ({from:dd/MM/yyyy} - {to:dd/MM/yyyy})", path);
 }
