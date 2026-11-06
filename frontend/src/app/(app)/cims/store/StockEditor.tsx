@@ -250,7 +250,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
             <div className="flex flex-wrap gap-2">{[...COLUMNS, ...cfCols].map(([k, l]) => chip(k, cols.includes(k), l, () => toggleCol(k), false, cols.indexOf(k) + 1))}</div>
             {order(cols, [...COLUMNS, ...cfCols])}
             <div className="mt-2 text-[11px] font-semibold text-ink-soft">
-              ➕ = ช่องกรอกเพิ่มเองของคลัง · เพิ่ม / แก้ / ลบ ช่องได้ที่ Inventory Registration &gt; ADMIN &gt; CUSTOM FIELDS{stkId ? "" : " (สร้างคลังก่อนแล้วค่อยเพิ่มช่อง)"}
+              ➕ = ช่องกรอกเพิ่มเองของคลัง · เพิ่ม / แก้ / ลบ ช่องได้ที่ MASTER DATA &gt; Product Control &gt; ADMIN &gt; CUSTOM FIELDS{stkId ? "" : " (สร้างคลังก่อนแล้วค่อยเพิ่มช่อง)"}
             </div>
           </>,
           "STOCK (COIL) = นับ Coil (คลัง KG) • ติ๊กก่อน = แสดงก่อน",

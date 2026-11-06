@@ -129,7 +129,7 @@ namespace Nexus.Services
             g.Range(4, 2, r, 2).Style.Alignment.WrapText = true;
         }
 
-        // ---------------------------------------------------------------- Inventory Registration (IMPORT EXCEL)
+        // ---------------------------------------------------------------- MASTER DATA › Product Control (IMPORT EXCEL)
         public static readonly string[] PartHeads =
         {
             "NO", "PRODUCT CODE", "PRODUCT NAME", "SUPPLIER", "CUSTOMER", "CATEGORY", "PART A", "PART B", "PART NO", "MODEL",
@@ -244,7 +244,7 @@ namespace Nexus.Services
                     if (c > 0) ws.Range(2, c, lastRow, c).Style.NumberFormat.Format = "@";   // เลขรหัสขึ้นต้น 0 ไม่หาย
                 }
 
-                Guide(wb, forStock == null ? "CHR-Nexus - Inventory Registration (IMPORT EXCEL)" : $"CHR-Nexus - Inventory Registration (IMPORT EXCEL) -> {forStock.Code}  •  STOCK1 = {forStock.Code} ใส่ให้แล้ว", new[]
+                Guide(wb, forStock == null ? "CHR-Nexus - MASTER DATA › Product Control (IMPORT EXCEL)" : $"CHR-Nexus - MASTER DATA › Product Control (IMPORT EXCEL) -> {forStock.Code}  •  STOCK1 = {forStock.Code} ใส่ให้แล้ว", new[]
                 {
                     ("PRODUCT CODE *", "รหัสสินค้า (บังคับ) - ไม่มีรหัสให้ใส่ -  /  สินค้า 1 รายการ = PRODUCT CODE + PART A (ซ้ำกับที่มีในระบบจะถูกข้าม)"),
                     ("PRODUCT NAME *", "ชื่อสินค้า (บังคับ)"),
@@ -257,7 +257,7 @@ namespace Nexus.Services
                     ("สินค้า 1 ตัว หลาย Coil", "แถวแรกใส่ข้อมูลสินค้าครบ + COIL NO / แถวถัดไปใส่แค่ BIN / COIL NO / MASTER COIL / น้ำหนัก (เว้น PRODUCT CODE ว่างได้ หรือใส่ PRODUCT CODE ซ้ำก็ได้) - แถวละ 1 Coil / STOCK (UNIT) ของสินค้า = น้ำหนักรวมของ Coil ในคลังนั้น / STOCK (COIL) = จำนวน Coil"),
                     ("น้ำหนัก Coil", "ช่องยอดคงคลัง เช่น STOCK (KG.) / STOCK (UNIT) ของแถว Coil = น้ำหนักของ Coil นั้น (ตัวเลขเท่านั้น ห้ามใส่คำว่า KG)"),
                     ("MASTER COIL", "Master Coilที่ Coil นี้ตัดมา (ไม่บังคับ) - Coil ที่เป็น Master Coilเองให้เว้นว่าง เช่น COIL NO = CWD1477A, MASTER COIL = ว่าง"),
-                    ("IMAGE", "ชื่อไฟล์รูปในโฟลเดอร์ 1. Image Stock เช่น STOCK-4C\\STOCK-4C-01.png (ไม่บังคับ / ว่าง = ไม่มีรูป หรือไม่เปลี่ยนรูปเดิม) - ใส่รูปทีละรายการได้ที่ปุ่มรูปในหน้า Inventory Registration"),
+                    ("IMAGE", "ชื่อไฟล์รูปในโฟลเดอร์ 1. Image Stock เช่น STOCK-4C\\STOCK-4C-01.png (ไม่บังคับ / ว่าง = ไม่มีรูป หรือไม่เปลี่ยนรูปเดิม) - ใส่รูปทีละรายการได้ที่ปุ่มรูปในหน้า MASTER DATA › Product Control"),
                     ("STOCK1 - STOCK3", "รหัสคลังที่สินค้าอยู่ ช่องละ 1 คลัง (ดูชีท STOCK CODES) - ไม่ใส่เลย = คลังหลัก"),
                     ("SHOW/HIDE", "1 = แสดง / 0 = ซ่อน ในตาราง Store (Max-Min) - ว่าง = แสดง"),
                     ("MAX / MIN", "MAX / MIN ของคลังที่ใส่ (ทศนิยมได้ถ้าคลังเปิด DECIMAL QTY) - หัวคอลัมน์ใส่หน่วยได้ เช่น MAX (KG.) / MIN (BOX)"),
@@ -266,7 +266,7 @@ namespace Nexus.Services
                     ("STOCK (PCS)", "ยอดเป็นชิ้น (ตัวเลขเดียวกับ STOCK (UNIT) ของคลังที่นับเป็นชิ้น) - ใส่ช่องใดช่องหนึ่ง ถ้าใส่ทั้งคู่ต้องเท่ากัน"),
                     ("REMARK", "หมายเหตุ (ไม่บังคับ)"),
                     ("NO", "ลำดับ - ระบบไม่ได้ใช้ ลบหรือเว้นว่างได้"),
-                    ("", "กรอกข้อมูลในชีท PRODUCTS (ชีทแรก) ได้ไม่จำกัดแถว แล้วกด IMPORT EXCEL ในหน้า Inventory Registration"),
+                    ("", "กรอกข้อมูลในชีท PRODUCTS (ชีทแรก) ได้ไม่จำกัดแถว แล้วกด IMPORT EXCEL ในหน้า MASTER DATA › Product Control"),
                 });
 
                 // ตัวอย่างสินค้า 1 ตัว หลาย Coil (อยู่ในชีท HOW TO เท่านั้น - ไม่ถูก Import)

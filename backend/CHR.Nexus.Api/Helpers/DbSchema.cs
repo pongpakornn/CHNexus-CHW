@@ -203,6 +203,10 @@ namespace Nexus.Helpers
         private static bool _minReason;
         public static bool HasMinReason => _minReason || (_minReason = TableExists("Nexus.MinReportReasons") == true);
 
+        // 🗂 MASTER DATA (24_Master_Data.sql): Master.Customers / Master.Suppliers (Schema ของระบบ)
+        private static bool _master;
+        public static bool HasMasterData => _master || (_master = TableExists("Master.Customers") == true && TableExists("Master.Suppliers") == true);
+
         // 🔐 รหัสผ่านแบบ Hash (22_User_Password_Hash.sql): Nexus.Users.PasswordHash
         private static bool _pwHash;
         public static bool HasPasswordHash => _pwHash || (_pwHash = ColumnIn("Nexus.Users", "PasswordHash") == true);

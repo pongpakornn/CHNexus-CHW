@@ -53,6 +53,13 @@ namespace Nexus.Models
         public bool CanEditProduct => CanViewProductControl && P("ProductControl", p => p.CanEdit);
         public bool CanDeleteProduct => CanViewProductControl && P("ProductControl", p => p.CanDelete);
 
+        // 🗂 MASTER DATA › Customer / Supplier Information (SystemID MasterData)
+        //    VIEW = ดู · ADD = เพิ่ม · EDIT = แก้ไข / ACTIVE-INACTIVE · DEL = ลบ (เฉพาะรหัสที่ยังไม่มีสินค้าใช้)
+        public bool CanViewMasterData => P("MasterData", p => p.CanView);
+        public bool CanAddMasterData => CanViewMasterData && P("MasterData", p => p.CanAdd);
+        public bool CanEditMasterData => CanViewMasterData && P("MasterData", p => p.CanEdit);
+        public bool CanDeleteMasterData => CanViewMasterData && P("MasterData", p => p.CanDelete);
+
         // 📍 LAYOUT SETUP (ตำแหน่งจัดเก็บ) อยู่ที่ User Management › SETUP = Admin Level 1 (P() ให้ Level 1 ผ่านเสมอ · ไม่มีแถวสิทธิ์แยก)
         public bool CanViewLayout => P("LayoutSetup", p => p.CanView);
         public bool CanAddLayout => CanViewLayout && P("LayoutSetup", p => p.CanAdd);

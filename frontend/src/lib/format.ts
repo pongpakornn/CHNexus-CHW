@@ -26,3 +26,12 @@ export function parseNum(s: string): number | null {
   const v = Number(t);
   return Number.isFinite(v) ? v : NaN;
 }
+
+// วันเวลาแบบ MASTER DATA: DD-MM-YYYY:HH:mm:ss (เช่น 06-11-2026:00:15:05)
+export function stamp(v: string | Date | null | undefined) {
+  if (!v) return "-";
+  const d = typeof v === "string" ? new Date(v) : v;
+  if (Number.isNaN(d.getTime())) return "-";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}:${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}

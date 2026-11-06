@@ -216,7 +216,7 @@ export function ProfileBubble() {
             icon: "document",
             label: "Activity Log",
             tone: "info",
-            onSelect: () => (setOpen(false), router.push("/activity-log")),
+            onSelect: () => (setOpen(false), router.push("/cims/activity-log")),
           } as SlideItem,
         ]
       : []),

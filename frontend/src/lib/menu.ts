@@ -1,31 +1,130 @@
-// 📋 เมนู Sidebar (ลำดับ + ไอคอน + สิทธิ์เดียวกับ MainView.xaml ของ WPF)
-//    ready = ย้ายมาเว็บแล้ว / ยังไม่ ready = หน้ากำลังย้าย (ยังใช้ในโปรแกรมเดิมได้)
+// 🧭 ระบบ + เมนู Sidebar (MES หลายระบบ)
+//   Login -> /systems (เลือกระบบ) -> Sidebar เปลี่ยนตามระบบที่อยู่
+//   ROOT  = เลือกระบบ · MASTER DATA (Customer / Supplier / Product Control) · USER MANAGEMENT
+//   CIMS  = ระบบคลังเดิมทั้งหมด (ไม่มี Inventory Registration แล้ว -> ย้ายไป MASTER DATA › Product Control)
+//   เพิ่มระบบใหม่ = เพิ่มใน SYSTEMS + โฟลเดอร์ app/(app)/<system>/
 export type MenuItem = {
   href: string;
   label: string;
-  title: string; // ชื่อหน้าบนแถบด้านบน (txtPageTitle)
+  title: string; // ชื่อหน้าบนแถบด้านบน
   icon: string;
-  can: string; // key ใน Me.can
-  ready: boolean;
+  can?: string; // key ใน Me.can (ไม่ระบุ = ทุกคนที่เห็นระบบนี้)
+  ready?: boolean;
+  children?: MenuItem[]; // เมนูย่อย (กาง / พับ)
+  caption?: string; // หัวข้อกลุ่มในเมนูย่อย (เช่น PRODUCT CONTROL)
+  stockType?: string; // เมนูย่อยเป็นรายชื่อคลังประเภทนี้ (โหลดจาก /master/menu)
 };
 
-export const MENU: MenuItem[] = [
-  { href: "/dashboard", label: "Dashboard", title: "DASHBOARD", icon: "/icons/Dashboard.png", can: "dashboard", ready: true },
-  { href: "/store", label: "Store ( Max - Min )", title: "STORE ( MAX - MIN )", icon: "/icons/StoreMaxMin.png", can: "store", ready: true },
-  { href: "/scanner", label: "Multi-Scanner", title: "MULTI-SCANNER", icon: "/icons/MultiScanner.png", can: "scanner", ready: true },
-  { href: "/inventory", label: "Inventory Registration", title: "INVENTORY REGISTRATION", icon: "/icons/InventoryRegistration.png", can: "productControl", ready: true },
-  { href: "/pick-list", label: "Pick List", title: "PICK LIST", icon: "/icons/PickList.png", can: "pickList", ready: true },
-  { href: "/max-min", label: "Max-Min Calculator", title: "MAX-MIN CALCULATOR", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc", ready: true },
-  { href: "/forecast", label: "Forecast / Order", title: "FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast", ready: true },
-  { href: "/pr", label: "PR Management", title: "PURCHASE REQUEST", icon: "/icons/PR.png", can: "pr", ready: true },
-  { href: "/activity-log", label: "Activity Log", title: "ACTIVITY LOG", icon: "/icons/ActivityLog.png", can: "activityLog", ready: true },
-  { href: "/users", label: "User Management", title: "USER MANAGEMENT", icon: "/icons/management.png", can: "userMgmt", ready: true },
+export type SystemKey = "root" | "cims";
+
+export type SystemDef = { key: string; label: string; title: string; desc: string; icon: string; tone: string; menu: MenuItem[] };
+
+// ประเภทคลัง -> ชื่อเมนู Product Control
+export const STOCK_TYPES: { type: string; label: string; icon: string }[] = [
+  { type: "PRODUCT", label: "Part Information", icon: "/icons/ProductControl.png" },
+  { type: "MATERIAL", label: "Material Information", icon: "/icons/StoreWarehouse.png" },
+  { type: "COMPONENT", label: "Component Information", icon: "/icons/registration.png" },
+  { type: "CONSUMABLE", label: "Consumable Information", icon: "/icons/InventoryRegistration.png" },
+  { type: "SPAREPART", label: "Spare Part Information", icon: "/icons/spareparts.png" },
 ];
 
-// หน้าแรกหลัง Login: ลำดับเดียวกับ MainView (Dashboard > Scanner > Inventory > Store > Pick List > PR > Max-Min > Forecast > Log > Users)
-const START_ORDER = ["dashboard", "scanner", "productControl", "store", "pickList", "pr", "maxMinCalc", "forecast", "activityLog", "userMgmt"];
+const SYSTEMS_ITEM: MenuItem = { href: "/systems", label: "Systems", title: "SELECT SYSTEM", icon: "/icons/IconSidebar.png" };
+const USERS_ITEM: MenuItem = { href: "/admin/users", label: "User Management", title: "USER MANAGEMENT", icon: "/icons/management.png", can: "userMgmt" };
 
+export const MASTER_ITEM: MenuItem = {
+  href: "/master",
+  label: "Master Data",
+  title: "MASTER DATA",
+  icon: "/icons/ProductControl.png",
+  children: [
+    { href: "/master/customers", label: "Customer Information", title: "MASTER DATA • CUSTOMER INFORMATION", icon: "/icons/user.png", can: "masterData" },
+    { href: "/master/suppliers", label: "Supplier Information", title: "MASTER DATA • SUPPLIER INFORMATION", icon: "/icons/StoreWarehouse.png", can: "masterData" },
+    ...STOCK_TYPES.map((t, i) => ({
+      href: `/master/product?type=${t.type}`,
+      label: t.label,
+      title: `PRODUCT CONTROL • ${t.label.toUpperCase()}`,
+      icon: t.icon,
+      can: "productControl",
+      stockType: t.type,
+      caption: i === 0 ? "Product Control" : undefined,
+    })),
+  ],
+};
+
+export const CIMS: SystemDef = {
+  key: "cims",
+  label: "CIMS",
+  title: "CIMS • INVENTORY CONTROL",
+  desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · PR · Forecast · Activity Log",
+  icon: "/icons/StoreMaxMin.png",
+  tone: "linear-gradient(145deg,#8b7bd8,#6750a4)",
+  menu: [
+    { href: "/cims/dashboard", label: "Dashboard", title: "DASHBOARD", icon: "/icons/Dashboard.png", can: "dashboard" },
+    { href: "/cims/store", label: "Store ( Max - Min )", title: "STORE ( MAX - MIN )", icon: "/icons/StoreMaxMin.png", can: "store" },
+    { href: "/cims/scanner", label: "Multi-Scanner", title: "MULTI-SCANNER", icon: "/icons/MultiScanner.png", can: "scanner" },
+    { href: "/cims/pick-list", label: "Pick List", title: "PICK LIST", icon: "/icons/PickList.png", can: "pickList" },
+    { href: "/cims/max-min", label: "Max-Min Calculator", title: "MAX-MIN CALCULATOR", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc" },
+    { href: "/cims/forecast", label: "Forecast / Order", title: "FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast" },
+    { href: "/cims/pr", label: "PR Management", title: "PURCHASE REQUEST", icon: "/icons/PR.png", can: "pr" },
+    { href: "/cims/activity-log", label: "Activity Log", title: "ACTIVITY LOG", icon: "/icons/ActivityLog.png", can: "activityLog" },
+    USERS_ITEM,
+  ],
+};
+
+export const MASTER: SystemDef = {
+  key: "master",
+  label: "MASTER DATA",
+  title: "MASTER DATA",
+  desc: "ข้อมูลกลางของทุกระบบ: Customer · Supplier · Product Control (Part / Material / Component)",
+  icon: "/icons/ProductControl.png",
+  tone: "linear-gradient(145deg,#60a5fa,#2563eb)",
+  menu: MASTER_ITEM.children!,
+};
+
+export const ADMIN: SystemDef = {
+  key: "admin",
+  label: "USER MANAGEMENT",
+  title: "USER MANAGEMENT",
+  desc: "ผู้ใช้งาน · สิทธิ์ทุกระบบ · ⚙ SETUP ทั้งหมด (Admin)",
+  icon: "/icons/management.png",
+  tone: "linear-gradient(145deg,#94a3b8,#334155)",
+  menu: [USERS_ITEM],
+};
+
+// การ์ดหน้าเลือกระบบ (ลำดับที่แสดง)
+export const SYSTEMS: SystemDef[] = [CIMS, MASTER, ADMIN];
+
+// Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
+export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
+export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
+
+// เห็นเมนูไหนบ้างตามสิทธิ์ (กลุ่มที่ไม่มีเมนูย่อยเหลือ = ซ่อนทั้งกลุ่ม)
+export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuItem[] {
+  return items.flatMap((m) => {
+    if (m.can && !can[m.can]) return [];
+    if (!m.children) return [m];
+    const kids = allowed(m.children, can);
+    return kids.length ? [{ ...m, children: kids }] : [];
+  });
+}
+
+export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) => allowed(s.menu, can).length > 0);
+
+// ระบบของหน้าปัจจุบัน: /cims = CIMS · /admin = คงระบบที่มา (ไม่ระบุ) · อื่น ๆ = ROOT
+export const systemOf = (path: string): SystemKey | null => (path.startsWith("/cims") ? "cims" : path.startsWith("/admin") ? null : "root");
+
+// หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
+export function findItem(path: string, search: string): MenuItem | undefined {
+  const all = [...CIMS_MENU, ...ROOT_MENU].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
+  const type = new URLSearchParams(search).get("type");
+  return all.find((m) => {
+    const [p, q] = m.href.split("?");
+    if (path !== p && !path.startsWith(p + "/")) return false;
+    return !q || new URLSearchParams(q).get("type") === type;
+  });
+}
+
+// หน้าแรกหลัง Login = หน้าเลือกระบบ (มีสิทธิ์อย่างน้อย 1 ระบบ)
 export function startPage(can: Record<string, boolean>): string | null {
-  for (const key of START_ORDER) if (can[key]) return MENU.find((m) => m.can === key)!.href;
-  return null;
+  return systemsFor(can).length > 0 ? "/systems" : null;
 }

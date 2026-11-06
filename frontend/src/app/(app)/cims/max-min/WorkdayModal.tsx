@@ -228,7 +228,7 @@ export function WorkdayModal({ open, canEdit, onClose, onChanged }: { open: bool
         !customers ? (
           <Loading />
         ) : customers.length === 0 ? (
-          <Empty>NO CUSTOMER - add CUSTOMER to the products in Inventory Registration first.</Empty>
+          <Empty>NO CUSTOMER - add CUSTOMER to the products in MASTER DATA › Product Control first.</Empty>
         ) : (
           <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {customers.map((c, i) => {

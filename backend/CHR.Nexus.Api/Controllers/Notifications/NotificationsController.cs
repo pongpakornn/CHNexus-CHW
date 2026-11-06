@@ -36,7 +36,7 @@ public sealed class NotificationsController : AppController
                 {
                     key = "MIN", tone = "danger", title = "สินค้าต่ำกว่า MIN", count = low.Sum(s => s.MinCount),
                     detail = $"{low.Count} คลัง",
-                    rows = low.Select(s => new { label = s.Stock.Code, sub = s.Stock.Name, count = s.MinCount, href = Me.CanViewStore ? $"/store?stk={s.Stock.StkId}&f=UNDER_MIN" : "/dashboard" })
+                    rows = low.Select(s => new { label = s.Stock.Code, sub = s.Stock.Name, count = s.MinCount, href = Me.CanViewStore ? $"/cims/store?stk={s.Stock.StkId}&f=UNDER_MIN" : "/cims/dashboard" })
                 });
         }
 
@@ -55,7 +55,7 @@ public sealed class NotificationsController : AppController
                         key = "MINREPORT", tone = "danger", title = "MIN REPORT รอรายงาน", count = pend.Count,
                         detail = $"ค้างที่ค่า MIN ≥ {set.StuckDays} วัน · ยังไม่ระบุสาเหตุ",
                         rows = pend.GroupBy(p => p.StockId).OrderByDescending(g => g.Count())
-                                   .Select(g => new { label = g.First().StockCode, sub = $"นานสุด {g.Max(x => x.Days):0.#} วัน · กดเพื่อ REPORT", count = g.Count(), href = $"/store?stk={g.Key}&mr=pending" })
+                                   .Select(g => new { label = g.First().StockCode, sub = $"นานสุด {g.Max(x => x.Days):0.#} วัน · กดเพื่อ REPORT", count = g.Count(), href = $"/cims/store?stk={g.Key}&mr=pending" })
                     });
             }
         }
@@ -87,7 +87,7 @@ public sealed class NotificationsController : AppController
                     key = "PR", tone = "warning", title = "PR รออนุมัติ", count = waiting.Count,
                     detail = $"ล่าสุด {waiting.Max(p => p.PRDate):dd/MM/yyyy HH:mm}",
                     rows = waiting.OrderByDescending(p => p.PRDate).Take(5)
-                                  .Select(p => new { label = p.PRNumber, sub = p.PartName, count = p.QTY, href = "/pr" })
+                                  .Select(p => new { label = p.PRNumber, sub = p.PartName, count = p.QTY, href = "/cims/pr" })
                 });
         }
 
@@ -99,7 +99,7 @@ public sealed class NotificationsController : AppController
                 {
                     key = "DEDUCT", tone = "info", title = "NOT DEDUCTED รอดำเนินการ", count = n,
                     detail = "ป้ายที่ยังตัดสต็อกไม่ได้",
-                    rows = new[] { new { label = "เปิด Multi-Scanner", sub = "ปุ่ม NOT DEDUCTED", count = n, href = "/scanner" } }
+                    rows = new[] { new { label = "เปิด Multi-Scanner", sub = "ปุ่ม NOT DEDUCTED", count = n, href = "/cims/scanner" } }
                 });
         }
 

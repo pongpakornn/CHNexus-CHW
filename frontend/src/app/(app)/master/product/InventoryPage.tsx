@@ -40,8 +40,10 @@ const FIELDS: Record<string, [string, keyof Form, { list?: string; numeric?: boo
 };
 const ALL_FIELDS = ["IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "CODE", "PARTA", "PARTB", "PARTNO", "NAME", "PACKSIZE", "BIN", "MOTHER", "COILNO", "WEIGHT", "QRCODE"];
 
-// 🏷️ INVENTORY REGISTRATION (ProductControlView) - ฟอร์มลงทะเบียน / แก้ไข + ตารางสินค้าตามคลัง
-export default function InventoryPage() {
+// 🏷️ MASTER DATA › PRODUCT CONTROL (เดิม INVENTORY REGISTRATION) - ฟอร์มลงทะเบียน / แก้ไข + ตารางสินค้าตามคลัง
+//   type = ประเภทคลังจากเมนู (PRODUCT = Part Information / MATERIAL / COMPONENT …) -> เห็น / ลงทะเบียนเฉพาะคลังประเภทนั้น
+//   stk  = คลังที่เลือกจากเมนูย่อย (เช่น STORE-PC) · ไม่ส่งทั้งคู่ = ทุกคลังแบบเดิม
+export default function InventoryPage({ type, stk, title }: { type?: string; stk?: number; title?: string }) {
   const toast = useToast();
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -106,10 +108,13 @@ export default function InventoryPage() {
 
   useEffect(() => {
     api<Meta>("/products/meta")
-      .then((m) => {
+      .then((raw) => {
+        const m: Meta = type ? { ...raw, canAll: false, stocks: raw.stocks.filter((s) => (s.stockType ?? "OTHER").toUpperCase() === type) } : raw;
+        const pick = (id: number | null | undefined) => (id != null && m.stocks.some((s) => s.stkId === id) ? id : null);
+        const first = type ? (pick(stk) ?? pick(m.savedFilter) ?? m.stocks[0]?.stkId ?? null) : m.savedFilter;
         setMeta(m);
-        setFilter(m.savedFilter);
-        const fs = m.stocks.find((s) => s.stkId === m.savedFilter) ?? m.stocks.find((s) => s.isMain) ?? m.stocks[0];
+        setFilter(first);
+        const fs = m.stocks.find((s) => s.stkId === first) ?? m.stocks.find((s) => s.isMain) ?? m.stocks[0];
         setFormStk(fs?.stkId ?? null);
         applyDefaultStocks(m);
         if (fs?.canAdd) {
@@ -118,7 +123,7 @@ export default function InventoryPage() {
         }
       })
       .catch((e) => toast.show("ERROR", e.message, "error"));
-  }, [toast, applyDefaultStocks]);
+  }, [toast, applyDefaultStocks, type, stk]);
 
   const query = useCallback(
     (skip: number) => api<{ total: number; layout: Layout; coilStkId: number | null; groups?: Record<string, number>; rows: Part[] }>("/products", { query: { key: k, stkId: filter ?? undefined, skip, take: PAGE } }),
@@ -222,6 +227,12 @@ export default function InventoryPage() {
   }, [autoDeps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!meta) return <Loading />;
+  if (meta.stocks.length === 0)
+    return (
+      <PageBody>
+        <Empty>ไม่มีคลังประเภทนี้ที่คุณมีสิทธิ์ดู (ติดต่อ Admin เพื่อขอสิทธิ์คลัง)</Empty>
+      </PageBody>
+    );
   const filterStock = meta.stocks.find((s) => s.stkId === filter) ?? null;
   // 🔒 สิทธิ์ของหน้า (ProductControl) + สิทธิ์ของคลังที่ดูอยู่ (ALL STOCKS = มีสิทธิ์อย่างน้อย 1 คลัง)
   //    VIEW = ดูอย่างเดียว · EDIT = แก้ไข / ซ่อน · DEL = ลบ · ADMIN = เฉพาะ Admin Level 1
@@ -601,8 +612,8 @@ export default function InventoryPage() {
     <PageBody>
       <PageHeader
         icon="/icons/InventoryRegistration.png"
-        title="INVENTORY REGISTRATION"
-        subtitle="ลงทะเบียนสินค้า / แก้ไข / QR CODE"
+        title={title ?? "PRODUCT CONTROL"}
+        subtitle={`MASTER DATA · ลงทะเบียนสินค้า / แก้ไข / QR CODE${type ? ` · ${meta.stocks.map((s) => s.code).join(" · ")}` : ""}`}
         actions={
           <>
             <ActionMenu

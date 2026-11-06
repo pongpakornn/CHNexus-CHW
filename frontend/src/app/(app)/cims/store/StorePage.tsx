@@ -11,8 +11,8 @@ function StorePage() {
   const params = useSearchParams();
   const router = useRouter();
   const stk = Number(params.get("stk")) || null;
-  const back = useCallback(() => router.push("/store"), [router]);
-  return stk ? <StockTable key={stk} stkId={stk} onBack={back} initialFilter={params.get("f") ?? ""} openMinReport={params.get("mr") === "pending"} /> : <StockCards onOpen={(id) => router.push(`/store?stk=${id}`)} />;
+  const back = useCallback(() => router.push("/cims/store"), [router]);
+  return stk ? <StockTable key={stk} stkId={stk} onBack={back} initialFilter={params.get("f") ?? ""} openMinReport={params.get("mr") === "pending"} /> : <StockCards onOpen={(id) => router.push(`/cims/store?stk=${id}`)} />;
 }
 
 export default function Page() {

@@ -10349,3 +10349,310 @@ table.lqp code {
   background: #f4f2fa;
   font-size: 12px;
 }
+
+/* =====================================================================
+   🧭 Sidebar หลายระบบ: เมนูย่อย MASTER DATA (กาง / พับ) · Product Control › รายชื่อคลัง · ป้ายระบบ
+   ===================================================================== */
+.sb-sys {
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: rgb(255 255 255 / 0.16);
+}
+.sb-chev {
+  width: 16px;
+  height: 16px;
+  transition: rotate 0.4s var(--ease-drop);
+}
+.sb-chev.is-open {
+  rotate: 90deg;
+}
+.sb-sub {
+  display: grid;
+  gap: 1px;
+  padding: 4px 10px 8px 34px;
+}
+.sb-cap {
+  margin: 8px 0 3px 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.4);
+}
+.sb-sub-row {
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+  color: rgb(255 255 255 / 0.66);
+  transition: background 0.25s var(--ease-drop), color 0.25s var(--ease-drop);
+}
+.sb-sub-row:hover {
+  color: #fff;
+  background: rgb(255 255 255 / 0.06);
+}
+.sb-sub-row.is-on {
+  color: #fff;
+  background: rgb(255 255 255 / 0.12);
+}
+.sb-sub-link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: translate 0.4s var(--ease-drop);
+}
+.sb-sub-link:hover {
+  translate: 3px 0;
+}
+.sb-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.45;
+  transition: scale 0.3s var(--ease-drop), opacity 0.3s;
+}
+.sb-sub-row.is-on .sb-dot {
+  opacity: 1;
+  scale: 1.35;
+  background: #c4b5fd;
+  box-shadow: 0 0 8px #a78bfa;
+}
+.sb-sub-tog {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-right: 2px;
+  border-radius: 8px;
+  color: inherit;
+}
+.sb-sub-tog:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+.sb-sub-tog:focus-visible,
+.sb-sub-link:focus-visible,
+.sb-stk-link:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: -2px;
+}
+.sb-stk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 6px 6px 28px;
+}
+.sb-stk-link {
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgb(255 255 255 / 0.72);
+  transition: background 0.25s var(--ease-drop), color 0.25s, border-color 0.25s, translate 0.4s var(--ease-drop);
+}
+.sb-stk-link:hover {
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.4);
+  translate: 0 -1px;
+}
+.sb-stk-link.is-on {
+  color: #2b2342;
+  border-color: #fff;
+  background: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-chev,
+  .sb-sub-row,
+  .sb-sub-link,
+  .sb-dot,
+  .sb-stk-link {
+    transition: none;
+  }
+}
+
+/* =====================================================================
+   🧭 หน้าเลือกระบบ (/systems): การ์ดระบบ · ลอยขึ้นทีละใบ · ชี้ = ยกนิด ๆ + ลูกศรเลื่อน
+   ===================================================================== */
+.sys-hero {
+  border-radius: 24px;
+  padding: 26px 28px;
+  color: #fff;
+  background: radial-gradient(120% 140% at 0% 0%, #8b7bd8 0%, #6750a4 45%, #2b2342 100%);
+  box-shadow: 0 22px 44px -28px rgb(60 40 120 / 0.9);
+  animation: sys-up 0.5s var(--ease-drop) both;
+}
+.sys-hero small {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  opacity: 0.7;
+}
+.sys-hero h2 {
+  margin-top: 4px;
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 900;
+}
+.sys-hero p {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.sys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.sys-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line, #e6e1f4);
+  border-radius: 22px;
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 0 rgb(40 30 90 / 0.04);
+  animation: sys-up 0.5s var(--ease-drop) both;
+  transition: translate 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), border-color 0.25s;
+}
+.sys-card:hover {
+  translate: 0 -4px;
+  border-color: #d8d0f0;
+  box-shadow: 0 22px 40px -26px rgb(40 30 90 / 0.55);
+}
+.sys-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 20px 14px;
+  border-radius: 22px 22px 0 0;
+}
+.sys-main:focus-visible {
+  outline: 2px solid #6750a4;
+  outline-offset: -2px;
+}
+.sys-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: var(--tone);
+  box-shadow: 0 12px 22px -12px rgb(40 30 90 / 0.7);
+  transition: rotate 0.45s var(--ease-drop), scale 0.45s var(--ease-drop);
+}
+.sys-card:hover .sys-ic {
+  rotate: -6deg;
+  scale: 1.06;
+}
+.sys-ic img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+.sys-tx {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.sys-tx b {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--ink, #24212f);
+}
+.sys-tx span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft, #6b6880);
+}
+.sys-go {
+  margin-left: auto;
+  font-size: 22px;
+  font-weight: 900;
+  color: #6750a4;
+  transition: translate 0.45s var(--ease-drop);
+}
+.sys-card:hover .sys-go {
+  translate: 5px 0;
+}
+.sys-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  border-top: 1px dashed var(--line, #e6e1f4);
+  padding: 12px 20px 18px;
+}
+.sys-links a {
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #4c3e9c;
+  background: #f1eefa;
+  transition: background 0.25s var(--ease-drop), color 0.25s;
+}
+.sys-links a:hover {
+  color: #fff;
+  background: #6750a4;
+}
+.sys-links a:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+@keyframes sys-up {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+/* MASTER DATA: สถานะ ACTIVE / INACTIVE + ข้อมูลท้ายหน้าต่าง */
+.md-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  background: #f1f5f9;
+}
+.md-status.is-on {
+  color: #15803d;
+  background: #dcfce7;
+}
+.md-meta {
+  display: grid;
+  gap: 4px;
+  border-radius: 12px;
+  background: #f6f4fc;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft, #6b6880);
+}
+.md-meta b {
+  font-family: ui-monospace, monospace;
+  color: var(--ink, #24212f);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sys-hero,
+  .sys-card,
+  .sys-ic,
+  .sys-go {
+    animation: none;
+    transition: none;
+  }
+}

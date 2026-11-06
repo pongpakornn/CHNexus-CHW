@@ -230,7 +230,7 @@ export default function DashboardPage() {
                           key={s.stkId}
                           type="button"
                           disabled={!cards.canStore}
-                          onClick={() => router.push(`/store?stk=${s.stkId}${CARD[kind].filter ? `&f=${CARD[kind].filter}` : ""}`)}
+                          onClick={() => router.push(`/cims/store?stk=${s.stkId}${CARD[kind].filter ? `&f=${CARD[kind].filter}` : ""}`)}
                           className="group flex items-center gap-3 rounded-xl border border-line/60 bg-surface px-3.5 py-3 text-left transition enabled:hover:-translate-y-0.5 enabled:hover:border-line enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
                         >
                           <span

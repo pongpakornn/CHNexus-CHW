@@ -8,8 +8,8 @@ import { Empty, Loading } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { LayoutExport } from "../users/LayoutExport";
-import type { LayoutData, Loc } from "../users/layoutTypes";
+import { LayoutExport } from "@/app/(app)/admin/users/LayoutExport";
+import type { LayoutData, Loc } from "@/app/(app)/admin/users/layoutTypes";
 
 // ▣ Product Control › EXCEL · QR › EXPORT QR CODE LAYOUT
 //   ตาราง Locations ทั้งหมด (จาก SETUP › LAYOUT SETUP) -> ติ๊กเลือก -> EXPORT (PDF A4 แบบเดียวกับ EXPORT QR ของสินค้า)

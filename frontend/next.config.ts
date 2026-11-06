@@ -44,6 +44,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // 🧭 ลิงก์เดิม (ก่อนแยกระบบ) -> หน้าใหม่ตามระบบ (Bookmark / ลิงก์ในแชท / ทางลัดเดิมยังใช้ได้)
+  async redirects() {
+    const cims = ["dashboard", "store", "scanner", "pick-list", "max-min", "forecast", "pr", "activity-log"];
+    return [
+      ...cims.map((p) => ({ source: `/${p}`, destination: `/cims/${p}`, permanent: false })),
+      { source: "/inventory", destination: "/master/product", permanent: false },
+      { source: "/users", destination: "/admin/users", permanent: false },
+    ];
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
   },
