@@ -122,15 +122,15 @@ namespace Nexus.Services
                         }
                     }
 
-                    // 2. ตรวจสอบ Password ต่อตามปกติ
-                    string sql = @"SELECT UserID, FullName, UserLevel, IsMasterAdmin, Department 
-                           FROM Nexus.Users 
-                           WHERE UserID = @user AND Password = @pass AND IsLocked = 0";
+                    // 2. ตรวจสอบ Password (PasswordStore: Hash PBKDF2 · ตรวจแบบเวลาคงที่ · Login สำเร็จ = อัพเดท Hash)
+                    if (!PasswordStore.Check(conn, username, password)) return null;
+                    string sql = @"SELECT UserID, FullName, UserLevel, IsMasterAdmin, Department
+                           FROM Nexus.Users
+                           WHERE UserID = @user AND IsLocked = 0";
 
                     using (SqlCommand cmd = new SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@user", username);
-                        cmd.Parameters.AddWithValue("@pass", password);
 
                         using (SqlDataReader reader = cmd.ExecuteReader())
                         {

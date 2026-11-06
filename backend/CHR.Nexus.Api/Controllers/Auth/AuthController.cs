@@ -115,15 +115,7 @@ public sealed class AuthController : ControllerBase
         return NoContent();
     }
 
-    private static bool PasswordOk(string uid, string password)
-    {
-        using var conn = new Microsoft.Data.SqlClient.SqlConnection(global::Nexus.Core.GlobalConfig.ConnStr);
-        using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT COUNT(*) FROM Nexus.Users WHERE UserID = @u AND Password = @p AND ISNULL(IsLocked, 0) = 0", conn);
-        cmd.Parameters.AddWithValue("@u", uid);
-        cmd.Parameters.AddWithValue("@p", password ?? "");
-        conn.Open();
-        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-    }
+    private static bool PasswordOk(string uid, string password) => PasswordStore.Check(uid, password);
 
     [Authorize]
     [HttpGet("me")]

@@ -101,5 +101,7 @@ app.UseMiddleware<PresenceMiddleware>(); // 🟢 ใช้งานอยู่ 
 app.UseMiddleware<LivePublishMiddleware>(); // ⚡ บันทึกสำเร็จ -> แจ้งจอที่เปิดอยู่
 app.MapControllers();
 app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTime.Now }));
+// 🔐 บัญชีเดิมที่ยังไม่มี Hash -> สร้างให้เบื้องหลัง (ไม่หน่วงการเปิด Server)
+_ = Task.Run(() => { try { Nexus.Services.PasswordStore.Backfill(); } catch { /* รอบหน้า / ตอน Login */ } });
 
 app.Run();

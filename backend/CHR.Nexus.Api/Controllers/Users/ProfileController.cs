@@ -83,13 +83,9 @@ public sealed class ProfileController : AppController
         if (f.Next == f.Current) return Fail("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม");
         try
         {
-            using var conn = new SqlConnection(GlobalConfig.ConnStr);
-            using var cmd = new SqlCommand("UPDATE Nexus.Users SET Password = @next WHERE UserID = @u AND Password = @cur", conn);
-            cmd.Parameters.AddWithValue("@u", Uid);
-            cmd.Parameters.AddWithValue("@cur", f.Current);
-            cmd.Parameters.AddWithValue("@next", f.Next);
-            conn.Open();
-            if (cmd.ExecuteNonQuery() == 0) return Fail("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+            // 🔐 ตรวจรหัสเดิม + เก็บรหัสใหม่แบบ Hash (PasswordStore)
+            if (!PasswordStore.Check(Uid, f.Current)) return Fail("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+            PasswordStore.Store(Uid, f.Next);
             LogService.WriteLog(Uid, "PROFILE_PASSWORD", "Changed own password", Uid);
             return Ok(new { message = "เปลี่ยนรหัสผ่านแล้ว ครั้งหน้าใช้รหัสผ่านใหม่ในการเข้าสู่ระบบ" });
         }

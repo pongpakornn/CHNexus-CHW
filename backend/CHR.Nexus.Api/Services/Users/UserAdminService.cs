@@ -152,6 +152,7 @@ namespace Nexus.Services
                 cmd.Parameters.AddWithValue("@p", password ?? "");
                 conn.Open();
                 cmd.ExecuteNonQuery();
+                PasswordStore.SetHash(conn, null, u.UserId, password); // 🔐 เก็บแบบ Hash ด้วย
             }
         }
 
@@ -167,6 +168,7 @@ namespace Nexus.Services
                 cmd.Parameters.AddWithValue("@p", string.IsNullOrEmpty(newPassword) ? (object)DBNull.Value : newPassword);
                 conn.Open();
                 cmd.ExecuteNonQuery();
+                PasswordStore.SetHash(conn, null, u.UserId, newPassword); // 🔐 เปลี่ยนรหัส = Hash ใหม่
             }
         }
 
@@ -428,6 +430,7 @@ namespace Nexus.Services
                             cmd.Parameters.AddWithValue("@ma", x.MasterGiven && x.User.IsMasterAdmin ? 1 : 0);
                             cmd.ExecuteNonQuery();
                         }
+                        PasswordStore.SetHash(conn, tr, x.User.UserId, x.Password); // 🔐 Hash ของรหัสใน Excel
                         if (x.IsNew) add++; else upd++;
                     }
 

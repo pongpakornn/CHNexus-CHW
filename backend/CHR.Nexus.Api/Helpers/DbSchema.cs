@@ -199,6 +199,10 @@ namespace Nexus.Helpers
         public static bool HasMinSign => _minSign || (_minSign = HasMinReport && TableExists("Nexus.MinReportDisplay") == true && TableExists("Nexus.MinReportFlow") == true
                                                                  && TableExists("Nexus.MinReportSigns") == true && ColumnIn("Nexus.MinReports", "DoneAt") == true);
 
+        // 🔐 รหัสผ่านแบบ Hash (22_User_Password_Hash.sql): Nexus.Users.PasswordHash
+        private static bool _pwHash;
+        public static bool HasPasswordHash => _pwHash || (_pwHash = ColumnIn("Nexus.Users", "PasswordHash") == true);
+
         // 📍 LAYOUT จัดเก็บ (20_Storage_Layout.sql): ตำแหน่ง (ประเภท + ชื่อ) + สิทธิ์ LAYOUT ต่อคลังของ Multi-Scanner + ตำแหน่งที่บันทึกกับแถวสแกน
         private static bool _layout;
         public static bool HasLayout => _layout || (_layout = TableExists("Nexus.LayoutTypes") == true && TableExists("Nexus.LayoutLocations") == true && TableExists("Nexus.LayoutSettings") == true
