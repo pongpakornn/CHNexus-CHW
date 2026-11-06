@@ -26,11 +26,30 @@ export function ReportBox({ item, onDone, onBack, reasons = REASONS }: { item: M
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => ref.current?.focus(), []);
+  // กดหมายเหตุ = ใส่ข้อความนั้นในช่องรายละเอียด (แทนหมายเหตุตัวเดิม) แล้ววางเคอร์เซอร์ท้ายข้อความ ให้พิมพ์ต่อได้เลย
+  //   กดตัวเดิมซ้ำ = ยกเลิก (เอาข้อความหมายเหตุออก เหลือที่พิมพ์ต่อไว้)
+  const lead = (t: string) => (t ? `${t} · ` : "");
+  function pick(q: string) {
+    const next = type === q ? "" : q;
+    const rest = type && reason.startsWith(type) ? reason.slice(type.length).replace(/^\s*·\s*/, "") : reason;
+    const v = lead(next) + rest;
+    setType(next);
+    setReason(v);
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(v.length, v.length);
+    });
+  }
+  // ข้อความยังขึ้นต้นด้วยหมายเหตุที่เลือก = ส่งเป็นหมายเหตุ + รายละเอียดที่พิมพ์ต่อ · ลบหมายเหตุออกจากช่องเอง = ถือว่าไม่ได้เลือก
+  const chosen = type && reason.startsWith(type) ? type : "";
+  const detail = (chosen ? reason.slice(chosen.length).replace(/^\s*·\s*/, "") : reason).trim();
   async function confirm() {
-    if (!type && reason.trim().length < 3) return toast.show("WARNING", "กรุณาเลือกหมายเหตุ หรือระบุสาเหตุที่สินค้าค้างอยู่ที่ค่า MIN", "warn");
+    if (!chosen && detail.length < 3) return toast.show("WARNING", "กรุณาเลือกหมายเหตุ หรือระบุสาเหตุที่สินค้าค้างอยู่ที่ค่า MIN", "warn");
     setBusy(true);
     try {
-      const r = await api<{ id: number; signNow: boolean; message: string }>("/minreport/report", { method: "POST", body: { watchId: item.watchId, reasonType: type, reason: reason.trim() } });
+      const r = await api<{ id: number; signNow: boolean; message: string }>("/minreport/report", { method: "POST", body: { watchId: item.watchId, reasonType: chosen, reason: detail } });
       toast.show("REPORTED", r.message, "ok");
       refreshNotifications();
       onDone();
@@ -48,14 +67,14 @@ export function ReportBox({ item, onDone, onBack, reasons = REASONS }: { item: M
       </label>
       <div className="mr-quick" role="radiogroup" aria-label="หมายเหตุ">
         {reasons.map((q) => (
-          <button key={q} type="button" role="radio" aria-checked={type === q} className={type === q ? "is-on" : ""} onClick={() => setType((t) => (t === q ? "" : q))}>
-            {type === q ? "✓ " : ""}
+          <button key={q} type="button" role="radio" aria-checked={chosen === q} className={chosen === q ? "is-on" : ""} onClick={() => pick(q)}>
+            {chosen === q ? "✓ " : ""}
             {q}
           </button>
         ))}
       </div>
-      <label className="mr-rlbl">รายละเอียดเพิ่มเติม {type ? "(ไม่บังคับ)" : <b>*</b>}</label>
-      <textarea ref={ref} value={reason} maxLength={900} rows={3} onChange={(e) => setReason(e.target.value)} placeholder="เช่น แผนผลิตวันที่ ... / เปิด PR เลขที่ ... / รอ Q-Gate ตรวจ Lot ..." />
+      <label className="mr-rlbl">หมายเหตุ / รายละเอียด {chosen ? "(พิมพ์เพิ่มต่อท้ายได้)" : <b>*</b>}</label>
+      <textarea ref={ref} value={reason} maxLength={900} rows={3} onChange={(e) => setReason(e.target.value)} placeholder="เลือกหมายเหตุด้านบน แล้วพิมพ์เพิ่มต่อ เช่น แผนผลิตวันที่ ... / เปิด PR เลขที่ ... / รอ Q-Gate ตรวจ Lot ..." />
       <div className="mr-ract">
         <span>{reason.length} / 900</span>
         <button type="button" className="cta-btn is-gray is-sm" onClick={onBack} disabled={busy}>

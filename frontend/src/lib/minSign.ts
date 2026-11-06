@@ -13,3 +13,9 @@ export function minTokenOf(body: string): { text: string; id: number } | null {
   const m = MIN_TOKEN.exec(body ?? "");
   return m ? { text: body.replace(MIN_TOKEN, "").trim(), id: Number(m[1]) } : null;
 }
+
+// 📁 ประวัติ MIN REPORT ของฉัน (กระดิ่ง) - MinSignHost เปิดหน้าต่าง
+export const MIN_HISTORY_EVENT = "nexus:minsign-history";
+export function openMinHistory() {
+  window.dispatchEvent(new Event(MIN_HISTORY_EVENT));
+}

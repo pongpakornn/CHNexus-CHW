@@ -42,7 +42,7 @@ function toPng(src: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((r) => out.toBlob(r, "image/png"));
 }
 
-export function SignatureModal({ userId, onClose }: { userId: string; onClose: () => void }) {
+export function SignatureModal({ userId, onClose, onSaved }: { userId: string; onClose: () => void; onSaved?: () => void }) {
   const toast = useToast();
   const cv = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -128,6 +128,7 @@ export function SignatureModal({ userId, onClose }: { userId: string; onClose: (
       clear();
       setVer((v) => v + 1);
       load();
+      onSaved?.();
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {

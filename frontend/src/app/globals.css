@@ -10113,3 +10113,193 @@ button.mrp-stat:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* =====================================================================
+   ✍ MIN REPORT v4 : การ์ด "รออนุมัติ / รอเซ็น" · รายการเอกสารใน FLOW · ประวัติลายเซ็นของฉัน (กระดิ่ง) · ตั้งค่าหมายเหตุ
+   ===================================================================== */
+.mrp-stats:has(> .mrp-stat:nth-child(4)) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.mrp-stat.is-violet {
+  --c: #6d28d9;
+}
+.mrp-stat.is-violet b {
+  color: var(--c);
+}
+@media (max-width: 1100px) {
+  .mrp-stats:has(> .mrp-stat:nth-child(4)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .mrp-stats:has(> .mrp-stat:nth-child(4)) {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 1101px) {
+  .mrp-row.is-sign .mrp-main {
+    grid-template-columns: 30px minmax(200px, 1.1fr) minmax(0, 1.6fr) auto auto;
+  }
+}
+.mrp-row.is-mine {
+  --c: #6d28d9;
+}
+.mrp-row.is-wait {
+  --c: #ea580c;
+}
+.mrp-flow.is-mine {
+  color: #fff;
+  background: #6d28d9;
+  animation: mrs-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mrs-pulse {
+  50% {
+    box-shadow: 0 0 0 4px rgb(109 40 217 / 0.18);
+  }
+}
+.mrp-stk {
+  margin-right: 6px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-style: normal;
+  font-size: 11px;
+  color: #4c3e9c;
+  background: #ede9fe;
+  vertical-align: 2px;
+}
+.mrs-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e6e1f4;
+  padding: 3px;
+}
+.mrs-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #5b5670;
+  transition: background 0.2s, color 0.2s;
+}
+.mrs-tabs button b {
+  min-width: 20px;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: #f1eefa;
+  text-align: center;
+}
+.mrs-tabs button.is-on {
+  color: #fff;
+  background: #6750a4;
+}
+.mrs-tabs button.is-on b {
+  background: rgb(255 255 255 / 0.22);
+}
+.bell-hist {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  border-radius: 12px;
+  border: 1px dashed #d8d0f0;
+  padding: 8px 10px;
+  text-align: left;
+  color: #4c3e9c;
+  background: #faf8ff;
+  font-size: 12.5px;
+  font-weight: 800;
+  transition: background 0.2s;
+}
+.bell-hist:hover {
+  background: #f1ecff;
+}
+.bell-hist small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft, #6b6880);
+}
+/* SETUP › MIN REASONS */
+.rs-list {
+  display: grid;
+  gap: 6px;
+}
+.rs-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #ebe7f6;
+  border-radius: 12px;
+  background: #fff;
+  padding: 6px 8px;
+}
+.rs-row.is-new {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.rs-row > span {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft, #6b6880);
+}
+.rs-row input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.rs-row input:hover,
+.rs-row input:focus {
+  border-color: #d8d0f0;
+  background: #faf9ff;
+  outline: none;
+}
+.rs-btns {
+  display: flex;
+  gap: 4px;
+}
+.rs-btns button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: #5b5670;
+  background: #f4f2fa;
+}
+.rs-btns button:hover:not(:disabled) {
+  background: #e9e4f8;
+}
+.rs-btns button:disabled {
+  opacity: 0.35;
+}
+.rs-btns button.is-del:hover {
+  color: #fff;
+  background: #dc2626;
+}
+.rs-add {
+  display: flex;
+  gap: 8px;
+}
+.rs-add input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #d8d0f0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+}

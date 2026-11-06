@@ -23,9 +23,8 @@ public sealed class MinReportController : AppController
     private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง MIN REPORT (database/nexus/19_Min_Report.sql)");
     private IActionResult NoSign() => Fail("ฐานข้อมูลยังไม่มีตาราง FLOW ลายเซ็น (database/nexus/21_Min_Report_Sign.sql)");
 
-    // หมายเหตุที่เลือกได้ตอน REPORT (ตัวเลือกใหม่แทนตัวเดิมที่ความหมายซ้ำกัน)
-    public static readonly string[] ReasonTypes =
-        { "กำลังผลิต", "รอ Box FG", "รอ Check", "รอ Q-Gate", "รอซ่อม", "ปัญหาคุณภาพ", "ยังไม่มีแผนผลิต", "รอของจาก Supplier", "PR อยู่ระหว่างอนุมัติ", "ใช้มากกว่าปกติ / Order เพิ่ม", "ปรับค่า MIN / MAX ใหม่แล้ว" };
+    // หมายเหตุที่เลือกได้ตอน REPORT = ตาราง Nexus.MinReportReasons (Admin ตั้งได้ที่ SETUP › MIN REASONS)
+    private string[] ReasonTypes => _svc.Reasons();
 
     // คลังที่ผู้ใช้เห็น ∩ คลังที่เปิด MIN REPORT
     private List<StockModel> MyStocks(MinReportSettings set) =>
@@ -100,6 +99,15 @@ public sealed class MinReportController : AppController
         catch (Exception ex) { return Fail(ex, "บันทึกรายงานไม่สำเร็จ"); }
     }
 
+    // แถวรายงานที่รอลงลายเซ็น / ย้อนหลังของฉัน
+    private object SignRow(MinReportRow r) => new
+    {
+        r.ReportId, r.StockId, r.StockCode, r.Title, r.Sub, r.PartCode, r.PartName, r.Customer, r.Supplier, r.Qty, r.StockBox, min = r.MinQty, max = r.MaxQty,
+        r.ReasonType, r.Reason, r.ReporterName, r.ReportedBy, r.ReportedAt, r.FlowStatus, r.NextSlot, r.DoneAt,
+        slotName = MinReportService.SlotName(r.NextSlot ?? 0), signs = r.Signs.Count,
+        mine = r.FlowStatus == "SIGNING" && r.NextSlot is int ns && ns is >= 1 and <= 4 && _svc.Flow(r.StockId)[ns - 1].Allows(Uid)
+    };
+
     private static string Label(MinPartBase r) => string.IsNullOrWhiteSpace(r.Title) ? (string.IsNullOrWhiteSpace(r.Sub) ? r.PartName : r.Sub) : r.Title;
 
     // ---------------------------------------------------------------- หน้า Store : ปุ่ม MIN REPORT ของคลัง
@@ -112,7 +120,9 @@ public sealed class MinReportController : AppController
         var set = _svc.GetSettings();
         bool on = set.Enabled && set.Stocks.Contains(stkId);
         var items = on ? _svc.Pending(new[] { stkId }, set.StuckDays, all: true) : new();
-        return Ok(new { ready = true, enabled = on, set.StuckDays, reasons = ReasonTypes, items = items.Select(Row) });
+        // ✍ รายงานของคลังนี้ที่ยังรอลงลายเซ็น (การ์ด "รอลงลายเซ็น")
+        var signing = DbSchema.HasMinSign ? _svc.Signing(stkId) : new();
+        return Ok(new { ready = true, enabled = on, set.StuckDays, reasons = ReasonTypes, items = items.Select(Row), signing = signing.Select(SignRow) });
     }
 
     [HttpGet("stock/{stkId:int}/history")]
@@ -222,6 +232,12 @@ public sealed class MinReportController : AppController
         if (r == null) return Fail("ไม่พบรายงานนี้");
         var flow = _svc.Flow(r.StockId);
         if (!CanOpen(r, flow)) return Deny("คุณไม่มีสิทธิ์เปิดรายงานนี้");
+        // ส่งรายงานก่อนตั้ง FLOW แล้วตอนนี้คลังมี FLOW = เริ่ม FLOW ให้เลย (เซ็นได้ทันที)
+        if (DbSchema.HasMinSign && r.FlowStatus == null && r.DoneAt == null && MinReportService.NextActive(flow, 0).HasValue && StartUnflowed(r.StockId) > 0)
+        {
+            r = _svc.GetReport(id);
+            LiveBus.Publish("minreport");
+        }
         return Ok(Doc(r, flow));
     }
 
@@ -285,6 +301,27 @@ public sealed class MinReportController : AppController
             r.ReportId, r.StockCode, title = Label(r), r.Sub, slot = r.NextSlot, slotName = MinReportService.SlotName(r.NextSlot ?? 0),
             r.ReporterName, r.ReportedBy, r.ReportedAt, r.ReasonType
         }));
+    }
+
+    // 📁 ย้อนหลังของฉัน (กระดิ่ง › ประวัติ MIN REPORT): รายงานที่ฉันรายงาน / ลงลายเซ็น / อยู่ใน FLOW · ลงนามครบแล้ว หรือยังเดินอยู่
+    [HttpGet("sign/mine")]
+    public IActionResult Mine([FromQuery] int? days, [FromQuery] string key)
+    {
+        if (Me == null) return Deny();
+        if (!DbSchema.HasMinSign) return Ok(Array.Empty<object>());
+        int d = Math.Clamp(days ?? 90, 1, 3650);
+        return Ok(_svc.Mine(Uid, d, key).Select(SignRow));
+    }
+
+    // รายงานที่ส่งก่อนตั้ง FLOW -> เริ่ม FLOW + แจ้งคนเซ็นช่องแรก (ผู้ส่ง = ผู้รายงาน) · คืนจำนวนที่เริ่ม
+    internal static int StartUnflowed(int? stockId)
+    {
+        var svc = new MinReportService();
+        var started = svc.StartUnflowed(stockId);
+        foreach (var (rid, slot) in started)
+            try { var r = svc.GetReport(rid); if (r != null) NotifySigners(r, slot, r.ReportedBy); }
+            catch { /* แจ้งไม่ได้ ยังมีกระดิ่ง */ }
+        return started.Count;
     }
 
     // 💬 ส่งเอกสารเข้าแชทของคนที่ต้องเซ็นช่องถัดไป (ไม่ส่งหาตัวเอง) - กดการ์ดในแชท = เปิด PREVIEW แล้วเซ็นได้ทันที
@@ -443,8 +480,47 @@ public sealed class MinReportController : AppController
             _svc.SaveFlow(stkId, slots, Uid);
             string txt = string.Join(" | ", slots.Select(x => $"{MinReportService.SlotName(x.Slot)}#{x.Slot}: {(x.Mode == "OFF" ? "OFF" : x.Mode + " " + string.Join(",", x.Users))}"));
             LogService.WriteLog(Uid, "MIN_REPORT_SETTINGS", $"Sign flow | Stock: {s.Code} | {txt}", "MIN_REPORT");
+            int started = StartUnflowed(stkId);    // รายงานเดิมที่ยังไม่มี FLOW = เริ่ม FLOW ให้ด้วย
             LiveBus.Publish("minreport");
-            return Ok(new { message = $"บันทึก FLOW ลายเซ็นของ {s.Code} แล้ว\nรายงานใหม่ของคลังนี้จะส่งไปให้ลงลายเซ็นตามลำดับ" });
+            return Ok(new { message = $"บันทึก FLOW ลายเซ็นของ {s.Code} แล้ว\nรายงานของคลังนี้จะส่งไปให้ลงลายเซ็นตามลำดับ" + (started > 0 ? $"\nรายงานเดิมที่ยังไม่มี FLOW {started} รายการ เริ่ม FLOW แล้ว" : "") });
+        }
+        catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
+    }
+
+    // 📝 ตัวเลือกหมายเหตุ (SETUP › MIN REASONS): เพิ่ม / แก้ไข / ลบ / เรียงลำดับ · บันทึกทั้งชุด
+    [HttpGet("settings/reasons")]
+    public IActionResult GetReasons()
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        return Ok(new { ready = DbSchema.HasMinReason, items = _svc.ReasonRows() });
+    }
+
+    public sealed record ReasonDto(int Id, string Text);
+    public sealed record ReasonsRequest(List<ReasonDto> Items);
+
+    [HttpPost("settings/reasons")]
+    public IActionResult SaveReasons([FromBody] ReasonsRequest req)
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        if (!DbSchema.HasMinReason) return Fail("ฐานข้อมูลยังไม่มีตารางหมายเหตุ (database/nexus/23_Min_Report_Reasons.sql)");
+        var list = new List<(int, string)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var x in req?.Items ?? new())
+        {
+            string t = System.Text.RegularExpressions.Regex.Replace((x?.Text ?? "").Trim(), @"\s+", " ");
+            if (t.Length == 0) continue;
+            if (t.Length > 60) return Fail($"หมายเหตุ \"{t[..20]}…\" ยาวเกิน 60 ตัวอักษร");
+            if (!seen.Add(t)) return Fail($"หมายเหตุ \"{t}\" ซ้ำกัน");
+            list.Add((Math.Max(0, x.Id), t));
+        }
+        if (list.Count == 0) return Fail("ต้องมีหมายเหตุอย่างน้อย 1 รายการ");
+        if (list.Count > 40) return Fail("หมายเหตุได้ไม่เกิน 40 รายการ");
+        try
+        {
+            _svc.SaveReasons(list, Uid);
+            LogService.WriteLog(Uid, "MIN_REPORT_SETTINGS", $"Reasons | {list.Count} items | {string.Join(", ", list.Select(x => x.Item2))}", "MIN_REPORT");
+            LiveBus.Publish("minreport");
+            return Ok(new { message = $"บันทึกตัวเลือกหมายเหตุ {list.Count} รายการแล้ว\nหน้าต่าง REPORT ของทุกเครื่องอัพเดทเอง" });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
     }

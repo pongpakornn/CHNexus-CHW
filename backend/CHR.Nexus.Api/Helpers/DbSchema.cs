@@ -199,6 +199,10 @@ namespace Nexus.Helpers
         public static bool HasMinSign => _minSign || (_minSign = HasMinReport && TableExists("Nexus.MinReportDisplay") == true && TableExists("Nexus.MinReportFlow") == true
                                                                  && TableExists("Nexus.MinReportSigns") == true && ColumnIn("Nexus.MinReports", "DoneAt") == true);
 
+        // 📋 MIN REPORT ตัวเลือกหมายเหตุ (23_Min_Report_Reasons.sql): SETUP › MIN REASONS
+        private static bool _minReason;
+        public static bool HasMinReason => _minReason || (_minReason = TableExists("Nexus.MinReportReasons") == true);
+
         // 🔐 รหัสผ่านแบบ Hash (22_User_Password_Hash.sql): Nexus.Users.PasswordHash
         private static bool _pwHash;
         public static bool HasPasswordHash => _pwHash || (_pwHash = ColumnIn("Nexus.Users", "PasswordHash") == true);

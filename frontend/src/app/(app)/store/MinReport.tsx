@@ -9,6 +9,7 @@ import { Empty, Loading } from "@/components/layout/Page";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { useToast } from "@/components/notifications/Toasts";
 import { ReportBox } from "@/components/notifications/MinReportAlert";
+import { SignList, type SignItem } from "@/components/notifications/MinSignList";
 import { ReportPreview, SLOT_NAMES, dt, n0, reasonText, span, subOf, titleOf, useNow, type MinHistory, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { api, download } from "@/lib/api";
 import { openMinSign } from "@/lib/minSign";
@@ -22,7 +23,7 @@ import type { Stock } from "./types";
 //   ทุกแถว: 👁 PREVIEW (เอกสาร FM-EN-04-22 รายการเดียว) · ✎ REPORT (เลือกหมายเหตุ + รายละเอียด) · PREVIEW ทั้งหมด -> PDF / EXCEL
 //   ประวัติ: 👁 = เอกสารพร้อมลายเซ็น (เซ็นช่องของตัวเองได้) · สถานะ FLOW (รอเซ็นช่องไหน / ลงนามครบ)
 //   ⚡ เรียลไทม์: รายงาน / เซ็น / ตั้งค่าจากเครื่องอื่น = โหลดเฉพาะรายการนี้ใหม่ (หัวข้อ minreport)
-type Pending = { ready: boolean; enabled: boolean; stuckDays: number; reasons?: string[]; items: MinItem[] };
+type Pending = { ready: boolean; enabled: boolean; stuckDays: number; reasons?: string[]; items: MinItem[]; signing?: SignItem[] };
 
 export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; autoOpen?: boolean }) {
   const toast = useToast();
@@ -102,6 +103,7 @@ const IC = {
   cart: "M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L19.5 8H6.2M9 19.5h.01M17 19.5h.01",
   cal: "M5 6h14v14H5zM5 10h14M9 3.5v4M15 3.5v4M8.5 13.5h2M13.5 13.5h2M8.5 16.5h2",
   clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.5V12l3 2",
+  pen: "M4 20c3-1 4-5 6-5s1 4 3 4 3-3 4-3M14.5 4.5l5 5-8 8H6.5v-5z",
 };
 const Ico = ({ d, className = "" }: { d: string; className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -113,10 +115,12 @@ const Ico = ({ d, className = "" }: { d: string; className?: string }) => (
 function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data: Pending | null; reload: () => void; onClose: () => void }) {
   const now = useNow();
   const [preview, setPreview] = useState<{ sheet: SheetData; id?: number } | null>(null);
-  const [tab, setTab] = useState<"late" | "watch">("late");
+  const [tab, setTab] = useState<"late" | "watch" | "sign">("late");
   const late = data?.items.filter((i) => i.days >= data.stuckDays) ?? [];
   const watch = data?.items.filter((i) => i.days < data.stuckDays) ?? [];
-  const list = tab === "late" ? late : watch;
+  const signing = data?.signing ?? [];
+  const mineN = signing.filter((r) => r.mine).length;
+  const list = tab === "late" ? late : tab === "watch" ? watch : [];
   const oldest = data?.items[0];
   const sheet = (rows: MinItem[]): SheetData => ({ kind: "pending", stock: s.code, stuckDays: data?.stuckDays ?? 3, rows });
 
@@ -131,7 +135,7 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
           <div className="flex w-full flex-wrap items-center gap-2">
             <span className="mrp-foot-note">
               <i>i</i>
-              {data?.enabled ? `แสดง ${list.length} รายการ · แจ้งเตือนเมื่อค้างที่ค่า MIN ≥ ${data.stuckDays} วัน · เอกสาร FM-EN-04-22` : ""}
+              {data?.enabled ? `แสดง ${tab === "sign" ? signing.length : list.length} รายการ · แจ้งเตือนเมื่อค้างที่ค่า MIN ≥ ${data.stuckDays} วัน · เอกสาร FM-EN-04-22` : ""}
             </span>
             <button className="cta-btn is-purple ml-auto" disabled={!data?.enabled || !data.items.length} onClick={() => data && setPreview({ sheet: sheet(data.items) })}>
               🖨 PREVIEW ALL • PDF / EXCEL
@@ -174,6 +178,16 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
                   <span>ยังไม่ครบ {data.stuckDays} วัน</span>
                 </span>
               </button>
+              <button type="button" className={`mrp-stat is-violet ${tab === "sign" ? "is-on" : ""}`} onClick={() => setTab("sign")}>
+                <span className="mrp-stat-ic">
+                  <Ico d={IC.pen} />
+                </span>
+                <span className="mrp-stat-tx">
+                  <small>รออนุมัติ / รอเซ็น</small>
+                  <b>{signing.length}</b>
+                  <span>{mineN ? `รอคุณเซ็น ${mineN} รายการ` : "รายงานที่ยังลงนามไม่ครบ"}</span>
+                </span>
+              </button>
               <div className="mrp-stat is-ink">
                 <span className="mrp-stat-ic">
                   <Ico d={IC.clock} />
@@ -186,7 +200,13 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
               </div>
             </div>
 
-            {list.length === 0 ? (
+            {tab === "sign" ? (
+              signing.length === 0 ? (
+                <Empty>ไม่มีเอกสารที่รอลงลายเซ็น 🎉</Empty>
+              ) : (
+                <SignList rows={signing} />
+              )
+            ) : list.length === 0 ? (
               <Empty>{tab === "late" ? "ไม่มีรายการที่ต้องรายงาน 🎉" : "ไม่มีรายการที่กำลังเฝ้าดู"}</Empty>
             ) : (
               <div className="mrp-list">

@@ -19,6 +19,8 @@ public sealed class MinWatchService : BackgroundService
             try
             {
                 if (DbSchema.HasMinReport && new MinReportService().Sweep() > 0) LiveBus.Publish("minreport");
+                // รายงานที่ส่งก่อนตั้ง FLOW ลายเซ็น -> เริ่ม FLOW + แจ้งคนเซ็นช่องแรก (Toast / กระดิ่ง / แชท)
+                if (DbSchema.HasMinSign && CHR.Nexus.Api.Controllers.MinReportController.StartUnflowed(null) > 0) LiveBus.Publish("minreport");
             }
             catch (Exception ex) { _log.LogDebug(ex, "MinWatch sweep"); } // รอบหน้าลองใหม่
             try { await Task.Delay(TimeSpan.FromMinutes(5), ct); } catch (OperationCanceledException) { return; }

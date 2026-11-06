@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { NOTIFY_REFRESH, openChat, openSupport } from "@/lib/support";
-import { openMinSign } from "@/lib/minSign";
+import { openMinHistory, openMinSign } from "@/lib/minSign";
 import { Icon, type IconName } from "@/components/icons";
 import { SlideDetail, SlideMenu, SlideRow, type Tone } from "@/components/menus/SlideMenu";
 
@@ -90,6 +90,21 @@ export function NotificationBell() {
             {data && <div className="text-[11px] font-semibold text-ink-soft">อัพเดท {data.time}</div>}
             <div className="ml-auto text-sm font-extrabold text-ink">การแจ้งเตือน</div>
           </div>
+          {/* แสดงเฉพาะเรื่องที่ยังค้างของเรา (เคลียร์แล้ว = หายไปเอง) · เอกสารที่ลงนามแล้วดูย้อนหลังได้ที่ปุ่มนี้ */}
+          <button
+            type="button"
+            className="bell-hist"
+            onClick={() => {
+              setOpen(false);
+              openMinHistory();
+            }}
+          >
+            <Icon name="document" className="size-4" />
+            <span>
+              ประวัติ MIN REPORT ของฉัน
+              <small>รอฉันเซ็น · ลงนามครบแล้ว (ย้อนหลัง)</small>
+            </span>
+          </button>
           <SlideMenu
             side="right"
             empty="ไม่มีเรื่องที่ต้องจัดการ"

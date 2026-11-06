@@ -233,6 +233,74 @@ public sealed class MinReportService
 
     public static int? NextActive(List<MinFlowSlot> flow, int after) => flow.Where(s => s.Slot > after && s.Active).Select(s => (int?)s.Slot).Min();
 
+    // รายงานที่ส่งก่อนตั้ง FLOW (FlowStatus NULL) -> เริ่ม FLOW ที่ช่องแรกที่ใช้ เมื่อคลังนั้นมี FLOW แล้ว
+    //   stockId = null = ทุกคลังที่ตั้ง FLOW · คืนค่ารายงานที่เพิ่งเริ่ม (ไว้แจ้งคนเซ็นช่องแรก)
+    public List<(int ReportId, int Slot)> StartUnflowed(int? stockId = null)
+    {
+        var started = new List<(int, int)>();
+        if (!DbSchema.HasMinSign) return started;
+        using var c = Conn();
+        foreach (var (stk, flow) in Flows())
+        {
+            if (stockId.HasValue && stk != stockId.Value) continue;
+            int? first = NextActive(flow, 0);
+            if (!first.HasValue) continue;
+            started.AddRange(c.Query<int>(@"UPDATE Nexus.MinReports SET FlowStatus = 'SIGNING', NextSlot = @first
+                                            OUTPUT INSERTED.ReportID
+                                            WHERE StockID = @stk AND FlowStatus IS NULL AND DoneAt IS NULL", new { stk, first = (byte)first.Value })
+                               .Select(id => (id, first.Value)));
+        }
+        return started;
+    }
+
+    // ---------------------------------------------------------------- 📝 ตัวเลือกหมายเหตุ (SETUP › MIN REASONS)
+    public static readonly string[] DefaultReasons =
+        { "กำลังผลิต", "รอ Box FG", "รอ Check", "รอ Q-Gate", "รอซ่อม", "ปัญหาคุณภาพ", "ยังไม่มีแผนผลิต", "รอของจาก Supplier", "PR อยู่ระหว่างอนุมัติ", "ใช้มากกว่าปกติ / Order เพิ่ม", "ปรับค่า MIN / MAX ใหม่แล้ว" };
+
+    public sealed class ReasonRow
+    {
+        public int Id { get; set; }
+        public string Text { get; set; }
+        public int SortNo { get; set; }
+        public string UpdatedBy { get; set; }
+        public DateTime? UpdatedDate { get; set; }
+    }
+
+    public List<ReasonRow> ReasonRows()
+    {
+        if (!DbSchema.HasMinReason) return DefaultReasons.Select((t, i) => new ReasonRow { Text = t, SortNo = i + 1 }).ToList();
+        using var c = Conn();
+        return c.Query<ReasonRow>("SELECT ReasonID AS Id, ReasonText AS Text, SortNo, UpdatedBy, UpdatedDate FROM Nexus.MinReportReasons ORDER BY SortNo, ReasonID").ToList();
+    }
+
+    public string[] Reasons()
+    {
+        try { return ReasonRows().Select(r => r.Text).ToArray(); }
+        catch { return DefaultReasons; }
+    }
+
+    // บันทึกทั้งชุด: ไม่มีในรายการ = ลบ · Id เดิม = แก้ข้อความ / ลำดับ · Id 0 = เพิ่มใหม่ (รายงานเก่าเก็บข้อความไว้ในตัวเองแล้ว ไม่กระทบ)
+    public void SaveReasons(List<(int Id, string Text)> list, string uid)
+    {
+        using var c = Conn();
+        c.Open();
+        using var tx = c.BeginTransaction();
+        var keep = list.Where(x => x.Id > 0).Select(x => x.Id).DefaultIfEmpty(-1).ToList();
+        c.Execute("DELETE FROM Nexus.MinReportReasons WHERE ReasonID NOT IN @keep", new { keep }, tx);
+        // ข้อความซ้ำกับแถวอื่นชั่วคราวระหว่างสลับชื่อ -> ตั้งชื่อชั่วคราวก่อน แล้วค่อยใส่ชื่อจริง
+        c.Execute("UPDATE Nexus.MinReportReasons SET ReasonText = CONCAT(N'~', ReasonID) WHERE ReasonID IN @keep", new { keep }, tx);
+        int i = 0;
+        foreach (var (id, text) in list)
+        {
+            i++;
+            if (id > 0)
+                c.Execute("UPDATE Nexus.MinReportReasons SET ReasonText = @text, SortNo = @i, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE ReasonID = @id", new { id, text, i, uid }, tx);
+            else
+                c.Execute("INSERT INTO Nexus.MinReportReasons (ReasonText, SortNo, UpdatedBy) VALUES (@text, @i, @uid)", new { text, i, uid }, tx);
+        }
+        tx.Commit();
+    }
+
     // ---------------------------------------------------------------- บันทึกช่วงที่อยู่ใต้ MIN (MinWatchService)
     //   คลังที่เปิด: แถวใต้ MIN ใหม่ = เริ่มนับ · ยังใต้ MIN = อัพเดทยอดล่าสุด · พ้น MIN แล้ว = ปิดช่วง (ResolvedAt)
     public int Sweep()
@@ -357,6 +425,32 @@ public sealed class MinReportService
         using var c = Conn();
         var rows = c.Query<MinReportRow>("SELECT " + HistoryCols + "WHERE r.FlowStatus = 'SIGNING' ORDER BY r.ReportedAt").ToList()
                     .Where(r => r.NextSlot is int ns && flows.TryGetValue(r.StockId, out var f) && f[ns - 1].Allows(uid)).ToList();
+        Finish(c, rows);
+        return rows;
+    }
+
+    // 📁 ย้อนหลังของฉัน: รายงานที่ฉันรายงาน / ลงลายเซ็น / อยู่ใน FLOW ของคลังนั้น (ลงนามครบ หรือยังเดินอยู่) · ล่าสุดก่อน
+    public List<MinReportRow> Mine(string uid, int days, string key)
+    {
+        if (!DbSchema.HasMinSign) return new();
+        var flows = Flows();
+        var inFlow = flows.Where(f => f.Value.Any(s => s.Allows(uid))).Select(f => f.Key).DefaultIfEmpty(-1).ToList();
+        using var c = Conn();
+        var rows = c.Query<MinReportRow>("SELECT TOP 300 " + HistoryCols + @"
+                      WHERE r.ReportedAt >= DATEADD(DAY, -@days, CAST(GETDATE() AS DATE)) AND r.FlowStatus IS NOT NULL
+                        AND (r.ReportedBy = @uid OR r.StockID IN @inFlow OR EXISTS (SELECT 1 FROM Nexus.MinReportSigns g WHERE g.ReportID = r.ReportID AND g.UserID = @uid))
+                        AND (@key = '' OR r.PartCode LIKE @like OR r.PartName LIKE @like OR r.Reason LIKE @like OR r.StockCode LIKE @like OR r.ReporterName LIKE @like)
+                      ORDER BY r.ReportedAt DESC", new { uid, days, inFlow, key = key ?? "", like = "%" + (key ?? "") + "%" }).ToList();
+        Finish(c, rows);
+        return rows;
+    }
+
+    // ✍ จำนวนรายงานที่ยังรอลงลายเซ็นของคลัง (การ์ด "รอลงลายเซ็น" ในหน้าต่าง PENDING)
+    public List<MinReportRow> Signing(int stockId)
+    {
+        if (!DbSchema.HasMinSign) return new();
+        using var c = Conn();
+        var rows = c.Query<MinReportRow>("SELECT " + HistoryCols + "WHERE r.StockID = @stockId AND r.FlowStatus = 'SIGNING' ORDER BY r.ReportedAt", new { stockId }).ToList();
         Finish(c, rows);
         return rows;
     }

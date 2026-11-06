@@ -13,10 +13,11 @@ import { useDebounced } from "@/lib/useDebounced";
 import { MinReportPanel } from "./MinReportPanel";
 import { LayoutPanel } from "./LayoutPanel";
 import { SignFlowPanel } from "./SignFlowPanel";
+import { MinReasonPanel } from "./MinReasonPanel";
 
-type Section = "PR" | "EXCEL" | "DEPT" | "MIN" | "FLOW" | "LAYOUT";
+type Section = "PR" | "EXCEL" | "DEPT" | "MIN" | "REASON" | "FLOW" | "LAYOUT";
 type Dirty = Record<Section, boolean>;
-const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS", MIN: "MIN REPORT", FLOW: "SIGN FLOW", LAYOUT: "LAYOUT SETUP" };
+const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS", MIN: "MIN REPORT", REASON: "MIN REASONS", FLOW: "SIGN FLOW", LAYOUT: "LAYOUT SETUP" };
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
 const SIDE_KEY = "setup-side";
@@ -25,6 +26,7 @@ const TABS: [Section, string, string, React.ReactNode][] = [
   ["EXCEL", "EXCEL SETUP", "ไฟล์ Excel ของ PR / Export RPA", <path key="e" d="M4 4h16v16H4zM4 9h16M4 14h16M9 9v11M14 9v11" />],
   ["DEPT", "DEPARTMENTS", "แผนกของหน้า Multi-Scanner", <path key="d" d="M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h2M14 11h2" />],
   ["MIN", "MIN REPORT", "แจ้งเตือนสินค้าค้างที่ค่า MIN", <path key="m" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0M12 8v3.5" />],
+  ["REASON", "MIN REASONS", "ตัวเลือกหมายเหตุ · เพิ่ม / แก้ไข / ลบ", <path key="r" d="M5 4h14v12H9l-4 4zM9 8h6M9 12h4" />],
   ["FLOW", "SIGN FLOW", "SETUP FLOW SIGNATURE · MIN REPORT", <path key="f" d="M4 18c3-1 4-6 6-6s1 5 3 5 3-4 4-4M15 4l5 5-8 8H7v-5zM13 6l5 5" />],
   ["LAYOUT", "LAYOUT SETUP", "ตำแหน่งจัดเก็บ · QR ตำแหน่ง", <path key="l" d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7v5M9.5 9.5h5" />],
 ];
@@ -34,7 +36,7 @@ const TABS: [Section, string, string, React.ReactNode][] = [
 export function SetupModal({ onClose }: { onClose: () => void }) {
   const dlg = useDialogs();
   const [sec, setSec] = useState<Section>("PR");
-  const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false, MIN: false, FLOW: false, LAYOUT: false });
+  const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false, MIN: false, REASON: false, FLOW: false, LAYOUT: false });
   const [mini, setMini] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const mark = useCallback((s: Section, v: boolean) => setDirty((d) => (d[s] === v ? d : { ...d, [s]: v })), []);
@@ -116,6 +118,9 @@ export function SetupModal({ onClose }: { onClose: () => void }) {
             </div>
             <div hidden={sec !== "MIN"} className={sec === "MIN" ? "adm-pane" : ""}>
               <MinReportPanel onDirty={(v) => mark("MIN", v)} />
+            </div>
+            <div hidden={sec !== "REASON"} className={sec === "REASON" ? "adm-pane" : ""}>
+              <MinReasonPanel onDirty={(v) => mark("REASON", v)} />
             </div>
             <div hidden={sec !== "FLOW"} className={sec === "FLOW" ? "adm-pane" : ""}>
               <SignFlowPanel onDirty={(v) => mark("FLOW", v)} />
