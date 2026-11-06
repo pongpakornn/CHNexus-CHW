@@ -23,20 +23,31 @@ const MAX_WAIT_INCOMPLETE_MS = 1500;
 type Modes = { out: boolean; return: boolean; remainder: boolean; test: boolean };
 type Pending = { barcode: string; chosenStockId?: number; enteredQty?: number };
 
-// 📍 QR LAYOUT (ตำแหน่งจัดเก็บ): ตรงข้อความ QR ตามรูปแบบปัจจุบัน / ป้ายเก่าที่พิมพ์ก่อนเปลี่ยนรูปแบบ (TYPE+NAME หรือ NAME อย่างเดียวถ้าไม่ซ้ำ)
+// 📍 QR LAYOUT (ตำแหน่งจัดเก็บ): รับได้ทุกรูปแบบที่ตั้งใน LAYOUT SETUP + ป้ายเก่าที่พิมพ์ก่อนเปลี่ยนรูปแบบ
+//   1) ตรงข้อความ QR ตามรูปแบบปัจจุบันเป๊ะ (ไม่สนตัวพิมพ์เล็ก / ใหญ่ · ช่องว่างหัวท้าย)
+//   2) ไม่สนตัวคั่น: TYPE + NAME / NAME + TYPE (ตัวคั่นอะไรก็ได้ เช่น เว้นวรรค - _ / : |)
+//   3) NAME อย่างเดียว / TYPE อย่างเดียว (เฉพาะที่ตรงตำแหน่งเดียว)
+//   ตรงหลายตำแหน่ง (เช่น รูปแบบ TYPE อย่างเดียว) = ใช้ข้อความ QR นั้นเป็นตำแหน่ง
 const LAYOUT_KEY = "chr-scanner-layout";
 const compact = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 function matchLayout(raw: string, items: LayoutQr[]): LayoutQr | null {
-  const t = raw.trim().toUpperCase();
+  const t = raw.replace(/[\r\n\t]+/g, " ").trim().toUpperCase();
   if (!t || items.length === 0) return null;
-  const exact = items.find((i) => i.qr.toUpperCase() === t);
+  const pick = (list: LayoutQr[]) => (list.length === 1 ? list[0] : list.length > 1 ? { ...list[0], label: list[0].qr } : null);
+  const exact = pick(items.filter((i) => i.qr.toUpperCase() === t));
   if (exact) return exact;
   const c = compact(t);
   if (!c) return null;
-  const both = items.filter((i) => compact(i.type + i.name) === c);
-  if (both.length === 1) return both[0];
-  const name = items.filter((i) => compact(i.name) === c);
-  return name.length === 1 ? name[0] : null;
+  const tries: ((i: LayoutQr) => string)[] = [(i) => i.type + i.name, (i) => i.name + i.type, (i) => i.name];
+  for (const f of tries) {
+    const hit = items.filter((i) => compact(f(i)) === c);
+    if (hit.length === 1) return hit[0];
+  }
+  // TYPE อย่างเดียว: ประเภทที่มีตำแหน่งเดียว = ตำแหน่งนั้น · หลายตำแหน่ง = ใช้ข้อความ QR ปัจจุบันของประเภทนั้น (ทุกตำแหน่งได้ QR เดียวกัน)
+  const ty = items.filter((i) => compact(i.type) === c);
+  if (ty.length === 1) return ty[0];
+  if (ty.length > 1 && ty.every((i) => i.qr === ty[0].qr)) return { ...ty[0], label: ty[0].qr };
+  return null;
 }
 function readLayout() {
   try {
@@ -205,6 +216,19 @@ export default function ScannerPage() {
     const mm = m ?? modesRef.current;
     const c = await api<ScannerContext>("/scanner/context", { query: { scope: readScope(), ...mm } });
     setCtx(c);
+    // ตำแหน่งที่จำไว้เป็นข้อความรูปแบบเก่า (Admin เปลี่ยนรูปแบบ QR) = แปลงเป็นข้อความตามรูปแบบปัจจุบัน
+    if (c.layout?.enabled && layoutRef.current) {
+      const m = matchLayout(layoutRef.current, c.layout.items);
+      if (m && m.qr !== layoutRef.current) {
+        layoutRef.current = m.qr;
+        setLayoutState(m.qr);
+        try {
+          localStorage.setItem(LAYOUT_KEY, m.qr);
+        } catch {
+          /* ไม่จำก็ได้ */
+        }
+      }
+    }
     setModes((cur) => {
       const next = { out: c.modes.out, return: c.modes.return, remainder: c.modes.remainder, test: c.modes.test };
       return cur.out === next.out && cur.return === next.return && cur.remainder === next.remainder && cur.test === next.test ? cur : next;

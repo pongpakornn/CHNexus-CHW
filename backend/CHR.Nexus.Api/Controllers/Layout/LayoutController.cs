@@ -35,12 +35,15 @@ public sealed class LayoutController : AppController
         };
     }
 
+    // ดูรายการตำแหน่ง + EXPORT QR: LAYOUT SETUP (Admin) หรือ Product Control (Inventory Registration › EXCEL · QR › EXPORT QR CODE LAYOUT) · แก้ไขได้เฉพาะ LAYOUT SETUP
+    private bool CanSeeQr => Me?.CanViewLayout == true || Me?.CanViewProductControl == true;
+
     private void Changed() => LiveBus.Publish("layout");
 
     [HttpGet]
     public IActionResult Get()
     {
-        if (Me?.CanViewLayout != true) return Deny();
+        if (!CanSeeQr) return Deny();
         if (!Ready) return Ok(new { ready = false });
         return Ok(Payload());
     }
@@ -196,7 +199,7 @@ public sealed class LayoutController : AppController
     [HttpPost("qr-log")]
     public IActionResult QrLog([FromBody] QrLogRequest req)
     {
-        if (Me?.CanViewLayout != true) return Deny();
+        if (!CanSeeQr) return Deny();
         if (!Ready) return NotReady();
         var rows = _svc.AllLocations().Where(l => req?.Ids?.Contains(l.LocId) == true).ToList();
         LogService.WriteLog(Uid, "LAYOUT_QR_EXPORT", $"{(req?.Mode ?? "PDF").ToUpperInvariant()} | {rows.Count} QR: {string.Join(", ", rows.Take(60).Select(r => LayoutService.LabelText(r.TypeName, r.LocName)))}{(rows.Count > 60 ? " …" : "")}", "LAYOUT");
@@ -207,7 +210,7 @@ public sealed class LayoutController : AppController
     [HttpPost("qr-pdf")]
     public IActionResult QrPdf([FromBody] QrLogRequest req)
     {
-        if (Me?.CanViewLayout != true) return Deny();
+        if (!CanSeeQr) return Deny();
         if (!Ready) return NotReady();
         var ids = req?.Ids ?? new();
         var rows = _svc.AllLocations().Where(l => ids.Contains(l.LocId)).OrderBy(l => ids.IndexOf(l.LocId)).ToList();

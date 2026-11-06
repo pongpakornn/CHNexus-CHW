@@ -18,6 +18,8 @@ import { stockIcon } from "@/lib/stockIcons";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { AdminModal } from "./AdminModal";
+import { LayoutQrPicker } from "./LayoutQrPicker";
+import { createPortal } from "react-dom";
 import { CoilPanel, type CoilRow } from "./CoilPanel";
 import { EMPTY_FORM, formOf, type Form, type InvStock, type Layout, type Meta, type Part } from "./types";
 
@@ -64,6 +66,7 @@ export default function InventoryPage() {
   const [busy, setBusy] = useState(false);
   const [coils, setCoils] = useState<Record<number, CoilRow[] | "loading">>({});
   const [admin, setAdmin] = useState(false);
+  const [layoutQr, setLayoutQr] = useState(false); // ▣ EXPORT QR CODE LAYOUT
   const [tplOpen, setTplOpen] = useState(false);
   const [tplOptions, setTplOptions] = useState<{ stkId: number; code: string; name: string; heads: string; countCoil: boolean }[]>([]);
   const [exportOpen, setExportOpen] = useState<{ all: number } | null>(null);
@@ -637,6 +640,14 @@ export default function InventoryPage() {
                   icon: "qr" as const,
                   onClick: openExport,
                 },
+                {
+                  key: "qr-layout",
+                  title: "EXPORT QR CODE LAYOUT",
+                  detail: "ส่งออก QR ตำแหน่งจัดเก็บ (Locations จาก LAYOUT SETUP) เลือกจากตาราง แล้ว Export PDF แบบเดียวกับ QR สินค้า",
+                  color: "#6750a4",
+                  icon: "qr" as const,
+                  onClick: () => setLayoutQr(true),
+                },
                 ...(can.admin
                   ? [{ key: "admin", title: "ADMIN", detail: "จัดการขั้นสูง (Admin Level 1): ลบสินค้าตามคลัง / ตั้งคอลัมน์ตาราง / รูปแบบ QR CODE", color: "#334155", icon: "admin" as const, onClick: () => setAdmin(true) }]
                   : []),
@@ -964,6 +975,7 @@ export default function InventoryPage() {
         </div>
       </Modal>
 
+      {layoutQr && createPortal(<LayoutQrPicker onClose={() => setLayoutQr(false)} />, document.body)}
       {/* ▣ EXPORT QR: ที่ติ๊กไว้ / ทั้งหมดในคลัง */}
       <Modal open={!!exportOpen} wide title="▣ EXPORT QR" onClose={() => setExportOpen(null)}>
         <p className="mb-4 text-sm font-semibold text-ink-soft">QR CODE ตามรูปแบบที่ตั้งไว้ของ {filterStock?.code ?? "ALL STOCKS"} (ปุ่ม ADMIN &gt; QR CODE)</p>
