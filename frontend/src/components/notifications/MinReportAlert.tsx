@@ -5,31 +5,36 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { useToast } from "@/components/notifications/Toasts";
 import { refreshNotifications } from "@/lib/support";
-import { days, dt, n0, span, useNow, type MinItem } from "@/components/print/MinReportSheet";
+import { days, dt, n0, span, subOf, titleOf, useNow, type MinItem } from "@/components/print/MinReportSheet";
+import { openMinSign } from "@/lib/minSign";
 
 // ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ (ทุกหน้า) เมื่อมีสินค้าค้างที่ค่า MIN ครบตามวันที่ตั้ง (SETUP > MIN REPORT)
 //   REPORT = ระบุสาเหตุ -> CONFIRM (บันทึกว่าใครรายงาน) · CANCEL = ซ่อนชั่วคราว แล้วแจ้งซ้ำตามเวลาที่ตั้ง
 //   แจ้งต่อไปเรื่อย ๆ จนกว่าจะรายงาน หรือสินค้ากลับมาพ้นค่า MIN · เห็นเฉพาะคลังที่มีสิทธิ์ดู
-type Alerts = { stuckDays: number; remindMinutes: number; snoozeUntil: string | null; now: string; items: MinItem[] };
+type Alerts = { stuckDays: number; remindMinutes: number; snoozeUntil: string | null; now: string; reasons?: string[]; items: MinItem[] };
 
-const QUICK = ["รอของจาก Supplier", "PR อยู่ระหว่างอนุมัติ", "ใช้มากกว่าปกติ / Order เพิ่ม", "รอผลิต / รอตรวจสอบคุณภาพ", "ปรับค่า MIN / MAX ใหม่แล้ว"];
+// หมายเหตุที่เลือกได้ (Server ส่งรายการล่าสุดมาด้วย) - ตัวเลือกใหม่แทนตัวเดิมที่ความหมายซ้ำกัน (รอผลิต / รอตรวจสอบคุณภาพ)
+export const REASONS = ["กำลังผลิต", "รอ Box FG", "รอ Check", "รอ Q-Gate", "รอซ่อม", "ปัญหาคุณภาพ", "ยังไม่มีแผนผลิต", "รอของจาก Supplier", "PR อยู่ระหว่างอนุมัติ", "ใช้มากกว่าปกติ / Order เพิ่ม", "ปรับค่า MIN / MAX ใหม่แล้ว"];
 const every = (m: number) => (m % 60 === 0 ? `${m / 60} ชม.` : m > 60 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${m} นาที`);
 
-// กล่องกรอกสาเหตุ (ใช้ทั้งหน้าต่างแจ้งเตือน และหน้า Store > MIN REPORT)
-export function ReportBox({ item, onDone, onBack }: { item: MinItem; onDone: () => void; onBack: () => void }) {
+// กล่องรายงาน (ใช้ทั้งหน้าต่างแจ้งเตือน และหน้า Store > MIN REPORT): เลือกหมายเหตุ + กรอกรายละเอียดเพิ่มเติม
+//   ส่งแล้ว = แจ้งคนที่ต้องลงลายเซ็นช่องถัดไปทันที (Toast + กระดิ่ง + แชท) · ผู้รายงานอยู่ในช่องแรกเอง = เปิดเอกสารให้เซ็นต่อ
+export function ReportBox({ item, onDone, onBack, reasons = REASONS }: { item: MinItem; onDone: () => void; onBack: () => void; reasons?: string[] }) {
   const toast = useToast();
+  const [type, setType] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => ref.current?.focus(), []);
   async function confirm() {
-    if (reason.trim().length < 3) return toast.show("WARNING", "กรุณาระบุหมายเหตุ / สาเหตุที่สินค้าค้างอยู่ที่ค่า MIN", "warn");
+    if (!type && reason.trim().length < 3) return toast.show("WARNING", "กรุณาเลือกหมายเหตุ หรือระบุสาเหตุที่สินค้าค้างอยู่ที่ค่า MIN", "warn");
     setBusy(true);
     try {
-      const r = await api<{ message: string }>("/minreport/report", { method: "POST", body: { watchId: item.watchId, reason: reason.trim() } });
+      const r = await api<{ id: number; signNow: boolean; message: string }>("/minreport/report", { method: "POST", body: { watchId: item.watchId, reasonType: type, reason: reason.trim() } });
       toast.show("REPORTED", r.message, "ok");
       refreshNotifications();
       onDone();
+      if (r.signNow) openMinSign(r.id);
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -39,23 +44,25 @@ export function ReportBox({ item, onDone, onBack }: { item: MinItem; onDone: () 
   return (
     <div className="mr-rbox">
       <label className="mr-rlbl">
-        หมายเหตุ / สาเหตุที่ค้างอยู่ที่ค่า MIN ({item.partCode}) <b>*</b>
+        เลือกหมายเหตุ ({titleOf(item) || "ไม่มีรหัส"}) <b>*</b>
       </label>
-      <div className="mr-quick">
-        {QUICK.map((q) => (
-          <button key={q} type="button" onClick={() => setReason((r) => (r.trim() ? `${r.trim()} · ${q}` : q))}>
-            ＋ {q}
+      <div className="mr-quick" role="radiogroup" aria-label="หมายเหตุ">
+        {reasons.map((q) => (
+          <button key={q} type="button" role="radio" aria-checked={type === q} className={type === q ? "is-on" : ""} onClick={() => setType((t) => (t === q ? "" : q))}>
+            {type === q ? "✓ " : ""}
+            {q}
           </button>
         ))}
       </div>
-      <textarea ref={ref} value={reason} maxLength={1000} rows={3} onChange={(e) => setReason(e.target.value)} placeholder="เช่น รอของจาก Supplier ส่งวันที่ ... / เปิด PR เลขที่ ... แล้ว" />
+      <label className="mr-rlbl">รายละเอียดเพิ่มเติม {type ? "(ไม่บังคับ)" : <b>*</b>}</label>
+      <textarea ref={ref} value={reason} maxLength={900} rows={3} onChange={(e) => setReason(e.target.value)} placeholder="เช่น แผนผลิตวันที่ ... / เปิด PR เลขที่ ... / รอ Q-Gate ตรวจ Lot ..." />
       <div className="mr-ract">
-        <span>{reason.length} / 1000</span>
+        <span>{reason.length} / 900</span>
         <button type="button" className="cta-btn is-gray is-sm" onClick={onBack} disabled={busy}>
           ย้อนกลับ
         </button>
         <button type="button" className="cta-btn is-green is-sm" onClick={confirm} disabled={busy}>
-          {busy ? "…" : "✓ CONFIRM"}
+          {busy ? "…" : "✓ ส่ง REPORT"}
         </button>
       </div>
     </div>
@@ -63,7 +70,7 @@ export function ReportBox({ item, onDone, onBack }: { item: MinItem; onDone: () 
 }
 
 // แถวสินค้า 1 รายการ: ข้อมูล + ปุ่ม REPORT (กด = กางกล่องกรอกสาเหตุ)
-export function MinItemCard({ item, stuckDays, onReported, showStock = true }: { item: MinItem; stuckDays: number; onReported: () => void; showStock?: boolean }) {
+export function MinItemCard({ item, stuckDays, onReported, showStock = true, reasons }: { item: MinItem; stuckDays: number; onReported: () => void; showStock?: boolean; reasons?: string[] }) {
   const [open, setOpen] = useState(false);
   const now = useNow();
   const late = item.days >= stuckDays;
@@ -72,9 +79,9 @@ export function MinItemCard({ item, stuckDays, onReported, showStock = true }: {
       <div className="mr-card-main">
         <div className="mr-card-id">
           {showStock && <span className="mr-stk">{item.stockCode}</span>}
-          <b>{item.partCode}</b>
+          <b>{titleOf(item) || "ไม่มีรหัส"}</b>
           {item.test && <span className="mr-test">TEST</span>}
-          <span className="mr-pname">{item.partName}</span>
+          <span className="mr-pname">{subOf(item)}</span>
         </div>
         <div className="mr-nums">
           <span>
@@ -99,7 +106,7 @@ export function MinItemCard({ item, stuckDays, onReported, showStock = true }: {
           </button>
         )}
       </div>
-      {open && <ReportBox item={item} onBack={() => setOpen(false)} onDone={onReported} />}
+      {open && <ReportBox item={item} reasons={reasons} onBack={() => setOpen(false)} onDone={onReported} />}
     </div>
   );
 }
@@ -174,7 +181,7 @@ export function MinReportAlert() {
         </div>
         <div className="mr-alert-body">
           {data.items.map((it) => (
-            <MinItemCard key={it.watchId} item={it} stuckDays={data.stuckDays} onReported={load} />
+            <MinItemCard key={it.watchId} item={it} stuckDays={data.stuckDays} reasons={data.reasons} onReported={load} />
           ))}
         </div>
         <div className="mr-alert-foot">

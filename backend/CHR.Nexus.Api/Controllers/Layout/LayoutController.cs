@@ -202,4 +202,25 @@ public sealed class LayoutController : AppController
         LogService.WriteLog(Uid, "LAYOUT_QR_EXPORT", $"{(req?.Mode ?? "PDF").ToUpperInvariant()} | {rows.Count} QR: {string.Join(", ", rows.Take(60).Select(r => LayoutService.LabelText(r.TypeName, r.LocName)))}{(rows.Count > 60 ? " …" : "")}", "LAYOUT");
         return Ok(new { ok = true });
     }
+
+    // ▣ EXPORT QR (PDF) แบบเดียวกับ Product Control › EXPORT SELECTED: A4 · 4 ดวงต่อแถว · QR + "RACK1 : 3A" ตัวหนาใต้ QR
+    [HttpPost("qr-pdf")]
+    public IActionResult QrPdf([FromBody] QrLogRequest req)
+    {
+        if (Me?.CanViewLayout != true) return Deny();
+        if (!Ready) return NotReady();
+        var ids = req?.Ids ?? new();
+        var rows = _svc.AllLocations().Where(l => ids.Contains(l.LocId)).OrderBy(l => ids.IndexOf(l.LocId)).ToList();
+        if (rows.Count == 0) return Fail("กรุณาเลือกตำแหน่งที่ต้องการ Export อย่างน้อย 1 ตำแหน่ง");
+        try
+        {
+            var set = _svc.GetSettings();
+            string pdf = new ExportService().GenerateQrListPdf(
+                rows.Select(r => (LayoutService.QrText(set, r.TypeName, r.LocName), (IList<string>)new[] { LayoutService.LabelText(r.TypeName, r.LocName) })),
+                ImportTemplateService.Systems.Product, "LAYOUT_QR");
+            LogService.WriteLog(Uid, "LAYOUT_QR_EXPORT", $"PDF | {rows.Count} QR: {string.Join(", ", rows.Take(60).Select(r => LayoutService.LabelText(r.TypeName, r.LocName)))}{(rows.Count > 60 ? " …" : "")}", "LAYOUT");
+            return Download(pdf, "application/pdf");
+        }
+        catch (Exception ex) { return Fail(ex, "Export ไม่สำเร็จ"); }
+    }
 }

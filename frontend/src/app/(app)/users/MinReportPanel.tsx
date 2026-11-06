@@ -5,10 +5,11 @@ import { Loading } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
+import { MinDisplayPanel } from "./MinDisplayPanel";
 
 // 📋 SETUP › MIN REPORT (ทั้งระบบ ไม่ใช่รายบุคคล): เปิด / ปิด · ค้างที่ MIN กี่วันจึงแจ้งเตือน · กด CANCEL แล้วแจ้งซ้ำทุกกี่นาที / ชม. · คลังที่ใช้
 type St = { stkId: number; code: string; name: string; stockType: string | null; isMain: boolean; isLiveView: boolean; on: boolean };
-type Cfg = { enabled: boolean; stuckDays: number; remindMinutes: number; updatedBy: string | null; updatedDate: string | null; stocks: St[] };
+type Cfg = { enabled: boolean; stuckDays: number; remindMinutes: number; updatedBy: string | null; updatedDate: string | null; hasSign?: boolean; stocks: St[] };
 type Unit = "MIN" | "HR";
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
@@ -173,6 +174,8 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           💾 SAVE
         </button>
       </div>
+
+      {cfg.hasSign && <MinDisplayPanel stocks={cfg.stocks} />}
     </div>
   );
 }

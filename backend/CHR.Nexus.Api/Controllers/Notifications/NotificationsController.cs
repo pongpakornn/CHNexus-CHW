@@ -60,6 +60,24 @@ public sealed class NotificationsController : AppController
             }
         }
 
+        // ✍ MIN REPORT รอฉันลงลายเซ็น (ชั่วคราว: เซ็นแล้ว = หายไปเอง) · กดรายการ = เปิดเอกสารใบนั้นให้เซ็นทันที
+        if (global::Nexus.Helpers.DbSchema.HasMinSign)
+        {
+            var mine = new MinReportService().Queue(Uid);
+            if (mine.Count > 0)
+                items.Add(new
+                {
+                    key = "MINSIGN", tone = "warning", title = "MIN REPORT รอลงลายเซ็น", count = mine.Count,
+                    detail = "กดรายการ = เปิดเอกสาร แล้วกดช่องของคุณ",
+                    rows = mine.Take(10).Select(r => new
+                    {
+                        label = $"{r.StockCode} · {(string.IsNullOrWhiteSpace(r.Title) ? r.PartName : r.Title)}",
+                        sub = $"ช่อง {MinReportService.SlotName(r.NextSlot ?? 0)} · จาก {r.ReporterName ?? r.ReportedBy}",
+                        count = 1, href = $"#minsign:{r.ReportId}"
+                    })
+                });
+        }
+
         if (Me.CanViewPR)
         {
             var waiting = LiveCache.Get("pr-list", TimeSpan.FromSeconds(15), () => new PRService().GetPRList("", null)).Where(p => string.Equals(p.Status, "Waiting", StringComparison.OrdinalIgnoreCase)).ToList();

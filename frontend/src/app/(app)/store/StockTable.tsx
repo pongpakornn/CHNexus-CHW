@@ -530,7 +530,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         if (!ok) return;
         try {
           const res = await api<{ message: string }>(`/store/${stkId}/manage/coils/${r.coilId}/transfer`, { method: "POST" });
-          await dlg.alert({ title: "TRANSFER", message: res.message });
+          toast.show("TRANSFER", res.message, "ok");
           await afterManage(r.partId);
         } catch (e) {
           toast.show("ERROR", (e as Error).message, "error");
@@ -729,8 +729,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const filterBtn = (f: string) => () => setFilter((cur) => (cur === f ? "" : f));
 
   const partOf = (id: number) => rows?.find((x) => x.partId === id);
+  // 🧲 MANAGE STOCK สำเร็จ = Toast (ไม่ต้องกด OK / X) ทำงานต่อได้ทันที · ผิดพลาด / ยืนยัน ยังเป็นหน้าต่างเหมือนเดิม
   const done = async (title: string, msg: string, partId: number | null) => {
-    await dlg.alert({ title, message: msg });
+    toast.show(title, msg, "ok");
     await afterManage(partId);
   };
   // เลือกโหมด: กดซ้ำ = ออก · ADJUST = เปิด SHOW COILS ให้เห็นแถว Coil ลูกทันที

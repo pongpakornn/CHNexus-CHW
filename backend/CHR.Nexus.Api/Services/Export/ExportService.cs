@@ -94,6 +94,47 @@ namespace Nexus.Services
         }
 
 
+        // ▣ QR ทั่วไปแบบเดียวกับ EXPORT QR ของ Product Control (GenerateA4Pdf): A4 · 4 ดวงต่อแถว · QR กลาง · บรรทัดแรกตัวหนาใต้ QR / บรรทัดต่อไปตัวเล็กสีเทา
+        //   ใช้กับ LAYOUT SETUP › EXPORT QR (QR = ข้อมูลตามรูปแบบที่ตั้ง · ใต้ QR = RACK1 : 3A)
+        public string GenerateQrListPdf(IEnumerable<(string Qr, IList<string> Lines)> items, string system, string name)
+        {
+            string fullPath = ImportTemplateService.NewPath(system, name, ".pdf");
+            using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
+            {
+                Document.Create(container =>
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4);
+                        page.Margin(1, Unit.Centimetre);
+                        page.DefaultTextStyle(x => x.FontFamily(PdfFonts));
+                        page.Content().Grid(grid =>
+                        {
+                            grid.Columns(4);
+                            foreach (var (qr, lines) in items)
+                            {
+                                grid.Item().ShowEntire().AlignCenter().Padding(5).Column(col =>
+                                {
+                                    byte[] qrBytes = new PngByteQRCode(qrGenerator.CreateQrCode(qr ?? "", QRCodeGenerator.ECCLevel.M)).GetGraphic(20);
+                                    col.Item().Width(85).AlignCenter().Image(qrBytes);
+                                    bool first = true;
+                                    foreach (string v in lines ?? Array.Empty<string>())
+                                    {
+                                        if (string.IsNullOrWhiteSpace(v)) continue;
+                                        if (first) col.Item().Width(85).AlignCenter().PaddingTop(2).Text(v).Bold().FontSize(9);
+                                        else col.Item().Width(85).AlignCenter().Text(v).FontSize(7).FontColor(Colors.Grey.Medium);
+                                        first = false;
+                                    }
+                                    col.Item().PaddingBottom(15);
+                                });
+                            }
+                        });
+                    });
+                }).GeneratePdf(fullPath);
+            }
+            return fullPath;
+        }
+
         #region === [ PR : EXPORT ตามคลัง / EXPORT PATH EXCEL ] ===
 
         // 📤 EXPORT (APPROVED LIST): Desktop\CIMS_Export\PR Management\<รหัสคลัง>\PR-yyyy-MM-dd.xlsx (วันเดียวกันซ้ำ = PR-yyyy-MM-dd (2).xlsx)

@@ -194,6 +194,11 @@ namespace Nexus.Helpers
         private static bool _minReport;
         public static bool HasMinReport => _minReport || (_minReport = TableExists("Nexus.MinReports") == true && TableExists("Nexus.MinWatch") == true && TableExists("Nexus.MinReportSettings") == true);
 
+        // ✍ MIN REPORT (21_Min_Report_Sign.sql): รูปแบบการแสดงสินค้าต่อคลัง + FLOW ลายเซ็น Prepared / Checked / Checked / Approved
+        private static bool _minSign;
+        public static bool HasMinSign => _minSign || (_minSign = HasMinReport && TableExists("Nexus.MinReportDisplay") == true && TableExists("Nexus.MinReportFlow") == true
+                                                                 && TableExists("Nexus.MinReportSigns") == true && ColumnIn("Nexus.MinReports", "DoneAt") == true);
+
         // 📍 LAYOUT จัดเก็บ (20_Storage_Layout.sql): ตำแหน่ง (ประเภท + ชื่อ) + สิทธิ์ LAYOUT ต่อคลังของ Multi-Scanner + ตำแหน่งที่บันทึกกับแถวสแกน
         private static bool _layout;
         public static bool HasLayout => _layout || (_layout = TableExists("Nexus.LayoutTypes") == true && TableExists("Nexus.LayoutLocations") == true && TableExists("Nexus.LayoutSettings") == true

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { Loading } from "@/components/layout/Page";
@@ -56,6 +56,12 @@ export function PermissionModal({
     });
   const [busy, setBusy] = useState(false);
 
+  // ⚠ โหลดสิทธิ์ครั้งเดียวต่อผู้ใช้ (ผูกกับ userId เท่านั้น) - เดิมผูกกับ onClose ที่หน้ารายชื่อสร้างใหม่ทุกครั้งที่รายชื่ออัพเดทแบบเรียลไทม์
+  //    -> โหลดสิทธิ์จาก Server ทับค่าที่กำลังติ๊กอยู่ (สิทธิ์หายระหว่างกำหนด) · ตอนนี้เก็บ onClose ไว้ใน ref ไม่ทำให้โหลดซ้ำ
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
   const load = useCallback(async () => {
     try {
       const d = await api<PermData>(`/users/${encodeURIComponent(userId)}/permissions`);
@@ -64,9 +70,9 @@ export function PermissionModal({
       setStocks(d.scanner?.stocks ?? []);
     } catch (e) {
       toast.show("ERROR", "โหลดสิทธิ์ไม่สำเร็จ\n" + (e as Error).message, "error");
-      onClose();
+      closeRef.current();
     }
-  }, [userId, toast, onClose]);
+  }, [userId, toast]);
 
   useEffect(() => {
     const t = setTimeout(load, 0);
@@ -110,6 +116,7 @@ export function PermissionModal({
         body: { rows, scanner: data?.scanner ? stocks : null },
       });
       onSaved(r.message);
+      await load(); // หน้าต่างเปิดค้างไว้ · ค่าตรงกับที่บันทึกจริง
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {

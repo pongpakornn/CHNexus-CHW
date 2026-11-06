@@ -28,6 +28,22 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  poweredByHeader: false, // 🛡 ไม่บอกว่าเป็น Next.js
+  // 🛡 Security headers ทุกหน้า: ห้ามฝังใน iframe ของเว็บอื่น · ห้ามเดาชนิดไฟล์ · ไม่ส่ง URL ออกนอก · ปิดสิทธิ์อุปกรณ์ที่ไม่ใช้
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
   },

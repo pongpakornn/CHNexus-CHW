@@ -32,6 +32,16 @@ public sealed class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(req?.UserId) || string.IsNullOrEmpty(req.Password))
             return BadRequest(new { message = "กรุณาระบุชื่อผู้ใช้และรหัสผ่าน" });
+        if (req.UserId.Length > 50 || req.Password.Length > 128) return BadRequest(new { message = "ชื่อผู้ใช้หรือรหัสผ่านยาวเกินกำหนด" });
+
+        // 🛡 รหัสผ่านผิดติดกันหลายครั้ง = ล็อกชั่วคราว (กันเดารหัส) - ไม่แตะสถานะบัญชีในฐานข้อมูล
+        string ip = ClientIp.Of(HttpContext);
+        string uidKey = req.UserId.Trim();
+        if (LoginGuard.Blocked(uidKey, ip) is { } blocked)
+        {
+            LogService.WriteLog(uidKey, "LOGIN_BLOCKED", $"ล็อกชั่วคราว (รหัสผ่านผิดหลายครั้ง) จาก {ip}", global::Nexus.Core.ClientContext.Machine);
+            return StatusCode(429, new { message = blocked });
+        }
 
         var auth = new AuthService();
         UserSession session;
@@ -40,7 +50,12 @@ public sealed class AuthController : ControllerBase
         {
             // ONLINE ค้างจากเครื่องอื่น แต่เครื่องนั้นไม่ได้ใช้งานแล้ว (ปิดหน้าต่าง / เงียบเกิน 3 นาที) + รหัสผ่านถูก = ปลดสถานะเดิมแล้วเข้าได้เลย
             string uid0 = req.UserId.Trim();
-            if (!Presence.CanTakeOver(uid0) || !PasswordOk(uid0, req.Password)) return Conflict(new { message = ex.Message });   // Online อยู่เครื่องอื่นจริง
+            if (!Presence.CanTakeOver(uid0)) return Conflict(new { message = ex.Message });   // Online อยู่เครื่องอื่นจริง
+            if (!PasswordOk(uid0, req.Password))
+            {
+                LoginGuard.Fail(uid0, ip);
+                return Conflict(new { message = ex.Message });
+            }
             auth.UpdateLogoutStatus(uid0);
             LogService.WriteLog(uid0, "AUTO_OFFLINE", "ปลดสถานะ ONLINE ค้าง (เครื่องเดิมไม่ได้ใช้งานแล้ว) แล้วเข้าสู่ระบบจากเครื่องใหม่", global::Nexus.Core.ClientContext.Machine);
             try { session = auth.Authenticate(uid0, req.Password); }
@@ -48,9 +63,12 @@ public sealed class AuthController : ControllerBase
         }
         if (session == null)
         {
+            LoginGuard.Fail(uidKey, ip);
+            LogService.WriteLog(uidKey, "LOGIN_FAILED", $"รหัสผ่านไม่ถูกต้อง / บัญชีถูกล็อก จาก {ip}", global::Nexus.Core.ClientContext.Machine);
             return Unauthorized(new { message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" });
         }
 
+        LoginGuard.Success(session.UserId);
         auth.UpdateLoginStats(session.UserId);
         Presence.LoggedIn(session.UserId);
         LogService.WriteLog(session.UserId, "LOGIN", "เข้าสู่ระบบสำเร็จ", global::Nexus.Core.ClientContext.Machine);
@@ -77,6 +95,7 @@ public sealed class AuthController : ControllerBase
             Presence.LoggedOut(uid);
             LogService.WriteLog(uid, "LOGOUT", "ออกจากระบบสำเร็จ", "");
             CurrentUser.Forget(_cache, uid);
+            TokenRevoke.Revoke(uid); // 🛡 Token เดิม (แม้ถูกคัดลอกไป) ใช้ไม่ได้อีก
         }
         Response.Cookies.Delete(_opt.CookieName);
         return Ok();

@@ -11,6 +11,7 @@ import {
   type Corner,
 } from "@/lib/profileCorner";
 import { ProfileModal } from "@/components/profile/ProfileModal";
+import { SignatureModal } from "@/components/profile/SignatureModal";
 import { openChat, openSupport } from "@/lib/support";
 import { SlideDetail, SlideMenu, SlideRow, type SlideItem } from "@/components/menus/SlideMenu";
 
@@ -64,6 +65,7 @@ export function ProfileBubble() {
   const [open, setOpen] = useState(false);
   const [leftEdge, setLeftEdge] = useState(0);
   const [edit, setEdit] = useState<"info" | "password" | null>(null);
+  const [sig, setSig] = useState(false);
   const start = useRef<{
     px: number;
     py: number;
@@ -165,6 +167,14 @@ export function ProfileBubble() {
       hint: "ต้องใช้รหัสผ่านปัจจุบัน",
       tone: "warning",
       onSelect: () => openEdit("password"),
+    },
+    {
+      key: "signature",
+      icon: "pencil",
+      label: "ลายเซ็นของฉัน",
+      hint: "วาด / อัปโหลด · ใช้เซ็นเอกสาร MIN REPORT",
+      tone: "info",
+      onSelect: () => (setOpen(false), setSig(true)),
     },
     {
       key: "profile",
@@ -300,6 +310,7 @@ export function ProfileBubble() {
         )}
       </div>
       {edit && <ProfileModal tab={edit} onClose={() => setEdit(null)} />}
+      {sig && <SignatureModal userId={me.userId} onClose={() => setSig(false)} />}
     </>
   );
 }

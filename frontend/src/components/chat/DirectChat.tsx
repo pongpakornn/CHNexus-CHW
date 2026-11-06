@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { refreshNotifications } from "@/lib/support";
+import { MIN_TOKEN } from "@/lib/minSign";
 import { useTyping } from "@/lib/useTyping";
 import { ChatBubble, type Attach, type Reaction } from "@/components/chat/ChatBubble";
 import { ChatComposer } from "@/components/chat/ChatComposer";
@@ -163,7 +164,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
                 <span className="flex items-center gap-1.5">
                   <span className={`truncate text-[11.5px] ${c.unread ? "font-bold text-ink" : "text-ink-soft"}`}>
                     {c.lastMine ? "คุณ: " : ""}
-                    {c.last}
+                    {c.last.replace(MIN_TOKEN, "").trim()}
                   </span>
                   {c.unread > 0 && <span className="ml-auto grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-[#2563eb] px-1 text-[9px] font-extrabold text-white">{c.unread}</span>}
                 </span>

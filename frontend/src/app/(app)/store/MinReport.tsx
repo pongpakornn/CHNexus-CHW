@@ -9,8 +9,9 @@ import { Empty, Loading } from "@/components/layout/Page";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { useToast } from "@/components/notifications/Toasts";
 import { ReportBox } from "@/components/notifications/MinReportAlert";
-import { ReportPreview, dt, n0, span, useNow, type MinHistory, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
+import { ReportPreview, SLOT_NAMES, dt, n0, reasonText, span, subOf, titleOf, useNow, type MinHistory, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { api, download } from "@/lib/api";
+import { openMinSign } from "@/lib/minSign";
 import { refreshNotifications } from "@/lib/support";
 import { daysAgo, today } from "@/lib/format";
 import { useLive } from "@/lib/live";
@@ -18,9 +19,10 @@ import { useDebounced } from "@/lib/useDebounced";
 import type { Stock } from "./types";
 
 // 📋 ปุ่ม MIN REPORT ในหน้าคลัง (ทุกคลัง): PENDING REPORT (รอระบุสาเหตุ + กำลังเฝ้าดู) · REPORT HISTORY
-//   ทุกแถว: 👁 PREVIEW (เอกสาร FM-EN-04-22 รายการเดียว) · ✎ REPORT (ระบุสาเหตุ) · PREVIEW ทั้งหมด -> PDF / EXCEL
-//   หน้าต่างวางที่ body (ไม่ติดชั้นของแถบเครื่องมือคลัง = แถบบนสุดไม่ลอยทับ)
-type Pending = { ready: boolean; enabled: boolean; stuckDays: number; items: MinItem[] };
+//   ทุกแถว: 👁 PREVIEW (เอกสาร FM-EN-04-22 รายการเดียว) · ✎ REPORT (เลือกหมายเหตุ + รายละเอียด) · PREVIEW ทั้งหมด -> PDF / EXCEL
+//   ประวัติ: 👁 = เอกสารพร้อมลายเซ็น (เซ็นช่องของตัวเองได้) · สถานะ FLOW (รอเซ็นช่องไหน / ลงนามครบ)
+//   ⚡ เรียลไทม์: รายงาน / เซ็น / ตั้งค่าจากเครื่องอื่น = โหลดเฉพาะรายการนี้ใหม่ (หัวข้อ minreport)
+type Pending = { ready: boolean; enabled: boolean; stuckDays: number; reasons?: string[]; items: MinItem[] };
 
 export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; autoOpen?: boolean }) {
   const toast = useToast();
@@ -53,7 +55,7 @@ export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; au
     {
       key: "history",
       title: "REPORT HISTORY",
-      detail: `ประวัติรายงานสาเหตุของคลัง ${s.code} (ใครรายงาน · ค้างตั้งแต่ - ถึงเมื่อไร · เพราะอะไร) · เลือกช่วงวันที่ · PDF / EXCEL`,
+      detail: `ประวัติรายงานสาเหตุของคลัง ${s.code} (ใครรายงาน · ค้างตั้งแต่ - ถึงเมื่อไร · เพราะอะไร · ลายเซ็น) · เลือกช่วงวันที่ · PDF / EXCEL`,
       color: "#6750a4",
       icon: "calendar",
       onClick: () => setOpen("history"),
@@ -95,7 +97,17 @@ function logPdf(stkId: number, kind: string, rows: number) {
   api(`/minreport/stock/${stkId}/pdf-log`, { method: "POST", body: { kind, rows } }).catch(() => {});
 }
 
-const codeOf = (c: string) => (c && c.trim() !== "-" ? c : "ไม่มีรหัส");
+// ไอคอนเส้นบาง (SVG ในไฟล์ ไม่โหลดรูป) - การ์ดสรุป / เวลา
+const IC = {
+  cart: "M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L19.5 8H6.2M9 19.5h.01M17 19.5h.01",
+  cal: "M5 6h14v14H5zM5 10h14M9 3.5v4M15 3.5v4M8.5 13.5h2M13.5 13.5h2M8.5 16.5h2",
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.5V12l3 2",
+};
+const Ico = ({ d, className = "" }: { d: string; className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d={d} />
+  </svg>
+);
 
 // ---------------------------------------------------------------- ⚠ PENDING REPORT
 function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data: Pending | null; reload: () => void; onClose: () => void }) {
@@ -117,12 +129,15 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
         onClose={onClose}
         footer={
           <div className="flex w-full flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-ink-soft">{data?.enabled ? `แจ้งเตือนเมื่อค้างที่ค่า MIN ≥ ${data.stuckDays} วัน · เอกสาร FM-EN-04-22` : ""}</span>
-            <button className="cta-btn is-gray ml-auto" onClick={onClose}>
-              CLOSE
-            </button>
-            <button className="cta-btn is-purple" disabled={!data?.enabled || !data.items.length} onClick={() => data && setPreview({ sheet: sheet(data.items) })}>
+            <span className="mrp-foot-note">
+              <i>i</i>
+              {data?.enabled ? `แสดง ${list.length} รายการ · แจ้งเตือนเมื่อค้างที่ค่า MIN ≥ ${data.stuckDays} วัน · เอกสาร FM-EN-04-22` : ""}
+            </span>
+            <button className="cta-btn is-purple ml-auto" disabled={!data?.enabled || !data.items.length} onClick={() => data && setPreview({ sheet: sheet(data.items) })}>
               🖨 PREVIEW ALL • PDF / EXCEL
+            </button>
+            <button className="cta-btn is-gray" onClick={onClose}>
+              CLOSE
             </button>
           </div>
         }
@@ -137,22 +152,37 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
             <span>Admin เปิดได้ที่ User Management › SETUP › MIN REPORT (เลือกคลัง · จำนวนวันที่ค้าง · แจ้งเตือนซ้ำทุกกี่นาที)</span>
           </div>
         ) : (
-          <div className="mrp">
+          <div className="mrp is-soft">
             <div className="mrp-stats">
               <button type="button" className={`mrp-stat is-red ${tab === "late" ? "is-on" : ""}`} onClick={() => setTab("late")}>
-                <small>รอรายงาน</small>
-                <b>{late.length}</b>
-                <span>ค้างที่ค่า MIN ≥ {data.stuckDays} วัน</span>
+                <span className="mrp-stat-ic">
+                  <Ico d={IC.cart} />
+                </span>
+                <span className="mrp-stat-tx">
+                  <small>รอรายงาน</small>
+                  <b>{late.length}</b>
+                  <span>ค้างที่ค่า MIN ≥ {data.stuckDays} วัน</span>
+                </span>
               </button>
               <button type="button" className={`mrp-stat is-amber ${tab === "watch" ? "is-on" : ""}`} onClick={() => setTab("watch")}>
-                <small>กำลังเฝ้าดู</small>
-                <b>{watch.length}</b>
-                <span>ยังไม่ครบ {data.stuckDays} วัน</span>
+                <span className="mrp-stat-ic">
+                  <Ico d={IC.cal} />
+                </span>
+                <span className="mrp-stat-tx">
+                  <small>กำลังเฝ้าดู</small>
+                  <b>{watch.length}</b>
+                  <span>ยังไม่ครบ {data.stuckDays} วัน</span>
+                </span>
               </button>
               <div className="mrp-stat is-ink">
-                <small>ค้างนานสุด</small>
-                <b className="is-dur">{oldest ? span(oldest.belowSince, null, now || Date.parse(oldest.lastSeen)) : "-"}</b>
-                <span>{oldest ? `${codeOf(oldest.partCode)} · ตั้งแต่ ${dt(oldest.belowSince)}` : "ไม่มีรายการ"}</span>
+                <span className="mrp-stat-ic">
+                  <Ico d={IC.clock} />
+                </span>
+                <span className="mrp-stat-tx">
+                  <small>ค้างนานสุด</small>
+                  <b className="is-dur">{oldest ? span(oldest.belowSince, null, now || Date.parse(oldest.lastSeen)) : "-"}</b>
+                  <span>{oldest ? `${titleOf(oldest) || "ไม่มีรหัส"} · ตั้งแต่ ${dt(oldest.belowSince)}` : "ไม่มีรายการ"}</span>
+                </span>
               </div>
             </div>
 
@@ -166,6 +196,7 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
                     no={i + 1}
                     item={it}
                     stuckDays={data.stuckDays}
+                    reasons={data.reasons}
                     now={now}
                     onPreview={() => setPreview({ sheet: sheet([it]), id: it.watchId })}
                     onReported={reload}
@@ -186,21 +217,38 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
   );
 }
 
-function PendingRow({ no, item: it, stuckDays, now, onPreview, onReported }: { no: number; item: MinItem; stuckDays: number; now: number; onPreview: () => void; onReported: () => void }) {
+function PendingRow({
+  no,
+  item: it,
+  stuckDays,
+  reasons,
+  now,
+  onPreview,
+  onReported,
+}: {
+  no: number;
+  item: MinItem;
+  stuckDays: number;
+  reasons?: string[];
+  now: number;
+  onPreview: () => void;
+  onReported: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const late = it.days >= stuckDays;
   const ref = now || Date.parse(it.lastSeen);
   const pct = Math.min(100, ((ref - Date.parse(it.belowSince)) / (stuckDays * 86_400_000)) * 100);
+  const title = titleOf(it);
   return (
-    <div className={`mrp-row ${late ? "is-late" : "is-watch"} ${open ? "is-open" : ""}`}>
+    <div className={`mrp-row ${late ? "is-late" : "is-watch"} ${open ? "is-open" : ""}`} style={{ animationDelay: `${Math.min(no, 12) * 25}ms` }}>
       <div className="mrp-main">
         <span className="mrp-no">{no}</span>
         <div className="mrp-part">
-          <b className={it.partCode && it.partCode.trim() !== "-" ? "" : "is-none"}>{codeOf(it.partCode)}</b>
-          <span>{it.partName}</span>
+          <b className={title ? "" : "is-none"}>{title || "ไม่มีรหัส"}</b>
+          <span>{subOf(it)}</span>
           <div className="mrp-tags">
-            {it.customer && <i>CUSTOMER · {it.customer}</i>}
-            {it.supplier && <i>SUPPLIER · {it.supplier}</i>}
+            {it.customer && <i>CUSTOMER : {it.customer}</i>}
+            {it.supplier && <i>SUPPLIER : {it.supplier}</i>}
             {it.test && <i className="is-test">TEST</i>}
           </div>
         </div>
@@ -225,9 +273,12 @@ function PendingRow({ no, item: it, stuckDays, now, onPreview, onReported }: { n
           </span>
         </div>
         <div className="mrp-time">
-          <b>{span(it.belowSince, null, ref)}</b>
+          <b>
+            <Ico d={IC.clock} className="mrp-clock" />
+            {span(it.belowSince, null, ref)}
+          </b>
           <small>
-            ค้างตั้งแต่ {dt(it.belowSince)} · อัพเดทล่าสุด {dt(it.lastSeen)}
+            ตั้งแต่ {dt(it.belowSince)} · อัพเดท {dt(it.lastSeen)}
           </small>
           <div className="mrp-bar" title={late ? `เกิน ${stuckDays} วันแล้ว` : `แจ้งเตือนเมื่อครบ ${stuckDays} วัน`}>
             <span style={{ width: `${Math.max(3, pct)}%` }} />
@@ -235,12 +286,24 @@ function PendingRow({ no, item: it, stuckDays, now, onPreview, onReported }: { n
         </div>
         <RowActions className="mrp-act">
           <RowAction kind="view" title="PREVIEW เอกสาร (FM-EN-04-22)" onClick={onPreview} />
-          <RowAction kind="edit" title="REPORT : ระบุสาเหตุ" active={open} onClick={() => setOpen((v) => !v)} />
+          <RowAction kind="edit" title="REPORT : เลือกหมายเหตุ + รายละเอียด" active={open} onClick={() => setOpen((v) => !v)} />
         </RowActions>
       </div>
-      {open && <ReportBox item={it} onBack={() => setOpen(false)} onDone={onReported} />}
+      {open && <ReportBox item={it} reasons={reasons} onBack={() => setOpen(false)} onDone={onReported} />}
     </div>
   );
+}
+
+// สถานะ FLOW ลายเซ็นของรายงาน
+function FlowChip({ r }: { r: MinHistory }) {
+  if (r.flowStatus === "DONE") return <span className="mrp-flow is-done">✔ ลงนามครบ</span>;
+  if (r.flowStatus === "SIGNING")
+    return (
+      <span className="mrp-flow is-wait">
+        ✍ รอ {SLOT_NAMES[r.nextSlot ?? 0]} ({r.signs?.length ?? 0} ลงแล้ว)
+      </span>
+    );
+  return null;
 }
 
 // ---------------------------------------------------------------- 📋 REPORT HISTORY
@@ -251,7 +314,7 @@ function HistoryModal({ stock: s, onClose, toastErr }: { stock: Stock; onClose: 
   const [key, setKey] = useState("");
   const k = useDebounced(key, 300);
   const [rows, setRows] = useState<MinHistory[] | null>(null);
-  const [preview, setPreview] = useState<{ sheet: SheetData; id?: number } | null>(null);
+  const [preview, setPreview] = useState<SheetData | null>(null);
 
   const load = useCallback(() => {
     api<MinHistory[]>(`/minreport/stock/${s.stkId}/history`, { query: { from, to, key: k } })
@@ -263,7 +326,6 @@ function HistoryModal({ stock: s, onClose, toastErr }: { stock: Stock; onClose: 
     return () => clearTimeout(t);
   }, [load]);
   useLive(["minreport"], load);
-  const sheet = (list: MinHistory[]): SheetData => ({ kind: "history", stock: s.code, from, to, rows: list });
 
   return (
     <>
@@ -274,20 +336,23 @@ function HistoryModal({ stock: s, onClose, toastErr }: { stock: Stock; onClose: 
         onClose={onClose}
         footer={
           <div className="flex w-full flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-ink-soft">{rows ? `${rows.length} รายงาน · เอกสาร FM-EN-04-22` : ""}</span>
-            <button className="cta-btn is-gray ml-auto" onClick={onClose}>
-              CLOSE
-            </button>
-            <button className="cta-btn is-purple" disabled={!rows?.length} onClick={() => rows && setPreview({ sheet: sheet(rows) })}>
+            <span className="mrp-foot-note">
+              <i>i</i>
+              {rows ? `${rows.length} รายงาน · 👁 = เอกสารพร้อมลายเซ็น · เอกสาร FM-EN-04-22` : ""}
+            </span>
+            <button className="cta-btn is-purple ml-auto" disabled={!rows?.length} onClick={() => rows && setPreview({ kind: "history", stock: s.code, from, to, rows })}>
               🖨 PREVIEW ALL • PDF / EXCEL
+            </button>
+            <button className="cta-btn is-gray" onClick={onClose}>
+              CLOSE
             </button>
           </div>
         }
       >
-        <div className="mrp">
+        <div className="mrp is-soft">
           <div className="flex flex-wrap items-center gap-3">
             <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
-            <input className="mr-search" value={key} onChange={(e) => setKey(e.target.value)} placeholder="ค้นหา Part Code / Name / สาเหตุ / ผู้รายงาน" />
+            <input className="mr-search" value={key} onChange={(e) => setKey(e.target.value)} placeholder="ค้นหา Part Code / Part A / Part No / สาเหตุ / ผู้รายงาน" />
           </div>
           {!rows ? (
             <Loading />
@@ -295,52 +360,59 @@ function HistoryModal({ stock: s, onClose, toastErr }: { stock: Stock; onClose: 
             <Empty>ยังไม่มีรายงานในช่วงวันที่นี้</Empty>
           ) : (
             <div className="mrp-list">
-              {rows.map((r, i) => (
-                <div key={r.reportId} className={`mrp-row is-hist ${r.resolvedAt ? "is-ok" : "is-late"}`}>
-                  <div className="mrp-main">
-                    <span className="mrp-no">{i + 1}</span>
-                    <div className="mrp-part">
-                      <b className={r.partCode && r.partCode.trim() !== "-" ? "" : "is-none"}>{codeOf(r.partCode)}</b>
-                      <span>{r.partName}</span>
-                      <small className="mrp-nline">
-                        STOCK {n0(r.qty)}
-                        {r.stockBox ? ` · ${r.stockBox} BOX` : ""} · MIN {n0(r.minQty)} · MAX {n0(r.maxQty)}
-                      </small>
-                      <div className="mrp-tags">
-                        {r.customer && <i>CUSTOMER · {r.customer}</i>}
-                        {r.supplier && <i>SUPPLIER · {r.supplier}</i>}
+              {rows.map((r, i) => {
+                const title = titleOf(r);
+                return (
+                  <div key={r.reportId} className={`mrp-row is-hist ${r.resolvedAt ? "is-ok" : "is-late"}`} style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}>
+                    <div className="mrp-main">
+                      <span className="mrp-no">{i + 1}</span>
+                      <div className="mrp-part">
+                        <b className={title ? "" : "is-none"}>{title || "ไม่มีรหัส"}</b>
+                        <span>{subOf(r)}</span>
+                        <small className="mrp-nline">
+                          STOCK {n0(r.qty)}
+                          {r.stockBox ? ` · ${r.stockBox} BOX` : ""} · MIN {n0(r.minQty)} · MAX {n0(r.maxQty)}
+                        </small>
+                        <div className="mrp-tags">
+                          {r.customer && <i>CUSTOMER : {r.customer}</i>}
+                          {r.supplier && <i>SUPPLIER : {r.supplier}</i>}
+                        </div>
                       </div>
+                      <div className="mrp-period">
+                        <small>ค้างที่ค่า MIN</small>
+                        <b>{span(r.belowSince, r.resolvedAt, now || Date.parse(r.lastSeen ?? r.reportedAt))}</b>
+                        <span>
+                          {dt(r.belowSince)} → {r.resolvedAt ? dt(r.resolvedAt) : "ปัจจุบัน"}
+                        </span>
+                        <span>อัพเดทล่าสุด {dt(r.resolvedAt ?? r.lastSeen)}</span>
+                      </div>
+                      <div className="mrp-reason">
+                        <small>
+                          รายงาน {dt(r.reportedAt)} · {r.reporterName || r.reportedBy}
+                          {r.section ? ` (${r.section})` : ""} · ตอนนั้นค้างมา {span(r.belowSince, r.reportedAt, 0)}
+                        </small>
+                        {r.reasonType && <em className="mrp-rtype">{r.reasonType}</em>}
+                        <p>{r.reasonType && r.reason.startsWith(r.reasonType) ? r.reason.slice(r.reasonType.length).replace(/^\s*·\s*/, "") || "-" : reasonText(r)}</p>
+                      </div>
+                      <div className="mrp-state">
+                        {r.resolvedAt ? <span className="is-ok">● กลับมาปกติ</span> : <span className="is-bad">● ยังค้างที่ MIN</span>}
+                        <FlowChip r={r} />
+                      </div>
+                      <RowActions className="mrp-act">
+                        <RowAction kind="view" title="เปิดเอกสาร (ลายเซ็น / ลงลายเซ็น)" onClick={() => openMinSign(r.reportId)} />
+                      </RowActions>
                     </div>
-                    <div className="mrp-period">
-                      <small>ค้างที่ค่า MIN</small>
-                      <b>{span(r.belowSince, r.resolvedAt, now || Date.parse(r.lastSeen ?? r.reportedAt))}</b>
-                      <span>
-                        {dt(r.belowSince)} → {r.resolvedAt ? dt(r.resolvedAt) : "ปัจจุบัน"}
-                      </span>
-                      <span>อัพเดทล่าสุด {dt(r.resolvedAt ?? r.lastSeen)}</span>
-                    </div>
-                    <div className="mrp-reason">
-                      <small>
-                        รายงาน {dt(r.reportedAt)} · {r.reporterName || r.reportedBy}
-                        {r.section ? ` (${r.section})` : ""} · ตอนนั้นค้างมา {span(r.belowSince, r.reportedAt, 0)}
-                      </small>
-                      <p>{r.reason}</p>
-                    </div>
-                    <div className="mrp-state">{r.resolvedAt ? <span className="is-ok">● กลับมาปกติ</span> : <span className="is-bad">● ยังค้างที่ MIN</span>}</div>
-                    <RowActions className="mrp-act">
-                      <RowAction kind="view" title="PREVIEW เอกสาร (FM-EN-04-22)" onClick={() => setPreview({ sheet: sheet([r]), id: r.reportId })} />
-                    </RowActions>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </Modal>
       <ReportPreview
-        data={preview?.sheet ?? null}
+        data={preview}
         onClose={() => setPreview(null)}
-        onExcel={async () => void (await download(`/minreport/stock/${s.stkId}/export`, { kind: "history", from, to, key: k, ...(preview?.id ? { id: preview.id } : {}) }))}
+        onExcel={async () => void (await download(`/minreport/stock/${s.stkId}/export`, { kind: "history", from, to, key: k }))}
         onPdfDone={(n) => logPdf(s.stkId, "history", n)}
       />
     </>

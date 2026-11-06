@@ -27,7 +27,7 @@ public sealed class StoreController : AppController
 
     // คอลัมน์ที่แสดงจริง (StoreMaxMinView.ApplyColumnSettings): เปิด / ปิดตาม Col* ของคลัง เรียงตาม ColumnOrder
     //   BOX / COIL = ช่องเดียวกัน (STOCK (BOX) / STOCK (COIL)) · MAX / MIN / STATUS ตาม USE MAX-MIN · STATUS อยู่ท้ายสุดเสมอ
-    private static List<string> VisibleColumns(StockModel s, List<CustomFieldDef> cf = null)
+    internal static List<string> VisibleColumns(StockModel s, List<CustomFieldDef> cf = null)
     {
         cf ??= new CustomFieldService().GetDefs(s.StkId);
         bool On(string k) => k switch

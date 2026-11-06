@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { openChat, openSupport, refreshNotifications, topicOf } from "@/lib/support";
 import { useToast } from "@/components/notifications/Toasts";
+import { minTokenOf, openMinSign } from "@/lib/minSign";
 
 // 🔔 ข้อความใหม่ = Toast "ใครส่งอะไรมา" + กระดิ่งอัพเดททันที (ทำงานเบื้องหลังตลอดเวลาที่ Login)
 //   ครั้งแรกจำเลขข้อความล่าสุดไว้ก่อน (ไม่เด้งของเก่าย้อนหลัง) · กด Toast = เปิดแชทนั้น
@@ -27,6 +28,12 @@ export function ChatFeed() {
         last.current = { dm: f.dm, sup: f.sup };
         if (f.items.length === 0) return;
         f.items.slice(-3).forEach((m) => {
+          // ✍ เอกสาร MIN REPORT ในแชท: คำขอลงลายเซ็น = MinSignHost แจ้งเอง (ไม่เด้งซ้ำ) · อื่น ๆ = กดแล้วเปิดเอกสาร
+          const mr = m.kind === "dm" ? minTokenOf(m.body) : null;
+          if (mr) {
+            if (!mr.text.startsWith("✍")) toast.show(`💬 ${m.fromName}`, mr.text.slice(0, 120), "chat", { onClick: () => openMinSign(mr.id) });
+            return;
+          }
           const short = m.body.length > 90 ? m.body.slice(0, 90) + "…" : m.body;
           if (m.kind === "dm") toast.show(`💬 ${m.fromName}`, short, "chat", { onClick: () => openChat(m.from) });
           else {

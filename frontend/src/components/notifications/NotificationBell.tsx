@@ -5,15 +5,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { NOTIFY_REFRESH, openChat, openSupport } from "@/lib/support";
+import { openMinSign } from "@/lib/minSign";
 import { Icon, type IconName } from "@/components/icons";
 import { SlideDetail, SlideMenu, SlideRow, type Tone } from "@/components/menus/SlideMenu";
 
-// 🔔 กระดิ่งมุมขวาบน: สินค้าต่ำกว่า MIN / MIN REPORT รอรายงาน / PR รออนุมัติ / NOT DEDUCTED (ข้อมูลจริงตามสิทธิ์) - กดแล้วเมนูสไลด์ลงมา
+// 🔔 กระดิ่งมุมขวาบน: สินค้าต่ำกว่า MIN / MIN REPORT รอรายงาน / ✍ รอลงลายเซ็น / PR รออนุมัติ / NOT DEDUCTED (ข้อมูลจริงตามสิทธิ์) - กดแล้วเมนูสไลด์ลงมา
 type Row = { label: string; sub?: string; count: number; href: string };
 type Item = { key: string; tone: Tone; title: string; count: number; detail: string; rows: Row[] };
 type Data = { total: number; items: Item[]; time: string };
 
-const ICON: Record<string, IconName> = { MIN: "triangle", MINREPORT: "document", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
+const ICON: Record<string, IconName> = { MIN: "triangle", MINREPORT: "document", MINSIGN: "pencil", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
 const POLL_MS = 30000;
 
 export function NotificationBell() {
@@ -57,6 +58,8 @@ export function NotificationBell() {
     // #support:ID = เปิดแชทแจ้ง Admin ที่เรื่องนั้น
     if (href.startsWith("#support")) return openSupport(Number(href.split(":")[1]) || undefined);
     if (href.startsWith("#chat:")) return openChat(href.slice(6));
+    // #minsign:ID = เปิดเอกสาร MIN REPORT ใบนั้นให้ลงลายเซ็น
+    if (href.startsWith("#minsign:")) return openMinSign(Number(href.slice(9)));
     router.push(href);
   };
   const total = data?.items.reduce((s, i) => s + i.count, 0) ?? 0;

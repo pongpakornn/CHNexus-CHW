@@ -75,6 +75,7 @@ export default function UsersPage() {
       .sort((a, b) => rank(a) - rank(b));
   }, [users, k]);
 
+  const closePerm = useCallback(() => setPerm(null), []);
   const editContacts = () => new Promise<boolean>((resolve) => setContact(() => resolve));
 
   async function remove(u: User) {
@@ -340,10 +341,10 @@ export default function UsersPage() {
           userId={perm.userId}
           readOnly={perm.readOnly}
           canContact={can.contact}
-          onClose={() => setPerm(null)}
+          onClose={closePerm}
           onEditContacts={editContacts}
           onSaved={(m) => {
-            setPerm(null);
+            // SAVE แล้วหน้าต่างเปิดค้างไว้ (ไม่ปิด-เปิดใหม่) · รายชื่ออัพเดทเบื้องหลัง
             toast.show("Saved", m, "ok");
             load();
           }}

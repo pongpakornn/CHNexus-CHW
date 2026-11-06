@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DotsMenu, type DotsItem } from "@/components/menus/DotsMenu";
 import { Icon } from "@/components/icons";
+import { minTokenOf, openMinSign } from "@/lib/minSign";
 
 // 💬 กล่องข้อความของแชท (แบบ IG)
 //   ⋯ ทุกข้อความ = กดอีโมจิตอบ · ข้อความของฉันเพิ่ม แก้ไข / ลบ · แก้ไขในกล่องเดิม (Enter = บันทึก, Esc = ยกเลิก)
@@ -47,6 +48,8 @@ export function ChatBubble({
   const [busy, setBusy] = useState(false);
   const live = side !== "bot" && !deleted;
   const text = typeof body === "string" ? body : "";
+  // ✍ เอกสาร MIN REPORT ที่ส่งมาในแชท ([[MINREPORT:id]]) = ปุ่มเปิดเอกสาร / ลงลายเซ็น
+  const minDoc = text ? minTokenOf(text) : null;
 
   async function save() {
     if (editing === null || !onEdit) return;
@@ -157,7 +160,16 @@ export function ChatBubble({
                 className={`whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed ${bubbleClass}`}
                 style={side === "bot" && tone ? { borderColor: `color-mix(in srgb, ${tone} 30%, transparent)` } : undefined}
               >
-                {body}
+                {minDoc ? (
+                  <>
+                    {minDoc.text}
+                    <button type="button" className="mr-chat-doc" onClick={() => openMinSign(minDoc.id)}>
+                      👁 เปิดเอกสาร MIN REPORT #{minDoc.id} · ✍ ลงลายเซ็น
+                    </button>
+                  </>
+                ) : (
+                  body
+                )}
               </div>
             )}
           </div>

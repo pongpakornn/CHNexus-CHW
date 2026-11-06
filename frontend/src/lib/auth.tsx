@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "./api";
+import { useLive } from "./live";
 
 export type Me = {
   userId: string;
@@ -29,7 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const m = await api<Me>("/auth/me");
-      setMe(m);
+      // ค่าเหมือนเดิม = ไม่ต้องวาดทั้งแอปใหม่
+      setMe((prev) => (prev && JSON.stringify(prev) === JSON.stringify(m) ? prev : m));
       return m;
     } catch {
       setMe(null);
@@ -56,6 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const t = setInterval(refresh, 60_000);
     return () => clearInterval(t);
   }, [refresh]);
+
+  // ⚡ Admin บันทึกสิทธิ์ / ผู้ใช้ (หัวข้อ users) = โหลดสิทธิ์ของฉันใหม่ทันที (เมนู / ปุ่ม เปลี่ยนตามโดยไม่ต้อง Login ใหม่)
+  useLive(me ? ["users"] : [], refresh);
 
   return <Ctx.Provider value={{ me, loading, refresh, logout }}>{children}</Ctx.Provider>;
 }

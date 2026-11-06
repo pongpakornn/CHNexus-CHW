@@ -27,8 +27,10 @@ public sealed class JwtTokens
             new Claim(ClaimTypes.NameIdentifier, userId),
             new Claim("device", device ?? "")
         };
+        var now = DateTime.UtcNow;
         var token = new JwtSecurityToken(_opt.Issuer, _opt.Issuer, claims,
-            expires: DateTime.UtcNow.AddHours(_opt.Hours),
+            notBefore: now.AddSeconds(-5),   // เวลาออก Token (ใช้ตรวจ Logout แล้ว = ใช้ไม่ได้)
+            expires: now.AddHours(_opt.Hours),
             signingCredentials: new SigningCredentials(KeyOf(_opt), SecurityAlgorithms.HmacSha256));
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

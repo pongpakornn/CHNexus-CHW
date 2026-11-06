@@ -27,6 +27,15 @@ public static class MinReportForm
         public string Plan { get; set; }
         public string Actual { get; set; }
         public string After { get; set; }
+        // ลายเซ็นที่ลงแล้ว (ช่อง 1 Prepared · 2 Checked · 3 Checked · 4 Approved) - แสดงเมื่อหน้านั้นมีรายงานเดียว
+        public List<(int Slot, byte[] Img, string Caption)> Signs { get; set; }
+    }
+
+    // บรรทัดสินค้า: บรรทัดที่ 1 / 2 ตามรูปแบบของคลัง (SETUP › MIN REPORT › รูปแบบการแสดงสินค้า)
+    private static string Head(MinPartBase r)
+    {
+        string t = string.IsNullOrWhiteSpace(r.Title) ? "ไม่มีรหัส" : r.Title;
+        return string.IsNullOrWhiteSpace(r.Sub) ? t : $"{t}  {r.Sub}";
     }
 
     // "3 วัน 12 ชม. 30 นาที"
@@ -49,7 +58,7 @@ public static class MinReportForm
     public static Item From(MinWatchRow w) => new()
     {
         Customer = w.Customer, Supplier = w.Supplier,
-        Problem = $"{w.PartCode}  {w.PartName}\nค้างที่ค่า MIN {Dur(DateTime.Now - w.BelowSince)}\nตั้งแต่ {D(w.BelowSince)} - ปัจจุบัน\n{Nums(w.Qty, w.StockBox, w.MinQty, w.MaxQty)}",
+        Problem = $"{Head(w)}\nค้างที่ค่า MIN {Dur(DateTime.Now - w.BelowSince)}\nตั้งแต่ {D(w.BelowSince)} - ปัจจุบัน\n{Nums(w.Qty, w.StockBox, w.MinQty, w.MaxQty)}",
         Action = "", Name = "", Sect = "", Plan = "", Actual = "",
         After = $"ยังค้างที่ค่า MIN (รอระบุสาเหตุ)\nอัพเดทล่าสุด {D(w.LastSeen)}"
     };
@@ -57,14 +66,15 @@ public static class MinReportForm
     public static Item From(MinReportRow r) => new()
     {
         Customer = r.Customer, Supplier = r.Supplier,
-        Problem = $"{r.PartCode}  {r.PartName}\nค้างที่ค่า MIN {Dur((r.ResolvedAt ?? DateTime.Now) - r.BelowSince)}\nตั้งแต่ {D(r.BelowSince)} - {(r.ResolvedAt is DateTime x ? D(x) : "ปัจจุบัน")}\n{Nums(r.Qty, r.StockBox, r.MinQty, r.MaxQty)}",
-        Action = r.Reason,
+        Problem = $"{Head(r)}\nค้างที่ค่า MIN {Dur((r.ResolvedAt ?? DateTime.Now) - r.BelowSince)}\nตั้งแต่ {D(r.BelowSince)} - {(r.ResolvedAt is DateTime x ? D(x) : "ปัจจุบัน")}\n{Nums(r.Qty, r.StockBox, r.MinQty, r.MaxQty)}",
+        Action = string.IsNullOrWhiteSpace(r.ReasonType) || (r.Reason ?? "").StartsWith(r.ReasonType) ? r.Reason : $"[{r.ReasonType}] {r.Reason}",
         Name = string.IsNullOrWhiteSpace(r.ReporterName) ? r.ReportedBy : r.ReporterName,
         Sect = r.Section ?? "",
         Plan = "",
         Actual = r.ResolvedAt?.ToString("dd-MM-yy", Inv) ?? "",
         After = (r.ResolvedAt is DateTime ok ? $"กลับมาพ้นค่า MIN แล้ว {D(ok)}" : $"ยังค้างที่ค่า MIN\nอัพเดทล่าสุด {(r.LastSeen is DateTime ls ? D(ls) : "-")}")
                 + $"\nรายงาน {D(r.ReportedAt)} (ค้างมา {Dur(r.ReportedAt - r.BelowSince)})"
+                + (r.FlowStatus == "DONE" ? $"\nลงนามครบ {(r.DoneAt is DateTime dn ? D(dn) : "")}" : r.FlowStatus == "SIGNING" ? $"\nรอลงนาม {MinReportService.SlotName(r.NextSlot ?? 0)}" : "")
     };
 
     // ความกว้างคอลัมน์ (px ตามแบบฟอร์มจริง) - หัวเอกสารกับตารางใช้เส้นแบ่งชุดเดียวกัน
@@ -150,8 +160,32 @@ public static class MinReportForm
             h.Value = t; h.Style.Font.FontSize = 12;
             h.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             Box(h);
-            Box(M(r + 1, c1, r + 3, c2));   // ช่องเซ็น (เว้นว่างไว้ก่อน)
+            Box(M(r + 1, c1, r + 3, c2));   // ช่องเซ็น
         }
+        // ✍ ลายเซ็นที่ลงแล้ว (หน้าที่มีรายงานเดียว): รูปกลางช่อง + ชื่อ / เวลาใต้รูป
+        var signs = rows.Count == 1 ? rows[0].Signs : null;
+        if (signs != null)
+            foreach (var (slot, img, caption) in signs)
+            {
+                int col = slot switch { 1 => 9, 2 => 11, 3 => 12, 4 => 13, _ => 0 };
+                if (col == 0) continue;
+                double w = slot == 1 ? Px[8] + Px[9] : Px[col - 1];
+                if (img != null)
+                    try
+                    {
+                        using var ms = new MemoryStream(img);
+                        var pic = ws.AddPicture(ms);
+                        double scale = Math.Min((w - 8) / pic.OriginalWidth, 36.0 / pic.OriginalHeight);
+                        int pw = Math.Max(1, (int)(pic.OriginalWidth * scale)), ph = Math.Max(1, (int)(pic.OriginalHeight * scale));
+                        pic.MoveTo(ws.Cell(r + 1, col), (int)((w - pw) / 2), 2).WithSize(pw, ph);
+                    }
+                    catch { /* รูปเสียก็ยังมีชื่อ */ }
+                var cap = ws.Cell(r + 3, col);
+                cap.Value = caption;
+                cap.Style.Font.FontSize = 9;
+                cap.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                cap.Style.Alignment.Vertical = XLAlignmentVerticalValues.Bottom;
+            }
         var sub = M(r + 3, 1, r + 3, 8);
         sub.Value = "Subject : " + subject;
         sub.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;

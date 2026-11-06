@@ -39,6 +39,8 @@ Storage.Init(builder.Configuration["Storage:Root"] ?? Path.Combine(builder.Envir
              builder.Configuration["Storage:ImageFallback:StorePc"]);
 // 📎 ไฟล์ / รูปที่แนบในแชท
 CHR.Nexus.Api.Web.ChatFiles.Init(builder.Configuration["Storage:ChatFiles"], builder.Configuration["Storage:ChatImages"]);
+// ✍ ลายเซ็นผู้ใช้ (<UserID>-Signature.png) - ไม่ตั้ง = \\192.168.10.56\ProgramCHR\11. CHR Nexus\2. CHR Nexus - Signature
+Nexus.Services.SignatureStore.Init(builder.Configuration["Storage:Signatures"]);
 
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 if (string.IsNullOrWhiteSpace(jwt.Key) || jwt.Key.Length < 32)
@@ -54,12 +56,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = jwt.Issuer, ValidAudience = jwt.Issuer, IssuerSigningKey = JwtTokens.KeyOf(jwt),
-            NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
+            NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier,
+            ClockSkew = TimeSpan.FromMinutes(1)   // 🛡 หมดอายุแล้วใช้ต่อได้ไม่เกิน 1 นาที (ค่าเดิม 5 นาที)
         };
         // Token อยู่ใน Cookie HttpOnly (JavaScript อ่านไม่ได้)
         o.Events = new JwtBearerEvents
         {
-            OnMessageReceived = ctx => { ctx.Token ??= ctx.Request.Cookies[jwt.CookieName]; return Task.CompletedTask; }
+            OnMessageReceived = ctx => { ctx.Token ??= ctx.Request.Cookies[jwt.CookieName]; return Task.CompletedTask; },
+            // 🛡 Logout แล้ว = Token ที่ออกก่อนหน้านั้นใช้ไม่ได้
+            OnTokenValidated = ctx =>
+            {
+                string uid = ctx.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (TokenRevoke.IsRevoked(uid, ctx.SecurityToken.ValidFrom)) ctx.Fail("revoked");
+                return Task.CompletedTask;
+            }
         };
     });
 builder.Services.AddAuthorization();
@@ -76,8 +86,11 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? new[] { "http://localhost:3000" })
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
+builder.WebHost.ConfigureKestrel(k => k.AddServerHeader = false); // 🛡 ไม่บอกชนิด Server
+
 var app = builder.Build();
 
+app.UseMiddleware<SecurityMiddleware>(); // 🛡 Security headers · กันคำขอบันทึกจากเว็บภายนอก (CSRF) · จำกัดคำขอต่อเครื่อง
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseMiddleware<BugLogMiddleware>(); // 🐞 Exception ที่หลุด = บันทึก BUG LOG + ตอบข้อความไทย (ไม่ค้าง)
 app.UseCors();
