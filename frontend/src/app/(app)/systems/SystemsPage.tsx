@@ -5,8 +5,8 @@ import { PageBody } from "@/components/layout/Page";
 import { useAuth } from "@/lib/auth";
 import { allowed, systemsFor, type MenuItem } from "@/lib/menu";
 
-// 🧭 เลือกระบบ (หลัง Login): ภาพ Smart Factory Stamping Cell ด้านบน (มีข้อความ "Select a System for Your Work" ในภาพ)
-//   ตามด้วยการ์ดระบบที่มีสิทธิ์ (ภาพประกอบลอยเบา ๆ + ชื่อ + คำอธิบาย + ขีดสีระบบ · ชี้ = เด้งขึ้น)
+// 🧭 เลือกระบบ (หลัง Login): แผงพื้นฟ้าอ่อน = หัวข้อ (ตัวอักษรของระบบ) ซ้าย + ภาพ Smart Factory Stamping Cell ขวา
+//   ด้านล่างเป็นการ์ดเล็กของระบบที่มีสิทธิ์ (ภาพระบบ + ชื่อ + คำอธิบาย + ปุ่มลูกศร · ชี้ = เด้งขึ้น)
 //   กดการ์ด = เข้าหน้าแรกของระบบนั้น (Sidebar เปลี่ยนตามระบบ) · ระบบใหม่ = เพิ่มใน lib/menu.ts (SYSTEMS)
 const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children ? flat(m.children) : [m]));
 
@@ -17,36 +17,52 @@ export default function SystemsPage() {
 
   return (
     <PageBody>
-      <div className="sys-hero" data-reveal="own">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/systems/stamping-cell.webp" alt="Select a System for Your Work - เลือกระบบที่ต้องการใช้งาน" width={1672} height={941} />
-      </div>
-      {list.length === 0 ? (
-        <div className="mr-off mt-5">ยังไม่มีสิทธิ์ใช้งานระบบใด กรุณาติดต่อ Admin</div>
-      ) : (
-        <div className="sys-grid">
-          {list.map((s, i) => (
-            <Link
-              key={s.key}
-              href={flat(allowed(s.menu, can))[0].href}
-              title={s.desc}
-              className="sys-card"
-              data-reveal="own"
-              style={{ animationDelay: `${120 + i * 70}ms`, ["--c" as string]: s.color }}
-            >
-              <span className="sys-art" aria-hidden>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.art} alt="" loading="lazy" style={{ animationDelay: `${i * -1.1}s` }} />
-              </span>
-              <span className="sys-tx">
-                <b>{s.name}</b>
-                <span>{s.sub}</span>
-              </span>
-              <span className="sys-line" aria-hidden />
-            </Link>
-          ))}
+      <section className="sys-stage" data-reveal="own">
+        <div className="sys-hero">
+          <div className="sys-hero-tx">
+            <h2>
+              Select a System
+              <br />
+              for Your Work
+            </h2>
+            <i aria-hidden />
+            <p>เลือกระบบที่ต้องการใช้งาน</p>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="sys-hero-art" src="/images/systems/stamping-cell-art.webp" alt="" width={972} height={941} />
         </div>
-      )}
+
+        {list.length === 0 ? (
+          <div className="mr-off sys-empty">ยังไม่มีสิทธิ์ใช้งานระบบใด กรุณาติดต่อ Admin</div>
+        ) : (
+          <div className="sys-grid">
+            {list.map((s, i) => (
+              <Link
+                key={s.key}
+                href={flat(allowed(s.menu, can))[0].href}
+                title={s.desc}
+                className="sys-card"
+                data-reveal="own"
+                style={{ animationDelay: `${160 + i * 70}ms`, ["--c" as string]: s.color }}
+              >
+                <span className="sys-art" aria-hidden>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.art} alt="" />
+                </span>
+                <span className="sys-tx">
+                  <b>{s.name}</b>
+                  <span>{s.sub}</span>
+                </span>
+                <span className="sys-go" aria-hidden>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </PageBody>
   );
 }
