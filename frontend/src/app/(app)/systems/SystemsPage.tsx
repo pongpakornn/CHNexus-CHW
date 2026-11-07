@@ -5,7 +5,7 @@ import { PageBody } from "@/components/layout/Page";
 import { useAuth } from "@/lib/auth";
 import { allowed, systemsFor, type MenuItem } from "@/lib/menu";
 
-// 🧭 เลือกระบบ (หลัง Login): การ์ดระบบที่มีสิทธิ์ · แถบสีซ้าย + ไอคอนสี + ชื่อ + คำอธิบายสั้น + ปุ่มลูกศร
+// 🧭 เลือกระบบ (หลัง Login): การ์ดสี่เหลี่ยมของระบบที่มีสิทธิ์ · ไอคอนสี + ชื่อ + คำอธิบายสั้น · ชี้ = เด้งขึ้น
 //   กดการ์ด = เข้าหน้าแรกของระบบนั้น (Sidebar เปลี่ยนตามระบบ) · ระบบใหม่ = เพิ่มใน lib/menu.ts (SYSTEMS)
 const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children ? flat(m.children) : [m]));
 
@@ -35,6 +35,7 @@ export default function SystemsPage() {
               href={flat(allowed(s.menu, can))[0].href}
               title={s.desc}
               className="sys-card"
+              data-reveal="own"
               style={{ animationDelay: `${i * 60}ms`, ["--c" as string]: s.color }}
             >
               <span className="sys-ic">
@@ -44,11 +45,6 @@ export default function SystemsPage() {
               <span className="sys-tx">
                 <b>{s.name}</b>
                 <span>{s.sub}</span>
-              </span>
-              <span className="sys-go" aria-hidden>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
               </span>
             </Link>
           ))}

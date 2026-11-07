@@ -95,7 +95,7 @@ export default function LoginPage() {
   return (
     <div className="lg-bg grid min-h-dvh place-items-center p-4">
       <div className="grid w-full max-w-sm gap-4">
-        <form onSubmit={submit} className="lg-card">
+        <form onSubmit={submit} className="lg-card" data-reveal="own">
           <div className="mb-6 flex flex-col items-center gap-2 text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/app-192.png" alt="CHR-Nexus" className="h-20 w-20 rounded-2xl object-cover shadow-lg" />
@@ -117,7 +117,7 @@ export default function LoginPage() {
         </form>
 
         {saved.length > 0 && (
-          <div className="lg-card is-sub">
+          <div className="lg-card is-sub" data-reveal="own">
             <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/50">REMEMBERED ACCOUNTS</div>
             <div className="grid gap-1.5">
               {saved.map((s, i) => (

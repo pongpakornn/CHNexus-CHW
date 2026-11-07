@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "./api";
 import { useLive } from "./live";
+import { splashWait } from "./splash";
 
 export type Me = {
   userId: string;
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    queueMicrotask(refresh);
+    queueMicrotask(() => void splashWait(refresh())); // 🚀 Splash รอสิทธิ์ผู้ใช้ก่อนเปิดหน้า (ครั้งแรกเท่านั้น)
     // สิทธิ์เปลี่ยนโดย Admin -> โหลดใหม่ทุก 60 วินาที (API ตรวจสิทธิ์ทุกครั้งอยู่แล้ว)
     const t = setInterval(refresh, 60_000);
     return () => clearInterval(t);

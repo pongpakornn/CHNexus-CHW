@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 import { Providers } from "@/components/layout/Providers";
+import { Splash } from "@/components/splash/Splash";
 import "./globals.css";
 
 const thai = Noto_Sans_Thai({
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="th" className={`${thai.variable} h-full antialiased`}>
       <body className="min-h-full">
+        <Splash />
         <Providers>{children}</Providers>
       </body>
     </html>

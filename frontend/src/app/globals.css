@@ -11,6 +11,7 @@
   --primary: #49454f;
   --primary-dark: #332f38;
   --accent: #6750a4;
+  --sb-on: #e11d2e; /* Sidebar: เมนูที่เลือก (แดงตามโลโก้ CH) */
   --accent-soft: #d0bcff;
   --success: #2e7d32;
   --danger: #c62828;
@@ -661,8 +662,8 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   height: 44px;
   opacity: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, var(--accent) 0%, #8d72d8 55%, rgb(141 114 216 / 0.55) 100%);
-  box-shadow: 0 10px 24px -12px rgb(103 80 164 / 0.95), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  background: linear-gradient(90deg, var(--sb-on) 0%, #ef4444 55%, rgb(239 68 68 / 0.5) 100%);
+  box-shadow: 0 10px 24px -12px rgb(225 29 46 / 0.95), inset 0 1px 0 rgb(255 255 255 / 0.14);
   transition: transform 0.55s cubic-bezier(0.34, 1.45, 0.64, 1), height 0.3s var(--ease-drop), opacity 0.3s var(--ease-drop);
 }
 .sb-glider::before {
@@ -675,7 +676,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   translate: 0 -50%;
   border-radius: 0 3px 3px 0;
   background: #fff;
-  box-shadow: 0 0 10px 1px rgb(255 255 255 / 0.85), 0 0 22px 4px rgb(159 61 255 / 0.65);
+  box-shadow: 0 0 10px 1px rgb(255 255 255 / 0.85), 0 0 22px 4px rgb(255 72 72 / 0.7);
 }
 .sb-glider::after {
   content: "";
@@ -684,7 +685,7 @@ input[type="date"].field:hover::-webkit-calendar-picker-indicator {
   top: 15%;
   width: 46px;
   height: 70%;
-  background: rgb(159 61 255 / 0.45);
+  background: rgb(255 60 60 / 0.45);
   filter: blur(14px);
 }
 @keyframes sb-sheen {
@@ -10396,7 +10397,8 @@ table.lqp code {
 }
 .sb-sub-row.is-on {
   color: #fff;
-  background: rgb(255 255 255 / 0.12);
+  background: linear-gradient(90deg, rgb(225 29 46 / 0.32), rgb(225 29 46 / 0.08));
+  box-shadow: inset 2px 0 0 var(--sb-on);
 }
 .sb-sub-link {
   display: flex;
@@ -10424,8 +10426,8 @@ table.lqp code {
 .sb-sub-row.is-on .sb-dot {
   opacity: 1;
   scale: 1.35;
-  background: #c4b5fd;
-  box-shadow: 0 0 8px #a78bfa;
+  background: #ff6b6b;
+  box-shadow: 0 0 8px var(--sb-on);
 }
 .sb-sub-tog {
   display: grid;
@@ -10467,9 +10469,10 @@ table.lqp code {
   translate: 0 -1px;
 }
 .sb-stk-link.is-on {
-  color: #2b2342;
-  border-color: #fff;
-  background: #fff;
+  color: #fff;
+  border-color: var(--sb-on);
+  background: var(--sb-on);
+  box-shadow: 0 6px 14px -6px rgb(225 29 46 / 0.9);
 }
 @media (prefers-reduced-motion: reduce) {
   .sb-chev,
@@ -10508,99 +10511,123 @@ table.lqp code {
 }
 .sys-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(46%, 190px), 210px));
   gap: 18px;
-  margin-top: 20px;
+  margin-top: 22px;
 }
-/* การ์ด: แถบสีซ้าย (--c) · ไอคอนสีทึบ · ชี้ = ยกนิด ๆ + ไอคอนเอียง + ปุ่มลูกศรเป็นสี */
+/* การ์ดระบบ: สี่เหลี่ยมจัตุรัส · แถบสีด้านบน (--c) · ชี้ = เด้งขึ้น + เงาสีระบบ + ไอคอนเด้ง/เอียง · กด = ยุบนิด */
 .sys-card {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
+  gap: 14px;
+  aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--line, #e8e6f0);
-  border-radius: 14px;
-  padding: 20px 16px 20px 22px;
+  border-radius: 20px;
+  padding: 18px 14px;
+  text-align: center;
   background: var(--surface, #fff);
   box-shadow: 0 6px 18px -12px rgb(30 30 60 / 0.35);
   animation: sys-up 0.5s var(--ease-drop) both;
-  transition: translate 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), border-color 0.25s;
+  transition:
+    translate 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    scale 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.45s var(--ease-drop),
+    border-color 0.25s;
 }
 .sys-card::before {
   content: "";
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
+  inset: 0 0 auto;
+  height: 4px;
   background: var(--c);
 }
+/* แสงสีระบบจาง ๆ จากด้านบน (โผล่ตอนชี้) */
+.sys-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-drop);
+}
 .sys-card:hover {
-  translate: 0 -3px;
-  border-color: color-mix(in srgb, var(--c) 35%, transparent);
-  box-shadow: 0 18px 32px -20px color-mix(in srgb, var(--c) 70%, transparent);
+  translate: 0 -10px;
+  scale: 1.03;
+  border-color: color-mix(in srgb, var(--c) 40%, transparent);
+  box-shadow: 0 26px 40px -22px color-mix(in srgb, var(--c) 75%, transparent);
+}
+.sys-card:hover::after {
+  opacity: 1;
 }
 .sys-card:active {
-  translate: 0 -1px;
+  translate: 0 -4px;
+  scale: 0.98;
+  transition-duration: 0.15s;
 }
 .sys-card:focus-visible {
   outline: 2px solid var(--c);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 .sys-ic {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   flex: none;
-  width: 64px;
-  height: 64px;
-  border-radius: 14px;
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
   background: var(--c);
-  box-shadow: 0 10px 18px -10px var(--c);
-  transition: rotate 0.45s var(--ease-drop), scale 0.45s var(--ease-drop);
+  box-shadow: 0 14px 24px -12px var(--c);
+  transition: rotate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .sys-card:hover .sys-ic {
-  rotate: -6deg;
-  scale: 1.05;
+  rotate: -8deg;
+  scale: 1.12;
 }
 .sys-ic img {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   object-fit: contain;
   filter: brightness(0) invert(1);
 }
 .sys-tx {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 3px;
 }
 .sys-tx b {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--ink, #24212f);
 }
 .sys-tx span {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--ink-soft, #6b6880);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.sys-go {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  margin-left: auto;
-  border-radius: 999px;
-  color: #334155;
-  background: #eef0f5;
-  transition: translate 0.45s var(--ease-drop), background 0.25s, color 0.25s;
-}
-.sys-card:hover .sys-go {
-  translate: 3px 0;
-  color: #fff;
-  background: var(--c);
+@media (max-width: 480px) {
+  .sys-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .sys-ic {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+  }
+  .sys-ic img {
+    width: 34px;
+    height: 34px;
+  }
 }
 @keyframes sys-up {
   from {
@@ -10639,8 +10666,8 @@ table.lqp code {
 @media (prefers-reduced-motion: reduce) {
   .sys-head,
   .sys-card,
-  .sys-ic,
-  .sys-go {
+  .sys-card::after,
+  .sys-ic {
     animation: none;
     transition: none;
   }
