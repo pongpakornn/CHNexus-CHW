@@ -17,7 +17,8 @@ export type MenuItem = {
 
 export type SystemKey = "root" | "cims";
 
-export type SystemDef = { key: string; label: string; title: string; desc: string; icon: string; tone: string; menu: MenuItem[] };
+// การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · color = สีแถบซ้าย/ไอคอน · desc = tooltip
+export type SystemDef = { key: string; label: string; name: string; sub: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
 
 // ประเภทคลัง -> ชื่อเมนู Product Control
 export const STOCK_TYPES: { type: string; label: string; icon: string }[] = [
@@ -54,10 +55,12 @@ export const MASTER_ITEM: MenuItem = {
 export const CIMS: SystemDef = {
   key: "cims",
   label: "CIMS",
+  name: "CIMS",
+  sub: "Inventory Control",
   title: "CIMS • INVENTORY CONTROL",
   desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · PR · Forecast · Activity Log",
   icon: "/icons/StoreMaxMin.png",
-  tone: "linear-gradient(145deg,#8b7bd8,#6750a4)",
+  color: "#6750a4",
   menu: [
     { href: "/cims/dashboard", label: "Dashboard", title: "DASHBOARD", icon: "/icons/Dashboard.png", can: "dashboard" },
     { href: "/cims/store", label: "Store ( Max - Min )", title: "STORE ( MAX - MIN )", icon: "/icons/StoreMaxMin.png", can: "store" },
@@ -74,20 +77,24 @@ export const CIMS: SystemDef = {
 export const MASTER: SystemDef = {
   key: "master",
   label: "MASTER DATA",
+  name: "Master Data",
+  sub: "Customer · Supplier · Product",
   title: "MASTER DATA",
   desc: "ข้อมูลกลางของทุกระบบ: Customer · Supplier · Product Control (Part / Material / Component)",
   icon: "/icons/ProductControl.png",
-  tone: "linear-gradient(145deg,#60a5fa,#2563eb)",
+  color: "#2563eb",
   menu: MASTER_ITEM.children!,
 };
 
 export const ADMIN: SystemDef = {
   key: "admin",
   label: "USER MANAGEMENT",
+  name: "User Management",
+  sub: "User & Permission",
   title: "USER MANAGEMENT",
   desc: "ผู้ใช้งาน · สิทธิ์ทุกระบบ · ⚙ SETUP ทั้งหมด (Admin)",
   icon: "/icons/management.png",
-  tone: "linear-gradient(145deg,#94a3b8,#334155)",
+  color: "#0d9488",
   menu: [USERS_ITEM],
 };
 

@@ -5,8 +5,8 @@ import { PageBody } from "@/components/layout/Page";
 import { useAuth } from "@/lib/auth";
 import { allowed, systemsFor, type MenuItem } from "@/lib/menu";
 
-// 🧭 เลือกระบบ (หลัง Login): การ์ดระบบที่มีสิทธิ์ · กดการ์ด = เข้าหน้าแรกของระบบนั้น (Sidebar เปลี่ยนตามระบบ)
-//   เมนูในการ์ด = ลัดเข้าหน้านั้นได้เลย · ระบบใหม่ในอนาคต = เพิ่มใน lib/menu.ts (SYSTEMS)
+// 🧭 เลือกระบบ (หลัง Login): การ์ดระบบที่มีสิทธิ์ · แถบสีซ้าย + ไอคอนสี + ชื่อ + คำอธิบายสั้น + ปุ่มลูกศร
+//   กดการ์ด = เข้าหน้าแรกของระบบนั้น (Sidebar เปลี่ยนตามระบบ) · ระบบใหม่ = เพิ่มใน lib/menu.ts (SYSTEMS)
 const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children ? flat(m.children) : [m]));
 
 export default function SystemsPage() {
@@ -18,7 +18,7 @@ export default function SystemsPage() {
 
   return (
     <PageBody>
-      <div className="sys-hero">
+      <div className="sys-head">
         <small>CHR-NEXUS • MES PLATFORM</small>
         <h2>
           {hello}, {me?.userName}
@@ -29,34 +29,29 @@ export default function SystemsPage() {
         <div className="mr-off">ยังไม่มีสิทธิ์ใช้งานระบบใด กรุณาติดต่อ Admin</div>
       ) : (
         <div className="sys-grid">
-          {list.map((s, i) => {
-            const items = flat(allowed(s.menu, can));
-            const start = items[0];
-            return (
-              <div key={s.key} className="sys-card" style={{ animationDelay: `${i * 70}ms`, ["--tone" as string]: s.tone }}>
-                <Link href={start.href} className="sys-main">
-                  <span className="sys-ic">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={s.icon} alt="" />
-                  </span>
-                  <span className="sys-tx">
-                    <b>{s.label}</b>
-                    <span>{s.desc}</span>
-                  </span>
-                  <span className="sys-go" aria-hidden>
-                    →
-                  </span>
-                </Link>
-                <div className="sys-links">
-                  {items.map((m) => (
-                    <Link key={m.href} href={m.href}>
-                      {m.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {list.map((s, i) => (
+            <Link
+              key={s.key}
+              href={flat(allowed(s.menu, can))[0].href}
+              title={s.desc}
+              className="sys-card"
+              style={{ animationDelay: `${i * 60}ms`, ["--c" as string]: s.color }}
+            >
+              <span className="sys-ic">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.icon} alt="" />
+              </span>
+              <span className="sys-tx">
+                <b>{s.name}</b>
+                <span>{s.sub}</span>
+              </span>
+              <span className="sys-go" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </Link>
+          ))}
         </div>
       )}
     </PageBody>
