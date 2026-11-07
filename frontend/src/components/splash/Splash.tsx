@@ -6,6 +6,7 @@ import { SPLASH_SCRIPT } from "./splashScript";
 //   สคริปต์แก้ class ของกล่องนี้ก่อน React เริ่ม = suppressHydrationWarning (React ไม่แตะกล่องนี้อีก)
 const TITLE = "CHR-Nexus";
 const SUB = "CH.RADIATORS COMPANY LIMITED";
+const SUB_TH = "บริษัท ซีเอช เรดิเอเตอร์ จำกัด";
 
 export function Splash() {
   return (
@@ -22,12 +23,13 @@ export function Splash() {
           </div>
           <div className="cs-title">
             {TITLE.split("").map((ch, i) => (
-              <span key={i} style={{ animationDelay: `${350 + i * 70}ms` }}>
+              <span key={i} className={ch === "-" ? "cs-dash" : undefined} style={{ animationDelay: `${380 + i * 55}ms` }}>
                 {ch}
               </span>
             ))}
           </div>
           <div className="cs-sub">{SUB}</div>
+          <div className="cs-th">{SUB_TH}</div>
           <div className="cs-bar">
             <i id="cs-fill" suppressHydrationWarning />
           </div>

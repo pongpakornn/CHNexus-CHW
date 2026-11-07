@@ -1,38 +1,26 @@
 /* =====================================================================
-   🚀 CHR-Nexus Splash Screen (ต้นแบบ chr-splash.html) - แสดงครั้งเดียวต่อ session ตอนเปิดเว็บ
+   🚀 CHR-Nexus Splash Screen - แสดงครั้งเดียวต่อ session ตอนเปิดเว็บ
+   ธีม: ดำ / เทาเข้ม + แดงโลโก้ CH (ไม่มีเส้นตาราง) · ชื่อ CHR-Nexus ตัวชิดแบบแบรนด์ระบบ เลื่อนขึ้นทีละตัวแบบนุ่ม
    ลำดับ: โหลด -> วงแหวน/ชื่อ/แถบ จาง -> โลโก้ซูมทะลุเผยหน้าเว็บ -> ส่วนที่มี data-reveal โผล่ทีละใบ
    ถอดออก = ลบ <Splash /> ใน app/layout.tsx + โฟลเดอร์ components/splash + splashWait ใน lib/auth.tsx
    ===================================================================== */
 #chr-splash {
   --cs-red: #e11d2e;
-  --cs-purple: #8b6fe0;
-  --cs-bg: #0c0c0f;
+  --cs-red-hi: #ff4d5a;
+  --cs-red-deep: #7f0d16;
+  --cs-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: fixed;
   inset: 0;
   z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* ดำ -> เทาเข้ม + แสงแดงจาง ๆ หลังโลโก้ */
   background:
-    radial-gradient(60% 55% at 12% 18%, rgba(190, 30, 35, 0.34), transparent 70%),
-    radial-gradient(60% 60% at 90% 92%, rgba(45, 85, 210, 0.28), transparent 70%),
-    radial-gradient(40% 40% at 50% 50%, rgba(107, 82, 174, 0.1), transparent 70%),
-    var(--cs-bg);
-  transition: opacity 0.5s ease 0.45s;
+    radial-gradient(38% 42% at 50% 46%, rgb(225 29 46 / 0.16), transparent 70%),
+    radial-gradient(120% 90% at 50% 0%, #1f1f23 0%, #141416 45%, #0a0a0b 100%);
+  transition: opacity 0.6s var(--cs-ease) 0.45s;
   font-family: var(--font-thai), "Noto Sans Thai", "Segoe UI", system-ui, sans-serif;
-}
-#chr-splash::before {
-  /* เส้นกริดจาง ๆ */
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(circle at center, #000 20%, transparent 75%);
-  mask-image: radial-gradient(circle at center, #000 20%, transparent 75%);
 }
 #chr-splash.cs-zoom {
   opacity: 0;
@@ -56,18 +44,21 @@ html:has(#chr-splash.cs-hold) {
   position: relative;
   display: grid;
   place-items: center;
-  width: 184px;
-  height: 184px;
+  width: 176px;
+  height: 176px;
 }
 .cs-logo {
-  width: 96px;
-  height: 96px;
+  position: relative;
+  width: 92px;
+  height: 92px;
   overflow: hidden;
   border-radius: 24px;
   background: #050506;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 10px 40px rgba(225, 29, 46, 0.35), 0 0 60px rgba(139, 111, 224, 0.18);
-  animation: cs-pop 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.2) backwards;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6), 0 14px 40px rgb(225 29 46 / 0.35);
+  animation:
+    cs-pop 0.8s var(--cs-ease) backwards,
+    cs-glow 2.4s ease-in-out 0.8s infinite;
   transition: transform 0.95s cubic-bezier(0.5, 0, 0.1, 1), opacity 0.45s ease 0.5s;
   will-change: transform, opacity;
 }
@@ -82,7 +73,7 @@ html:has(#chr-splash.cs-hold) {
   opacity: 0;
 }
 
-/* วงแหวนบาง ไล่สีแดง -> ม่วง หมุนรอบ */
+/* วงแหวนบาง ไล่แดงเข้ม -> แดงสด หมุนรอบ */
 .cs-ring {
   position: absolute;
   border-radius: 50%;
@@ -92,48 +83,66 @@ html:has(#chr-splash.cs-hold) {
 }
 .cs-ring-1 {
   inset: 14px;
-  background: conic-gradient(from 0deg, transparent 0 8%, var(--cs-red), var(--cs-purple) 60%, transparent 85%);
+  background: conic-gradient(from 0deg, transparent 0 10%, var(--cs-red-deep), var(--cs-red) 55%, var(--cs-red-hi) 72%, transparent 86%);
   animation: cs-spin 2.2s linear infinite;
 }
 .cs-ring-2 {
   inset: 0;
-  opacity: 0.5;
-  background: conic-gradient(from 180deg, transparent 0 25%, var(--cs-purple), var(--cs-red) 70%, transparent 95%);
-  animation: cs-spin 3.4s linear infinite reverse;
+  opacity: 0.35;
+  background: conic-gradient(from 180deg, transparent 0 30%, rgb(255 255 255 / 0.5), var(--cs-red) 72%, transparent 95%);
+  animation: cs-spin 3.6s linear infinite reverse;
 }
 
+/* ชื่อระบบ: ตัวชิดแบบแบรนด์ CHR-Nexus · แต่ละตัวเลื่อนขึ้น + ชัดขึ้นทีละตัว */
 .cs-title {
   display: flex;
-  gap: 0.34em;
-  margin-top: 6px;
+  margin-top: 4px;
   color: #fff;
-  font-size: 20px;
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
   transition: opacity 0.35s ease;
 }
 .cs-title span {
+  display: inline-block;
   opacity: 0;
-  transform: translateY(8px);
-  animation: cs-letter 0.5s ease forwards;
+  transform: translateY(14px);
+  filter: blur(6px);
+  animation: cs-letter 0.7s var(--cs-ease) forwards;
+}
+.cs-title .cs-dash {
+  color: var(--cs-red);
 }
 .cs-sub {
-  margin-top: 8px;
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.5);
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 0.62);
   opacity: 0;
-  animation: cs-fade 0.5s ease 0.7s forwards;
+  animation: cs-rise-in 0.7s var(--cs-ease) 0.95s forwards;
   transition: opacity 0.35s ease;
 }
+.cs-th {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.42);
+  opacity: 0;
+  animation: cs-rise-in 0.7s var(--cs-ease) 1.05s forwards;
+  transition: opacity 0.35s ease;
+}
+
+/* แถบโหลด: แดงเข้ม -> แดงสด + แสงวิ่งผ่าน */
 .cs-bar {
-  width: 200px;
+  position: relative;
+  width: 190px;
   height: 3px;
-  margin-top: 26px;
+  margin-top: 24px;
   overflow: hidden;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgb(255 255 255 / 0.1);
   transition: opacity 0.35s ease;
 }
 .cs-bar i {
@@ -142,12 +151,23 @@ html:has(#chr-splash.cs-hold) {
   height: 100%;
   transform-origin: left;
   transform: scaleX(0);
-  background: linear-gradient(90deg, var(--cs-red), var(--cs-purple));
-  box-shadow: 0 0 12px rgba(139, 111, 224, 0.7);
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--cs-red-deep), var(--cs-red) 60%, var(--cs-red-hi));
+  box-shadow: 0 0 12px rgb(225 29 46 / 0.8);
 }
+.cs-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  animation: cs-sheen 1.4s var(--cs-ease) infinite;
+}
+
 #chr-splash.cs-out .cs-ring,
 #chr-splash.cs-out .cs-title,
 #chr-splash.cs-out .cs-sub,
+#chr-splash.cs-out .cs-th,
 #chr-splash.cs-out .cs-bar {
   opacity: 0 !important;
   animation-play-state: paused;
@@ -156,7 +176,7 @@ html:has(#chr-splash.cs-hold) {
 /* หน้าเว็บจริง: ส่วนที่มี data-reveal รอจน splash เปิดทาง แล้วค่อยเล่นแอนิเมชันเข้าหน้าของตัวเอง (โผล่ทีละใบ)
    data-reveal="" (ไม่มีแอนิเมชันของตัวเอง) = ใช้ cs-rise · ลำดับ = --i */
 [data-reveal=""] {
-  animation: cs-rise 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: cs-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--i, 0) * 80ms);
 }
 html:has(#chr-splash.cs-hold) [data-reveal] {
@@ -173,20 +193,35 @@ html:has(#chr-splash.cs-hold) [data-reveal] {
     transform: scale(0.6);
     opacity: 0;
   }
-  to {
-    transform: scale(1);
-    opacity: 1;
+}
+@keyframes cs-glow {
+  50% {
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6), 0 14px 56px rgb(225 29 46 / 0.6);
   }
 }
 @keyframes cs-letter {
   to {
     opacity: 1;
     transform: none;
+    filter: blur(0);
   }
 }
-@keyframes cs-fade {
+@keyframes cs-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
   to {
     opacity: 1;
+    transform: none;
+  }
+}
+@keyframes cs-sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
   }
 }
 @keyframes cs-rise {
@@ -202,7 +237,7 @@ html:has(#chr-splash.cs-hold) [data-reveal] {
 
 @media (max-width: 480px) {
   .cs-title {
-    font-size: 16px;
+    font-size: 24px;
   }
   .cs-bar {
     width: 160px;
@@ -210,7 +245,8 @@ html:has(#chr-splash.cs-hold) [data-reveal] {
 }
 @media (prefers-reduced-motion: reduce) {
   #chr-splash,
-  #chr-splash * {
+  #chr-splash *,
+  .cs-bar::after {
     animation: none !important;
   }
   #chr-splash.cs-zoom .cs-logo {
@@ -218,9 +254,11 @@ html:has(#chr-splash.cs-hold) [data-reveal] {
   }
   .cs-title span,
   .cs-sub,
+  .cs-th,
   .cs-logo {
     opacity: 1;
     transform: none;
+    filter: none;
   }
   [data-reveal=""] {
     animation: none;
