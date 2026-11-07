@@ -252,7 +252,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
           <Loading />
         ) : (
           <div className="overflow-auto rounded-2xl border border-[#e7e4ef]">
-            <table className="data-table hist-table w-full">
+            <table className="data-table t-center hist-table w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
                   <th>

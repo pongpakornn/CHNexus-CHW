@@ -29,7 +29,7 @@ export function GroupRow({ colSpan, label, value, count, collapsed, onToggle }: 
           <img src="/images/store/warehouse.webp" alt="" className="size-7" draggable={false} />
           <span className="text-sm font-bold">{label} :</span>
           <span className="text-[15px] font-extrabold">{value || "-"}</span>
-          <span className="ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{count.toLocaleString()} ITEMS</span>
+          <span className="grp-count ml-3 rounded-full bg-[#4f46e5] px-3 py-1 text-[10px] font-bold text-white shadow-[0_4px_10px_-6px_#4f46e5]">{count.toLocaleString()} ITEMS</span>
           <span className={`group-chev ml-auto mr-4 ${collapsed ? "" : "is-open"}`} aria-hidden>
             <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 3.5L10.5 8 6 12.5" />

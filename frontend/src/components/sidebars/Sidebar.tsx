@@ -145,9 +145,16 @@ export function SidebarNav({ items, compact, onExpand, onNavigate }: { items: Me
                             <div className={`fold ${sub ? "" : "is-closed"}`} inert={!sub}>
                               <div>
                                 <div className="sb-stk">
-                                  {kids.map((s) => (
-                                    <Link key={s.stkId} href={`${c.href}&stk=${s.stkId}`} title={s.name} className={`sb-stk-link ${on && stk === s.stkId ? "is-on" : ""}`}>
-                                      {s.code}
+                                  {kids.map((s, k) => (
+                                    <Link
+                                      key={s.stkId}
+                                      href={`${c.href}&stk=${s.stkId}`}
+                                      title={s.name}
+                                      className={`sb-stk-link ${on && stk === s.stkId ? "is-on" : ""}`}
+                                      style={{ "--i": k } as React.CSSProperties}
+                                    >
+                                      <b>{s.code}</b>
+                                      {s.name && s.name !== s.code && <span>{s.name}</span>}
                                     </Link>
                                   ))}
                                 </div>

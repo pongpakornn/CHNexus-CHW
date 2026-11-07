@@ -188,7 +188,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
           />
         </div>
         <div className={`overflow-auto rounded-2xl border border-[#e7e4ef] transition-opacity ${loading ? "opacity-60" : ""}`}>
-          <table className="data-table hist-table w-full">
+          <table className="data-table t-center hist-table w-full">
             <thead className="sticky top-0 z-[1]">
               <tr>
                 <th>DATE TIME</th>

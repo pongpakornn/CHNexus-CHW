@@ -229,7 +229,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   if (!meta) return <Loading />;
   if (meta.stocks.length === 0)
     return (
-      <PageBody>
+      <PageBody className="md-gray">
         <Empty>ไม่มีคลังประเภทนี้ที่คุณมีสิทธิ์ดู (ติดต่อ Admin เพื่อขอสิทธิ์คลัง)</Empty>
       </PageBody>
     );
@@ -609,7 +609,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const ncols = cols.length + 2;
 
   return (
-    <PageBody>
+    <PageBody className="md-gray">
       <PageHeader
         icon="/icons/InventoryRegistration.png"
         title={title ?? "PRODUCT CONTROL"}

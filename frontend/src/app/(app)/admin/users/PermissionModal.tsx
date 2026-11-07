@@ -420,7 +420,7 @@ export function PermissionModal({
                   <>
           {/* 🖥 Desktop: ตารางสิทธิ์ (กดหัวคอลัมน์ = ทั้งคอลัมน์ / ALL = ทั้งแถว) */}
           <div className="hidden overflow-auto rounded-2xl border border-line/60 md:block">
-            <table className="data-table pm-table w-full">
+            <table className="data-table t-center pm-table w-full">
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th className="text-left">SYSTEM</th>

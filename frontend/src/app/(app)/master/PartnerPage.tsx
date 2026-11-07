@@ -80,7 +80,7 @@ export function PartnerPage({ kind }: { kind: Kind }) {
   }
 
   return (
-    <PageBody>
+    <PageBody className="md-gray">
       <PageHeader
         icon={m.icon}
         title={m.title}
@@ -112,16 +112,16 @@ export function PartnerPage({ kind }: { kind: Kind }) {
         ) : (
           <>
             <div className="overflow-auto">
-              <table className="data-table w-full">
+              <table className="data-table t-center w-full">
                 <thead className="sticky top-0">
                   <tr>
                     <th className="w-14 text-center">NO.</th>
                     <th>{label} CODE</th>
                     <th>{label} NAME</th>
+                    <th>STATUS</th>
+                    <th>USED IN PARTS</th>
                     <th>UPDATE DATE</th>
-                    <th className="text-center">STATUS</th>
-                    <th className="text-right">USED IN PARTS</th>
-                    <th className="text-right">ACTION</th>
+                    <th>ACTION</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,15 +130,15 @@ export function PartnerPage({ kind }: { kind: Kind }) {
                       <td className="text-center">{cur * PAGE + i + 1}</td>
                       <td className="font-mono font-extrabold">{r.code}</td>
                       <td className="font-semibold">{r.name || <span className="text-ink-soft">-</span>}</td>
+                      <td>
+                        <span className={`md-status ${r.isActive ? "is-on" : ""}`}>{r.isActive ? "ACTIVE" : "INACTIVE"}</span>
+                      </td>
+                      <td className="font-bold">{r.parts ? r.parts.toLocaleString() : "-"}</td>
                       <td className="whitespace-nowrap font-mono text-xs" title={r.updatedBy ? `โดย ${r.updatedBy}` : undefined}>
                         {stamp(r.updatedDate)}
                       </td>
-                      <td className="text-center">
-                        <span className={`md-status ${r.isActive ? "is-on" : ""}`}>{r.isActive ? "ACTIVE" : "INACTIVE"}</span>
-                      </td>
-                      <td className="text-right font-bold">{r.parts ? r.parts.toLocaleString() : "-"}</td>
                       <td>
-                        <RowActions className="justify-end">
+                        <RowActions>
                           <RowAction kind="view" onClick={() => setEdit({ mode: "view", row: r })} />
                           {data.can.edit && <RowAction kind="edit" onClick={() => setEdit({ mode: "edit", row: r })} />}
                           {data.can.delete && <RowAction kind="delete" title={r.parts ? "มีสินค้าใช้อยู่ ลบไม่ได้ (เปลี่ยนเป็น INACTIVE แทน)" : "DELETE"} onClick={() => remove(r)} />}
