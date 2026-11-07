@@ -17,8 +17,8 @@ export type MenuItem = {
 
 export type SystemKey = "root" | "cims";
 
-// การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · color = สีแถบซ้าย/ไอคอน · desc = tooltip
-export type SystemDef = { key: string; label: string; name: string; sub: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
+// การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · art = ภาพประกอบการ์ด · color = สีแถบ/เงาการ์ด · desc = tooltip
+export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
 
 // ประเภทคลัง -> ชื่อเมนู Product Control
 export const STOCK_TYPES: { type: string; label: string; icon: string }[] = [
@@ -56,7 +56,8 @@ export const CIMS: SystemDef = {
   key: "cims",
   label: "CIMS",
   name: "CIMS",
-  sub: "Inventory Control",
+  sub: "CHR Inventory Management",
+  art: "/images/systems/cims.webp",
   title: "CIMS • INVENTORY CONTROL",
   desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · PR · Forecast · Activity Log",
   icon: "/icons/StoreMaxMin.png",
@@ -79,6 +80,7 @@ export const MASTER: SystemDef = {
   label: "MASTER DATA",
   name: "Master Data",
   sub: "Customer · Supplier · Product",
+  art: "/images/systems/master-data.webp",
   title: "MASTER DATA",
   desc: "ข้อมูลกลางของทุกระบบ: Customer · Supplier · Product Control (Part / Material / Component)",
   icon: "/icons/ProductControl.png",
@@ -91,10 +93,11 @@ export const ADMIN: SystemDef = {
   label: "USER MANAGEMENT",
   name: "User Management",
   sub: "User & Permission",
+  art: "/images/systems/user-management.webp",
   title: "USER MANAGEMENT",
   desc: "ผู้ใช้งาน · สิทธิ์ทุกระบบ · ⚙ SETUP ทั้งหมด (Admin)",
   icon: "/icons/management.png",
-  color: "#0d9488",
+  color: "#4f46e5",
   menu: [USERS_ITEM],
 };
 

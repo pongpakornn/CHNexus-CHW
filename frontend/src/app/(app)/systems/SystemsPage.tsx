@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { allowed, systemsFor, type MenuItem } from "@/lib/menu";
 
 // 🧭 เลือกระบบ (หลัง Login): ภาพ Smart Factory Stamping Cell ด้านบน (มีข้อความ "Select a System for Your Work" ในภาพ)
-//   ตามด้วยการ์ดระบบที่มีสิทธิ์ (ไอคอนสีระบบ + ชื่อ + คำอธิบายสั้น · ชี้ = เด้งขึ้น)
+//   ตามด้วยการ์ดระบบที่มีสิทธิ์ (ภาพประกอบลอยเบา ๆ + ชื่อ + คำอธิบาย + ขีดสีระบบ · ชี้ = เด้งขึ้น)
 //   กดการ์ด = เข้าหน้าแรกของระบบนั้น (Sidebar เปลี่ยนตามระบบ) · ระบบใหม่ = เพิ่มใน lib/menu.ts (SYSTEMS)
 const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children ? flat(m.children) : [m]));
 
@@ -32,13 +32,17 @@ export default function SystemsPage() {
               title={s.desc}
               className="sys-card"
               data-reveal="own"
-              style={{ animationDelay: `${120 + i * 70}ms`, ["--c" as string]: s.color, ["--ic" as string]: `url(${s.icon})` }}
+              style={{ animationDelay: `${120 + i * 70}ms`, ["--c" as string]: s.color }}
             >
-              <span className="sys-ic" aria-hidden />
+              <span className="sys-art" aria-hidden>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.art} alt="" loading="lazy" style={{ animationDelay: `${i * -1.1}s` }} />
+              </span>
               <span className="sys-tx">
                 <b>{s.name}</b>
                 <span>{s.sub}</span>
               </span>
+              <span className="sys-line" aria-hidden />
             </Link>
           ))}
         </div>
