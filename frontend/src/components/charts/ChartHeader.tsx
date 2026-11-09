@@ -1,8 +1,8 @@
 "use client";
 
 import { useId } from "react";
-import { motion } from "framer-motion";
-import { springSoft } from "@/lib/motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { EASE, springSoft } from "@/lib/motion";
 // หัวการ์ดกราฟ: ไอคอนวงกลมม่วง + ชื่อ + คำอธิบาย + ปุ่มด้านขวา และสวิตช์ CHART / TABLE แบบเม็ดยา
 export function ChartHeader({ icon, title, subtitle, actions }: { icon: string; title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }) {
   return (
@@ -46,5 +46,25 @@ export function ViewSwitch({ value, onChange }: { value: ChartView; onChange: (v
         </button>
       ))}
     </div>
+  );
+}
+
+// 🎞 สลับ CHART ↔ TABLE แบบนุ่ม: ของเดิมเลื่อนออก + จาง แล้วของใหม่เลื่อนเข้าจากอีกฝั่ง (TABLE มาจากขวา · CHART มาจากซ้าย)
+//   ลดการเคลื่อนไหว = จางสั้น ๆ อย่างเดียว · ค่าเวลา: เข้า 0.34 วิ · ออก 0.18 วิ (จบแล้วไม่ค้าง transform = ตัวอักษร / เส้นคมเหมือนเดิม)
+export function ViewFade({ view, className, children }: { view: ChartView; className?: string; children: React.ReactNode }) {
+  const reduce = useReducedMotion();
+  const dx = reduce ? 0 : view === "table" ? 28 : -28;
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={view}
+        className={className}
+        initial={{ opacity: 0, x: dx }}
+        animate={{ opacity: 1, x: 0, transition: { duration: reduce ? 0.15 : 0.34, ease: EASE } }}
+        exit={{ opacity: 0, x: -dx * 0.6, transition: { duration: reduce ? 0.1 : 0.18, ease: EASE } }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -173,7 +173,7 @@ export default function PlanSetting() {
 
   if (!meta) return <Loading />;
   return (
-    <PageBody className="edp-dark">
+    <PageBody className="edp-light">
       <PageHeader icon="/icons/ProductControl.png" title="EDP • PLAN SETTING" subtitle="วางแผนผลิตรายรอบ · แก้ HG แล้วเวลาการ์ดถัดไปเลื่อนตาม · กด SAVE ALL เพื่อบันทึกจริง" />
       <EdpBar
         date={date}

@@ -101,7 +101,7 @@ export default function EdpPlanning() {
     const t = setTimeout(() => load(), 0);
     return () => clearTimeout(t);
   }, [load]);
-  useLive(["edp"], () => load(true), live ? 5000 : 0);
+  useLive(["edp"], () => load(true), live ? 30_000 : 0); // ⚡ ทันทีจาก Server · สำรองทุก 30 วิ
 
   const can = meta?.can.planning ?? false;
   const val = <K extends keyof Row>(r: Row, k: K) =>

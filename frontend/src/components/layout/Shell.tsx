@@ -8,6 +8,7 @@ import { allowed, findItem, menuOf, systemOf, type SystemKey } from "@/lib/menu"
 import { Icon } from "@/components/icons";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MinReportAlert } from "@/components/notifications/MinReportAlert";
+import { EdpAlert } from "@/components/notifications/EdpAlert";
 import { MinSignHost } from "@/components/notifications/MinSignHost";
 import { ProfileBubble } from "@/components/profile/ProfileBubble";
 import { SupportButton } from "@/components/chat/SupportButton";
@@ -128,6 +129,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <SupportChat />
       <ChatFeed />
       <MinReportAlert />
+      <EdpAlert />
       <MinSignHost />
     </div>
   );

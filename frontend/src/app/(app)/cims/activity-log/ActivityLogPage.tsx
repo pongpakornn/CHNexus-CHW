@@ -27,7 +27,9 @@ function actionColor(a: string) {
 }
 
 // 🕘 ACTIVITY LOG (ActivityLogView): ใคร ทำอะไร เมื่อไร เครื่องไหน - Log ใหม่ขึ้นเองเมื่อดูหน้าแรก
-export default function ActivityLogPage() {
+//   ทุกระบบ (CIMS · MASTER DATA · EDP PLANNING · USER MANAGEMENT) · ทุกการเพิ่ม / แก้ไข / ลบ / อัพเดท เก็บครบ (AuditMiddleware)
+//   embedded = เปิดในหน้าต่างของ USER MANAGEMENT (ปุ่ม ACTIVITY LOG ข้าง ADD USER) - ไม่มีหัวหน้า / ปุ่ม BUG LOG
+export default function ActivityLogPage({ embedded = false }: { embedded?: boolean } = {}) {
   const toast = useToast();
   const [key, setKey] = useState("");
   // เปิดหน้า = รายการล่าสุด (ทุกวันที่) · ดูได้ล่าสุด 200 รายการ (2 หน้า) ตามตัวกรอง
@@ -85,13 +87,7 @@ export default function ActivityLogPage() {
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
-  return (
-    <PageBody>
-      <PageHeader
-        icon="/icons/ActivityLog.png"
-        title="ACTIVITY LOG"
-        subtitle="ใคร ทำอะไร เมื่อไร เครื่องไหน"
-        actions={
+  const excel = (
           <ActionMenu
             caption={["EXCEL", "EXPORT"]}
             label="เมนู Excel Activity Log"
@@ -109,8 +105,8 @@ export default function ActivityLogPage() {
               },
             ]}
           />
-        }
-      />
+  );
+  const card = (
       <Card
         title={`ACTIVITY • ${(data?.all ?? 0).toLocaleString()}`}
         actions={
@@ -125,6 +121,7 @@ export default function ActivityLogPage() {
               onChange={setUser}
             />
             <MenuSelect compact tone="blue" className="w-[200px]" label="ACTION" value={action} options={[{ value: "", label: "ALL ACTIONS" }, ...lookups.actions.map((a) => ({ value: a, label: a }))]} onChange={setAction} />
+            {embedded && excel}
           </>
         }
       >
@@ -133,7 +130,7 @@ export default function ActivityLogPage() {
           <SearchBox className="min-w-[240px] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา ประเภท / รายละเอียด / อ้างอิง / ผู้ใช้ / เครื่อง" />
           <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
         </div>
-        <div ref={scrollRef} className="max-h-[calc(100dvh-300px)] min-h-[360px] overflow-auto">
+        <div ref={scrollRef} className={`${embedded ? "max-h-[calc(92dvh-330px)]" : "max-h-[calc(100dvh-300px)]"} min-h-[360px] overflow-auto`}>
           {!data ? (
             <Loading />
           ) : data.rows.length === 0 ? (
@@ -195,6 +192,12 @@ export default function ActivityLogPage() {
           </div>
         )}
       </Card>
+  );
+  if (embedded) return card;
+  return (
+    <PageBody>
+      <PageHeader icon="/icons/ActivityLog.png" title="ACTIVITY LOG" subtitle="ใคร ทำอะไร เมื่อไร เครื่องไหน · ทุกระบบ" actions={excel} />
+      {card}
       <BugLogButton />
     </PageBody>
   );

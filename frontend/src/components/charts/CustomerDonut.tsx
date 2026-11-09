@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChartHeader,
+  ViewFade,
   ViewSwitch,
   type ChartView,
 } from "@/components/charts/ChartHeader";
@@ -173,10 +174,12 @@ export function CustomerDonut({
         <div className="py-16 text-center text-sm font-semibold text-ink-soft">
           {empty}
         </div>
-      ) : view === "table" ? (
+      ) : (
+        <ViewFade view={view} className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
+        {view === "table" ? (
         <div className={fill ? "relative xl:min-h-[380px] xl:flex-1" : ""}>
           <div
-            className={`view-in max-h-[520px] overflow-auto px-4 pb-4 ${fill ? "xl:absolute xl:inset-0 xl:max-h-none" : ""}`}
+            className={`max-h-[520px] overflow-auto px-4 pb-4 ${fill ? "xl:absolute xl:inset-0 xl:max-h-none" : ""}`}
           >
             <table className="w-full border-collapse text-sm tabular-nums">
               <thead className="sticky top-0 z-10 bg-surface">
@@ -215,7 +218,7 @@ export function CustomerDonut({
       ) : (
         <>
           <div
-            className={`view-in @container ${fill ? "relative xl:min-h-[380px] xl:flex-1" : ""}`}
+            className={`@container ${fill ? "relative xl:min-h-[380px] xl:flex-1" : ""}`}
           >
             <div
               className={`grid items-center gap-4 p-4 @[540px]:grid-cols-[minmax(220px,.9fr)_minmax(0,1.1fr)] ${fill ? "xl:absolute xl:inset-0 xl:grid-rows-[minmax(0,1fr)] xl:@[540px]:grid-cols-[minmax(240px,1.15fr)_minmax(250px,.85fr)]" : ""}`}
@@ -227,6 +230,7 @@ export function CustomerDonut({
                 <svg
                   viewBox="0 0 360 360"
                   className="size-full overflow-visible"
+                  shapeRendering="geometricPrecision"
                   role="img"
                   aria-label="Customer order share"
                   onMouseLeave={() => setActive(-1)}
@@ -307,7 +311,7 @@ export function CustomerDonut({
               </div>
             </div>
           </div>
-          <div className="view-in flex flex-wrap items-center justify-between gap-2.5 px-4 pb-4 text-[11px] font-semibold text-ink-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 pb-4 text-[11px] font-semibold text-ink-soft">
             <span>
               <b className="text-ink">{rows.length} ลูกค้า</b> ·
               ชี้ที่วงแหวนหรือรายชื่อเพื่อดูยอดของแต่ละลูกค้า
@@ -322,6 +326,8 @@ export function CustomerDonut({
             />
           </div>
         </>
+        )}
+        </ViewFade>
       )}
     </section>
   );

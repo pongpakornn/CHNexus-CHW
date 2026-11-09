@@ -86,11 +86,12 @@ function Kpi({
       <svg
         viewBox="0 0 80 80"
         className="edp-ring"
+        shapeRendering="geometricPrecision"
         style={{ "--p": Math.min(1, pct / 100) } as React.CSSProperties}
         aria-hidden
       >
         <circle className="bg" cx="40" cy="40" r="32" />
-        <circle className="fg" cx="40" cy="40" r="32" />
+        <circle className="fg" cx="40" cy="40" r="32" transform="rotate(-90 40 40)" />
       </svg>
     </div>
   );
@@ -99,7 +100,7 @@ function Kpi({
 // การ์ด 1 ใบของหน้า Dashboard: เปิดเข้ามาตามลำดับ (i) · ชี้ = ยกขึ้นเล็กน้อย
 function Panel({ i, reduce, children, className }: { i: number; reduce: boolean; children: React.ReactNode; className?: string }) {
   return (
-    <motion.div custom={i} variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" whileHover={reduce ? undefined : { y: -3 }} className={`edp-panel ${className ?? ""}`}>
+    <motion.div custom={i} variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" className={`edp-panel ${className ?? ""}`}>
       {children}
     </motion.div>
   );

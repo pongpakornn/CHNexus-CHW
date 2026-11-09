@@ -57,7 +57,12 @@ public sealed class EdpController : AppController
     public sealed record SwapReq(int A, int B, List<EdpService.SlotTime> Times);
 
     [HttpPost("start")]
-    public IActionResult Start([FromBody] ShiftReq r) => Guard(Me?.CanViewEdpSubmit == true) ?? Run(() => { _svc.Start(r.Date, Sh(r.Shift)); return Ok(new { }); }, "เริ่มกะไม่สำเร็จ");
+    public IActionResult Start([FromBody] ShiftReq r) => Guard(Me?.CanViewEdpSubmit == true) ?? Run(() =>
+    {
+        _svc.Start(r.Date, Sh(r.Shift));
+        LogService.WriteLog(Uid, "EDP_START_PLAN", $"เริ่มแผน {Sh(r.Shift)} วันที่ {r.Date:dd/MM/yyyy} (IN PROGRESS)", $"{r.Date:yyyyMMdd}-{Sh(r.Shift)}");
+        return Ok(new { });
+    }, "เริ่มกะไม่สำเร็จ");
 
     [HttpPost("finish")]
     public IActionResult Finish([FromBody] ShiftReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
@@ -215,4 +220,49 @@ public sealed class EdpController : AppController
     // ---------------------------------------------------------------- กราฟ
     [HttpGet("graph")]
     public IActionResult Graph() => Guard(Me?.CanViewEdpGraph == true) ?? Ok(_svc.Graph());
+
+    // ---------------------------------------------------------------- ⏰ แจ้งเตือนการ์ดเลยเวลา (เห็นเฉพาะในระบบ EDP · ผู้ที่ MARK SUCCESS ได้)
+    public sealed record AlertReq(bool Enabled, int GraceMinutes, int RemindMinutes, bool OnlyStarted);
+    private bool IsAdmin => Me?.UserLevel == 1;
+    private static object AlertRow(EdpAlertSettings s) => new { s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, s.UpdatedBy, s.UpdatedDate };
+
+    [HttpGet("alert")]
+    public IActionResult Alert()
+    {
+        if (Me?.CanEditEdpSubmit != true || !DbSchema.HasEdpAlert) return Ok(new { enabled = false });
+        var s = _svc.AlertSettings();
+        return Ok(new { s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, snoozeUntil = EdpService.GetSnooze(Uid), now = DateTime.Now });
+    }
+
+    [HttpPost("alert/snooze")]
+    public IActionResult AlertSnooze()
+    {
+        if (Me?.CanEditEdpSubmit != true) return Deny();
+        if (!DbSchema.HasEdpAlert) return Fail("ฐานข้อมูลยังไม่มีตาราง EDP ALERT (database/nexus/29_EDP_Alert.sql)");
+        var s = _svc.AlertSettings();
+        return Ok(new { until = EdpService.Snooze(Uid, s.RemindMinutes), minutes = s.RemindMinutes });
+    }
+
+    [HttpGet("alert/settings")]
+    public IActionResult AlertSettings()
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        if (!DbSchema.HasEdpAlert) return Ok(new { ready = false });
+        return Ok(new { ready = true, settings = AlertRow(_svc.AlertSettings()) });
+    }
+
+    [HttpPost("alert/settings")]
+    public IActionResult SaveAlertSettings([FromBody] AlertReq r)
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        if (!DbSchema.HasEdpAlert) return Fail("ฐานข้อมูลยังไม่มีตาราง EDP ALERT (database/nexus/29_EDP_Alert.sql)");
+        if (r == null || r.GraceMinutes < 0 || r.GraceMinutes > 240) return Fail("เลยเวลากี่นาทีจึงแจ้งเตือน ต้องอยู่ระหว่าง 0 - 240 นาที");
+        if (r.RemindMinutes < 1 || r.RemindMinutes > 480) return Fail("แจ้งเตือนซ้ำต้องอยู่ระหว่าง 1 - 480 นาที");
+        return Run(() =>
+        {
+            _svc.SaveAlertSettings(new EdpAlertSettings { Enabled = r.Enabled, GraceMinutes = r.GraceMinutes, RemindMinutes = r.RemindMinutes, OnlyStarted = r.OnlyStarted }, Uid);
+            LogService.WriteLog(Uid, "EDP_ALERT_SETTINGS", $"Enabled: {(r.Enabled ? "ON" : "OFF")} | Late ≥ {r.GraceMinutes} min | Remind every {r.RemindMinutes} min | Only started: {(r.OnlyStarted ? "Y" : "N")}", "EDP_ALERT");
+            return Ok(new { message = $"บันทึก EDP ALERT แล้ว\n\n{(r.Enabled ? "แจ้งเตือน : ON" : "แจ้งเตือน : OFF")} · เลยเวลา ≥ {r.GraceMinutes} นาที · กด CANCEL แล้วแจ้งซ้ำทุก {r.RemindMinutes} นาที" });
+        }, "บันทึกไม่สำเร็จ");
+    }
 }

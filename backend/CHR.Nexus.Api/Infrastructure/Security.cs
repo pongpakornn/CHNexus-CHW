@@ -44,6 +44,8 @@ public sealed class SecurityMiddleware
             h["X-Frame-Options"] = "DENY";
             h["Referrer-Policy"] = "same-origin";
             h["Cross-Origin-Resource-Policy"] = "same-origin";
+            h["X-Permitted-Cross-Domain-Policies"] = "none";
+            h["Permissions-Policy"] = "geolocation=(), microphone=(), payment=(), usb=()";
             if (!h.ContainsKey("Cache-Control") && (ctx.Response.ContentType ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
                 h["Cache-Control"] = "no-store";
             return Task.CompletedTask;

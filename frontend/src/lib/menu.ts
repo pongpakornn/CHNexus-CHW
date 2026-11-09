@@ -59,7 +59,7 @@ export const CIMS: SystemDef = {
   sub: "CHR Inventory Management",
   art: "/images/systems/cims.webp",
   title: "CIMS • INVENTORY CONTROL",
-  desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · PR · Forecast · Activity Log",
+  desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · PR · Forecast",
   icon: "/icons/StoreMaxMin.png",
   color: "#6750a4",
   menu: [
@@ -70,7 +70,7 @@ export const CIMS: SystemDef = {
     { href: "/cims/max-min", label: "Max-Min Calculator", title: "MAX-MIN CALCULATOR", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc" },
     { href: "/cims/forecast", label: "Forecast / Order", title: "FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast" },
     { href: "/cims/pr", label: "PR Management", title: "PURCHASE REQUEST", icon: "/icons/PR.png", can: "pr" },
-    { href: "/cims/activity-log", label: "Activity Log", title: "ACTIVITY LOG", icon: "/icons/ActivityLog.png", can: "activityLog" },
+    // 🕘 Activity Log ย้ายไปที่ USER MANAGEMENT › ปุ่ม ACTIVITY LOG (ข้าง ADD USER) · หน้า /cims/activity-log ยังเปิดตรงได้
     USERS_ITEM,
   ],
 };

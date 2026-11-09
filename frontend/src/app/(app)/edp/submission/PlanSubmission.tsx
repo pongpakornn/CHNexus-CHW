@@ -11,11 +11,13 @@ import { motion, useReducedMotion } from "framer-motion";
 import { STAGGER, fadeOnly, fadeUp, springPop, springSoft } from "@/lib/motion";
 import { useLive } from "@/lib/live";
 import { EdpBar } from "../EdpBar";
+import { DragGrid } from "./DragGrid";
 import { cascade, dmy, hgOf, imgOf, nowSlot, roundLabel, shiftStart, slotSwap, sortMin, timesOf, type Card, type CardsRes, type Meta, type Part, type Scope, type Shift, type Times } from "../edp";
 import "../edp.css";
 
 // 🏭 EDP › PLAN SUBMISSION (หน้างาน) - ย้ายจากหน้า DASHBOARD ของ EDP Systems
-//   เปิดหน้า = เลือกแผน (วันที่ · กะ · รอบ) แล้วกด START PLANNING · ปิดกะแล้วกลับมาหน้าเลือกแผน (จำแผนที่เริ่มไว้ใน session)
+//   เปิดหน้า = เลือกแผน (วันที่ · กะ · รอบ) แล้วกด START PLANNING · แผนที่ START ไปแล้ว (IN PROGRESS) = แสดงการ์ดเลย ไม่ต้องกดเริ่มใหม่
+//   ปิดกะแล้วกลับมาหน้าเลือกแผน (จำแผนที่เริ่มไว้ใน session)
 //   กรอกยอดจริง (ชิ้น / HG) แล้ว MARK SUCCESS · แก้ไข / แจ้งผลิตไม่ได้ · ลากการ์ดวางทับอีกใบ = สลับเวลา (ยืนยันก่อน · ย้อนกลับได้)
 //   เวลาของการ์ดไหลต่อกันทั้งกะ (3.25 นาที / HG) · เลยเวลา START แล้วยังไม่ MARK = ป้ายแดง "ช้า" · เครื่องอื่นแก้ = จอนี้อัพเดทเอง
 type Typed = Record<number, { qty: number; hg: number; hgPlan: number }>;
@@ -50,11 +52,10 @@ export default function PlanSubmission() {
   const [typed, setTyped] = useState<Typed>({});
   const [busy, setBusy] = useState<Set<number>>(new Set());
   const [edit, setEdit] = useState<Card | null>(null);
-  const [drag, setDrag] = useState<number | null>(null);
-  const [over, setOver] = useState<number | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const sig = useRef("");
+  const auto = useRef(true); // เปิดหน้าครั้งแรก: แผนที่ START แล้ว = ข้ามหน้าเลือกแผน (ครั้งเดียว · กด CHANGE PLAN แล้วไม่เด้งกลับ)
 
   // โหลดครั้งเดียว (ไม่ผูกกับ toast = แจ้งเตือนแล้วไม่รีเซ็ตกะที่เลือก) · แผนที่ START ไว้จำใน session
   useEffect(() => {
@@ -93,6 +94,10 @@ export default function PlanSubmission() {
         const r = await api<CardsRes>("/edp/cards", { query: { date, shift } });
         sig.current = r.sig;
         setData(r);
+        if (auto.current) {
+          auto.current = false;
+          if (r.status === "IN PROGRESS" && r.cards.some((c) => c.isVisible && c.partNo)) setStarted(true);
+        }
       } catch (e) {
         if (!quiet) {
           toastRef.current.show("ERROR", "โหลดแผนไม่สำเร็จ\n" + (e as Error).message, "error");
@@ -106,18 +111,19 @@ export default function PlanSubmission() {
     const t = setTimeout(() => (setData(null), load()), 0);
     return () => clearTimeout(t);
   }, [load]);
-  // Realtime: ลายเซ็นแผนเปลี่ยน (MARK / แก้ / สลับ จากเครื่องอื่น) = โหลดเงียบ
-  useLive(["edp"], () => load(true), 15_000);
+  // ⚡ Realtime: เครื่องอื่น MARK / แก้ / สลับ = Server แจ้งทันที (หัวข้อ "edp") -> โหลดเงียบ ไม่กระพริบ
+  //   สำรอง: ทุก 30 วินาทีเช็คลายเซ็นแผน (เบา) เปลี่ยนจริงค่อยโหลด · กำลังแก้การ์ด = ไม่ดึงทับ
+  useLive(["edp"], () => (edit ? undefined : load(true)));
   useEffect(() => {
     const t = setInterval(async () => {
-      if (!date || edit || !started) return;
+      if (!date || edit || document.visibilityState !== "visible") return;
       try {
         const r = await api<{ sig: string }>("/edp/signature", { query: { date, shift } });
         if (r.sig !== sig.current) load(true);
       } catch {}
-    }, 4000);
+    }, 30_000);
     return () => clearInterval(t);
-  }, [date, shift, edit, started, load]);
+  }, [date, shift, edit, load]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
@@ -231,7 +237,7 @@ export default function PlanSubmission() {
 
   if (!meta) return <Loading />;
   return (
-    <PageBody className="edp-dark">
+    <PageBody className="edp-light">
       <PageHeader
         icon="/icons/registration.png"
         title="EDP • PLAN SUBMISSION"
@@ -275,25 +281,19 @@ export default function PlanSubmission() {
               {round ? ` รอบ ${round}` : ""} · กรุณาตั้งแผนที่หน้า PLAN SETTING ก่อน
             </Empty>
           ) : (
-            <div className="edp-cards">
-              {shown.map((c, i) => {
+            <DragGrid
+              items={shown}
+              idOf={(c) => c.pldId}
+              locked={(c) => c.isDone || c.isProblem || !canSubmit || closed}
+              onSwap={swap}
+              render={(c, _i, handle, lifted) => {
                 const t: Times = times.get(c.pldId) ?? timesOf(c.timeStart, c.timeEnd);
                 const lt = late(c);
                 const img = imgOf(c);
                 const lock = c.isDone || c.isProblem || !canSubmit || closed;
                 return (
-                  <article
-                    key={c.pldId}
-                    className={`edp-card ${c.isDone ? "is-done" : ""} ${c.isProblem ? "is-problem" : ""} ${lt ? "is-late" : ""} ${drag === c.pldId ? "is-drag" : ""} ${over === c.pldId ? "is-over" : ""}`}
-                    style={{ "--i": Math.min(i, 16) } as React.CSSProperties}
-                    draggable={!lock}
-                    onDragStart={(e) => (setDrag(c.pldId), e.dataTransfer.setData("text/plain", String(c.pldId)))}
-                    onDragEnd={() => (setDrag(null), setOver(null))}
-                    onDragOver={(e) => drag && drag !== c.pldId && !lock && (e.preventDefault(), setOver(c.pldId))}
-                    onDragLeave={() => setOver((o) => (o === c.pldId ? null : o))}
-                    onDrop={(e) => (e.preventDefault(), setOver(null), drag && swap(drag, c.pldId))}
-                  >
-                    <header>
+                  <article className={`edp-card is-set ${c.isDone ? "is-done" : ""} ${c.isProblem ? "is-problem" : ""} ${lt ? "is-late" : ""} ${lifted ? "is-lifted" : ""}`}>
+                    <header className={lock ? "" : "edp-handle"} {...(lock ? {} : handle)} title={lock ? undefined : "ลากที่หัวการ์ดไปวางทับอีกใบเพื่อสลับเวลา"}>
                       <span className="edp-round">
                         {shift === "ALL" ? `${c.shift === "DAY" ? "☀" : "🌙"} ` : ""}R{c.roundId || "-"}
                       </span>
@@ -301,12 +301,17 @@ export default function PlanSubmission() {
                       {lt > 0 && <span className="edp-late">ช้า {lateText(lt)}</span>}
                       {c.isDone && <span className="edp-badge is-ok">✔ FINISHED</span>}
                       {c.isProblem && <span className="edp-badge is-bad">⛔ ผลิตไม่ได้</span>}
+                      {!lock && (
+                        <span className="edp-grip" aria-hidden>
+                          ⠿
+                        </span>
+                      )}
                     </header>
                     <div className="edp-card-body">
                       <div className="edp-img">
                         {img ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} />
+                          <img src={img} alt="" loading="lazy" draggable={false} onError={(e) => (e.currentTarget.style.display = "none")} />
                         ) : (
                           <span>NO IMAGE</span>
                         )}
@@ -315,11 +320,12 @@ export default function PlanSubmission() {
                         <div className="edp-part">{c.partNo}</div>
                         <div className="edp-name">{c.partName ?? "-"}</div>
                         <div className="edp-times">
-                          <span>
+                          {/* เวลาเปลี่ยน (กรอก HG / สลับการ์ด) = ตัวเลขเลื่อนขึ้นจาง ๆ */}
+                          <span key={`s${t.sb}${t.se}`} className="edp-tick">
                             <small>START</small>
                             {t.sb}-{t.se}
                           </span>
-                          <span>
+                          <span key={`o${t.ob}${t.oe}`} className="edp-tick">
                             <small>OUT</small>
                             {t.ob}-{t.oe}
                           </span>
@@ -335,28 +341,28 @@ export default function PlanSubmission() {
                       </label>
                       <label>
                         <small>ACT (PCS)</small>
-                        <input type="number" min={0} className="field" disabled={lock} value={qtyNow(c)} onChange={(e) => type(c, +e.target.value || 0, hgOf(+e.target.value || 0, c.pcsHg))} />
+                        <input type="number" min={0} className="field" disabled={lock || lifted} value={qtyNow(c)} onChange={(e) => type(c, +e.target.value || 0, hgOf(+e.target.value || 0, c.pcsHg))} />
                       </label>
                       <label>
                         <small>HG</small>
-                        <input type="number" min={0} className="field" disabled={lock} value={hgNow(c)} onChange={(e) => type(c, (+e.target.value || 0) * c.pcsHg, +e.target.value || 0)} />
+                        <input type="number" min={0} className="field" disabled={lock || lifted} value={hgNow(c)} onChange={(e) => type(c, (+e.target.value || 0) * c.pcsHg, +e.target.value || 0)} />
                       </label>
                     </div>
                     {c.remark && <p className="edp-remark">📝 {c.remark}</p>}
-                    {canSubmit && !c.isDone && !closed && !c.isProblem && (
+                    {canSubmit && !c.isDone && !closed && !c.isProblem && !lifted && (
                       <footer>
                         <button type="button" className="fill-btn" onClick={() => setEdit(c)}>
                           ✏ EDIT
                         </button>
                         <button type="button" className="cta-btn is-green" disabled={busy.has(c.pldId)} onClick={() => mark(c)}>
-                          {busy.has(c.pldId) ? "…" : "✔ MARK SUCCESS"}
+                          {busy.has(c.pldId) ? <span className="edp-spin" aria-label="กำลังบันทึก" /> : "✔ MARK SUCCESS"}
                         </button>
                       </footer>
                     )}
                   </article>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
         </>
       )}
@@ -457,7 +463,7 @@ function Picker({
           <span>ไม่พบแผนของวันที่ / กะ / รอบนี้ · ตั้งแผนที่หน้า PLAN SETTING</span>
         )}
         <motion.button type="button" className="edp-start" disabled={!data || cards.length === 0} onClick={onStart} whileTap={{ scale: 0.97 }}>
-          ▶ START PLANNING
+          {data?.status === "IN PROGRESS" ? "▶ CONTINUE PLAN" : "▶ START PLANNING"}
         </motion.button>
       </motion.div>
     </section>

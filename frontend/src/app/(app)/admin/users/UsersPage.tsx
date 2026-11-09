@@ -13,6 +13,9 @@ import { PermissionModal } from "./PermissionModal";
 import { SetupModal } from "./SetupModal";
 import type { Can, User } from "./types";
 import { UserEditModal } from "./UserEditModal";
+import { Modal } from "@/components/modals/Modal";
+import { useAuth } from "@/lib/auth";
+import ActivityLogPage from "../../cims/activity-log/ActivityLogPage";
 import { useLive } from "@/lib/live";
 
 const LEVEL_TONE: Record<number, string> = { 1: "var(--danger)", 2: "var(--accent)", 3: "var(--info)" };
@@ -30,6 +33,9 @@ export default function UsersPage() {
   const [perm, setPerm] = useState<{ userId: string; readOnly: boolean } | null>(null);
   const [contact, setContact] = useState<((saved: boolean) => void) | null>(null);
   const [setup, setSetup] = useState(false);
+  const [logOpen, setLogOpen] = useState(false); // 🕘 ACTIVITY LOG (ทุกระบบ) ในหน้าต่าง
+  const { me: auth } = useAuth();
+  const canLog = !!auth && (auth.userLevel === 1 || !!auth.can.activityLog);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const tokenRef = useRef("");
@@ -134,7 +140,7 @@ export default function UsersPage() {
         actions={
           <>
             <ActionMenu
-              caption={["USERS", "ALERT · SETUP · ADD"]}
+              caption={["USERS", "LOG · SETUP · ADD"]}
               fab={
                 <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <circle cx="9" cy="8" r="3.5" />
@@ -148,6 +154,7 @@ export default function UsersPage() {
                   ? [{ key: "alert", title: "ALERT CONTACT", detail: "ผู้ติดต่อ Admin ที่แสดงให้ผู้ใช้ที่ยังไม่ได้กำหนดคลังสแกน / ไม่มีสิทธิ์ เห็นว่าต้องติดต่อใคร", color: "#dc2626", icon: "alert" as const, onClick: () => editContacts() }]
                   : []),
                 ...(can.setup ? [{ key: "setup", title: "SETUP", detail: "ตั้งค่าระบบ (Admin): PR SETTINGS / EXCEL SETUP / DEPARTMENTS", color: "#6750a4", icon: "setup" as const, onClick: () => setSetup(true) }] : []),
+                ...(canLog ? [{ key: "log", title: "ACTIVITY LOG", detail: "ประวัติการใช้งานทุกระบบ (CIMS · MASTER DATA · EDP PLANNING · USER MANAGEMENT): ใคร เพิ่ม / แก้ไข / ลบ / อัพเดท อะไร เมื่อไร เครื่องไหน", color: "#0284c7", icon: "calendar" as const, onClick: () => setLogOpen(true) }] : []),
                 ...(can.add ? [{ key: "add", title: "ADD USER", detail: "เพิ่มผู้ใช้ใหม่ กำหนดระดับ (Level) และสิทธิ์การใช้งานแต่ละหน้า", color: "#16a34a", icon: "user" as const, onClick: () => setEdit({ user: null }) }] : []),
               ]}
             />
@@ -364,6 +371,11 @@ export default function UsersPage() {
         />
       )}
       {setup && <SetupModal onClose={() => setSetup(false)} />}
+      {logOpen && (
+        <Modal open size="xl" title="🕘 ACTIVITY LOG • ทุกระบบ" onClose={() => setLogOpen(false)}>
+          <ActivityLogPage embedded />
+        </Modal>
+      )}
     </PageBody>
   );
 }

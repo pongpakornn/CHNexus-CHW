@@ -211,6 +211,10 @@ namespace Nexus.Helpers
         private static bool _edp;
         public static bool HasEdp => _edp || (_edp = TableExists("EDP.PlanCards") == true && TableExists("EDP.PlanTemplates") == true);
 
+        // ⏰ EDP ALERT (29_EDP_Alert.sql): EDP.AlertSettings (แจ้งเตือนการ์ดเลยเวลา)
+        private static bool _edpAlert;
+        public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);
+
         // 🔐 รหัสผ่านแบบ Hash (22_User_Password_Hash.sql): Nexus.Users.PasswordHash
         private static bool _pwHash;
         public static bool HasPasswordHash => _pwHash || (_pwHash = ColumnIn("Nexus.Users", "PasswordHash") == true);

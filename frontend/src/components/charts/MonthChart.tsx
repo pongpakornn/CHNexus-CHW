@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ChartHeader, ViewSwitch, type ChartView } from "@/components/charts/ChartHeader";
+import { ChartHeader, ViewFade, ViewSwitch, type ChartView } from "@/components/charts/ChartHeader";
 
 // 📈 FORECAST / ORDER / DELIVERY รายเดือน (SVG + React ไม่มี library)
 //   ORDER / DELIVERY = แท่งไล่สีคู่ · FORECAST = เส้นโค้ง + พื้นใต้เส้น (แกนเดียว หน่วยเดียวกัน)
@@ -280,10 +280,11 @@ export function MonthChart({
         {!header && switcher}
       </div>
 
+      <ViewFade view={view} className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
       {view === "table" ? (
         <>
         {/* มือถือ: การ์ดรายเดือน (ไม่ต้องเลื่อนซ้าย-ขวา) */}
-        <div className="view-in grid gap-2 p-3 sm:hidden">
+        <div className="grid gap-2 p-3 sm:hidden">
           {data.map((d) => {
             const p = d.forecast > 0 ? ((d.order - d.forecast) / d.forecast) * 100 : null;
             return (
@@ -312,7 +313,7 @@ export function MonthChart({
             );
           })}
         </div>
-        <div className="view-in hidden overflow-x-auto sm:block">
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[520px] border-collapse text-sm tabular-nums">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-ink-soft">
@@ -351,7 +352,7 @@ export function MonthChart({
         </div>
         </>
       ) : (
-        <div ref={stage} className={`fc-chart view-in relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
+        <div ref={stage} className={`fc-chart relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             width="100%"
@@ -472,6 +473,7 @@ export function MonthChart({
           {tip}
         </div>
       )}
+      </ViewFade>
     </div>
   );
   if (!header) return body;

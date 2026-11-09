@@ -13,8 +13,13 @@ namespace Nexus.Services
         private static bool _hasPcColumn = true;
 
         // บันทึกเบื้องหลัง ไม่ให้หน้าจอรอ / Log ล้มเหลวไม่กระทบการทำงานหลัก
+        // 🕘 คำขอนี้บันทึก Log เองแล้วหรือยัง (AuditMiddleware ใช้ตัดสินว่าต้องเก็บ Log สำรองให้หรือไม่)
+        //    กล่องเดียวกันทั้ง Request: ตั้งที่ Middleware -> Controller / Service เขียนค่าในกล่องได้ (AsyncLocal ไหลลงเท่านั้น)
+        public static readonly System.Threading.AsyncLocal<System.Runtime.CompilerServices.StrongBox<bool>> RequestScope = new();
+
         private static void Insert(string userId, string action, string detail, string refCode)
         {
+            if (RequestScope.Value is { } box) box.Value = true;
             string machine = ClientContext.Machine;   // อ่านก่อนเข้า Task (ค่าของ Request นี้)
             Task.Run(() =>
             {

@@ -1,4 +1,4 @@
-using CHR.Nexus.Api.Web;
+﻿using CHR.Nexus.Api.Web;
 using CHR.Nexus.Api.Web.Auth;
 using Nexus.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -99,6 +99,7 @@ app.UseResponseCaching();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<PresenceMiddleware>(); // 🟢 ใช้งานอยู่ = ONLINE · เงียบ / ปิดหน้าต่าง = OFFLINE ให้เอง
+app.UseMiddleware<AuditMiddleware>(); // 🕘 ทุกการบันทึกที่สำเร็จ = มี Activity Log เสมอ (Controller ไม่เขียนเอง = เก็บสำรองให้)
 app.UseMiddleware<LivePublishMiddleware>(); // ⚡ บันทึกสำเร็จ -> แจ้งจอที่เปิดอยู่
 app.MapControllers();
 app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTime.Now }));

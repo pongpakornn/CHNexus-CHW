@@ -13,6 +13,22 @@ type PTab = "PERM" | "SCAN" | "CONTACT" | "PROFILE";
 const SIDE_KEY = "inv-admin-side"; // ใช้ค่าพับเมนูเดียวกับหน้าต่าง ADMIN
 const HEAD: Record<(typeof FLAGS)[number], string> = { view: "VIEW", add: "ADD", edit: "EDIT", delete: "DEL", approve: "APPROVE" };
 
+// 🗂 กลุ่มตามระบบ (หน้าเลือกระบบ): CIMS · คลังของ CIMS · MASTER DATA · EDP PLANNING · USER MANAGEMENT
+//   ระบบใหม่ = เพิ่มกลุ่มที่นี่ (SystemID ที่ไม่อยู่ในกลุ่มไหน = กลุ่ม OTHER ท้ายสุด)
+type Grp = { key: string; title: string; sub: string; color: string; icon: string; ids?: string[] };
+const GROUPS: Grp[] = [
+  { key: "CIMS", title: "CIMS", sub: "CHR Inventory Management · Dashboard · Store · Scanner · Pick List · Max-Min · Forecast · PR", color: "#6750a4", icon: "/icons/StoreMaxMin.png", ids: ["DASHBOARD", "StoreMaxMin", "MultiScanner", "PackingCard", "MAXMINCALC", "ForecastOrder", "PR"] },
+  { key: "STOCK", title: "CIMS • STOCKS", sub: "สิทธิ์รายคลัง (ดู / Import / แก้ Max-Min)", color: "#0ea5e9", icon: "/icons/StoreWarehouse.png" },
+  { key: "MASTER", title: "MASTER DATA", sub: "Customer · Supplier · Product Control", color: "#2563eb", icon: "/icons/ProductControl.png", ids: ["MasterData", "ProductControl"] },
+  { key: "EDP", title: "EDP PLANNING", sub: "Dashboard · Plan Submission · EDP Planning · Plan Setting", color: "#7c3aed", icon: "/icons/ForecastOrder.png", ids: ["EdpGraph", "EdpSubmission", "EdpPlanning", "EdpPlanSetting"] },
+  { key: "ADMIN", title: "USER MANAGEMENT", sub: "ผู้ใช้ · สิทธิ์ · Activity Log", color: "#4f46e5", icon: "/icons/management.png", ids: ["UserManagement", "ActivityLog"] },
+  { key: "OTHER", title: "OTHER", sub: "ระบบอื่น ๆ", color: "#71717a", icon: "/icons/Systems.png" },
+];
+const groupOf = (r: PermRow) => (r.group === "STOCK" ? "STOCK" : (GROUPS.find((g) => g.ids?.some((id) => id.toLowerCase() === r.sysId.toLowerCase()))?.key ?? "OTHER"));
+// ชื่อในกลุ่มไม่ต้องซ้ำชื่อระบบ (EDP › Plan Setting -> Plan Setting)
+const shortTitle = (t: string) => t.replace(/^(EDP|Master Data)\s*›\s*/i, "");
+const GKEY = "perm-groups-closed";
+
 // 🔑 PERMISSION / 👤 USER PROFILE (UserPermissionWindow) - สิทธิ์ทุกระบบ + ทุกคลัง
 //   แถว Multi-Scanner กดขยาย = คลังที่สแกนได้ + ★ OUT FIRST + DEDUCTED + EMP ID / DEPT + DISPLAY
 export function PermissionModal({
@@ -34,7 +50,6 @@ export function PermissionModal({
   const [data, setData] = useState<PermData | null>(null);
   const [rows, setRows] = useState<PermRow[]>([]);
   const [stocks, setStocks] = useState<ScanStock[]>([]);
-  const open = false; // คลังสแกนอยู่แท็บ SCAN STOCKS แล้ว (ไม่กางในตาราง)
   const [tab, setTab] = useState<PTab>(readOnly ? "PROFILE" : "PERM");
   const [drawer, setDrawer] = useState(false);
   const [mini, setMini] = useState(false);
@@ -55,6 +70,28 @@ export function PermissionModal({
       return !m;
     });
   const [busy, setBusy] = useState(false);
+  // กลุ่มที่พับไว้ (จำในเครื่อง)
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(GKEY) ?? "[]") as string[];
+      if (v.length) queueMicrotask(() => setClosed(new Set(v)));
+    } catch {
+      /* ไม่มี storage */
+    }
+  }, []);
+  const fold = (k: string) =>
+    setClosed((c) => {
+      const n = new Set(c);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      try {
+        localStorage.setItem(GKEY, JSON.stringify([...n]));
+      } catch {
+        /* ไม่จำก็ได้ */
+      }
+      return n;
+    });
 
   // ⚠ โหลดสิทธิ์ครั้งเดียวต่อผู้ใช้ (ผูกกับ userId เท่านั้น) - เดิมผูกกับ onClose ที่หน้ารายชื่อสร้างใหม่ทุกครั้งที่รายชื่ออัพเดทแบบเรียลไทม์
   //    -> โหลดสิทธิ์จาก Server ทับค่าที่กำลังติ๊กอยู่ (สิทธิ์หายระหว่างกำหนด) · ตอนนี้เก็บ onClose ไว้ใน ref ไม่ทำให้โหลดซ้ำ
@@ -129,6 +166,44 @@ export function PermissionModal({
   const rowOn = (r: PermRow) => FLAGS.every((k) => r[k]);
   const setRow = (sysId: string, v: boolean) => setRows((rs) => rs.map((r) => (r.sysId === sysId ? { ...r, view: v, add: v, edit: v, delete: v, approve: v } : r)));
   const granted = rows.reduce((a, r) => a + FLAGS.filter((k) => r[k]).length, 0);
+  const sections = GROUPS.map((g) => ({ g, rows: rows.filter((r) => groupOf(r) === g.key) })).filter((x) => x.rows.length > 0);
+  const countOf = (list: PermRow[]) => list.reduce((a, r) => a + FLAGS.filter((k) => r[k]).length, 0);
+  const groupOn = (list: PermRow[]) => list.every(rowOn);
+  const setGroup = (list: PermRow[], v: boolean) => {
+    const ids = new Set(list.map((r) => r.sysId));
+    setRows((rs) => rs.map((r) => (ids.has(r.sysId) ? { ...r, view: v, add: v, edit: v, delete: v, approve: v } : r)));
+  };
+  // หัวกลุ่ม: ไอคอน + ชื่อระบบ + จำนวนสิทธิ์ที่เปิด + สวิตช์ทั้งกลุ่ม + พับ / กาง
+  const groupHead = (g: Grp, list: PermRow[]) => {
+    const n = countOf(list);
+    const open = !closed.has(g.key);
+    return (
+      <div className="pm-ghead" style={{ "--g": g.color } as React.CSSProperties}>
+        <button type="button" className="pm-gfold" aria-expanded={open} onClick={() => fold(g.key)} title={open ? "พับกลุ่ม" : "กางกลุ่ม"}>
+          <span className="pm-gic">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={g.icon} alt="" draggable={false} />
+          </span>
+          <span className="min-w-0 text-left">
+            <b>{g.title}</b>
+            <small>{g.sub}</small>
+          </span>
+          <span className="pm-gcount">
+            {n} / {list.length * FLAGS.length}
+          </span>
+          <svg viewBox="0 0 24 24" className={`pm-gchev ${open ? "is-open" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        {!readOnly && (
+          <label className={`sw sw-mini ${groupOn(list) ? "is-on" : ""}`} title={`ทุกสิทธิ์ของ ${g.title}`}>
+            <input type="checkbox" className="sr-only" checked={groupOn(list)} onChange={(e) => setGroup(list, e.target.checked)} />
+            <span className="sw-track" />
+          </label>
+        )}
+      </div>
+    );
+  };
 
   // ปุ่มสิทธิ์ 1 ช่อง: ติ๊ก = สีของสิทธิ์นั้น + เครื่องหมายถูกวาดขึ้น (label = แบบการ์ดบนมือถือ)
   const flag = (r: PermRow, k: (typeof FLAGS)[number], label?: boolean) => (
@@ -439,82 +514,72 @@ export function PermissionModal({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => {
-                  const head = i === 0 || r.group !== rows[i - 1].group ? r.group : null;
-                  const ms = r.sysId.toLowerCase() === "multiscanner" && data.scanner;
-                  return (
-                    <Fragment key={r.sysId}>
-                      {head && (
-                        <tr className="pm-group">
-                          <td colSpan={readOnly ? 6 : 7}>{head}</td>
-                        </tr>
-                      )}
-                      <tr className="pm-row">
-                        <td className="text-left">
-                          <div className="font-extrabold text-[#1f2350]">{r.title}</div>
-                          {r.hint && <div className="text-[11px] font-semibold text-ink-soft">{r.hint}</div>}
-                          {ms && scanToggle}
-                        </td>
-                        {!readOnly && (
-                          <td className="text-center">
-                            <label className={`sw sw-mini ${rowOn(r) ? "is-on" : ""}`} title="ทุกสิทธิ์ของระบบนี้">
-                              <input type="checkbox" className="sr-only" checked={rowOn(r)} onChange={(e) => setRow(r.sysId, e.target.checked)} />
-                              <span className="sw-track" />
-                            </label>
-                          </td>
-                        )}
-                        {FLAGS.map((k) => (
-                          <td key={k} className="text-center">
-                            {flag(r, k)}
-                          </td>
-                        ))}
-                      </tr>
-                      {ms && open && (
-                        <tr>
-                          <td colSpan={readOnly ? 6 : 7} className="bg-[#faf9fe]">
-                            {scanBox}
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
+                {sections.map(({ g, rows: list }) => (
+                  <Fragment key={g.key}>
+                    <tr className="pm-group">
+                      <td colSpan={readOnly ? 6 : 7}>{groupHead(g, list)}</td>
+                    </tr>
+                    {!closed.has(g.key) &&
+                      list.map((r, i) => {
+                        const ms = r.sysId.toLowerCase() === "multiscanner" && data.scanner;
+                        return (
+                          <tr key={r.sysId} className="pm-row pm-grow" style={{ "--g": g.color, "--i": Math.min(i, 10) } as React.CSSProperties}>
+                            <td className="text-left">
+                              <div className="font-extrabold text-[#1f2350]">{shortTitle(r.title)}</div>
+                              {r.hint && <div className="text-[11px] font-semibold text-ink-soft">{r.hint}</div>}
+                              {ms && scanToggle}
+                            </td>
+                            {!readOnly && (
+                              <td className="text-center">
+                                <label className={`sw sw-mini ${rowOn(r) ? "is-on" : ""}`} title="ทุกสิทธิ์ของระบบนี้">
+                                  <input type="checkbox" className="sr-only" checked={rowOn(r)} onChange={(e) => setRow(r.sysId, e.target.checked)} />
+                                  <span className="sw-track" />
+                                </label>
+                              </td>
+                            )}
+                            {FLAGS.map((k) => (
+                              <td key={k} className="text-center">
+                                {flag(r, k)}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>
 
           {/* 📱 Mobile: การ์ดต่อระบบ */}
           <div className="grid gap-3 md:hidden">
-            {rows.map((r, i) => {
-              const head = i === 0 || r.group !== rows[i - 1].group ? r.group : null;
-              const ms = r.sysId.toLowerCase() === "multiscanner" && data.scanner;
-              return (
-                <Fragment key={r.sysId}>
-                  {head && <div className="pm-mhead">{head}</div>}
-                  <div className="pm-card" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-extrabold text-[#1f2350]">{r.title}</div>
-                        {r.hint && <div className="text-[11px] font-semibold text-ink-soft">{r.hint}</div>}
+            {sections.map(({ g, rows: list }) => (
+              <Fragment key={g.key}>
+                {groupHead(g, list)}
+                {!closed.has(g.key) &&
+                  list.map((r, i) => {
+                    const ms = r.sysId.toLowerCase() === "multiscanner" && data.scanner;
+                    return (
+                      <div key={r.sysId} className="pm-card pm-gcard" style={{ "--g": g.color, animationDelay: `${Math.min(i, 10) * 30}ms` } as React.CSSProperties}>
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-extrabold text-[#1f2350]">{shortTitle(r.title)}</div>
+                            {r.hint && <div className="text-[11px] font-semibold text-ink-soft">{r.hint}</div>}
+                          </div>
+                          {!readOnly && (
+                            <label className={`sw sw-mini ${rowOn(r) ? "is-on" : ""}`} title="ทุกสิทธิ์">
+                              <input type="checkbox" className="sr-only" checked={rowOn(r)} onChange={(e) => setRow(r.sysId, e.target.checked)} />
+                              <span className="sw-track" />
+                            </label>
+                          )}
+                        </div>
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">{FLAGS.map((k) => flag(r, k, true))}</div>
+                        {ms && scanToggle}
                       </div>
-                      {!readOnly && (
-                        <label className={`sw sw-mini ${rowOn(r) ? "is-on" : ""}`} title="ทุกสิทธิ์">
-                          <input type="checkbox" className="sr-only" checked={rowOn(r)} onChange={(e) => setRow(r.sysId, e.target.checked)} />
-                          <span className="sw-track" />
-                        </label>
-                      )}
-                    </div>
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">{FLAGS.map((k) => flag(r, k, true))}</div>
-                    {ms && (
-                      <>
-                        {scanToggle}
-                        {open && <div className="mt-2">{scanBox}</div>}
-                      </>
-                    )}
-                  </div>
-                </Fragment>
-              );
-            })}
+                    );
+                  })}
+              </Fragment>
+            ))}
           </div>
                   </>
                 )}

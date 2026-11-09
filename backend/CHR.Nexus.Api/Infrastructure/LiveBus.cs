@@ -117,7 +117,7 @@ public sealed class LivePublishMiddleware
         if (!path.StartsWithSegments("/api", out var rest) || path.StartsWithSegments("/api/live") || path.StartsWithSegments("/api/auth")) return;
         string area = rest.Value?.Trim('/').Split('/', 2)[0].ToLowerInvariant() ?? "";
         // ค่าส่วนตัวของผู้ใช้ (ตัวกรอง / คลังที่เลือกค้าง) ไม่ใช่ข้อมูลกลาง = ไม่ต้องให้จอใครโหลดใหม่
-        if (PrefPaths.Contains(path.Value?.TrimEnd('/') ?? "")) return;
+        if (PrefPaths.Contains(path.Value?.TrimEnd('/') ?? "") || AuditMiddleware.PrefPaths.Contains(path.Value?.TrimEnd('/') ?? "")) return;
         // Log เปิดหน้า / แชท = แจ้งเฉพาะจอที่แสดงเรื่องนั้น (ไม่ใช่ "data" -> จอทุกคนไม่ต้องโหลดใหม่ทุกครั้งที่มีคนเปลี่ยนหน้า)
         if (OwnTopicAreas.Contains(area)) { LiveBus.Publish(area); return; }
         LiveBus.Publish(area.Length > 0 ? new[] { "data", area } : new[] { "data" });

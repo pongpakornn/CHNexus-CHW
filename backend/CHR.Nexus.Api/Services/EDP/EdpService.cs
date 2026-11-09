@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Nexus.Core;
+using Nexus.Helpers;
 
 namespace Nexus.Services;
 
@@ -99,6 +100,17 @@ public sealed class EdpMonitorRow
     public bool IsDone { get; set; }
     public bool IsProblem { get; set; }
     public string Shift { get; set; }
+}
+
+// ⏰ แจ้งเตือนการ์ดเลยเวลา (ทั้งระบบ 1 แถว · EDP.AlertSettings)
+public sealed class EdpAlertSettings
+{
+    public bool Enabled { get; set; } = true;
+    public int GraceMinutes { get; set; }
+    public int RemindMinutes { get; set; } = 10;
+    public bool OnlyStarted { get; set; } = true;
+    public string UpdatedBy { get; set; }
+    public DateTime? UpdatedDate { get; set; }
 }
 
 public sealed class EdpService
@@ -561,5 +573,37 @@ public sealed class EdpService
             }),
             rounds = rounds.Select(r => new { round = r.Round, start = r.Start, end = r.End, plan = r.Plan, act = r.Act, eff = r.Plan > 0 ? Math.Min(100, Math.Round(r.Act * 100 / r.Plan, 1)) : 0 })
         };
+    }
+
+    // ---------------------------------------------------------------- ⏰ แจ้งเตือนการ์ดเลยเวลา (SETUP › EDP ALERT)
+    public const string SnoozeKey = "EDP_ALERT_SNOOZE";
+
+    public EdpAlertSettings AlertSettings()
+    {
+        using var c = Conn();
+        return c.QueryFirstOrDefault<EdpAlertSettings>("SELECT Enabled, GraceMinutes, RemindMinutes, OnlyStarted, UpdatedBy, UpdatedDate FROM EDP.AlertSettings WHERE Id = 1") ?? new EdpAlertSettings();
+    }
+
+    public void SaveAlertSettings(EdpAlertSettings s, string uid)
+    {
+        using var c = Conn();
+        c.Execute(@"MERGE EDP.AlertSettings AS t USING (SELECT 1 AS Id) AS x ON t.Id = x.Id
+                    WHEN MATCHED THEN UPDATE SET Enabled = @Enabled, GraceMinutes = @GraceMinutes, RemindMinutes = @RemindMinutes, OnlyStarted = @OnlyStarted, UpdatedBy = @uid, UpdatedDate = GETDATE()
+                    WHEN NOT MATCHED THEN INSERT (Id, Enabled, GraceMinutes, RemindMinutes, OnlyStarted, UpdatedBy) VALUES (1, @Enabled, @GraceMinutes, @RemindMinutes, @OnlyStarted, @uid);",
+                  new { s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, uid });
+    }
+
+    // CANCEL ของผู้ใช้แต่ละคน (Nexus.UserSettings) -> ซ่อนจนถึงเวลานี้ แล้วแจ้งซ้ำ
+    public static DateTime? GetSnooze(string uid)
+    {
+        string v = UserSettings.Get(uid, SnoozeKey);
+        return DateTime.TryParse(v, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+    }
+
+    public static DateTime Snooze(string uid, int minutes)
+    {
+        var until = DateTime.Now.AddMinutes(Math.Max(1, minutes));
+        UserSettings.Set(uid, SnoozeKey, until.ToString("yyyy-MM-ddTHH:mm:ss", System.Globalization.CultureInfo.InvariantCulture));
+        return until;
     }
 }

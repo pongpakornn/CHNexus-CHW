@@ -1270,3 +1270,415 @@
     scale: 1;
   }
 }
+
+/* =====================================================================
+   ☀ EDP WHITE (รอบ 6) : Plan Submission / Plan Setting = พื้นขาวทั้งหน้า · การ์ดขาว ขอบนุ่ม เงาบาง แถบสีด้านบน
+   ครอบด้วย .edp-light (แทน .edp-dark เดิม) · โทนเดียวกับทั้งระบบ (ม่วง #6750a4 / น้ำเงิน #2563eb)
+   ===================================================================== */
+.edp-light {
+  --edp-card: #ffffff;
+  --edp-ink: #1f2350;
+  --edp-soft-ink: #6b6880;
+  --edp-line: #e6e3f0;
+}
+/* แถบเลือก วันที่ · กะ · รอบ */
+.edp-light .edp-date > button {
+  color: #6b6880;
+}
+.edp-light .edp-date > button:hover {
+  color: #fff;
+  background: #6750a4;
+}
+.edp-light .edp-seg {
+  border-color: #dcd8ea;
+  background: #f1eff8;
+}
+.edp-light .edp-seg button {
+  color: #3f3a56;
+}
+.edp-light .edp-seg button:hover:not(.is-on) {
+  color: #1f2350;
+  background: rgb(103 80 164 / 0.08);
+}
+.edp-light .edp-seg button.is-on {
+  color: #fff;
+}
+.edp-light .edp-alert {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: linear-gradient(90deg, #fef2f2, #fff);
+}
+
+/* ▶ หน้าเลือกแผน */
+.edp-light .edp-pick-hero {
+  border-color: var(--edp-line);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgb(124 58 237 / 0.14), transparent 60%),
+    radial-gradient(40% 120% at 0% 100%, rgb(37 99 235 / 0.08), transparent 60%),
+    #fff;
+  box-shadow: 0 18px 40px -30px rgb(40 45 110 / 0.5);
+}
+.edp-light .edp-pick-hero::after {
+  background: linear-gradient(105deg, transparent 35%, rgb(124 58 237 / 0.08) 50%, transparent 65%);
+}
+.edp-light .edp-pick-hero small {
+  color: #6750a4;
+}
+.edp-light .edp-pick-hero h2 {
+  color: var(--edp-ink);
+}
+.edp-light .edp-pick-hero p {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-chips > span {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-chips button {
+  border-color: #dcd8ea;
+  color: #3f3a56;
+  background: #fff;
+  box-shadow: 0 4px 10px -8px rgb(40 45 110 / 0.5);
+}
+.edp-light .edp-chips button:hover {
+  border-color: #a78bfa;
+  color: #1f2350;
+}
+.edp-light .edp-chips button.is-on {
+  color: #fff;
+  background: #fff;
+  border-color: transparent;
+}
+.edp-light .edp-rounds button {
+  border-color: var(--edp-line);
+  background: #fff;
+  box-shadow: 0 10px 22px -20px rgb(40 45 110 / 0.6);
+}
+.edp-light .edp-rounds button b {
+  color: var(--edp-ink);
+}
+.edp-light .edp-rounds button small {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-rounds button:hover {
+  border-color: #c4b5fd;
+  box-shadow: 0 18px 30px -22px rgb(103 80 164 / 0.7);
+}
+.edp-light .edp-rounds button.is-on {
+  border-color: #7c3aed;
+  background: linear-gradient(160deg, #f5f3ff, #fff 70%);
+  box-shadow: 0 0 0 1px #7c3aed, 0 18px 34px -20px rgb(124 58 237 / 0.7);
+}
+.edp-light .edp-rounds button.is-on b {
+  color: #6d28d9;
+}
+.edp-light .edp-pick-foot {
+  border-color: var(--edp-line);
+  color: #3f3a56;
+  background: #fff;
+  box-shadow: 0 14px 30px -26px rgb(40 45 110 / 0.5);
+}
+.edp-light .edp-pick-foot b {
+  color: var(--edp-ink);
+}
+
+/* 🃏 การ์ดแผน (ขาว) */
+.edp-light .edp-card {
+  border-color: var(--edp-line);
+  background: #fff;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.8) inset, 0 12px 28px -24px rgb(40 45 110 / 0.55);
+}
+.edp-light .edp-card::after {
+  background: linear-gradient(115deg, transparent 30%, rgb(124 58 237 / 0.06) 48%, transparent 66%);
+}
+.edp-light .edp-card:hover {
+  border-color: #c4b5fd;
+  box-shadow: 0 24px 44px -26px rgb(103 80 164 / 0.55);
+}
+.edp-light .edp-card header {
+  color: var(--edp-ink);
+}
+.edp-light .edp-round {
+  color: #6d28d9;
+  background: #f3efff;
+  box-shadow: inset 0 0 0 1px #ddd3fd;
+}
+.edp-light .edp-badge {
+  color: #52525b;
+  background: #f1f1f4;
+}
+.edp-light .edp-badge.is-ok {
+  color: #15803d;
+  background: #dcfce7;
+}
+.edp-light .edp-badge.is-bad {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.edp-light .edp-img {
+  background: radial-gradient(circle at 35% 30%, #fff, #f1f0f6);
+  box-shadow: inset 0 0 0 1px #ebe8f3;
+}
+.edp-light .edp-part {
+  color: var(--edp-ink);
+}
+.edp-light .edp-name {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-times span {
+  color: #1f2350;
+  background: #f7f6fb;
+  box-shadow: inset 0 0 0 1px #e6e3f0;
+}
+.edp-light .edp-times small {
+  color: #7c3aed;
+}
+.edp-light .edp-qty small,
+.edp-light .edp-timegrid small {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-qty b {
+  color: var(--edp-ink);
+}
+.edp-light .edp-qty i {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-timegrid > div {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-remark {
+  color: #92400e;
+  background: #fffbeb;
+  box-shadow: inset 0 0 0 1px #fde68a;
+}
+.edp-light .edp-card.is-done {
+  border-color: #bbf7d0;
+  background: linear-gradient(165deg, #f0fdf4 0%, #fff 65%);
+}
+.edp-light .edp-card.is-late {
+  border-color: #fecaca;
+  background: linear-gradient(165deg, #fef2f2 0%, #fff 60%);
+}
+.edp-light .edp-card.is-problem {
+  background: #fafafa;
+}
+.edp-light .edp-add {
+  border-color: #d4d0e4;
+  color: var(--edp-soft-ink);
+  background: rgb(255 255 255 / 0.6);
+}
+.edp-light .edp-add:hover {
+  border-color: #7c3aed;
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+/* ภาพรวมทั้งวัน */
+.edp-light .edp-ov {
+  border-color: var(--edp-line);
+  background: #fff;
+}
+.edp-light .edp-ov header span {
+  color: var(--edp-soft-ink);
+}
+.edp-light .edp-ov-row {
+  border-top-color: #ece9f4;
+  color: #3f3a56;
+}
+.edp-light .edp-ov-row:hover {
+  background: #f7f5fd;
+}
+.edp-light .edp-ov-row.is-done b::after {
+  color: #16a34a;
+}
+/* ลาก: ช่องเดิม = เส้นประม่วงอ่อน · การ์ดที่ยก = ขาว ขอบม่วง เงานุ่ม */
+.edp-light .edp-placeholder > .edp-card {
+  border: 2px dashed #c4b5fd;
+  background: #faf8ff;
+}
+.edp-light .edp-card.is-lifted {
+  border-color: #8b5cf6;
+  box-shadow:
+    0 0 0 1px rgb(139 92 246 / 0.5),
+    0 0 26px rgb(139 92 246 / 0.25),
+    0 36px 60px -28px rgb(40 45 110 / 0.55);
+}
+/* ช่องกรอกในการ์ด: focus = วงแสงม่วงนุ่ม */
+.edp-light .edp-card .field {
+  transition: border-color 0.15s var(--ease-drop), box-shadow 0.15s var(--ease-drop), background-color 0.15s var(--ease-drop);
+}
+.edp-light .edp-card .field:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 4px rgb(139 92 246 / 0.16);
+}
+/* ป้ายช้า: เต้นเบา ๆ ให้เห็นชัดบนพื้นขาว */
+.edp-light .edp-late {
+  box-shadow: 0 6px 14px -6px rgb(239 68 68 / 0.8);
+}
+@media (max-width: 640px) {
+  .edp-light .edp-card {
+    border-radius: 18px;
+    padding: 12px 12px 13px;
+  }
+  .edp-light .edp-card-body {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .edp-light .edp-card-body .edp-img {
+    width: 64px;
+    height: 64px;
+  }
+  .edp-light .edp-card footer > * {
+    flex: 1;
+  }
+  .edp-rounds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .edp-bar > .edp-date {
+    width: 100%;
+  }
+  .edp-bar > .edp-date .w-\[180px\] {
+    flex: 1;
+    width: auto;
+  }
+  .edp-bar > .ml-auto {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* ⏰ EDP ALERT : หน้าต่างแจ้งเตือนการ์ดเลยเวลา (พื้นหลังเบลอมืดใส เห็นระบบด้านหลัง) */
+.eda-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 94;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgb(20 16 34 / 0.5);
+  backdrop-filter: blur(4px);
+}
+.eda-box {
+  display: flex;
+  flex-direction: column;
+  width: min(980px, 100%);
+  max-height: min(92dvh, 900px);
+  overflow: hidden;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 30px 80px -20px rgb(30 10 40 / 0.6);
+}
+.eda-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 3px solid #ef4444;
+  background: linear-gradient(120deg, #fef2f2, #fff 70%);
+}
+.eda-head b {
+  display: block;
+  font-size: 19px;
+  font-weight: 900;
+  color: #b91c1c;
+}
+.eda-head span:not(.eda-bell) {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b4458;
+}
+.eda-bell {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  font-size: 24px;
+  background: #fee2e2;
+  animation: eda-ring 1.6s var(--ease-drop) infinite;
+}
+@keyframes eda-ring {
+  0%, 60%, 100% { rotate: 0deg; }
+  10%, 30% { rotate: -12deg; }
+  20%, 40% { rotate: 12deg; }
+}
+.eda-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+  gap: 12px;
+  overflow: auto;
+  padding: 14px 18px;
+  background: #faf9fd;
+}
+.eda-card:hover {
+  translate: 0 -3px;
+}
+.eda-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid #eeecf3;
+}
+.eda-foot small {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b6880;
+}
+/* ที่จับลากบนหัวการ์ด (Plan Submission) */
+.edp-grip {
+  margin-left: auto;
+  font-size: 15px;
+  line-height: 1;
+  color: #a1a1aa;
+  transition: color 0.2s var(--ease-drop);
+}
+.edp-handle:hover .edp-grip {
+  color: #7c3aed;
+}
+.edp-late + .edp-grip,
+.edp-badge + .edp-grip {
+  margin-left: 4px;
+}
+@media (max-width: 640px) {
+  .eda-head {
+    padding: 14px;
+  }
+  .eda-head b {
+    font-size: 16px;
+  }
+  .eda-body {
+    padding: 12px;
+  }
+  .eda-foot > button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eda-bell {
+    animation: none;
+  }
+}
+
+/* 📊 Dashboard รอบ 6: วงแหวน KPI คม (หมุนในตัว SVG · ไม่มีเงาเรืองที่ทำให้ขอบเบลอ) · การ์ดชี้ = เงาเข้มขึ้น (ไม่ยก transform ค้าง) */
+.edp-ring {
+  rotate: none;
+  width: 78px;
+  height: 78px;
+  overflow: visible;
+}
+.edp-ring circle {
+  stroke-width: 9;
+}
+.edp-ring .fg {
+  filter: none;
+}
+.edp-panel {
+  border-radius: 20px;
+  transition: box-shadow 0.4s var(--ease-drop);
+}
+.edp-panel:hover {
+  box-shadow: 0 22px 40px -28px rgb(40 45 110 / 0.55);
+}
