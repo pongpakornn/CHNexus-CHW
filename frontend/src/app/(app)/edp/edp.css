@@ -1705,3 +1705,284 @@
 .edp-timegrid .cmb-chev {
   right: 6px;
 }
+
+/* =====================================================================
+   🎠 EDP ALERT รอบ 8: วงแหวน 3D (Coverflow) ของการ์ดจริง
+   ใบกลางใหญ่สุด · ข้างละ 3 ใบเอียงเข้าหากลาง (rotateY ±38°) · ไม่หมุนเอง · transform / opacity อย่างเดียว
+   ===================================================================== */
+.eda-ring-wrap {
+  position: relative;
+  padding-top: 10px;
+  background: radial-gradient(ellipse at 50% 45%, #fff 0%, #faf9fd 70%);
+}
+.eda-stage {
+  position: relative;
+  height: 440px;
+  overflow: hidden;
+  perspective: 1100px;
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+.eda-stage:active {
+  cursor: grabbing;
+}
+.eda-slot {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: 330px;
+  transition:
+    transform 0.7s cubic-bezier(0.34, 1.35, 0.5, 1),
+    opacity 0.45s var(--ease-drop);
+  will-change: transform;
+}
+.eda-slot:not(.is-act) {
+  cursor: pointer;
+}
+/* การ์ดข้าง: กดที่ไหนก็ได้ = เลื่อนมาเป็นใบหลัก (ปุ่ม / ช่องกรอกบนการ์ดข้างไม่รับคลิก) */
+.eda-slot:not(.is-act):not(.is-flat) .eda-c * {
+  pointer-events: none;
+}
+.eda-tilt {
+  position: relative;
+  transition: transform 0.25s ease-out;
+  transform-style: preserve-3d;
+}
+
+/* การ์ด: แถบไล่สีแดง -> ส้มด้านบน · พื้นชมพูอ่อน -> ขาว · ขอบอมแดง */
+.edp-light .eda-c {
+  border-radius: 16px;
+  border-color: #f4c4c4;
+  background: linear-gradient(180deg, #fff1f1 0%, #fff 62%);
+  box-shadow: 0 22px 40px -26px rgb(120 20 30 / 0.55);
+  animation: none;
+}
+.eda-c::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #ef4444, #f0997b);
+}
+.eda-c .edp-part {
+  font-size: 18px;
+}
+.eda-c .edp-name {
+  max-width: 100%;
+}
+/* START / PLAN คนละบรรทัด · ค่าเป็น monospace */
+.eda-chips {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.eda-late {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  flex: none;
+}
+.eda-late i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* ใบหลัก: ขอบแดง · ลอยขึ้นลง 5px (3.2 วิ) · วงแสงแดงกระเพื่อมออกจากขอบ (2 วิ) · จุดในป้าย "ช้า" กะพริบ */
+.eda-ring-wrap .eda-slot.is-act .eda-c {
+  border-color: #ef4444;
+  animation: eda-bob 3.2s ease-in-out infinite;
+}
+.eda-ring-wrap .eda-slot.is-act .eda-tilt::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.45);
+  animation: eda-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+.eda-ring-wrap .eda-slot.is-act .eda-late i {
+  animation: eda-blink 1s ease-in-out infinite;
+}
+/* ประกายแสงวาบผ่านการ์ด 1 ครั้งตอนกลายเป็นใบหลัก */
+.eda-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(105deg, transparent 40%, rgb(255 255 255 / 0.65) 50%, transparent 60%);
+  transform: translateX(-130%);
+  animation: eda-shine 0.9s ease-out 0.15s;
+  pointer-events: none;
+}
+@keyframes eda-bob {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -5px;
+  }
+}
+@keyframes eda-pulse {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.07);
+  }
+}
+@keyframes eda-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes eda-shine {
+  to {
+    transform: translateX(130%);
+  }
+}
+
+/* เงาวงรีใต้ใบกลาง: ยุบเล็กน้อยทุกครั้งที่เลื่อน */
+.eda-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: 260px;
+  height: 16px;
+  margin-left: -130px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(40 20 60 / 0.28), transparent);
+  animation: eda-squish 0.45s var(--ease-drop);
+}
+@keyframes eda-squish {
+  35% {
+    transform: scaleX(0.75);
+  }
+}
+
+/* ปุ่มลูกศร 44px */
+.eda-nav {
+  position: absolute;
+  top: 46%;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  border-radius: 50%;
+  color: #4c1d95;
+  background: #fff;
+  box-shadow: 0 8px 20px -10px rgb(40 20 60 / 0.6), 0 0 0 1px #e6e3f0;
+  transition: transform 0.2s var(--ease-drop), color 0.2s var(--ease-drop), box-shadow 0.2s var(--ease-drop);
+}
+.eda-nav:hover {
+  color: #b91c1c;
+  transform: scale(1.08);
+}
+.eda-nav:active {
+  transform: scale(0.94);
+}
+.eda-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(103 80 164 / 0.45);
+}
+.eda-nav.is-prev {
+  left: 12px;
+}
+.eda-nav.is-next {
+  right: 12px;
+}
+
+/* แถบความคืบหน้า: ใบปัจจุบันยืดยาวสีแดง */
+.eda-bars {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 16px 6px;
+}
+.eda-bars span {
+  width: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d9d5e6;
+  transform-origin: left center;
+  transition: background-color 0.3s var(--ease-drop), width 0.4s cubic-bezier(0.34, 1.35, 0.5, 1);
+}
+.eda-bars span.is-on {
+  width: 24px;
+  background: linear-gradient(90deg, #ef4444, #f97316, #ef4444);
+  background-size: 200% 100%;
+  animation: eda-bar 1.6s linear infinite;
+}
+@keyframes eda-bar {
+  to {
+    background-position: -200% 0;
+  }
+}
+.eda-count {
+  padding: 0 16px 12px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b6880;
+}
+.eda-count b {
+  color: #1f2350;
+}
+
+/* น้อยกว่า 4 ใบ: เรียงธรรมดา ไม่ซ้อน 3D */
+.eda-few {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  overflow: auto;
+  padding: 18px;
+  background: #faf9fd;
+}
+.eda-slot.is-flat {
+  position: static;
+  width: min(330px, 100%);
+  transform: none;
+}
+
+/* มือถือ: การ์ดข้างชิดขึ้น (ระยะคิดใน EdpAlert.tsx) · การ์ดพอดีจอ */
+@media (max-width: 640px) {
+  .eda-stage {
+    height: 420px;
+  }
+  .eda-slot {
+    width: min(300px, calc(100vw - 72px));
+  }
+  .eda-nav.is-prev {
+    left: 4px;
+  }
+  .eda-nav.is-next {
+    right: 4px;
+  }
+}
+
+/* ลดการเคลื่อนไหว: ไม่ลอย / ไม่กระเพื่อม / ไม่มีประกาย / ไม่เอียง เหลือ transition สั้น ๆ */
+@media (prefers-reduced-motion: reduce) {
+  .eda-slot {
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out !important;
+    transition-delay: 0ms !important;
+  }
+  .eda-ring-wrap .eda-slot.is-act .eda-c,
+  .eda-ring-wrap .eda-slot.is-act .eda-tilt::before,
+  .eda-ring-wrap .eda-slot.is-act .eda-late i,
+  .eda-bars span.is-on,
+  .eda-shadow {
+    animation: none;
+  }
+  .eda-shine {
+    display: none;
+  }
+}
