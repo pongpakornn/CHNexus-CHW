@@ -350,9 +350,15 @@ public sealed class MinReportService
         var ids = stockIds.ToList();
         if (ids.Count == 0) return new();
         using var c = Conn();
+        // ⚡ ยังใต้ MIN อยู่จริง "ตอนนี้" (เช็คกับสถานะสดของตาราง Store) - กลับเป็นเขียวแล้ว = ไม่แสดง แม้รอบเฝ้าดูจะยังไม่ปิดช่วง
+        //   (เช่น STORE-PC ที่โปรแกรม StorePC เขียน ขณะไม่มีใครเปิดหน้าคลังนั้น) · แถวทดสอบ (TEST) แสดงเสมอ
         var rows = c.Query<MinWatchRow>(WatchSelect + @"WHERE w.ResolvedAt IS NULL AND w.ReportID IS NULL AND w.StockID IN @ids
                                                          AND (@all = 1 OR w.BelowSince <= DATEADD(DAY, -@stuckDays, GETDATE()))
-                                                       ORDER BY w.BelowSince, s.StockCode, w.PartCode", new { ids, stuckDays, all = all ? 1 : 0 }).ToList();
+                                                         AND (w.Source = 'TEST' OR EXISTS (SELECT 1 FROM Nexus.vw_StockMonitoring m
+                                                              WHERE m.StkId = w.StockID AND m.PartID = w.PartID
+                                                                AND m.StockStatus IN ('UNDER_MIN', 'OUT_OF_STOCK') AND ISNULL(m.[Min], 0) > 0))
+                                                       ORDER BY w.BelowSince, s.StockCode, w.PartCode
+                                                       OPTION (MAX_GRANT_PERCENT = 5)", new { ids, stuckDays, all = all ? 1 : 0 }, commandTimeout: 60).ToList();
         ApplyDisplay(rows);
         return rows;
     }

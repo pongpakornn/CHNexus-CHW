@@ -298,9 +298,51 @@ public sealed class MinReportController : AppController
         if (!DbSchema.HasMinSign) return Ok(Array.Empty<object>());
         return Ok(_svc.Queue(Uid).Select(r => new
         {
-            r.ReportId, r.StockCode, title = Label(r), r.Sub, slot = r.NextSlot, slotName = MinReportService.SlotName(r.NextSlot ?? 0),
+            r.ReportId, stkId = r.StockId, r.StockCode, title = Label(r), r.Sub, slot = r.NextSlot, slotName = MinReportService.SlotName(r.NextSlot ?? 0),
             r.ReporterName, r.ReportedBy, r.ReportedAt, r.ReasonType
         }));
+    }
+
+    // 🔀 ดู FLOW ลายเซ็น: ของคลัง (ก่อน REPORT · ผู้ที่ดูคลังนั้นได้) / ของเอกสาร (ถึงช่องไหน · ใครเซ็นแล้ว · ผู้ที่เปิดเอกสารได้)
+    private object FlowView(string stockCode, List<MinFlowSlot> flow, MinReportRow r)
+    {
+        var names = Names(flow.SelectMany(s => s.Users));
+        return new
+        {
+            stockCode,
+            slots = flow.Select(s =>
+            {
+                var sg = r?.Signs.FirstOrDefault(x => x.Slot == s.Slot);
+                return new
+                {
+                    s.Slot, name = MinReportService.SlotName(s.Slot), s.Mode,
+                    users = s.Users.Select(u => new { userId = u, name = names.TryGetValue(u, out var n) ? n : u }),
+                    waiting = r != null && r.FlowStatus == "SIGNING" && r.NextSlot == s.Slot,
+                    signed = sg == null ? null : new { name = string.IsNullOrWhiteSpace(sg.UserName) ? sg.UserId : sg.UserName, at = sg.SignedAt }
+                };
+            })
+        };
+    }
+
+    [HttpGet("flow/{stkId:int}")]
+    public IActionResult StockFlow(int stkId)
+    {
+        var s = Visible(stkId);
+        if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        if (!DbSchema.HasMinSign) return NoSign();
+        return Ok(FlowView(s.Code, _svc.Flow(stkId), null));
+    }
+
+    [HttpGet("reports/{id:int}/flow")]
+    public IActionResult ReportFlow(int id)
+    {
+        if (Me == null) return Deny();
+        if (!DbSchema.HasMinSign) return NoSign();
+        var r = _svc.GetReport(id);
+        if (r == null) return Fail("ไม่พบรายงานนี้");
+        var flow = _svc.Flow(r.StockId);
+        if (!CanOpen(r, flow)) return Deny("คุณไม่มีสิทธิ์เปิดรายงานนี้");
+        return Ok(FlowView(r.StockCode, flow, r));
     }
 
     // 📁 ย้อนหลังของฉัน (กระดิ่ง › ประวัติ MIN REPORT): รายงานที่ฉันรายงาน / ลงลายเซ็น / อยู่ใน FLOW · ลงนามครบแล้ว หรือยังเดินอยู่

@@ -1,139 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { useToast } from "@/components/notifications/Toasts";
-import { refreshNotifications } from "@/lib/support";
-import { days, dt, n0, span, subOf, titleOf, useNow, type MinItem } from "@/components/print/MinReportSheet";
-import { openMinSign } from "@/lib/minSign";
+import { dt, n0, span, titleOf, useNow, type MinItem } from "@/components/print/MinReportSheet";
+import { IC, Ico, PendingRow } from "@/components/notifications/MinPending";
 
-// ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ (ทุกหน้า) เมื่อมีสินค้าค้างที่ค่า MIN ครบตามวันที่ตั้ง (SETUP > MIN REPORT)
-//   REPORT = ระบุสาเหตุ -> CONFIRM (บันทึกว่าใครรายงาน) · CANCEL = ซ่อนชั่วคราว แล้วแจ้งซ้ำตามเวลาที่ตั้ง
-//   แจ้งต่อไปเรื่อย ๆ จนกว่าจะรายงาน หรือสินค้ากลับมาพ้นค่า MIN · เห็นเฉพาะคลังที่มีสิทธิ์ดู
+// ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ เมื่อมีสินค้าค้างอยู่ใต้ค่า MIN ต่อเนื่องครบตามวันที่ตั้ง (SETUP > MIN REPORT)
+//   แสดงเฉพาะในระบบ CIMS (/cims/*) · เห็นเฉพาะคลังที่มีสิทธิ์ดู
+//   แถวสินค้า = แถวเดียวกับหน้า Store › MIN REPORT › PENDING (PendingRow) · 🔀 ดู FLOW ลายเซ็น · ✎ REPORT (เลือกหมายเหตุ -> ส่ง)
+//   CANCEL = ซ่อนชั่วคราว แล้วแจ้งซ้ำตามเวลาที่ตั้ง · กลับมาพ้น MIN (เขียว) = หายจากรายการเองทันที (Server เช็คใหม่เมื่อยอดเปลี่ยน)
 type Alerts = { stuckDays: number; remindMinutes: number; snoozeUntil: string | null; now: string; reasons?: string[]; items: MinItem[] };
 
-// หมายเหตุที่เลือกได้ (Server ส่งรายการล่าสุดมาด้วย) - ตัวเลือกใหม่แทนตัวเดิมที่ความหมายซ้ำกัน (รอผลิต / รอตรวจสอบคุณภาพ)
-export const REASONS = ["กำลังผลิต", "รอ Box FG", "รอ Check", "รอ Q-Gate", "รอซ่อม", "ปัญหาคุณภาพ", "ยังไม่มีแผนผลิต", "รอของจาก Supplier", "PR อยู่ระหว่างอนุมัติ", "ใช้มากกว่าปกติ / Order เพิ่ม", "ปรับค่า MIN / MAX ใหม่แล้ว"];
+export { REASONS, ReportBox } from "@/components/notifications/MinPending";
+
+// หน้าต่างลายเซ็น (MinSignAlert) รอให้หน้าต่างนี้ปิดก่อน ไม่ซ้อนกัน
+export const MIN_ALERT_EVENT = "nexus:minalert";
+
 const every = (m: number) => (m % 60 === 0 ? `${m / 60} ชม.` : m > 60 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${m} นาที`);
 
-// กล่องรายงาน (ใช้ทั้งหน้าต่างแจ้งเตือน และหน้า Store > MIN REPORT): เลือกหมายเหตุ + กรอกรายละเอียดเพิ่มเติม
-//   ส่งแล้ว = แจ้งคนที่ต้องลงลายเซ็นช่องถัดไปทันที (Toast + กระดิ่ง + แชท) · ผู้รายงานอยู่ในช่องแรกเอง = เปิดเอกสารให้เซ็นต่อ
-export function ReportBox({ item, onDone, onBack, reasons = REASONS }: { item: MinItem; onDone: () => void; onBack: () => void; reasons?: string[] }) {
-  const toast = useToast();
-  const [type, setType] = useState("");
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => ref.current?.focus(), []);
-  // กดหมายเหตุ = ใส่ข้อความนั้นในช่องรายละเอียด (แทนหมายเหตุตัวเดิม) แล้ววางเคอร์เซอร์ท้ายข้อความ ให้พิมพ์ต่อได้เลย
-  //   กดตัวเดิมซ้ำ = ยกเลิก (เอาข้อความหมายเหตุออก เหลือที่พิมพ์ต่อไว้)
-  const lead = (t: string) => (t ? `${t} · ` : "");
-  function pick(q: string) {
-    const next = type === q ? "" : q;
-    const rest = type && reason.startsWith(type) ? reason.slice(type.length).replace(/^\s*·\s*/, "") : reason;
-    const v = lead(next) + rest;
-    setType(next);
-    setReason(v);
-    requestAnimationFrame(() => {
-      const el = ref.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(v.length, v.length);
-    });
-  }
-  // ข้อความยังขึ้นต้นด้วยหมายเหตุที่เลือก = ส่งเป็นหมายเหตุ + รายละเอียดที่พิมพ์ต่อ · ลบหมายเหตุออกจากช่องเอง = ถือว่าไม่ได้เลือก
-  const chosen = type && reason.startsWith(type) ? type : "";
-  const detail = (chosen ? reason.slice(chosen.length).replace(/^\s*·\s*/, "") : reason).trim();
-  async function confirm() {
-    if (!chosen && detail.length < 3) return toast.show("WARNING", "กรุณาเลือกหมายเหตุ หรือระบุสาเหตุที่สินค้าค้างอยู่ที่ค่า MIN", "warn");
-    setBusy(true);
-    try {
-      const r = await api<{ id: number; signNow: boolean; message: string }>("/minreport/report", { method: "POST", body: { watchId: item.watchId, reasonType: chosen, reason: detail } });
-      toast.show("REPORTED", r.message, "ok");
-      refreshNotifications();
-      onDone();
-      if (r.signNow) openMinSign(r.id);
-    } catch (e) {
-      toast.show("ERROR", (e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="mr-rbox">
-      <label className="mr-rlbl">
-        เลือกหมายเหตุ ({titleOf(item) || "ไม่มีรหัส"}) <b>*</b>
-      </label>
-      <div className="mr-quick" role="radiogroup" aria-label="หมายเหตุ">
-        {reasons.map((q) => (
-          <button key={q} type="button" role="radio" aria-checked={chosen === q} className={chosen === q ? "is-on" : ""} onClick={() => pick(q)}>
-            {chosen === q ? "✓ " : ""}
-            {q}
-          </button>
-        ))}
-      </div>
-      <label className="mr-rlbl">หมายเหตุ / รายละเอียด {chosen ? "(พิมพ์เพิ่มต่อท้ายได้)" : <b>*</b>}</label>
-      <textarea ref={ref} value={reason} maxLength={900} rows={3} onChange={(e) => setReason(e.target.value)} placeholder="เลือกหมายเหตุด้านบน แล้วพิมพ์เพิ่มต่อ เช่น แผนผลิตวันที่ ... / เปิด PR เลขที่ ... / รอ Q-Gate ตรวจ Lot ..." />
-      <div className="mr-ract">
-        <span>{reason.length} / 900</span>
-        <button type="button" className="cta-btn is-gray is-sm" onClick={onBack} disabled={busy}>
-          ย้อนกลับ
-        </button>
-        <button type="button" className="cta-btn is-green is-sm" onClick={confirm} disabled={busy}>
-          {busy ? "…" : "✓ ส่ง REPORT"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// แถวสินค้า 1 รายการ: ข้อมูล + ปุ่ม REPORT (กด = กางกล่องกรอกสาเหตุ)
-export function MinItemCard({ item, stuckDays, onReported, showStock = true, reasons }: { item: MinItem; stuckDays: number; onReported: () => void; showStock?: boolean; reasons?: string[] }) {
-  const [open, setOpen] = useState(false);
-  const now = useNow();
-  const late = item.days >= stuckDays;
-  return (
-    <div className={`mr-card ${late ? "is-late" : ""} ${open ? "is-open" : ""}`}>
-      <div className="mr-card-main">
-        <div className="mr-card-id">
-          {showStock && <span className="mr-stk">{item.stockCode}</span>}
-          <b>{titleOf(item) || "ไม่มีรหัส"}</b>
-          {item.test && <span className="mr-test">TEST</span>}
-          <span className="mr-pname">{subOf(item)}</span>
-        </div>
-        <div className="mr-nums">
-          <span>
-            STOCK <b>{n0(item.qty)}</b>
-            {item.stockBox ? <small> · {item.stockBox} BOX</small> : null}
-          </span>
-          <span>
-            MIN <b className="text-danger">{n0(item.min)}</b>
-          </span>
-          <span>
-            MAX <b>{n0(item.max)}</b>
-          </span>
-        </div>
-        <div className="mr-age">
-          <span className="mr-days">{span(item.belowSince, null, now || Date.parse(item.lastSeen))}</span>
-          <small>ตั้งแต่ {dt(item.belowSince)}</small>
-          {!late && <small className="mr-watch">เฝ้าดู · แจ้งเตือนเมื่อครบ {stuckDays} วัน</small>}
-        </div>
-        {!open && (
-          <button type="button" className="cta-btn is-red is-sm mr-rbtn" onClick={() => setOpen(true)}>
-            📝 REPORT
-          </button>
-        )}
-      </div>
-      {open && <ReportBox item={item} reasons={reasons} onBack={() => setOpen(false)} onDone={onReported} />}
-    </div>
-  );
-}
-
 export function MinReportAlert() {
+  const path = usePathname() ?? "";
+  return path.startsWith("/cims") ? <MinReportAlertHost /> : null;
+}
+
+function MinReportAlertHost() {
   const [data, setData] = useState<Alerts | null>(null);
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
+  const now = useNow();
   const skew = useRef(0); // เวลาเครื่อง Server - เครื่องผู้ใช้
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -170,6 +66,10 @@ export function MinReportAlert() {
   }, [until, load]);
 
   const show = !!data && data.items.length > 0 && !snoozed && !hidden;
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<boolean>(MIN_ALERT_EVENT, { detail: show }));
+    return () => void window.dispatchEvent(new CustomEvent<boolean>(MIN_ALERT_EVENT, { detail: false }));
+  }, [show]);
 
   async function cancel() {
     setBusy(true);
@@ -184,27 +84,79 @@ export function MinReportAlert() {
   }
 
   if (!show || !data) return null;
-  const maxD = Math.max(...data.items.map((i) => i.days));
+  const items = data.items; // Server เรียงค้างนานสุดก่อน
+  const oldest = items[0];
+  const ref = now || Date.parse(oldest.lastSeen);
+  const stocks = [...new Set(items.map((i) => i.stockCode))];
   return (
-    <div className="mr-alert-bg" role="dialog" aria-modal="true" aria-label="MIN REPORT">
-      <div className="mr-alert">
+    <div className="mr-alert-bg" role="dialog" aria-modal="true" aria-label="MIN STOCK ALERT">
+      <div className="mr-alert is-v2">
         <div className="mr-alert-head">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/picklist/ch-logo.png" alt="CH. RADIATORS CO.,LTD." draggable={false} />
-          <div>
-            <b>⚠ MIN STOCK ALERT</b>
+          <span className="mr-alert-ic" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <b>
+              MIN STOCK <em>ALERT</em>
+            </b>
             <span>
-              สินค้า {data.items.length} รายการ ค้างอยู่ที่ค่า MIN มาแล้ว ≥ {data.stuckDays} วัน (นานสุด {days(maxD)}) · กรุณากด REPORT แล้วระบุสาเหตุ
+              สินค้าค้างอยู่ใต้ค่า MIN ต่อเนื่อง ≥ <em>{data.stuckDays} วัน</em> จำนวน <em>{items.length} รายการ</em> · กรุณากด REPORT แล้วระบุสาเหตุ
             </span>
           </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/picklist/ch-logo.png" alt="CH. RADIATORS CO.,LTD." draggable={false} />
         </div>
-        <div className="mr-alert-body">
-          {data.items.map((it) => (
-            <MinItemCard key={it.watchId} item={it} stuckDays={data.stuckDays} reasons={data.reasons} onReported={load} />
-          ))}
+        <div className="mrp is-soft mr-alert-body">
+          <div className="mrp-stats">
+            <div className="mrp-stat is-red is-on">
+              <span className="mrp-stat-ic">
+                <Ico d={IC.cart} />
+              </span>
+              <span className="mrp-stat-tx">
+                <small>รอรายงาน</small>
+                <b>{items.length}</b>
+                <span>ค้างที่ค่า MIN ≥ {data.stuckDays} วัน</span>
+              </span>
+            </div>
+            <div className="mrp-stat is-ink">
+              <span className="mrp-stat-ic">
+                <Ico d={IC.clock} />
+              </span>
+              <span className="mrp-stat-tx">
+                <small>ค้างนานสุด</small>
+                <b className="is-dur">{span(oldest.belowSince, null, ref)}</b>
+                <span>
+                  {titleOf(oldest) || "ไม่มีรหัส"} · ตั้งแต่ {dt(oldest.belowSince)}
+                </span>
+              </span>
+            </div>
+            <div className="mrp-stat is-violet">
+              <span className="mrp-stat-ic">
+                <Ico d={IC.cal} />
+              </span>
+              <span className="mrp-stat-tx">
+                <small>คลัง</small>
+                <b>{n0(stocks.length)}</b>
+                <span className="truncate">{stocks.join(" · ")}</span>
+              </span>
+            </div>
+            <div className="mr-alert-note">
+              <b>!</b>
+              <span>กรุณาตรวจสอบและรายงานสาเหตุ เพื่อป้องกันปัญหาสต็อกขาด</span>
+            </div>
+          </div>
+          <div className="mrp-list">
+            {items.map((it, i) => (
+              <PendingRow key={it.watchId} no={i + 1} item={it} stuckDays={data.stuckDays} reasons={data.reasons} now={now} onReported={load} showStock />
+            ))}
+          </div>
         </div>
         <div className="mr-alert-foot">
-          <small>CANCEL = ซ่อนชั่วคราว แล้วแจ้งเตือนอีกครั้งใน {every(data.remindMinutes)} จนกว่าจะรายงาน</small>
+          <small>
+            <i>i</i>CANCEL = ซ่อนชั่วคราว แล้วแจ้งเตือนอีกครั้งใน {every(data.remindMinutes)} จนกว่าจะรายงาน · สินค้ากลับมาพ้นค่า MIN แล้วจะหายจากรายการเอง
+          </small>
           <button type="button" className="cta-btn is-gray" onClick={cancel} disabled={busy}>
             CANCEL
           </button>

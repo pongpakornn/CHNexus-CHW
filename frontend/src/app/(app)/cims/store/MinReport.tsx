@@ -8,7 +8,7 @@ import { DateRange } from "@/components/forms/DateRange";
 import { Empty, Loading } from "@/components/layout/Page";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { useToast } from "@/components/notifications/Toasts";
-import { ReportBox } from "@/components/notifications/MinReportAlert";
+import { IC, Ico, PendingRow } from "@/components/notifications/MinPending";
 import { SignList, type SignItem } from "@/components/notifications/MinSignList";
 import { ReportPreview, SLOT_NAMES, dt, n0, reasonText, span, subOf, titleOf, useNow, type MinHistory, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { api, download } from "@/lib/api";
@@ -98,18 +98,6 @@ function logPdf(stkId: number, kind: string, rows: number) {
   api(`/minreport/stock/${stkId}/pdf-log`, { method: "POST", body: { kind, rows } }).catch(() => {});
 }
 
-// ไอคอนเส้นบาง (SVG ในไฟล์ ไม่โหลดรูป) - การ์ดสรุป / เวลา
-const IC = {
-  cart: "M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L19.5 8H6.2M9 19.5h.01M17 19.5h.01",
-  cal: "M5 6h14v14H5zM5 10h14M9 3.5v4M15 3.5v4M8.5 13.5h2M13.5 13.5h2M8.5 16.5h2",
-  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.5V12l3 2",
-  pen: "M4 20c3-1 4-5 6-5s1 4 3 4 3-3 4-3M14.5 4.5l5 5-8 8H6.5v-5z",
-};
-const Ico = ({ d, className = "" }: { d: string; className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d={d} />
-  </svg>
-);
 
 // ---------------------------------------------------------------- ⚠ PENDING REPORT
 function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data: Pending | null; reload: () => void; onClose: () => void }) {
@@ -234,83 +222,6 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
         onPdfDone={(n) => logPdf(s.stkId, "pending", n)}
       />
     </>
-  );
-}
-
-function PendingRow({
-  no,
-  item: it,
-  stuckDays,
-  reasons,
-  now,
-  onPreview,
-  onReported,
-}: {
-  no: number;
-  item: MinItem;
-  stuckDays: number;
-  reasons?: string[];
-  now: number;
-  onPreview: () => void;
-  onReported: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const late = it.days >= stuckDays;
-  const ref = now || Date.parse(it.lastSeen);
-  const pct = Math.min(100, ((ref - Date.parse(it.belowSince)) / (stuckDays * 86_400_000)) * 100);
-  const title = titleOf(it);
-  return (
-    <div className={`mrp-row ${late ? "is-late" : "is-watch"} ${open ? "is-open" : ""}`} style={{ animationDelay: `${Math.min(no, 12) * 25}ms` }}>
-      <div className="mrp-main">
-        <span className="mrp-no">{no}</span>
-        <div className="mrp-part">
-          <b className={title ? "" : "is-none"}>{title || "ไม่มีรหัส"}</b>
-          <span>{subOf(it)}</span>
-          <div className="mrp-tags">
-            {it.customer && <i>CUSTOMER : {it.customer}</i>}
-            {it.supplier && <i>SUPPLIER : {it.supplier}</i>}
-            {it.test && <i className="is-test">TEST</i>}
-          </div>
-        </div>
-        <div className="mrp-nums">
-          <span>
-            <small>STOCK</small>
-            <b>{n0(it.qty)}</b>
-          </span>
-          {it.stockBox && (
-            <span>
-              <small>BOX</small>
-              <b>{it.stockBox}</b>
-            </span>
-          )}
-          <span className="is-min">
-            <small>MIN</small>
-            <b>{n0(it.min)}</b>
-          </span>
-          <span>
-            <small>MAX</small>
-            <b>{n0(it.max)}</b>
-          </span>
-        </div>
-        <div className="mrp-time">
-          <b>
-            <Ico d={IC.clock} className="mrp-clock" />
-            {span(it.belowSince, null, ref)}
-          </b>
-          <small>
-            ตั้งแต่ {dt(it.belowSince)} · อัพเดท {dt(it.lastSeen)}
-          </small>
-          <div className="mrp-bar" title={late ? `เกิน ${stuckDays} วันแล้ว` : `แจ้งเตือนเมื่อครบ ${stuckDays} วัน`}>
-            <span style={{ width: `${Math.max(3, pct)}%` }} />
-          </div>
-        </div>
-        <RowActions className="mrp-act">
-          <RowAction kind="view" title="PREVIEW เอกสาร (FM-EN-04-22)" onClick={onPreview} />
-          <RowAction kind="edit" title="REPORT : เลือกหมายเหตุ + รายละเอียด" active={open} onClick={() => setOpen((v) => !v)} />
-        </RowActions>
-      </div>
-      {open && <ReportBox item={it} reasons={reasons} onBack={() => setOpen(false)} onDone={onReported} />}
-    </div>
   );
 }
 

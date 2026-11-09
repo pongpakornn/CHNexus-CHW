@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { openMinSign } from "@/lib/minSign";
 import { useDebounced } from "@/lib/useDebounced";
+import { FlowButton, FlowModal } from "@/components/notifications/MinPending";
 
 // ✍ รายการเอกสาร MIN REPORT ที่อยู่ใน FLOW ลายเซ็น (การ์ด "รอลงลายเซ็น" ในหน้าต่าง PENDING · กระดิ่ง › ประวัติ MIN REPORT)
 //   👁 = เปิดเอกสาร (ถึงคิวเรา = กดช่องของตัวเองเพื่อเซ็น)
@@ -49,8 +50,10 @@ export function SignChip({ r }: { r: SignItem }) {
 }
 
 export function SignList({ rows, showStock = false }: { rows: SignItem[]; showStock?: boolean }) {
+  const [flow, setFlow] = useState<SignItem | null>(null); // 🔀 ดู FLOW: เอกสารเดินถึงช่องไหน / ใครเซ็นแล้ว
   return (
     <div className="mrp-list">
+      {flow && <FlowModal stkId={flow.stockId} stockCode={flow.stockCode} title={flow.title ?? undefined} reportId={flow.reportId} onClose={() => setFlow(null)} />}
       {rows.map((r, i) => (
         <div
           key={r.reportId}
@@ -85,6 +88,7 @@ export function SignList({ rows, showStock = false }: { rows: SignItem[]; showSt
               <SignChip r={r} />
             </div>
             <RowActions className="mrp-act">
+              <FlowButton onClick={() => setFlow(r)} title="ดู FLOW: เอกสารเดินถึงช่องไหน / ใครเซ็นแล้ว" />
               <RowAction kind="view" title={r.mine ? "เปิดเอกสาร แล้วกดช่องของคุณเพื่อลงลายเซ็น" : "เปิดเอกสาร (ลายเซ็น)"} onClick={() => openMinSign(r.reportId)} />
             </RowActions>
           </div>

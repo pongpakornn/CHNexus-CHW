@@ -11371,3 +11371,310 @@ table.lqp code {
     transition: none;
   }
 }
+
+/* =====================================================================
+   ⚠ MIN STOCK ALERT รอบ 2 (หน้าต่างแจ้งเตือน + หน้าต่างรออนุมัติ) - ทิศทางเดียวกับ Store › MIN REPORT › PENDING
+   หัวไอคอนแดง · การ์ดสรุป (mrp-stats) · แถวสินค้าเดียวกัน (mrp-row) · ปุ่ม 🔀 FLOW
+   ===================================================================== */
+.mr-alert.is-v2 {
+  width: min(1140px, 100%);
+}
+.mr-alert.is-v2 .mr-alert-head {
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #f3dede;
+  background: linear-gradient(120deg, #fff1f1 0%, #fff 70%);
+}
+.mr-alert.is-v2 .mr-alert-head img {
+  width: 120px;
+  margin-left: auto;
+  opacity: 0.9;
+}
+.mr-alert-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #f87171, #dc2626);
+  box-shadow: 0 0 0 7px #fee2e2, 0 12px 24px -10px rgb(220 38 38 / 0.8);
+  animation: mr-ic 2.4s var(--ease-drop) infinite;
+}
+.mr-alert-ic svg {
+  width: 28px;
+  height: 28px;
+}
+.mr-alert-ic.is-sign {
+  background: radial-gradient(circle at 35% 30%, #a78bfa, #6750a4);
+  box-shadow: 0 0 0 7px #ede9fe, 0 12px 24px -10px rgb(103 80 164 / 0.8);
+}
+@keyframes mr-ic {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+.mr-alert.is-v2 .mr-alert-head b {
+  color: #1f2350;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+}
+.mr-alert.is-v2 .mr-alert-head b em,
+.mr-alert.is-v2 .mr-alert-head span em {
+  font-style: normal;
+  color: #dc2626;
+}
+.mr-alert.is-sign .mr-alert-head b em,
+.mr-alert.is-sign .mr-alert-head span em {
+  color: #6750a4;
+}
+.mr-alert.is-v2 .mr-alert-head span {
+  margin-top: 2px;
+  font-size: 13.5px;
+}
+.mr-alert.is-v2 .mr-alert-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px 20px;
+}
+.mr-alert.is-v2 .mrp-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.05fr);
+}
+.mr-alert.is-v2 .mrp-stat {
+  cursor: default;
+}
+.mr-alert-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 18px;
+  padding: 14px 16px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #991b1b;
+  background: #fef2f2;
+  box-shadow: inset 0 0 0 1.5px #fecaca;
+}
+.mr-alert-note b {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: #fff;
+  background: #dc2626;
+}
+.mr-alert.is-v2 .mr-alert-foot small {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mr-alert.is-v2 .mr-alert-foot small i {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-style: normal;
+  color: #fff;
+  background: #6b6880;
+}
+/* แถวเอกสารรอเซ็น (หน้าต่างรออนุมัติ) */
+.mrp-row.is-sign-q .mrp-main {
+  grid-template-columns: 30px minmax(220px, 1.4fr) minmax(200px, 1fr) auto;
+}
+.mrp-time b.is-sign {
+  color: #6750a4;
+  font-size: 14.5px;
+}
+
+/* 🔀 ปุ่ม FLOW ในแถว */
+.ra-flow {
+  --c: #7c3aed;
+}
+.ra-flow .ra-ic svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* 🔀 หน้าต่าง FLOW ลายเซ็น (อยู่เหนือหน้าต่างแจ้งเตือน) */
+.mr-flow-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 97;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgb(20 16 34 / 0.35);
+  backdrop-filter: blur(2px);
+  animation: mr-fade 0.2s ease both;
+}
+.mr-flow-box {
+  width: min(520px, 100%);
+  max-height: min(88dvh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 30px 70px -24px rgb(30 10 60 / 0.6);
+  outline: none;
+  animation: mr-rise 0.35s var(--ease-drop) both;
+}
+.mr-flow-head {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 16px 52px 14px 20px;
+  color: #fff;
+  background: linear-gradient(120deg, #6750a4, #7c3aed);
+}
+.mr-flow-head b {
+  font-size: 16px;
+  font-weight: 900;
+}
+.mr-flow-head span {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+.mr-flow-head .modal-x {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+.mr-flow-body {
+  overflow: auto;
+  padding: 18px 20px 20px;
+}
+.mr-flow-empty {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b6880;
+}
+.mr-steps {
+  position: relative;
+  display: grid;
+  gap: 14px;
+}
+.mr-steps::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 18px;
+  bottom: 18px;
+  width: 2px;
+  background: #e6e3f0;
+}
+.mr-steps li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border-radius: 14px;
+  padding: 10px 12px 10px 0;
+  animation: mr-rise 0.35s var(--ease-drop) both;
+}
+.mr-step-dot {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #6750a4;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #c4b5fd;
+}
+.mr-steps li b {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #1f2350;
+}
+.mr-steps li b em {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  font-style: normal;
+  color: #fff;
+  background: #f59e0b;
+}
+.mr-steps li b em.is-off {
+  color: #6b6880;
+  background: #eeecf3;
+}
+.mr-steps li small {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b6880;
+}
+.mr-steps li.is-done .mr-step-dot {
+  color: #fff;
+  background: #16a34a;
+  box-shadow: 0 0 0 4px #dcfce7;
+}
+.mr-steps li.is-done small {
+  color: #15803d;
+}
+.mr-steps li.is-wait {
+  background: #fffbeb;
+}
+.mr-steps li.is-wait .mr-step-dot {
+  color: #fff;
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px #fef3c7;
+  animation: mr-ic 1.6s var(--ease-drop) infinite;
+}
+.mr-steps li.is-off {
+  opacity: 0.55;
+}
+
+@media (max-width: 900px) {
+  .mr-alert.is-v2 .mrp-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mrp-row.is-sign-q .mrp-main {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+  .mrp-row.is-sign-q .mrp-time,
+  .mrp-row.is-sign-q .mrp-act {
+    grid-column: 2;
+  }
+}
+@media (max-width: 640px) {
+  .mr-alert.is-v2 .mr-alert-head img {
+    display: none;
+  }
+  .mr-alert.is-v2 .mr-alert-head b {
+    font-size: 18px;
+  }
+  .mr-alert-ic {
+    width: 44px;
+    height: 44px;
+  }
+  .mr-alert.is-v2 .mrp-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-alert-ic,
+  .mr-steps li,
+  .mr-steps li.is-wait .mr-step-dot {
+    animation: none;
+  }
+}
