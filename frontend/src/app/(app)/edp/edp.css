@@ -1,5 +1,5 @@
 /* =====================================================================
-   🏭 EDP PLANNING (ธีมเทาเข้ม · ทุกหน้าในระบบ EDP ครอบด้วย .edp-dark)
+   🏭 EDP PLANNING · ค่าเริ่มต้น = โทนสว่างแบบทั้งระบบ · หน้า Plan Submission / Plan Setting ครอบด้วย .edp-dark (เทาเข้ม)
    แถบเลือก · หน้าเลือกแผน · การ์ดแผน (ไหลเข้าทีละใบ · ชี้ = ลอย + เรืองแสง + แสงกวาด · ลากสลับ) · ตาราง · กราฟ
    เส้นโค้งเดียวกันทั้งระบบ --ease-drop · ปิดการเคลื่อนไหวเมื่อเครื่องตั้งลดการเคลื่อนไหว
    ===================================================================== */
@@ -13,15 +13,30 @@
   --primary: #f4f4f5;
   --edp-card: linear-gradient(165deg, #2a2a30 0%, #222226 100%);
   --edp-glow: #8b5cf6;
-  --edp-soft: cubic-bezier(0.25, 0.8, 0.25, 1);
+  min-height: calc(100dvh - 60px);
   color: var(--ink);
-}
-/* พื้นหลังทั้งหน้า (พื้นที่เนื้อหา) = เทาเข้ม + แสงม่วง / ฟ้าจาง ๆ */
-main:has(.edp-dark) {
+  /* พื้นเทาเข้มเฉพาะหน้านี้ (ไม่แตะพื้นของหน้าอื่น) */
   background:
     radial-gradient(60% 40% at 85% 0%, rgb(124 58 237 / 0.14), transparent 70%),
     radial-gradient(50% 35% at 0% 100%, rgb(37 99 235 / 0.1), transparent 70%),
     #17171a;
+}
+.edp-soft-vars,
+.edp-pick,
+.edp-cards,
+.edp-kpis,
+.edp-bars {
+  --edp-soft: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --edp-card: linear-gradient(165deg, #2a2a30 0%, #222226 100%);
+}
+/* ช่องวันที่ (ปฏิทินของระบบ) คงโทนสว่างเสมอ อ่านง่ายทั้งบนพื้นขาวและพื้นเข้ม */
+.edp-dark .edp-date {
+  --surface: #ffffff;
+  --surface-2: #f4f4f9;
+  --ink: #1a1c1e;
+  --ink-soft: #5f5b66;
+  --line: #e3e1e8;
+  --primary: #49454f;
 }
 .edp-dark .field {
   border-color: #3a3a42;
@@ -64,13 +79,18 @@ main:has(.edp-dark) {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  border: 1px solid #33333a;
+  border: 1px solid #e4e4e7;
   border-radius: 18px;
   padding: 10px 12px;
-  background: rgb(35 35 39 / 0.85);
+  background: rgb(255 255 255 / 0.92);
   backdrop-filter: blur(10px);
-  box-shadow: 0 16px 34px -26px #000;
+  box-shadow: 0 14px 30px -24px rgb(24 24 27 / 0.45);
   animation: edp-in 0.5s var(--ease-drop) both;
+}
+.edp-dark .edp-bar {
+  border-color: #33333a;
+  background: rgb(35 35 39 / 0.85);
+  box-shadow: 0 16px 34px -26px #000;
 }
 .edp-date {
   display: flex;
@@ -104,9 +124,13 @@ main:has(.edp-dark) {
   display: grid;
   grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr));
   min-width: 270px;
-  border: 1px solid #3a3a42;
+  border: 1px solid #e4e4e7;
   border-radius: 13px;
   padding: 3px;
+  background: #f4f4f5;
+}
+.edp-dark .edp-seg {
+  border-color: #3a3a42;
   background: #1c1c20;
 }
 .edp-seg.is-2 {
@@ -132,10 +156,16 @@ main:has(.edp-dark) {
   padding: 0 10px;
   font-size: 12px;
   font-weight: 800;
-  color: #a1a1aa;
+  color: #52525b;
   transition: color 0.35s var(--ease-drop);
 }
 .edp-seg button:hover:not(.is-on) {
+  color: #18181b;
+}
+.edp-dark .edp-seg button {
+  color: #a1a1aa;
+}
+.edp-dark .edp-seg button:hover:not(.is-on) {
   color: #fff;
 }
 .edp-seg button.is-on {
@@ -165,10 +195,15 @@ main:has(.edp-dark) {
   isolation: isolate;
   overflow: hidden;
   border-radius: 999px;
-  border: 1px solid #3a3a42;
+  border: 1px solid #e4e4e7;
   padding: 7px 14px;
   font-size: 12px;
   font-weight: 800;
+  color: #27272a;
+  background: #f4f4f5;
+}
+.edp-dark .edp-progress {
+  border-color: #3a3a42;
   color: #f4f4f5;
   background: #1c1c20;
 }
@@ -792,12 +827,13 @@ main:has(.edp-dark) {
   align-items: center;
   gap: 12px;
   overflow: hidden;
-  border: 1px solid #33333a;
+  border: 1px solid #e7e4ef;
   border-radius: 20px;
   padding: 18px 20px;
   background:
-    radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--k, #8b5cf6) 22%, transparent), transparent 60%),
-    var(--edp-card);
+    radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--k, #6750a4) 14%, transparent), transparent 60%),
+    #fff;
+  box-shadow: 0 12px 26px -22px rgb(40 45 110 / 0.45);
   animation: edp-card-in 0.65s var(--ease-drop) calc(var(--i, 0) * 90ms) both;
   transition: translate 0.8s var(--edp-soft), box-shadow 0.8s var(--edp-soft), border-color 0.4s;
 }
@@ -810,19 +846,19 @@ main:has(.edp-dark) {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
-  color: #a1a1aa;
+  color: #71717a;
 }
 .edp-kpi b {
   display: block;
   font-size: 34px;
   font-weight: 800;
-  color: #fff;
+  color: #1f2350;
   font-variant-numeric: tabular-nums;
 }
 .edp-kpi span {
   font-size: 12px;
   font-weight: 600;
-  color: #a1a1aa;
+  color: #71717a;
 }
 .edp-ring {
   width: 74px;
@@ -834,7 +870,7 @@ main:has(.edp-dark) {
   stroke-width: 8;
 }
 .edp-ring .bg {
-  stroke: #33333a;
+  stroke: #ece9f4;
 }
 .edp-ring .fg {
   stroke: var(--k, #8b5cf6);
@@ -858,10 +894,10 @@ main:has(.edp-dark) {
   left: 0;
   right: 0;
   margin-bottom: 20px;
-  border-top: 1.5px dashed #52525b;
+  border-top: 1.5px dashed #a1a1aa;
   font-size: 10px;
   font-weight: 800;
-  color: #a1a1aa;
+  color: #71717a;
 }
 .edp-bar-col {
   position: relative;
@@ -874,7 +910,7 @@ main:has(.edp-dark) {
 .edp-bar-val {
   font-size: 10.5px;
   font-weight: 800;
-  color: #e4e4e7;
+  color: #27272a;
   opacity: 0.8;
   transition: opacity 0.3s, translate 0.4s var(--ease-drop);
 }
@@ -901,7 +937,7 @@ main:has(.edp-dark) {
   margin-top: 6px;
   font-size: 11px;
   font-weight: 800;
-  color: #a1a1aa;
+  color: #52525b;
 }
 .edp-line {
   height: auto;
@@ -976,7 +1012,6 @@ main:has(.edp-dark) {
     opacity: 0;
     translate: 0 22px;
     scale: 0.96;
-    filter: blur(4px);
   }
 }
 @keyframes edp-row-in {
@@ -1073,4 +1108,17 @@ main:has(.edp-dark) {
   .edp-progress::before {
     transition: none;
   }
+}
+
+/* Plan Setting: หัวการ์ดมีรูปชิ้นงาน + ชื่อ */
+.edp-set-head {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.edp-set-head .edp-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
 }

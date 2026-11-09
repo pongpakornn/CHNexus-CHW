@@ -58,14 +58,21 @@ export function MonthChart({
   year,
   fill = false,
   header,
+  names,
+  hide = [],
 }: {
   data: MonthPoint[];
   year?: number | string;
   fill?: boolean;
   header?: { icon: string; title: React.ReactNode; subtitle?: React.ReactNode };
+  /** ชื่อชุดข้อมูลแทน ORDER / DELIVERY / FORECAST (ระบบอื่นใช้กราฟเดียวกันได้) · month / compare = หัวตาราง */
+  names?: Partial<Record<Key | "month" | "compare", string>>;
+  /** ชุดข้อมูลที่ไม่ใช้ (ไม่แสดงปุ่ม / ไม่วาด) */
+  hide?: Key[];
 }) {
+  const nm = (k: Key) => names?.[k] ?? SERIES[k].label;
   const uid = useId().replace(/:/g, "");
-  const [vis, setVis] = useState<Vis>({ order: true, delivery: true, forecast: true });
+  const [vis, setVis] = useState<Vis>({ order: !hide.includes("order"), delivery: !hide.includes("delivery"), forecast: !hide.includes("forecast") });
   const [view, setView] = useState<ChartView>("chart");
   const [hover, setHover] = useState(-1);
   const [tipY, setTipY] = useState(0);
@@ -220,7 +227,7 @@ export function MonthChart({
           {shown.map((k) => (
             <div key={k} className="flex items-center gap-2 py-0.5 text-[12.5px]">
               <i className="inline-block size-2.5 rounded-[3px]" style={{ background: k === "forecast" ? "#9cc4ff" : SERIES[k].a }} />
-              <span className="font-semibold opacity-75">{SERIES[k].label}</span>
+              <span className="font-semibold opacity-75">{nm(k)}</span>
               <b className="ml-auto font-extrabold tabular-nums">{fmt.format(Math.round(hd[k]))}</b>
             </div>
           ))}
@@ -251,7 +258,7 @@ export function MonthChart({
       {/* ปุ่ม Filter + CHART / TABLE */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className={`flex flex-wrap gap-2 transition-opacity ${view === "table" ? "invisible" : ""}`}>
-          {(Object.keys(SERIES) as Key[]).map((k) => (
+          {(Object.keys(SERIES) as Key[]).filter((k) => !hide.includes(k)).map((k) => (
             <button
               key={k}
               type="button"
@@ -266,7 +273,7 @@ export function MonthChart({
               ) : (
                 <span className="inline-block size-[9px] rounded-[3px]" style={{ background: `linear-gradient(${SERIES[k].a},${SERIES[k].b})` }} />
               )}
-              {SERIES[k].label}
+              {nm(k)}
             </button>
           ))}
         </div>
@@ -291,7 +298,7 @@ export function MonthChart({
                 </div>
                 {hasData(d) ? (
                   <div className="mt-2 grid grid-cols-3 gap-1.5 text-center tabular-nums">
-                    {([["FORECAST", d.forecast], ["ORDER", d.order], ["DELIVERY", d.delivery]] as const).map(([l, v]) => (
+                    {(([["forecast", d.forecast], ["order", d.order], ["delivery", d.delivery]] as [Key, number][]).filter(([k]) => !hide.includes(k)).map(([k, v]) => [nm(k), v] as const)).map(([l, v]) => (
                       <div key={l} className="rounded-xl bg-[#faf9fd] px-1 py-1.5">
                         <div className="text-[9.5px] font-black tracking-wide text-ink-soft">{l}</div>
                         <div className="truncate text-[13px] font-extrabold text-ink">{fmt.format(v)}</div>
@@ -309,7 +316,7 @@ export function MonthChart({
           <table className="w-full min-w-[520px] border-collapse text-sm tabular-nums">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-ink-soft">
-                {["Month", "Forecast", "Order", "Delivery", "Order vs Forecast"].map((h, i) => (
+                {[names?.month ?? "Month", nm("forecast"), nm("order"), nm("delivery"), names?.compare ?? "Order vs Forecast"].map((h, i) => (
                   <th key={h} className={`border-b border-line px-3 py-2.5 font-bold ${i ? "text-right" : "text-left"}`}>
                     {h}
                   </th>

@@ -103,7 +103,7 @@ export default function EdpPlanning() {
 
   if (!meta) return <Loading />;
   return (
-    <PageBody className="md-gray edp-dark">
+    <PageBody className="md-gray">
       <PageHeader icon="/icons/ForecastOrder.png" title="EDP • EDP PLANNING" subtitle={`ติดตามแผนผลิต · ${live ? "LIVE (แผนล่าสุด อัพเดทเอง)" : "ย้อนดูวันที่ " + (date ? dmy(date) : "-")}`} />
       <EdpBar
         date={date}

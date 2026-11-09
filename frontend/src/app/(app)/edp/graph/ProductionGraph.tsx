@@ -2,22 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
+import { MonthChart, type MonthPoint } from "@/components/charts/Charts";
+import { CustomerDonut } from "@/components/charts/CustomerDonut";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import "../edp.css";
 
-// 🏭 EDP › PRODUCTION GRAPH - ประสิทธิภาพ HG (ACT ÷ PLAN) · การ์ด KPI วันนี้ / เดือนนี้ (วงแหวน + ตัวเลขนับขึ้น)
-//   แท่งรายรอบวันนี้ · แท่งรายเดือน · เส้น PLAN เทียบ ACT รายวัน (ชี้ = เส้นนำสายตา + ป้ายค่า) · อัพเดทเองเมื่อหน้างาน MARK
+// 🏭 EDP › DASHBOARD (หน้าแรกของระบบ EDP) - กราฟชุดเดียวกับ Dashboard ของ CIMS
+//   KPI วันนี้ / เดือนนี้ / เดือนที่ดีที่สุด (วงแหวน + ตัวเลขนับขึ้น) · วงแหวนลูกค้า (HG ACT เดือนนี้)
+//   HG รายเดือน (แท่ง ACT + เส้น PLAN) · ประสิทธิภาพรายรอบวันนี้ · HG รายวันของเดือนนี้ · อัพเดทเองเมื่อหน้างาน MARK
 type G = {
   month: string;
+  year: number;
   monthly: { name: string; eff: number }[];
   daily: { day: string; plan: number; act: number }[];
   rounds: { round: number; plan: number; act: number; eff: number }[];
+  hgMonths: { label: string; plan: number; act: number }[];
+  customers: { name: string; amount: number; percentage: number }[];
 };
-
-const PLAN = "#71717a";
-const ACT = "#a78bfa";
+const NAMES = { forecast: "PLAN HG", order: "ACT HG", compare: "ACT vs PLAN" } as const;
 
 // ตัวเลขนับขึ้นนุ่ม ๆ (ลดการเคลื่อนไหว = แสดงค่าเลย)
 function useCount(target: number, ms = 1100) {
@@ -30,8 +34,7 @@ function useCount(target: number, ms = 1100) {
     const t0 = performance.now();
     const tick = (t: number) => {
       const k = reduce ? 1 : Math.min(1, (t - t0) / ms);
-      const e = 1 - Math.pow(1 - k, 3);
-      setV(a + (target - a) * e);
+      setV(a + (target - a) * (1 - Math.pow(1 - k, 3)));
       if (k < 1) raf = requestAnimationFrame(tick);
       else from.current = target;
     };
@@ -58,7 +61,7 @@ function Kpi({ cap, pct, sub, color, i }: { cap: string; pct: number; sub: strin
   );
 }
 
-function Bars({ items, max, unit = "%", target }: { items: { label: string; value: number; sub?: string }[]; max: number; unit?: string; target?: number }) {
+function Bars({ items, max, target }: { items: { label: string; value: number; sub?: string }[]; max: number; target?: number }) {
   const [hi, setHi] = useState<number | null>(null);
   return (
     <div className="edp-bars" style={{ "--n": items.length } as React.CSSProperties}>
@@ -68,8 +71,8 @@ function Bars({ items, max, unit = "%", target }: { items: { label: string; valu
         </span>
       )}
       {items.map((it, i) => (
-        <div key={it.label} className={`edp-bar-col ${hi === i ? "is-hi" : ""}`} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)} title={`${it.label}: ${it.value}${unit}${it.sub ? " · " + it.sub : ""}`}>
-          <span className="edp-bar-val">{it.value ? `${it.value}${unit}` : ""}</span>
+        <div key={it.label} className={`edp-bar-col ${hi === i ? "is-hi" : ""}`} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)} title={`${it.label}: ${it.value}%${it.sub ? " · " + it.sub : ""}`}>
+          <span className="edp-bar-val">{it.value ? `${it.value}%` : ""}</span>
           <span className="edp-bar-fill" style={{ "--h": `${Math.min(100, (it.value / max) * 100)}%`, "--d": `${i * 45}ms` } as React.CSSProperties} />
           <small>{it.label}</small>
         </div>
@@ -78,60 +81,7 @@ function Bars({ items, max, unit = "%", target }: { items: { label: string; valu
   );
 }
 
-function Lines({ rows }: { rows: G["daily"] }) {
-  const [hi, setHi] = useState<number | null>(null);
-  const W = 760,
-    H = 240,
-    P = 30;
-  const max = Math.max(10, ...rows.flatMap((r) => [r.plan, r.act]));
-  const x = (i: number) => P + (i * (W - P * 2)) / Math.max(1, rows.length - 1);
-  const y = (v: number) => H - P - (v / max) * (H - P * 2);
-  const path = (k: "plan" | "act") => rows.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join(" ");
-  const area = `${path("act")} L${x(rows.length - 1).toFixed(1)},${H - P} L${P},${H - P} Z`;
-  return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="edp-line w-full" role="img" aria-label="HG PLAN เทียบ ACT รายวัน">
-        <defs>
-          <linearGradient id="edp-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={ACT} stopOpacity="0.35" />
-            <stop offset="100%" stopColor={ACT} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 0.5, 1].map((f) => (
-          <g key={f}>
-            <line x1={P} x2={W - P} y1={y(max * f)} y2={y(max * f)} className="edp-grid" />
-            <text x={4} y={y(max * f) + 4} className="edp-axis">
-              {Math.round(max * f)}
-            </text>
-          </g>
-        ))}
-        <path d={area} fill="url(#edp-area)" className="edp-area" />
-        <path d={path("plan")} fill="none" stroke={PLAN} strokeWidth={2} className="edp-draw is-plan" />
-        <path d={path("act")} fill="none" stroke={ACT} strokeWidth={2.5} className="edp-draw" style={{ filter: `drop-shadow(0 0 6px ${ACT})` }} />
-        {rows.map((r, i) => (
-          <g key={r.day} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}>
-            <rect x={x(i) - 10} y={0} width={20} height={H} fill="transparent" />
-            {hi === i && <line x1={x(i)} x2={x(i)} y1={P} y2={H - P} className="edp-cross" />}
-            {(r.act > 0 || hi === i) && <circle cx={x(i)} cy={y(r.act)} r={hi === i ? 5.5 : 3.5} fill={ACT} stroke="#17171a" strokeWidth={2} />}
-            {i % 5 === 0 && (
-              <text x={x(i)} y={H - 8} textAnchor="middle" className="edp-axis">
-                {r.day}
-              </text>
-            )}
-          </g>
-        ))}
-      </svg>
-      {hi != null && (
-        <div className="edp-tip" style={{ left: `${(x(hi) / W) * 100}%` }}>
-          <b>{rows[hi].day}</b>
-          <span>PLAN {rows[hi].plan.toLocaleString()} HG</span>
-          <span>ACT {rows[hi].act.toLocaleString()} HG</span>
-          <span>{rows[hi].plan ? Math.round((rows[hi].act / rows[hi].plan) * 100) : 0}%</span>
-        </div>
-      )}
-    </div>
-  );
-}
+const asPoints = (rows: { label: string; plan: number; act: number }[]): MonthPoint[] => rows.map((r) => ({ label: r.label, forecast: r.plan, order: r.act, delivery: 0 }));
 
 export default function ProductionGraph() {
   const toast = useToast();
@@ -159,37 +109,36 @@ export default function ProductionGraph() {
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
   const best = g.monthly.reduce((a, m) => (m.eff > a.eff ? m : a), { name: "-", eff: 0 });
   return (
-    <PageBody className="edp-dark">
-      <PageHeader icon="/icons/Dashboard.png" title="EDP • PRODUCTION GRAPH" subtitle="ประสิทธิภาพ HG (ACT ÷ PLAN) · อัพเดทเองเมื่อหน้างาน MARK SUCCESS" />
+    <PageBody>
+      <PageHeader icon="/icons/Dashboard.png" title="EDP • DASHBOARD" subtitle="ประสิทธิภาพ HG (ACT ÷ PLAN) · อัพเดทเองเมื่อหน้างาน MARK SUCCESS" />
       <div className="edp-kpis">
-        <Kpi i={0} cap="TODAY" pct={pct(today.act, today.plan)} sub={`${today.act.toLocaleString()} / ${today.plan.toLocaleString()} HG`} color="#a78bfa" />
-        <Kpi i={1} cap={`MONTH ${g.month}`} pct={pct(month.act, month.plan)} sub={`${month.act.toLocaleString()} / ${month.plan.toLocaleString()} HG`} color="#60a5fa" />
-        <Kpi i={2} cap="BEST MONTH" pct={best.eff} sub={best.name} color="#4ade80" />
+        <Kpi i={0} cap="TODAY" pct={pct(today.act, today.plan)} sub={`${today.act.toLocaleString()} / ${today.plan.toLocaleString()} HG`} color="#6750a4" />
+        <Kpi i={1} cap={`MONTH ${g.month}`} pct={pct(month.act, month.plan)} sub={`${month.act.toLocaleString()} / ${month.plan.toLocaleString()} HG`} color="#2563eb" />
+        <Kpi i={2} cap="BEST MONTH" pct={best.eff} sub={best.name} color="#16a34a" />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="⏱ ROUND EFFICIENCY · วันนี้">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+        <CustomerDonut title={`HG ACT BY CUSTOMER • ${g.month}`} period={g.month} rows={g.customers} empty="ยังไม่มียอดผลิตของเดือนนี้" fill />
+        <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
+          <MonthChart data={asPoints(g.hgMonths)} year={g.year} fill names={NAMES} hide={["delivery"]} header={{ icon: "/images/dashboard/chart.png", title: `PLAN / ACT HG • ${g.year}` }} />
+        </section>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+        <Card title="⏱ ROUND EFFICIENCY • วันนี้">
           <div className="p-4">
             <Bars max={100} target={100} items={g.rounds.map((r) => ({ label: `R${r.round}`, value: r.eff, sub: `${r.act}/${r.plan} HG` }))} />
           </div>
         </Card>
-        <Card title={`📅 MONTHLY EFFICIENCY · ${g.month.slice(3)}`}>
-          <div className="p-4">
-            <Bars max={Math.max(100, ...g.monthly.map((m) => m.eff))} target={100} items={g.monthly.map((m) => ({ label: m.name, value: m.eff }))} />
-          </div>
-        </Card>
+        <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
+          <MonthChart
+            data={asPoints(g.daily.map((d) => ({ label: String(+d.day.slice(0, 2)), plan: d.plan, act: d.act })))}
+            year={g.month}
+            fill
+            names={{ ...NAMES, month: "Day" }}
+            hide={["delivery"]}
+            header={{ icon: "/images/dashboard/chart.png", title: `DAILY HG • ${g.month}` }}
+          />
+        </section>
       </div>
-      <Card
-        title={`📈 DAILY HG · ${g.month}`}
-        actions={
-          <span className="edp-legend">
-            <i style={{ background: PLAN }} /> PLAN <i style={{ background: ACT }} /> ACT
-          </span>
-        }
-      >
-        <div className="p-4">
-          <Lines rows={g.daily} />
-        </div>
-      </Card>
     </PageBody>
   );
 }

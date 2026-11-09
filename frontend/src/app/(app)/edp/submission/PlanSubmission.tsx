@@ -5,7 +5,7 @@ import { Empty, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { Modal } from "@/components/modals/Modal";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
-import { Select } from "@/components/dropdowns/Select";
+import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { EdpBar } from "../EdpBar";
@@ -508,18 +508,19 @@ function EditCard({ card, onClose, onSaved }: { card: Card; onClose: () => void;
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="fx">
                 <span className="fx-cap">CUSTOMER</span>
-                <Select value={cust} onChange={(v) => (setCust(v), setPartId(null))} options={custs.map((c) => ({ value: c, label: c }))} ariaLabel="CUSTOMER" />
+                <ComboBox value={cust} onChange={(v) => v !== cust && (setCust(v), setPartId(null))} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
               </label>
               <label className="fx">
                 <span className="fx-cap">PART NO</span>
-                <Select
+                <ComboBox
                   value={partId ? String(partId) : ""}
                   onChange={(v) => {
                     const p = parts?.find((x) => x.partId === +v);
                     setPartId(+v);
                     if (p?.pcsHg) setQty(hg * p.pcsHg);
                   }}
-                  options={[{ value: "", label: parts ? "เลือกชิ้นงาน" : "LOADING..." }, ...list.map((p) => ({ value: String(p.partId), label: p.partNo }))]}
+                  options={list.map((p) => ({ value: String(p.partId), label: p.partNo, sub: p.partName ?? undefined }))}
+                  placeholder={parts ? "พิมพ์ค้นหา PART NO / ชื่อ" : "LOADING..."}
                   ariaLabel="PART NO"
                 />
               </label>

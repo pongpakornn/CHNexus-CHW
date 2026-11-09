@@ -6,6 +6,7 @@ import { Modal } from "@/components/modals/Modal";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { Select } from "@/components/dropdowns/Select";
+import { ComboBox, TimeField } from "@/components/dropdowns/ComboBox";
 import { RowAction } from "@/components/button-action/RowAction";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
@@ -223,31 +224,51 @@ export default function PlanSetting() {
                       </span>
                     )}
                   </header>
+                  {/* รูป + ชื่อชิ้นงาน */}
+                  <div className="edp-set-head">
+                    <div className="edp-img">
+                      {e.img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={e.img} alt="" loading="lazy" onError={(v) => (v.currentTarget.style.display = "none")} />
+                      ) : (
+                        <span>NO IMAGE</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="edp-part">{parts.find((p) => p.partId === e.partId)?.partNo ?? "เลือกชิ้นงาน"}</div>
+                      <div className="edp-name">{e.partName ?? (e.customer || "-")}</div>
+                    </div>
+                  </div>
+                  {/* ลูกค้า / ชิ้นงาน: พิมพ์ค้นหาได้ (กรองรายการทันที) */}
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="fx">
                       <span className="fx-cap">CUSTOMER</span>
-                      {ro ? <b>{e.customer || "-"}</b> : <Select value={e.customer} onChange={(v) => patch(e.key, { customer: v, partId: null, pcsHg: 0, img: null, partName: null })} options={[{ value: "", label: "เลือกลูกค้า" }, ...custs.map((c) => ({ value: c, label: c }))]} ariaLabel="CUSTOMER" />}
+                      {ro ? (
+                        <b>{e.customer || "-"}</b>
+                      ) : (
+                        <ComboBox value={e.customer} onChange={(v) => v !== e.customer && patch(e.key, { customer: v, partId: null, pcsHg: 0, img: null, partName: null })} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
+                      )}
                     </label>
                     <label className="fx">
                       <span className="fx-cap">PART NO</span>
                       {ro ? (
                         <b>{parts.find((p) => p.partId === e.partId)?.partNo ?? "-"}</b>
                       ) : (
-                        <Select
+                        <ComboBox
                           value={e.partId ? String(e.partId) : ""}
                           onChange={(v) => {
                             const p = parts.find((x) => x.partId === +v);
                             if (!p) return;
-                            patch(e.key, { partId: p.partId, pcsHg: p.pcsHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
+                            patch(e.key, { partId: p.partId, customer: p.customer, pcsHg: p.pcsHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
                             setHg(e.key, p.qtyHg || e.hg, (p.qtyHg || e.hg) * p.pcsHg);
                           }}
-                          options={[{ value: "", label: "เลือกชิ้นงาน" }, ...list.map((p) => ({ value: String(p.partId), label: p.partNo }))]}
+                          options={(e.customer ? list : parts).map((p) => ({ value: String(p.partId), label: p.partNo, sub: [e.customer ? "" : p.customer, p.partName].filter(Boolean).join(" · ") }))}
+                          placeholder="พิมพ์ค้นหา PART NO / ชื่อ"
                           ariaLabel="PART NO"
                         />
                       )}
                     </label>
                   </div>
-                  {e.partName && <div className="edp-name">{e.partName}</div>}
                   <div className="edp-qty">
                     <label>
                       <small>QTY (PCS)</small>
@@ -267,9 +288,9 @@ export default function PlanSetting() {
                     ).map(([cap, a, b]) => (
                       <div key={cap}>
                         <small>{cap}</small>
-                        <input type="time" className="field" disabled={ro} value={e.t[a]} onChange={(v) => v.target.value && setTime(e.key, a, v.target.value)} />
+                        <TimeField value={e.t[a]} disabled={ro} ariaLabel={`${cap} BEGIN`} onChange={(v) => setTime(e.key, a, v)} />
                         <span>-</span>
-                        <input type="time" className="field" disabled={ro} value={e.t[b]} onChange={(v) => v.target.value && setTime(e.key, b, v.target.value)} />
+                        <TimeField value={e.t[b]} disabled={ro} ariaLabel={`${cap} END`} onChange={(v) => setTime(e.key, b, v)} />
                       </div>
                     ))}
                   </div>

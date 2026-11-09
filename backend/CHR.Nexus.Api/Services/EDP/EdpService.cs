@@ -534,11 +534,24 @@ public sealed class EdpService
             LEFT JOIN (EDP.vw_PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID AND H.PLH_DATE = CAST(GETDATE() AS DATE))
                    ON D.EFF_ROUND_ID = R.ROUND_ID AND ISNULL(D.IS_VISIBLE,1) = 1
             GROUP BY R.ROUND_ID ORDER BY R.ROUND_ID").ToList();
+        var hgMonth = c.Query<(int M, double Plan, double Act)>(@"
+            SELECT MONTH(H.PLH_DATE), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
+            FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID
+            WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) GROUP BY MONTH(H.PLH_DATE)").ToDictionary(x => x.M);
+        var custs = c.Query<(string Name, double Hg)>(@"
+            SELECT ISNULL(NULLIF(P.CUST_CODE,''),'-'), SUM(ISNULL(D.HG_ACT,0))
+            FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID LEFT JOIN EDP.vw_Parts P ON P.PT_ID = D.PT_ID
+            WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) AND MONTH(H.PLH_DATE) = MONTH(GETDATE())
+            GROUP BY ISNULL(NULLIF(P.CUST_CODE,''),'-') HAVING SUM(ISNULL(D.HG_ACT,0)) > 0 ORDER BY 2 DESC").ToList();
+        double custTotal = custs.Sum(x => x.Hg);
         var now = DateTime.Now;
         string[] mn = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
         return new
         {
             month = now.ToString("MM/yyyy"),
+            year = now.Year,
+            hgMonths = Enumerable.Range(1, 12).Select(m => new { label = mn[m - 1], plan = hgMonth.TryGetValue(m, out var x) ? x.Plan : 0, act = hgMonth.TryGetValue(m, out var y) ? y.Act : 0 }),
+            customers = custs.Select(x => new { name = x.Name, amount = x.Hg, percentage = custTotal > 0 ? Math.Round(x.Hg * 100 / custTotal, 1) : 0 }),
             monthly = Enumerable.Range(1, 12).Select(m => new { name = mn[m - 1], eff = Math.Round(monthly.GetValueOrDefault(m), 1) }),
             daily = Enumerable.Range(1, DateTime.DaysInMonth(now.Year, now.Month)).Select(d => new
             {

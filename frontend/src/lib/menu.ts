@@ -113,10 +113,10 @@ export const EDP: SystemDef = {
   icon: "/icons/ForecastOrder.png",
   color: "#7c3aed",
   menu: [
+    { href: "/edp/graph", label: "Dashboard", title: "EDP • DASHBOARD", icon: "/icons/Dashboard.png", can: "edpGraph" },
     { href: "/edp/submission", label: "Plan Submission", title: "EDP • PLAN SUBMISSION", icon: "/icons/registration.png", can: "edpSubmit" },
     { href: "/edp/planning", label: "EDP Planning", title: "EDP • EDP PLANNING", icon: "/icons/ForecastOrder.png", can: "edpPlanning" },
     { href: "/edp/plan-setting", label: "Plan Setting", title: "EDP • PLAN SETTING", icon: "/icons/ProductControl.png", can: "edpSetting" },
-    { href: "/edp/graph", label: "Production Graph", title: "EDP • PRODUCTION GRAPH", icon: "/icons/Dashboard.png", can: "edpGraph" },
   ],
 };
 
