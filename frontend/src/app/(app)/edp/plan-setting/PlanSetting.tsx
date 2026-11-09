@@ -6,19 +6,20 @@ import { Modal } from "@/components/modals/Modal";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { Select } from "@/components/dropdowns/Select";
-import { ComboBox, TimeField } from "@/components/dropdowns/ComboBox";
 import { RowAction } from "@/components/button-action/RowAction";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { DUR, EASE, fadeOnly, fadeUp } from "@/lib/motion";
+import { SetCards, type CardActions, type Ed } from "./SetCards";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { EdpBar } from "../EdpBar";
-import { baseHgOf, cascade, dmy, hgOf, imgOf, nowSlot, roundLabel, shiftStart, slotSwap, sortMin, timesOf, type Card, type CardsRes, type Meta, type Part, type Round, type Scope, type Shift, type Times } from "../edp";
+import { baseHgOf, cascade, dmy, imgOf, nowSlot, roundLabel, shiftStart, slotSwap, sortMin, timesOf, type Card, type CardsRes, type Meta, type Part, type Round, type Scope, type Shift, type Times } from "../edp";
 import "../edp.css";
 
 // 🏭 EDP › PLAN SETTING (ผู้วางแผน) - ย้ายจากหน้า Plan Setting ของ EDP Systems
 //   วางแผนรายรอบ: เพิ่มการ์ด · เลือกลูกค้า / ชิ้นงาน (STORE-PC) · ชิ้น <-> HG · เวลา START / OUT · SHOW / HIDE · ลบ · ลากสลับ
 //   แก้ HG = เวลาการ์ดถัดไปในรอบเลื่อนตาม (3.25 นาที / HG) · แก้เวลาเอง = ยึดเวลาบนจอเป็นฐานใหม่ · ลงฐานข้อมูลตอนกด SAVE ALL
 //   ALL = ภาพรวมทั้งวัน (กะ -> รอบ -> การ์ด) กด EDIT ที่รอบ = ไปแก้รอบนั้น · แม่แบบ (บันทึก / ใช้) · คัดลอกแผนจากวันอื่น · ล้างแผน
-type Ed = { key: number; partId: number | null; customer: string; qty: number; hg: number; pcsHg: number; t: Times; base: Times; baseHg: number; visible: boolean; roundId: number; done: boolean; img: string | null; partName: string | null };
 type Tpl = { tplId: number; tplName: string; shift: string | null; roundId: number | null; createBy: string | null; createAt: string; updateAt: string | null; cardCount: number };
 let seq = 0;
 const nextKey = () => --seq;
@@ -40,7 +41,8 @@ export default function PlanSetting() {
   const [eds, setEds] = useState<Ed[] | null>(null);
   const [all, setAll] = useState<Card[] | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [drag, setDrag] = useState<number | null>(null);
+  const [savedOk, setSavedOk] = useState(false); // SAVE ALL สำเร็จ = ปุ่มเป็นติ๊กเขียวสั้น ๆ
+  const reduce = useReducedMotion();
   const [modal, setModal] = useState<"save" | "tpl" | "apply" | "clear" | null>(null);
   const loadVer = useRef(0);
   const toastRef = useRef(toast);
@@ -145,6 +147,26 @@ export default function PlanSetting() {
     setEds(sorted(upd));
   }
 
+  const fns = useRef({ patch, setHg, setTime, remove, swap });
+  useEffect(() => {
+    fns.current = { patch, setHg, setTime, remove, swap };
+  });
+  const actions = useMemo<CardActions>(
+    () => ({
+      patch: (k, v) => fns.current.patch(k, v),
+      setHg: (k, h, q) => fns.current.setHg(k, h, q),
+      setTime: (k, f, v) => fns.current.setTime(k, f, v),
+      remove: (e) => void fns.current.remove(e),
+      pickPart: (e, p) => {
+        fns.current.patch(e.key, { partId: p.partId, customer: p.customer, pcsHg: p.pcsHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
+        fns.current.setHg(e.key, p.qtyHg || e.hg, (p.qtyHg || e.hg) * p.pcsHg);
+      },
+    }),
+    [],
+  );
+  const onSwap = useCallback((a: number, b: number) => fns.current.swap(a, b), []);
+  const shown = useMemo(() => (eds ? sorted(eds) : null), [eds]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const can = meta?.can ?? { add: false, edit: false, delete: false, submit: false, planning: false };
   const custs = useMemo(() => [...new Set(parts.map((p) => p.customer))].filter(Boolean), [parts]);
   const ro = !can.add;
@@ -180,9 +202,13 @@ export default function PlanSetting() {
               </button>
             )}
             {can.add && (
-              <button type="button" className={`cta-btn is-green ${dirty ? "edp-pulse" : ""}`} onClick={() => setModal("save")}>
-                💾 SAVE ALL
-              </button>
+              <motion.button type="button" whileTap={{ scale: 0.97 }} className={`cta-btn is-green ${dirty && !savedOk ? "edp-pulse" : ""} ${savedOk ? "is-saved" : ""}`} onClick={() => setModal("save")}>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span key={savedOk ? "ok" : "save"} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: DUR.fast, ease: EASE }}>
+                    {savedOk ? "✔ SAVED" : "💾 SAVE ALL"}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
             )}
           </>
         )}
@@ -194,119 +220,35 @@ export default function PlanSetting() {
         ) : (
           <Overview cards={all} rounds={rounds} onEdit={(s, r) => (setShift(s), setRound(r))} date={date} />
         )
-      ) : !eds ? (
+      ) : !shown ? (
         <Loading />
       ) : (
-        <Box title={`${dmy(date)} · กะ ${shift} · ${cur ? roundLabel(cur) : "-"} · ${eds.length} การ์ด${dirty ? " · ยังไม่บันทึก" : ""}`}>
-          {eds.length === 0 && <Empty>ยังไม่มีการ์ดในรอบนี้ · กด ＋ ADD CARD หรือใช้แม่แบบ</Empty>}
-          <div className="edp-cards is-edit">
-            {sorted(eds).map((e, i) => {
-              const list = parts.filter((p) => p.customer === e.customer);
-              return (
-                <article
-                  key={e.key}
-                  className={`edp-card ${e.visible ? "" : "is-hidden"} ${e.done ? "is-done" : ""} ${drag === e.key ? "is-drag" : ""}`}
-                  style={{ "--i": Math.min(i, 16) } as React.CSSProperties}
-                  draggable={!ro}
-                  onDragStart={() => setDrag(e.key)}
-                  onDragEnd={() => setDrag(null)}
-                  onDragOver={(ev) => drag != null && drag !== e.key && ev.preventDefault()}
-                  onDrop={(ev) => (ev.preventDefault(), drag != null && swap(drag, e.key), setDrag(null))}
-                >
-                  <header>
-                    <span className="edp-round">#{i + 1}</span>
-                    {e.done && <span className="edp-badge is-ok">✔ MARKED</span>}
-                    {!e.visible && <span className="edp-badge">HIDE</span>}
-                    {!ro && (
-                      <span className="ml-auto flex gap-1">
-                        <RowAction kind="hide" shown={e.visible} onClick={() => patch(e.key, { visible: !e.visible })} />
-                        <RowAction kind="delete" onClick={() => remove(e)} />
-                      </span>
-                    )}
-                  </header>
-                  {/* รูป + ชื่อชิ้นงาน */}
-                  <div className="edp-set-head">
-                    <div className="edp-img">
-                      {e.img ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={e.img} alt="" loading="lazy" onError={(v) => (v.currentTarget.style.display = "none")} />
-                      ) : (
-                        <span>NO IMAGE</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="edp-part">{parts.find((p) => p.partId === e.partId)?.partNo ?? "เลือกชิ้นงาน"}</div>
-                      <div className="edp-name">{e.partName ?? (e.customer || "-")}</div>
-                    </div>
-                  </div>
-                  {/* ลูกค้า / ชิ้นงาน: พิมพ์ค้นหาได้ (กรองรายการทันที) */}
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="fx">
-                      <span className="fx-cap">CUSTOMER</span>
-                      {ro ? (
-                        <b>{e.customer || "-"}</b>
-                      ) : (
-                        <ComboBox value={e.customer} onChange={(v) => v !== e.customer && patch(e.key, { customer: v, partId: null, pcsHg: 0, img: null, partName: null })} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
-                      )}
-                    </label>
-                    <label className="fx">
-                      <span className="fx-cap">PART NO</span>
-                      {ro ? (
-                        <b>{parts.find((p) => p.partId === e.partId)?.partNo ?? "-"}</b>
-                      ) : (
-                        <ComboBox
-                          value={e.partId ? String(e.partId) : ""}
-                          onChange={(v) => {
-                            const p = parts.find((x) => x.partId === +v);
-                            if (!p) return;
-                            patch(e.key, { partId: p.partId, customer: p.customer, pcsHg: p.pcsHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
-                            setHg(e.key, p.qtyHg || e.hg, (p.qtyHg || e.hg) * p.pcsHg);
-                          }}
-                          options={(e.customer ? list : parts).map((p) => ({ value: String(p.partId), label: p.partNo, sub: [e.customer ? "" : p.customer, p.partName].filter(Boolean).join(" · ") }))}
-                          placeholder="พิมพ์ค้นหา PART NO / ชื่อ"
-                          ariaLabel="PART NO"
-                        />
-                      )}
-                    </label>
-                  </div>
-                  <div className="edp-qty">
-                    <label>
-                      <small>QTY (PCS)</small>
-                      <input type="number" min={0} className="field" disabled={ro} value={e.qty} onChange={(v) => setHg(e.key, hgOf(+v.target.value || 0, e.pcsHg), +v.target.value || 0)} />
-                    </label>
-                    <label>
-                      <small>HG {e.pcsHg ? `(${e.pcsHg}/HG)` : ""}</small>
-                      <input type="number" min={0} className="field" disabled={ro} value={e.hg} onChange={(v) => setHg(e.key, +v.target.value || 0, (+v.target.value || 0) * e.pcsHg)} />
-                    </label>
-                  </div>
-                  <div className="edp-timegrid">
-                    {(
-                      [
-                        ["START", "sb", "se"],
-                        ["OUT", "ob", "oe"],
-                      ] as const
-                    ).map(([cap, a, b]) => (
-                      <div key={cap}>
-                        <small>{cap}</small>
-                        <TimeField value={e.t[a]} disabled={ro} ariaLabel={`${cap} BEGIN`} onChange={(v) => setTime(e.key, a, v)} />
-                        <span>-</span>
-                        <TimeField value={e.t[b]} disabled={ro} ariaLabel={`${cap} END`} onChange={(v) => setTime(e.key, b, v)} />
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-            {!ro && cur && (
-              <button type="button" className="edp-add" onClick={add}>
-                <span>＋</span>ADD CARD
-              </button>
-            )}
-          </div>
+        <Box title={`${dmy(date)} · กะ ${shift} · ${cur ? roundLabel(cur) : "-"} · ${shown.length} การ์ด${dirty ? " · ยังไม่บันทึก" : ""}`}>
+          {shown.length === 0 && <Empty>ยังไม่มีการ์ดในรอบนี้ · กด ＋ ADD CARD หรือใช้แม่แบบ</Empty>}
+          <AnimatePresence mode="wait">
+            <motion.div key={`${date}|${shift}|${round}`} variants={reduce ? fadeOnly : fadeUp} initial="hidden" animate="show" exit="exit">
+              <SetCards
+                eds={shown}
+                parts={parts}
+                custs={custs}
+                ro={ro}
+                actions={actions}
+                onSwap={onSwap}
+                addSlot={
+                  !ro &&
+                  cur && (
+                    <motion.button type="button" className="edp-add" onClick={add} whileTap={{ scale: 0.97 }} layout={!reduce}>
+                      <span>＋</span>ADD CARD
+                    </motion.button>
+                  )
+                }
+              />
+            </motion.div>
+          </AnimatePresence>
         </Box>
       )}
 
-      {modal === "save" && cur && eds && <SaveDialog date={date} shift={shift as Shift} round={cur.roundId} rounds={rounds} cards={eds} onClose={() => setModal(null)} onSaved={(d, s, r) => (setModal(null), setDirty(false), setDate(d), setShift(s), setRound(r), load())} />}
+      {modal === "save" && cur && eds && <SaveDialog date={date} shift={shift as Shift} round={cur.roundId} rounds={rounds} cards={eds} onClose={() => setModal(null)} onSaved={(d, s, r) => (setModal(null), setDirty(false), setSavedOk(true), setTimeout(() => setSavedOk(false), 1600), setDate(d), setShift(s), setRound(r), load())} />}
       {modal === "tpl" && cur && eds && <SaveTemplate date={date} shift={shift as Shift} round={cur} cards={eds} canDelete={can.delete} onClose={() => setModal(null)} />}
       {modal === "apply" && <ApplyDialog date={date} shift={shift as Shift} round={round} rounds={rounds} onClose={() => setModal(null)} onDone={() => (setModal(null), load())} />}
       {modal === "clear" && <ClearDialog date={date} shift={shift as Shift} round={round} onClose={() => setModal(null)} onDone={() => (setModal(null), load())} />}
@@ -388,7 +330,7 @@ function SaveDialog({ date, shift, round, rounds, cards, onClose, onSaved }: { d
             CANCEL
           </button>
           <button className="cta-btn is-green" disabled={busy} onClick={save}>
-            {busy ? "…" : `SAVE ${cards.length} CARDS`}
+            {busy ? <span className="edp-spin" aria-label="กำลังบันทึก" /> : `SAVE ${cards.length} CARDS`}
           </button>
         </>
       }

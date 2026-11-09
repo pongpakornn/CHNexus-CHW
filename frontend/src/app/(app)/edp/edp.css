@@ -1115,3 +1115,158 @@
   height: 64px;
   border-radius: 14px;
 }
+
+/* =====================================================================
+   🎞 MOTION รอบ 5 (ค่าเวลา / spring อยู่ที่ lib/motion.ts และ SetCards.tsx · DRAG)
+   ===================================================================== */
+/* Plan Setting: Framer Motion คุมการเข้า / ออกของการ์ดแล้ว -> ปิดอนิเมชันเข้าเดิม */
+.edp-card.is-set {
+  animation: none;
+}
+.edp-slot {
+  min-width: 0;
+}
+/* หัวการ์ด = ที่จับลาก */
+.edp-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.edp-handle:active {
+  cursor: grabbing;
+}
+.edp-num {
+  position: relative;
+  display: inline-grid;
+  min-width: 34px;
+  overflow: hidden;
+  text-align: center;
+}
+/* ชี้การ์ด: ยกขึ้น 2px + เงาเพิ่ม (0.15 วินาที) · เอาเมาส์ออกค่อย ๆ ลง */
+.edp-card.is-set:hover {
+  translate: 0 -2px;
+  transition-duration: 0.15s, 0.15s, 0.15s, 0.3s;
+}
+/* ช่องเดิมของการ์ดที่กำลังลาก = เส้นประจาง + พื้นโปร่ง (เนื้อการ์ดจาง) */
+.edp-placeholder > .edp-card {
+  border: 2px dashed rgb(167 139 250 / 0.55);
+  background: rgb(139 92 246 / 0.06);
+  box-shadow: none;
+}
+.edp-placeholder > .edp-card > * {
+  opacity: 0.18;
+}
+/* การ์ดที่ถูกยก (ตามเมาส์): ใหญ่ขึ้น 1.03 · เงาเข้มฟุ้ง · ขอบเรืองม่วง */
+.edp-card.is-lifted {
+  cursor: grabbing;
+  scale: 1.03;
+  border-color: #a78bfa;
+  box-shadow:
+    0 0 0 1px rgb(167 139 250 / 0.6),
+    0 0 28px rgb(139 92 246 / 0.45),
+    0 40px 70px -30px #000;
+  will-change: transform;
+}
+/* เวลาเปลี่ยน = ตัวเลขเลื่อนขึ้นจาง ๆ สั้น ๆ */
+.edp-tick {
+  display: block;
+  min-width: 0;
+  animation: edp-tick 0.3s var(--ease-drop);
+}
+@keyframes edp-tick {
+  from {
+    opacity: 0.2;
+    translate: 0 5px;
+  }
+}
+/* focus ช่องกรอก: วงแสงนุ่ม 0.15 วินาที */
+.edp-dark .field {
+  transition: border-color 0.15s var(--ease-drop), box-shadow 0.15s var(--ease-drop), background-color 0.15s var(--ease-drop);
+}
+/* ปุ่ม SAVE ALL: กำลังบันทึก = วงหมุน · สำเร็จ = เขียวสด */
+.edp-spin {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+  border-radius: 999px;
+  animation: edp-spin 0.7s linear infinite;
+}
+@keyframes edp-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.cta-btn.is-saved {
+  --b: #22c55e;
+  box-shadow: 0 0 22px rgb(34 197 94 / 0.6);
+}
+.cta-btn:disabled {
+  cursor: not-allowed;
+}
+/* ชิปวันที่: พื้นม่วงเลื่อนตาม (layoutId) */
+.edp-chips button {
+  position: relative;
+  isolation: isolate;
+  animation: none;
+}
+.edp-chips button.is-on {
+  background: #232327;
+}
+.edp-chip-pill {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  box-shadow: 0 6px 16px -8px rgb(139 92 246 / 0.9);
+}
+.edp-rounds button {
+  animation: none;
+}
+/* ปุ่ม START: hover เรืองเขียว */
+.edp-start:hover:not(:disabled) {
+  box-shadow: 0 0 26px rgb(34 197 94 / 0.55), 0 20px 38px -14px rgb(34 197 94 / 1);
+}
+/* Dashboard: การ์ดเต็มความสูงช่อง · โครงโหลด (skeleton วิบวับ) */
+.edp-panel {
+  min-width: 0;
+}
+.edp-panel.flex > * {
+  flex: 1;
+  min-width: 0;
+}
+.edp-kpis .edp-kpi {
+  animation: none;
+  height: 100%;
+}
+.edp-skel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #ececf2;
+}
+.edp-skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.7) 50%, transparent 70%);
+  translate: -100% 0;
+  animation: edp-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes edp-shimmer {
+  to {
+    translate: 100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edp-tick,
+  .edp-spin,
+  .edp-skel::after {
+    animation: none;
+  }
+  .edp-card.is-lifted {
+    scale: 1;
+  }
+}

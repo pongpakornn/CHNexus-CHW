@@ -7,6 +7,8 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { api } from "@/lib/api";
+import { motion, useReducedMotion } from "framer-motion";
+import { STAGGER, fadeOnly, fadeUp, springPop, springSoft } from "@/lib/motion";
 import { useLive } from "@/lib/live";
 import { EdpBar } from "../EdpBar";
 import { cascade, dmy, hgOf, imgOf, nowSlot, roundLabel, shiftStart, slotSwap, sortMin, timesOf, type Card, type CardsRes, type Meta, type Part, type Scope, type Shift, type Times } from "../edp";
@@ -391,6 +393,8 @@ function Picker({
 }) {
   const done = cards.filter((c) => c.isDone).length;
   const rs = meta.rounds.filter((r) => r.shift === shift);
+  const reduce = useReducedMotion();
+  const V = reduce ? fadeOnly : fadeUp;
   return (
     <section className="edp-pick">
       <div className="edp-pick-hero">
@@ -402,28 +406,46 @@ function Picker({
       {dates.length > 0 && (
         <div className="edp-chips">
           <span>วันที่มีแผน</span>
+          {/* ชิปวันที่ไล่ขึ้นทีละอัน · พื้นม่วงเลื่อนไปหาวันที่ที่เลือก (layoutId) */}
           {dates.slice(0, 10).map((d, i) => (
-            <button key={d} type="button" className={d === date ? "is-on" : ""} style={{ "--i": i } as React.CSSProperties} onClick={() => onDate(d)}>
-              {dmy(d)}
-            </button>
+            <motion.button
+              key={d}
+              type="button"
+              className={d === date ? "is-on" : ""}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0, transition: { delay: reduce ? 0 : i * STAGGER.chips, duration: 0.35 } }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onDate(d)}
+            >
+              {d === date && <motion.span layoutId="edp-date-pill" className="edp-chip-pill" transition={springSoft} />}
+              <span className="relative">{dmy(d)}</span>
+            </motion.button>
           ))}
         </div>
       )}
       {shift !== "ALL" && (
         <div className="edp-rounds">
-          <button type="button" className={round == null ? "is-on" : ""} onClick={() => onRound(null)}>
-            <b>ทั้งกะ</b>
-            <small>ทุกรอบของกะ {shift}</small>
-          </button>
-          {rs.map((r, i) => (
-            <button key={r.roundId} type="button" className={round === r.roundId ? "is-on" : ""} onClick={() => onRound(r.roundId)} style={{ "--i": i + 1 } as React.CSSProperties}>
-              <b>รอบ {r.roundId}</b>
-              <small>{roundLabel(r).replace(/^รอบ \d+ /, "")}</small>
-            </button>
+          {/* การ์ดรอบ: เลือกแล้วเด้งเล็กน้อย (spring) */}
+          {[{ id: null as number | null, title: "ทั้งกะ", sub: `ทุกรอบของกะ ${shift}` }, ...rs.map((r) => ({ id: r.roundId as number | null, title: `รอบ ${r.roundId}`, sub: roundLabel(r).replace(/^รอบ \d+ /, "") }))].map((x, i) => (
+            <motion.button
+              key={x.id ?? "all"}
+              type="button"
+              className={round === x.id ? "is-on" : ""}
+              custom={i}
+              variants={V}
+              initial="hidden"
+              animate={reduce ? "show" : { opacity: 1, y: 0, scale: round === x.id ? 1.03 : 1, transition: { ...springPop, delay: 0 } }}
+              whileHover={reduce ? undefined : { y: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => onRound(x.id)}
+            >
+              <b>{x.title}</b>
+              <small>{x.sub}</small>
+            </motion.button>
           ))}
         </div>
       )}
-      <div className="edp-pick-foot">
+      <motion.div className="edp-pick-foot" custom={4} variants={V} initial="hidden" animate="show">
         {!data ? (
           <span>⏳ กำลังโหลดแผน...</span>
         ) : cards.length > 0 ? (
@@ -434,10 +456,10 @@ function Picker({
         ) : (
           <span>ไม่พบแผนของวันที่ / กะ / รอบนี้ · ตั้งแผนที่หน้า PLAN SETTING</span>
         )}
-        <button type="button" className="edp-start" disabled={!data || cards.length === 0} onClick={onStart}>
+        <motion.button type="button" className="edp-start" disabled={!data || cards.length === 0} onClick={onStart} whileTap={{ scale: 0.97 }}>
           ▶ START PLANNING
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
     </section>
   );
 }

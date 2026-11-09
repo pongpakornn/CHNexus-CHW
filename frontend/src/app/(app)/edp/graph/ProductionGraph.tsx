@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loading, PageBody, PageHeader } from "@/components/layout/Page";
+import { PageBody, PageHeader } from "@/components/layout/Page";
+import { motion, useReducedMotion } from "framer-motion";
+import { fadeOnly, panelIn } from "@/lib/motion";
 import { MonthChart, type MonthPoint } from "@/components/charts/Charts";
 import { CustomerDonut } from "@/components/charts/CustomerDonut";
 import { useToast } from "@/components/notifications/Toasts";
@@ -94,6 +96,15 @@ function Kpi({
   );
 }
 
+// การ์ด 1 ใบของหน้า Dashboard: เปิดเข้ามาตามลำดับ (i) · ชี้ = ยกขึ้นเล็กน้อย
+function Panel({ i, reduce, children, className }: { i: number; reduce: boolean; children: React.ReactNode; className?: string }) {
+  return (
+    <motion.div custom={i} variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" whileHover={reduce ? undefined : { y: -3 }} className={`edp-panel ${className ?? ""}`}>
+      {children}
+    </motion.div>
+  );
+}
+
 const hh = (h: number) => `${String(h % 24).padStart(2, "0")}:00`;
 const asPoints = (
   rows: { label: string; plan: number; act: number }[],
@@ -112,6 +123,7 @@ export default function ProductionGraph() {
     toastRef.current = toast;
   });
   const [g, setG] = useState<G | null>(null);
+  const reduce = useReducedMotion();
   const load = useCallback(async (quiet = false) => {
     try {
       setG(await api<G>("/edp/graph"));
@@ -130,7 +142,24 @@ export default function ProductionGraph() {
   }, [load]);
   useLive(["edp"], () => load(true), 30_000);
 
-  if (!g) return <Loading />;
+  // 🎬 ลำดับการเปิดหน้า: หัวหน้า (0) -> KPI 3 ใบ (1-3) -> กราฟ 4 ใบ (4-7) ห่างกันทีละ 0.08 วินาที
+  const V = reduce ? fadeOnly : panelIn;
+  // โหลดอยู่ = โครงการ์ดวิบวับ (skeleton) ตามรูปทรงจริง
+  if (!g)
+    return (
+      <PageBody>
+        <div className="edp-skel" style={{ height: 56, width: 360 }} />
+        <div className="edp-kpis">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="edp-skel" style={{ height: 112 }} />
+          ))}
+        </div>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+          <div className="edp-skel" style={{ height: 420 }} />
+          <div className="edp-skel" style={{ height: 420 }} />
+        </div>
+      </PageBody>
+    );
   const today = g.rounds.reduce(
     (a, r) => ({ plan: a.plan + r.plan, act: a.act + r.act }),
     { plan: 0, act: 0 },
@@ -147,12 +176,15 @@ export default function ProductionGraph() {
   });
   return (
     <PageBody>
-      <PageHeader
-        icon="/icons/Dashboard.png"
-        title="EDP • DASHBOARD"
-        subtitle="ประสิทธิภาพ HG (ACT ÷ PLAN) · อัพเดทเองเมื่อหน้างาน MARK SUCCESS"
-      />
+      <motion.div custom={0} variants={V} initial="hidden" animate="show">
+        <PageHeader
+          icon="/icons/Dashboard.png"
+          title="EDP • DASHBOARD"
+          subtitle="ประสิทธิภาพ HG (ACT ÷ PLAN) · อัพเดทเองเมื่อหน้างาน MARK SUCCESS"
+        />
+      </motion.div>
       <div className="edp-kpis">
+        <Panel reduce={!!reduce} i={1}>
         <Kpi
           i={0}
           cap="TODAY"
@@ -160,6 +192,8 @@ export default function ProductionGraph() {
           sub={`${today.act.toLocaleString()} / ${today.plan.toLocaleString()} HG`}
           color="#6750a4"
         />
+        </Panel>
+        <Panel reduce={!!reduce} i={2}>
         <Kpi
           i={1}
           cap={`MONTH ${g.month}`}
@@ -167,6 +201,8 @@ export default function ProductionGraph() {
           sub={`${month.act.toLocaleString()} / ${month.plan.toLocaleString()} HG`}
           color="#2563eb"
         />
+        </Panel>
+        <Panel reduce={!!reduce} i={3}>
         <Kpi
           i={2}
           cap="BEST MONTH"
@@ -174,8 +210,10 @@ export default function ProductionGraph() {
           sub={best.name}
           color="#16a34a"
         />
+        </Panel>
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+        <Panel reduce={!!reduce} i={4} className="flex">
         <CustomerDonut
           title={`HG ACT BY CUSTOMER • ${g.month}`}
           period={g.month}
@@ -185,6 +223,8 @@ export default function ProductionGraph() {
           subtitle="สัดส่วนยอดผลิตจริง (HG) แยกตามลูกค้า"
           fill
         />
+        </Panel>
+        <Panel reduce={!!reduce} i={5} className="flex">
         <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
           <MonthChart
             data={asPoints(g.hgMonths)}
@@ -198,9 +238,11 @@ export default function ProductionGraph() {
             }}
           />
         </section>
+        </Panel>
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
         {/* รายรอบวันนี้: วงแหวนตามรอบเวลา (ชิ้นวงแหวน = HG ACT ของรอบ · รายการบอก % ประสิทธิภาพ) แบบหน้า Graph ของ EDP เดิม */}
+        <Panel reduce={!!reduce} i={6} className="flex">
         <CustomerDonut
           title={`ROUND EFFICIENCY • วันนี้ ${pct(today.act, today.plan)}%`}
           period="TODAY"
@@ -219,6 +261,8 @@ export default function ProductionGraph() {
           subtitle="ยอดผลิตจริง (HG) ตามรอบเวลา · % = ACT ÷ PLAN ของรอบ"
           fill
         />
+        </Panel>
+        <Panel reduce={!!reduce} i={7} className="flex">
         <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
           <MonthChart
             data={asPoints(
@@ -238,6 +282,7 @@ export default function ProductionGraph() {
             }}
           />
         </section>
+        </Panel>
       </div>
     </PageBody>
   );

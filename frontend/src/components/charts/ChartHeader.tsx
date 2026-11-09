@@ -1,5 +1,8 @@
 "use client";
 
+import { useId } from "react";
+import { motion } from "framer-motion";
+import { springSoft } from "@/lib/motion";
 // หัวการ์ดกราฟ: ไอคอนวงกลมม่วง + ชื่อ + คำอธิบาย + ปุ่มด้านขวา และสวิตช์ CHART / TABLE แบบเม็ดยา
 export function ChartHeader({ icon, title, subtitle, actions }: { icon: string; title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }) {
   return (
@@ -20,6 +23,8 @@ export function ChartHeader({ icon, title, subtitle, actions }: { icon: string; 
 export type ChartView = "chart" | "table";
 
 export function ViewSwitch({ value, onChange }: { value: ChartView; onChange: (v: ChartView) => void }) {
+  // พื้นน้ำเงินเลื่อนไปหาปุ่มที่เลือก (layoutId · แต่ละกราฟมีตัวของตัวเอง)
+  const id = useId();
   return (
     <div className="inline-flex rounded-full border border-[#dbe4f5] bg-[#eef3fd] p-[3px]" role="group" aria-label="View">
       {(["chart", "table"] as const).map((v) => (
@@ -28,11 +33,16 @@ export function ViewSwitch({ value, onChange }: { value: ChartView; onChange: (v
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
-          className={`min-w-[72px] rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 ${
-            value === v ? "bg-gradient-to-b from-[#3b82f6] to-[#2563eb] text-white shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]" : "text-[#4b5b8f] hover:text-[#1f2350]"
-          }`}
+          className={`relative min-w-[72px] rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors duration-300 active:scale-95 ${value === v ? "text-white" : "text-[#4b5b8f] hover:text-[#1f2350]"}`}
         >
-          {v}
+          {value === v && (
+            <motion.span
+              layoutId={`vs-${id}`}
+              className="absolute inset-0 rounded-full bg-gradient-to-b from-[#3b82f6] to-[#2563eb] shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]"
+              transition={springSoft}
+            />
+          )}
+          <span className="relative">{v}</span>
         </button>
       ))}
     </div>
