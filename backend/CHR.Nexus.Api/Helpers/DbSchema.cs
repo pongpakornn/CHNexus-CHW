@@ -207,6 +207,10 @@ namespace Nexus.Helpers
         private static bool _master;
         public static bool HasMasterData => _master || (_master = TableExists("Master.Customers") == true && TableExists("Master.Suppliers") == true);
 
+        // 🏭 EDP PLANNING (26_EDP_Planning.sql): EDP.PlanHeaders / EDP.PlanCards / EDP.vw_Parts (view)
+        private static bool _edp;
+        public static bool HasEdp => _edp || (_edp = TableExists("EDP.PlanCards") == true && TableExists("EDP.PlanTemplates") == true);
+
         // 🔐 รหัสผ่านแบบ Hash (22_User_Password_Hash.sql): Nexus.Users.PasswordHash
         private static bool _pwHash;
         public static bool HasPasswordHash => _pwHash || (_pwHash = ColumnIn("Nexus.Users", "PasswordHash") == true);

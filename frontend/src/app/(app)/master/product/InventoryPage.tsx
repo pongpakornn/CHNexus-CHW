@@ -3,7 +3,6 @@
 import { GroupRow, useCollapsed } from "@/components/tables/GroupRow";
 import { ActionMenu } from "@/components/menus/ActionMenu";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
-import { StockTile } from "@/components/cards/StockTile";
 import { Pager } from "@/components/tables/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
@@ -21,7 +20,7 @@ import { AdminModal } from "./AdminModal";
 import { LayoutQrPicker } from "./LayoutQrPicker";
 import { createPortal } from "react-dom";
 import { CoilPanel, type CoilRow } from "./CoilPanel";
-import { EMPTY_FORM, formOf, type Form, type InvStock, type Layout, type Meta, type Part } from "./types";
+import { EMPTY_FORM, formOf, type Form, type Layout, type Meta, type Part } from "./types";
 
 const PAGE = 100;
 
@@ -48,6 +47,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [filter, setFilter] = useState<number | null>(null);
+  const [edpOnly, setEdpOnly] = useState(false); // 🏭 FILTER EDP: เฉพาะชิ้นงานที่ระบบ EDP ใช้ (STORE-PC)
   const [formStk, setFormStk] = useState<number | null>(null); // คลังที่ลงทะเบียน -> ช่องกรอกตามคอลัมน์ของคลังนั้น (null = ทุกช่อง)
   const [key, setKey] = useState("");
   const [page, setPage] = useState(0);
@@ -126,8 +126,8 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   }, [toast, applyDefaultStocks, type, stk]);
 
   const query = useCallback(
-    (skip: number) => api<{ total: number; layout: Layout; coilStkId: number | null; groups?: Record<string, number>; rows: Part[] }>("/products", { query: { key: k, stkId: filter ?? undefined, skip, take: PAGE } }),
-    [k, filter],
+    (skip: number) => api<{ total: number; layout: Layout; coilStkId: number | null; groups?: Record<string, number>; rows: Part[] }>("/products", { query: { key: k, stkId: filter ?? undefined, skip, take: PAGE, edp: edpOnly || undefined } }),
+    [k, filter, edpOnly],
   );
 
   const reload = useCallback(async () => {
@@ -348,29 +348,22 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   }
 
   async function changeFilter(v: number | null) {
-    if (!editId && !viewId && v != null) setFormStk(v);
+    if (!editId && !viewId && v != null) {
+      setFormStk(v);
+      const s = meta?.stocks.find((x) => x.stkId === v);
+      if (s?.canAdd) {
+        setInMain(s.isMain);
+        setOthers(s.isMain ? [] : [s.stkId]);
+      }
+    }
+    setEdpOnly(false);
     setFilter(v);
     setPage(0);
     setCoils({});
     api("/products/filter", { method: "POST", body: v }).catch(() => {});
   }
 
-  function pickFormStock(v: number | null) {
-    setFormStk(v);
-    if (v == null || editId || viewId || !meta) return;
-    const s = meta.stocks.find((x) => x.stkId === v);
-    if (!s?.canAdd) return;
-    setInMain(s.isMain);
-    setOthers(s.isMain ? [] : [s.stkId]);
-  }
 
-  function toggleStock(id: number | "main") {
-    const nextMain = id === "main" ? !inMain : inMain;
-    const nextOthers = id === "main" ? others : others.includes(id) ? others.filter((x) => x !== id) : [...others, id];
-    setInMain(nextMain);
-    setOthers(nextOthers);
-    if (!editId && !viewId) api("/products/default-stocks", { method: "POST", body: `${nextMain ? "1" : "0"}|${nextOthers.join(",")}` }).catch(() => {});
-  }
 
   async function save(isEdit: boolean) {
     if (!form.partCode.trim()) return toast.show("WARNING", "กรุณากรอกรหัสสินค้าก่อนทำการลงทะเบียนครับ", "warn");
@@ -586,24 +579,6 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
     }
   };
 
-  // การ์ดเลือกคลัง (แบบ STOCK TYPE): ดูอย่างเดียว (VIEW) / คลังที่ไม่มีสิทธิ์ ADD-EDIT = ล็อก (กดไม่ได้ ค่าคงเดิม)
-  const stockChip = (s: InvStock, on: boolean, i: number) => {
-    const id = s.isMain ? ("main" as const) : s.stkId;
-    const locked = (!!viewId && !editId) || !(editId ? s.canEdit : s.canAdd);
-    return (
-      <StockTile
-        key={String(id)}
-        code={s.code}
-        index={i}
-        type={s.stockType}
-        on={on}
-        locked={locked}
-        sub={s.isMain ? "MAIN" : undefined}
-        title={locked ? `${s.name} • ไม่มีสิทธิ์${editId ? "แก้ไข" : "เพิ่ม"}ในคลังนี้ (ดูอย่างเดียว)` : s.name}
-        onClick={() => toggleStock(id)}
-      />
-    );
-  };
 
   const allTicked = (rows ?? []).length > 0 && (rows ?? []).every((r) => ticked.includes(r.ptId));
   const ncols = cols.length + 2;
@@ -695,14 +670,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                     CLEAR
                   </button>
                 )}
-                <MenuSelect
-                  compact
-                  className="w-[210px]"
-                  label="STOCK"
-                  value={formStk == null ? "" : String(formStk)}
-                  options={[{ value: "", label: "ALL FIELDS", title: "แสดงทุกช่อง" }, ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code, title: s.name }))]}
-                  onChange={(v) => pickFormStock(v ? Number(v) : null)}
-                />
+                {formStock && <span className="md-status is-on">STOCK · {formStock.code}</span>}
               </>
             }
             bodyClass="p-4 md:p-5"
@@ -814,9 +782,16 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
 
                 <div className="mt-4 flex flex-col gap-3 border-t border-line/60 pt-4 lg:flex-row lg:items-end">
                   <div className="min-w-0 flex-1">
+                    {/* คลังที่บันทึก = คลังของหน้านี้ (แต่ละคลังมีหน้าของตัวเองที่ Sidebar) · แก้ไข = คงคลังเดิมของสินค้า */}
                     <span className="mb-2 block text-[11px] font-extrabold uppercase text-ink-soft">STOCK</span>
-                    <div className="st-grid">
-                      {meta.stocks.map((s, i) => stockChip(s, s.isMain ? inMain : others.includes(s.stkId), i))}
+                    <div className="flex flex-wrap gap-1.5">
+                      {meta.stocks
+                        .filter((s) => (s.isMain ? inMain : others.includes(s.stkId)))
+                        .map((s) => (
+                          <span key={s.stkId} className="md-status is-on" title={s.name}>
+                            {s.code}
+                          </span>
+                        ))}
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -867,6 +842,16 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                 options={[...(meta.canAll ? [{ value: "", label: "ALL STOCKS" }] : []), ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))]}
                 onChange={(v) => changeFilter(v ? Number(v) : null)}
               />
+              {filterStock?.code === "STORE-PC" && (
+                <button
+                  type="button"
+                  className={`fill-btn ${edpOnly ? "is-on" : ""}`}
+                  title="แสดงเฉพาะชิ้นงานที่ระบบ EDP PLANNING ใช้ (มีค่า PCS/HG · HG QTY)"
+                  onClick={() => (setEdpOnly((v) => !v), setPage(0))}
+                >
+                  🏭 EDP {edpOnly ? "✓" : ""}
+                </button>
+              )}
             </>
           }
         >

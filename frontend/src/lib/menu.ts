@@ -15,7 +15,7 @@ export type MenuItem = {
   stockType?: string; // เมนูย่อยเป็นรายชื่อคลังประเภทนี้ (โหลดจาก /master/menu)
 };
 
-export type SystemKey = "root" | "cims";
+export type SystemKey = "root" | "cims" | "edp";
 
 // การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · art = ภาพประกอบการ์ด · color = สีแถบ/เงาการ์ด · desc = tooltip
 export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
@@ -101,12 +101,34 @@ export const ADMIN: SystemDef = {
   menu: [USERS_ITEM],
 };
 
+// 🏭 EDP PLANNING: วางแผนผลิต EDP (ชิ้นงานจาก MASTER DATA › STORE-PC) · สิทธิ์แยกรายหน้า
+export const EDP: SystemDef = {
+  key: "edp",
+  label: "EDP PLANNING",
+  name: "EDP Planning",
+  sub: "Production Plan · HG · Round",
+  art: "/images/systems/stamping-cell-art.webp",
+  title: "EDP • PRODUCTION PLANNING",
+  desc: "วางแผนผลิต EDP รายรอบ · หน้างาน MARK SUCCESS · ติดตามแผน · กราฟประสิทธิภาพ",
+  icon: "/icons/ForecastOrder.png",
+  color: "#0d9488",
+  menu: [
+    { href: "/edp/submission", label: "Plan Submission", title: "EDP • PLAN SUBMISSION", icon: "/icons/Dashboard.png", can: "edpSubmit" },
+    { href: "/edp/planning", label: "EDP Planning", title: "EDP • EDP PLANNING", icon: "/icons/ForecastOrder.png", can: "edpPlanning" },
+    { href: "/edp/plan-setting", label: "Plan Setting", title: "EDP • PLAN SETTING", icon: "/icons/CalculatorMxMn.png", can: "edpSetting" },
+    { href: "/edp/graph", label: "Production Graph", title: "EDP • PRODUCTION GRAPH", icon: "/icons/ActivityLog.png", can: "edpGraph" },
+  ],
+};
+
 // การ์ดหน้าเลือกระบบ (ลำดับที่แสดง)
-export const SYSTEMS: SystemDef[] = [CIMS, MASTER, ADMIN];
+export const SYSTEMS: SystemDef[] = [CIMS, EDP, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
+export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu, MASTER_ITEM];
+// Sidebar ของแต่ละระบบ
+export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : ROOT_MENU);
 
 // เห็นเมนูไหนบ้างตามสิทธิ์ (กลุ่มที่ไม่มีเมนูย่อยเหลือ = ซ่อนทั้งกลุ่ม)
 export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuItem[] {
@@ -121,11 +143,12 @@ export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuIt
 export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) => allowed(s.menu, can).length > 0);
 
 // ระบบของหน้าปัจจุบัน: /cims = CIMS · /admin = คงระบบที่มา (ไม่ระบุ) · อื่น ๆ = ROOT
-export const systemOf = (path: string): SystemKey | null => (path.startsWith("/cims") ? "cims" : path.startsWith("/admin") ? null : "root");
+export const systemOf = (path: string): SystemKey | null =>
+  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/admin") || path.startsWith("/master") ? null : "root";
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
-  const all = [...CIMS_MENU, ...ROOT_MENU].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
+  const all = [...CIMS_MENU, ...EDP_MENU, ...ROOT_MENU].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
   const type = new URLSearchParams(search).get("type");
   return all.find((m) => {
     const [p, q] = m.href.split("?");

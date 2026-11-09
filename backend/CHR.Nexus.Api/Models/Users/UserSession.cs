@@ -60,6 +60,22 @@ namespace Nexus.Models
         public bool CanEditMasterData => CanViewMasterData && P("MasterData", p => p.CanEdit);
         public bool CanDeleteMasterData => CanViewMasterData && P("MasterData", p => p.CanDelete);
 
+        // 🏭 EDP PLANNING (schema EDP · ระบบวางแผนผลิต EDP)
+        //    EdpSubmission  : VIEW = หน้า Plan Submission · EDIT = MARK SUCCESS / แก้ไขการ์ด / ลากสลับ / ปิดกะ
+        //    EdpPlanning    : VIEW = หน้า EDP Planning + Export · EDIT = Operator / Remark / Done
+        //    EdpPlanSetting : VIEW = หน้า Plan Setting · ADD = บันทึกแผน / แม่แบบ · EDIT = ใช้แม่แบบ / คัดลอกแผน · DEL = ล้างแผน / ลบแม่แบบ
+        //    EdpGraph       : VIEW = กราฟผลผลิต
+        public bool CanViewEdpSubmit => P("EdpSubmission", p => p.CanView);
+        public bool CanEditEdpSubmit => CanViewEdpSubmit && P("EdpSubmission", p => p.CanEdit);
+        public bool CanViewEdpPlanning => P("EdpPlanning", p => p.CanView);
+        public bool CanEditEdpPlanning => CanViewEdpPlanning && P("EdpPlanning", p => p.CanEdit);
+        public bool CanViewEdpSetting => P("EdpPlanSetting", p => p.CanView);
+        public bool CanAddEdpSetting => CanViewEdpSetting && P("EdpPlanSetting", p => p.CanAdd);
+        public bool CanEditEdpSetting => CanViewEdpSetting && P("EdpPlanSetting", p => p.CanEdit);
+        public bool CanDeleteEdpSetting => CanViewEdpSetting && P("EdpPlanSetting", p => p.CanDelete);
+        public bool CanViewEdpGraph => P("EdpGraph", p => p.CanView);
+        public bool CanViewEdpAny => CanViewEdpSubmit || CanViewEdpPlanning || CanViewEdpSetting || CanViewEdpGraph;
+
         // 📍 LAYOUT SETUP (ตำแหน่งจัดเก็บ) อยู่ที่ User Management › SETUP = Admin Level 1 (P() ให้ Level 1 ผ่านเสมอ · ไม่มีแถวสิทธิ์แยก)
         public bool CanViewLayout => P("LayoutSetup", p => p.CanView);
         public bool CanAddLayout => CanViewLayout && P("LayoutSetup", p => p.CanAdd);

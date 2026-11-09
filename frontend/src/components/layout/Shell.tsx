@@ -4,7 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { allowed, CIMS_MENU, findItem, ROOT_MENU, systemOf, type SystemKey } from "@/lib/menu";
+import { allowed, findItem, menuOf, systemOf, type SystemKey } from "@/lib/menu";
 import { Icon } from "@/components/icons";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MinReportAlert } from "@/components/notifications/MinReportAlert";
@@ -45,7 +45,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const here = systemOf(path);
   if (here && here !== sys) setSys(here);
   const can = me?.can ?? {};
-  const items = allowed(sys === "cims" ? CIMS_MENU : ROOT_MENU, can);
+  const items = allowed(menuOf(sys), can);
 
   // หน้าต่างแคบกว่า 1500 -> พับ Sidebar ให้เหลือแต่ไอคอนเอง (เหมือน SidebarAutoWidth ของ WPF)
   useEffect(() => {
@@ -73,7 +73,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* Sidebar จอใหญ่: กล่องนอกเลื่อนกว้าง 80 <-> 260 ส่วนข้างในกว้าง 260 ตลอด (ซ่อนส่วนเกิน) = ไอคอนอยู่ที่เดิม ตัวหนังสือไม่ถูกบีบ */}
       <aside className="sb-panel hidden shrink-0 overflow-hidden bg-sidebar shadow-xl backdrop-blur md:flex" style={{ width: open ? 260 : 80 }}>
         <div className="flex h-full w-[260px] shrink-0 flex-col">
-          <SidebarBrand compact={!open} system={sys === "cims" ? "CIMS" : undefined} />
+          <SidebarBrand compact={!open} system={sys === "cims" ? "CIMS" : sys === "edp" ? "EDP" : undefined} />
           <Suspense>
             <SidebarNav items={items} compact={!open} onExpand={() => setOpen(true)} />
           </Suspense>
@@ -85,7 +85,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className={`fixed inset-0 z-50 md:hidden ${mobile ? "" : "pointer-events-none"}`} aria-hidden={!mobile} inert={!mobile}>
         <div className={`sb-dim absolute inset-0 bg-black/40 ${mobile ? "opacity-100" : "opacity-0"}`} onClick={() => setMobile(false)} />
         <aside className={`sb-drawer absolute inset-y-0 left-0 flex w-[260px] flex-col bg-sidebar shadow-2xl backdrop-blur ${mobile ? "translate-x-0" : "-translate-x-full"}`}>
-          <SidebarBrand compact={false} system={sys === "cims" ? "CIMS" : undefined} />
+          <SidebarBrand compact={false} system={sys === "cims" ? "CIMS" : sys === "edp" ? "EDP" : undefined} />
           <Suspense>
             <SidebarNav items={items} compact={false} onNavigate={() => setMobile(false)} />
           </Suspense>

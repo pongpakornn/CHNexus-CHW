@@ -91,7 +91,7 @@ public sealed class ProductsController : AppController
         list.Count <= max ? string.Join("\n", list) : string.Join("\n", list.Take(max)) + $"\n+{list.Count - max:N0}";
 
     [HttpGet]
-    public IActionResult List([FromQuery] string key, [FromQuery] int? stkId, [FromQuery] int skip = 0, [FromQuery] int take = 100)
+    public IActionResult List([FromQuery] string key, [FromQuery] int? stkId, [FromQuery] int skip = 0, [FromQuery] int take = 100, [FromQuery] bool edp = false)
     {
         if (Me?.CanViewProductControl != true) return Deny();
         if (StockDenied(stkId) is { } denied) return denied;
@@ -100,6 +100,12 @@ public sealed class ProductsController : AppController
         var all = string.IsNullOrWhiteSpace(key)
             ? LiveCache.Get($"products:{stkId}", TimeSpan.FromSeconds(30), () => _svc.GetInventoryForQR(null, stkId))
             : _svc.GetInventoryForQR(key.Trim(), stkId);
+        // 🏭 FILTER EDP: เฉพาะชิ้นงานที่ระบบ EDP ใช้ (มีค่า PCS/HG หรือ HG QTY ใน STORE-PC)
+        if (edp && DbSchema.HasEdp)
+        {
+            var ids = new EdpService().PartIds();
+            all = all.Where(p => ids.Contains(p.PtId)).ToList();
+        }
         // หัวกลุ่มของทุกรายการ -> เรียงตามกลุ่มก่อนแบ่งหน้า (กลุ่มเดียวกันไม่กระจายข้ามหน้า) + จำนวนต่อกลุ่มทั้งหมด
         string GroupOf(ProductControlModel p)
         {

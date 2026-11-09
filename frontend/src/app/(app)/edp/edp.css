@@ -1,0 +1,734 @@
+/* =====================================================================
+   🏭 EDP PLANNING: แถบเลือก · การ์ดแผน (ไหลเข้าทีละใบ · ลากสลับ · ป้ายช้า) · ภาพรวม · กราฟ
+   เส้นโค้งเดียวกันทั้งระบบ --ease-drop · ปิดการเคลื่อนไหวเมื่อเครื่องตั้งลดการเคลื่อนไหว
+   ===================================================================== */
+.edp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line, #e4e4e7);
+  border-radius: 18px;
+  padding: 10px 12px;
+  background: var(--surface, #fff);
+  box-shadow: 0 10px 24px -20px rgb(24 24 27 / 0.5);
+  animation: edp-in 0.5s var(--ease-drop) both;
+}
+.edp-date {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  background: #f4f4f5;
+}
+.edp-date button {
+  width: 34px;
+  height: 38px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #52525b;
+  transition: background-color 0.25s var(--ease-drop), color 0.25s;
+}
+.edp-date button:hover {
+  color: #fff;
+  background: #3f3f46;
+}
+.edp-date input {
+  height: 38px;
+  border: 0;
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+  background: transparent;
+  color: #18181b;
+  outline: none;
+}
+/* แท็บแถบเลื่อน (--n = ตำแหน่ง · --c = จำนวนปุ่ม) */
+.edp-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr));
+  min-width: 260px;
+  border: 1px solid #e4e4e7;
+  border-radius: 13px;
+  padding: 3px;
+  background: #f4f4f5;
+}
+.edp-seg.is-2 {
+  min-width: 0;
+}
+.edp-seg-glider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--c, 3));
+  border-radius: 10px;
+  background: linear-gradient(180deg, #52525b, #3f3f46);
+  box-shadow: 0 8px 16px -10px #18181b;
+  translate: calc(var(--n, 0) * 100%) 0;
+  transition: translate 0.55s var(--ease-drop);
+}
+.edp-seg button {
+  position: relative;
+  z-index: 1;
+  height: 34px;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #52525b;
+  transition: color 0.35s var(--ease-drop);
+}
+.edp-seg button.is-on {
+  color: #fff;
+}
+.edp-seg button:disabled {
+  opacity: 0.4;
+}
+.edp-seg button:focus-visible {
+  outline: 2px solid #3f3f46;
+  outline-offset: -2px;
+}
+.edp-progress {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #27272a;
+  background: #f4f4f5;
+}
+.edp-progress::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #bbf7d0, #86efac);
+  transform-origin: left;
+  scale: var(--p, 0) 1;
+  transition: scale 0.8s var(--ease-drop);
+}
+.edp-progress b {
+  position: relative;
+}
+.edp-progress {
+  isolation: isolate;
+}
+.edp-progress::before {
+  z-index: -1;
+}
+.edp-stat {
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: #71717a;
+}
+.edp-stat.is-in-progress {
+  background: #2563eb;
+  animation: edp-breathe 2.4s ease-in-out infinite;
+}
+.edp-stat.is-completed {
+  background: #16a34a;
+}
+.edp-alert {
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #b91c1c;
+  background: linear-gradient(90deg, #fef2f2, #fff);
+  animation: edp-in 0.45s var(--ease-drop) both, edp-shake 0.5s ease 0.5s;
+}
+
+/* การ์ดแผน: ไหลเข้าทีละใบ (--i) · ชี้ = ยกขึ้นนุ่ม ๆ · ลาก = จาง · วางทับได้ = เส้นประฟ้า */
+.edp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 14px;
+}
+.edp-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  border: 1px solid #e4e4e7;
+  border-radius: 18px;
+  padding: 12px 14px 14px;
+  background: #fff;
+  box-shadow: 0 10px 24px -20px rgb(24 24 27 / 0.55);
+  animation: edp-card-in 0.6s var(--ease-drop) calc(var(--i, 0) * 45ms) both;
+  transition:
+    translate 0.8s cubic-bezier(0.25, 0.8, 0.25, 1),
+    box-shadow 0.8s cubic-bezier(0.25, 0.8, 0.25, 1),
+    border-color 0.4s,
+    opacity 0.3s;
+}
+.edp-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  border-radius: 18px 18px 0 0;
+  background: #3f3f46;
+  transition: background-color 0.4s;
+}
+.edp-card:hover {
+  translate: 0 -4px;
+  box-shadow: 0 22px 34px -24px rgb(24 24 27 / 0.6);
+  transition-duration: 0.6s, 0.6s, 0.3s, 0.3s;
+}
+.edp-card[draggable="true"] {
+  cursor: grab;
+}
+.edp-card.is-drag {
+  opacity: 0.45;
+  scale: 0.98;
+}
+.edp-card.is-over {
+  border: 2px dashed #2563eb;
+  translate: 0 -6px;
+}
+.edp-card.is-done {
+  border-color: #bbf7d0;
+  background: linear-gradient(180deg, #f0fdf4, #fff 60%);
+}
+.edp-card.is-done::before {
+  background: #16a34a;
+}
+.edp-card.is-problem {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.edp-card.is-late::before {
+  background: #ef4444;
+  animation: edp-breathe 1.6s ease-in-out infinite;
+}
+.edp-card.is-hidden {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.edp-card header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.edp-round {
+  flex: none;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: #3f3f46;
+}
+.edp-badge {
+  flex: none;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #3f3f46;
+  background: #f4f4f5;
+}
+.edp-badge.is-ok {
+  color: #15803d;
+  background: #dcfce7;
+  animation: edp-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.edp-badge.is-bad {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.edp-late {
+  margin-left: auto;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #fff;
+  background: #ef4444;
+}
+.edp-card-body {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+}
+.edp-img {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  overflow: hidden;
+  border-radius: 14px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #a1a1aa;
+  background: #f4f4f5;
+}
+.edp-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: scale 0.6s var(--ease-drop);
+}
+.edp-card:hover .edp-img img {
+  scale: 1.08;
+}
+.edp-part {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 800;
+  color: #18181b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edp-name {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  color: #71717a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edp-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.edp-times span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 9px;
+  padding: 3px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  color: #27272a;
+  background: #f4f4f5;
+}
+.edp-times small {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  color: #71717a;
+}
+.edp-qty {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+}
+.edp-qty label {
+  display: grid;
+  gap: 3px;
+}
+.edp-qty small,
+.edp-timegrid small {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #71717a;
+}
+.edp-qty b {
+  font-size: 13px;
+  font-weight: 800;
+}
+.edp-qty i {
+  font-style: normal;
+  font-size: 10px;
+  color: #71717a;
+}
+.edp-qty .field {
+  height: 36px;
+  text-align: center;
+  font-weight: 800;
+}
+.edp-remark {
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fffbeb;
+}
+.edp-card footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.edp-timegrid {
+  display: grid;
+  gap: 6px;
+}
+.edp-timegrid > div {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+.edp-timegrid .field {
+  height: 34px;
+  padding: 0 6px;
+  text-align: center;
+  font-family: ui-monospace, monospace;
+}
+.edp-add {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  min-height: 180px;
+  border: 2px dashed #d4d4d8;
+  border-radius: 18px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #71717a;
+  transition: border-color 0.35s var(--ease-drop), color 0.35s, background-color 0.35s, translate 0.5s var(--ease-drop);
+}
+.edp-add span {
+  font-size: 30px;
+  transition: rotate 0.5s var(--ease-drop);
+}
+.edp-add:hover {
+  border-color: #3f3f46;
+  color: #18181b;
+  background: #fafafa;
+  translate: 0 -3px;
+}
+.edp-add:hover span {
+  rotate: 90deg;
+}
+.edp-pulse {
+  animation: edp-breathe 1.6s ease-in-out infinite;
+}
+
+/* ภาพรวมทั้งวัน */
+.edp-ov {
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+  padding: 10px 12px;
+  animation: edp-in 0.5s var(--ease-drop) both;
+}
+.edp-ov header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.edp-ov header span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #71717a;
+}
+.edp-ov-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) minmax(0, 90px) 64px;
+  gap: 8px;
+  border-top: 1px dashed #e4e4e7;
+  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.edp-ov-row.is-hidden {
+  opacity: 0.45;
+}
+.edp-ov-row.is-done b::after {
+  content: " ✔";
+  color: #16a34a;
+}
+.fill-btn.is-sm {
+  padding: 4px 12px;
+  font-size: 11px;
+}
+.fill-btn.is-red {
+  --f: #ef4444;
+}
+
+/* แม่แบบ */
+.edp-tpls {
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.edp-tpl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  padding: 6px 8px 6px 12px;
+  transition: border-color 0.25s, background-color 0.25s;
+}
+.edp-tpl:hover {
+  border-color: #a1a1aa;
+  background: #fafafa;
+}
+.edp-tpl button:first-child {
+  display: grid;
+  flex: 1;
+  text-align: left;
+}
+.edp-tpl small {
+  font-size: 11px;
+  font-weight: 600;
+  color: #71717a;
+}
+
+/* ตาราง EDP Planning */
+.edp-row-done td {
+  background: #f0fdf4;
+}
+.edp-row-bad td {
+  color: #a1a1aa;
+}
+.edp-total td {
+  font-weight: 800 !important;
+  background: #f4f4f5;
+}
+
+/* กราฟ */
+.edp-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.edp-kpi {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  border: 1px solid #e4e4e7;
+  border-radius: 18px;
+  padding: 16px 18px 20px;
+  background: #fff;
+  animation: edp-card-in 0.6s var(--ease-drop) calc(var(--i, 0) * 90ms) both;
+}
+.edp-kpi small {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #71717a;
+}
+.edp-kpi b {
+  font-size: 32px;
+  font-weight: 800;
+  color: #18181b;
+}
+.edp-kpi span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #71717a;
+}
+.edp-kpi i {
+  position: absolute;
+  inset: auto 0 0;
+  height: 5px;
+  background: #2563eb;
+  transform-origin: left;
+  scale: var(--p, 0) 1;
+  animation: edp-grow 1.2s var(--ease-drop) 0.3s both;
+}
+.edp-bars {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  align-items: end;
+  gap: 8px;
+  height: 220px;
+  padding-top: 18px;
+}
+.edp-target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px dashed #a1a1aa;
+  font-size: 10px;
+  font-weight: 800;
+  color: #71717a;
+  margin-bottom: 20px;
+}
+.edp-bar-col {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  justify-items: center;
+}
+.edp-bar-val {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #27272a;
+}
+.edp-bar-fill {
+  align-self: end;
+  width: min(70%, 42px);
+  height: var(--h);
+  border-radius: 4px 4px 0 0;
+  background: #2563eb;
+  transform-origin: bottom;
+  animation: edp-rise 0.9s var(--ease-drop) var(--d, 0ms) both;
+  transition: filter 0.25s, background-color 0.25s;
+}
+.edp-bar-col.is-hi .edp-bar-fill {
+  background: #1d4ed8;
+}
+.edp-bar-col small {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #52525b;
+}
+.edp-line {
+  height: auto;
+  overflow: visible;
+}
+.edp-grid {
+  stroke: #e4e4e7;
+  stroke-width: 1;
+}
+.edp-axis {
+  font-size: 10px;
+  font-weight: 700;
+  fill: #71717a;
+}
+.edp-cross {
+  stroke: #a1a1aa;
+  stroke-dasharray: 3 3;
+}
+.edp-draw {
+  stroke-dasharray: 2400;
+  stroke-dashoffset: 2400;
+  animation: edp-draw 1.6s var(--ease-drop) forwards;
+}
+.edp-draw:not(.is-act) {
+  stroke-dasharray: 5 4;
+  stroke-dashoffset: 0;
+  animation: edp-fade 0.8s ease both;
+}
+.edp-tip {
+  position: absolute;
+  top: 6px;
+  display: grid;
+  gap: 1px;
+  translate: -50% 0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgb(24 24 27 / 0.9);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.edp-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #52525b;
+}
+.edp-legend i {
+  display: inline-block;
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+@keyframes edp-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+@keyframes edp-card-in {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.97;
+    filter: blur(3px);
+  }
+}
+@keyframes edp-pop {
+  from {
+    scale: 0.4;
+    opacity: 0;
+  }
+}
+@keyframes edp-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes edp-shake {
+  25% {
+    translate: -4px 0;
+  }
+  75% {
+    translate: 4px 0;
+  }
+}
+@keyframes edp-rise {
+  from {
+    scale: 1 0;
+  }
+}
+@keyframes edp-grow {
+  from {
+    scale: 0 1;
+  }
+}
+@keyframes edp-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes edp-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (max-width: 640px) {
+  .edp-seg {
+    min-width: 0;
+    width: 100%;
+  }
+  .edp-ov-row {
+    grid-template-columns: 96px minmax(0, 1fr) 56px;
+  }
+  .edp-ov-row > span:nth-child(3) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edp-bar,
+  .edp-card,
+  .edp-kpi,
+  .edp-kpi i,
+  .edp-bar-fill,
+  .edp-draw,
+  .edp-alert,
+  .edp-ov,
+  .edp-stat,
+  .edp-pulse,
+  .edp-card.is-late::before {
+    animation: none;
+    transition: none;
+  }
+  .edp-draw {
+    stroke-dashoffset: 0;
+  }
+  .edp-seg-glider,
+  .edp-progress::before {
+    transition: none;
+  }
+}
