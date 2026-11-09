@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useBubbleCorner } from "@/lib/profileCorner";
 import { Icon, type IconName } from "@/components/icons";
 
@@ -52,8 +52,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const leave = (id: number) => setList((l) => l.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
   const remove = (id: number) => setList((l) => l.filter((t) => t.id !== id));
 
+  // ค่าเดิมทุกครั้ง: แจ้งเตือนขึ้น / หาย ไม่ทำให้หน้าที่ใช้ toast โหลดข้อมูลใหม่ / วาดตารางใหม่ทั้งชุด
+  const api = useMemo(() => ({ show }), [show]);
   return (
-    <ToastCtx.Provider value={{ show }}>
+    <ToastCtx.Provider value={api}>
       {children}
       <div
         className="pointer-events-none fixed inset-x-3 z-[100] flex flex-col items-end gap-2 sm:inset-x-auto sm:right-4 sm:w-80"

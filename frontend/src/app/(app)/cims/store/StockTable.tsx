@@ -78,6 +78,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const toast = useToast();
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
+  const selfRef = useRef<Set<number>>(new Set()); // แถวที่ผู้ใช้เพิ่งแก้เอง (ไม่กระพริบซ้ำ)
   const [rows, setRows] = useState<Product[] | null>(null);
   const [page, setPage] = useState(0); // หน้าที่แสดง (ละ PAGE รายการ)
   const [key, setKey] = useState("");
@@ -224,7 +225,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     });
     if (hit.length === 0) return;
     setRows(next);
-    if (hit.length <= 50) flashRows(hit);
+    // แถวที่เพิ่งแก้เองไม่ต้องกระพริบ (กระพริบเฉพาะที่เปลี่ยนจากเครื่องอื่น / การสแกน)
+    const others = hit.filter((id) => !selfRef.current.has(id));
+    if (others.length > 0 && others.length <= 50) flashRows(others);
     setMeta((m) => (m && (JSON.stringify(m.counts) !== JSON.stringify(r.counts) || JSON.stringify(m.coilSum) !== JSON.stringify(r.coilSum)) ? { ...m, counts: r.counts, coilSum: r.coilSum } : m));
   }, [stkId]);
 
@@ -476,6 +479,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         const next = { ...original, [field]: value };
         setRows((cur) => cur?.map((x) => (x.partId === p.partId ? { ...x, [field]: value } : x)) ?? cur);
         editingRef.current = true; // ระหว่างบันทึก รอบเรียลไทม์ไม่ดึงค่ามาทับ
+        selfRef.current.add(p.partId);
+        setTimeout(() => selfRef.current.delete(p.partId), 5000);
         try {
           await api(`/store/${stkId}/products/${p.partId}`, { method: "PUT", body: { ...next, original } });
           editingRef.current = false;

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { useLive } from "./live";
 import { splashWait } from "./splash";
@@ -63,7 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ⚡ Admin บันทึกสิทธิ์ / ผู้ใช้ (หัวข้อ users) = โหลดสิทธิ์ของฉันใหม่ทันที (เมนู / ปุ่ม เปลี่ยนตามโดยไม่ต้อง Login ใหม่)
   useLive(me ? ["users"] : [], refresh);
 
-  return <Ctx.Provider value={{ me, loading, refresh, logout }}>{children}</Ctx.Provider>;
+  const value = useMemo(() => ({ me, loading, refresh, logout }), [me, loading, refresh, logout]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

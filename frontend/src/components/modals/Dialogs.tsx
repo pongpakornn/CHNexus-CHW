@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 // ✅ ยืนยัน / กรอกข้อความ / แจ้งผล (แทน DialogHelper.ShowConfirm / ShowTextInput / ShowSuccess ของ WPF) - ใช้แบบ await
 //    หน้าตา: การ์ดกลางจอ + ไอคอนตามประเภทในวงสี + ปุ่มเต็มความกว้าง · เปิด = เด้งเข้า, ปิด = จางออก · Esc = ยกเลิก, Enter = ยืนยัน
@@ -117,8 +117,10 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   const msg = state?.opt.message;
   const long = typeof msg !== "string" || msg.includes("\n");
 
+  // ค่าเดิมทุกครั้ง: เปิด / ปิดหน้าต่างยืนยัน ไม่ทำให้หน้าที่ใช้ dialog โหลดใหม่
+  const api = useMemo(() => ({ confirm, prompt, alert }), [confirm, prompt, alert]);
   return (
-    <Ctx.Provider value={{ confirm, prompt, alert }}>
+    <Ctx.Provider value={api}>
       {children}
       {state && tone && (
         <div className={`dlg-bg fixed inset-0 z-[95] grid place-items-center p-4 ${leaving ? "is-leaving" : ""}`} onMouseDown={() => close(false)}>
