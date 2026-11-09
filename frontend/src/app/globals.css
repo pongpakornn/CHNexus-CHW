@@ -11022,10 +11022,15 @@ table.lqp code {
   }
 }
 
-/* ⬛ Customer / Supplier: ข้อมูลในตารางตัวหนา */
+/* ⬛ Customer / Supplier / Product Control: ข้อมูลในตารางตัวหนา ขนาดพอดีช่อง */
 .md-gray .data-table td {
-  font-weight: 700;
-  color: #27272a;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #18181b;
+  white-space: nowrap;
+}
+.md-gray .data-table td.font-mono {
+  letter-spacing: 0.02em;
 }
 /* แท็บสถานะ (ALL / ACTIVE / INACTIVE): ช่องเท่ากัน · แถบเทาเข้มเลื่อนไปหาแท็บที่เลือก (--n) */
 .md-seg {
@@ -11116,6 +11121,125 @@ table.lqp code {
 @media (prefers-reduced-motion: reduce) {
   .md-seg-glider,
   .md-seg button {
+    transition: none;
+  }
+}
+
+/* =====================================================================
+   🔎 ComboBox (พิมพ์ค้นหา + รายการสไลด์ลง) · TimeField (เวลา HH:mm)
+   ===================================================================== */
+.cmb {
+  position: relative;
+  min-width: 0;
+}
+.cmb-in {
+  padding-right: 2.1rem !important;
+  text-overflow: ellipsis;
+}
+.cmb-chev {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  translate: 0 -50%;
+  color: #6750a4;
+  pointer-events: none;
+  transition: rotate 0.4s var(--ease-drop);
+}
+.cmb.is-open .cmb-chev {
+  rotate: 180deg;
+}
+.cmb.is-off .cmb-chev {
+  opacity: 0.4;
+}
+.cmb-time .cmb-in {
+  text-align: center;
+  font-weight: 800;
+}
+.cmb-list {
+  position: fixed;
+  z-index: 200;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: 14px;
+  padding: 6px;
+  background: #fff;
+  box-shadow: 0 22px 44px -18px rgb(40 30 90 / 0.45), 0 0 0 1px rgb(37 99 235 / 0.12);
+  animation: cmb-in 0.45s var(--ease-drop) both;
+}
+.cmb-list.is-up {
+  transform-origin: bottom;
+}
+.cmb-list li {
+  position: relative;
+  display: grid;
+  gap: 1px;
+  border-radius: 10px;
+  padding: 7px 10px 7px 14px;
+  font-size: 13px;
+  color: #1a1c1e;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease-drop), translate 0.25s var(--ease-drop);
+}
+.cmb-list li b {
+  font-weight: 700;
+}
+.cmb-list li small {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.cmb-list li.is-hi {
+  background: #eef4ff;
+  translate: 2px 0;
+}
+.cmb-list li.is-on::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 3px;
+  background: #2563eb;
+}
+.cmb-list li.is-on b {
+  color: #2563eb;
+}
+.cmb-none {
+  padding: 10px 12px !important;
+  font-size: 12px !important;
+  font-weight: 700;
+  color: #6b7280 !important;
+  cursor: default !important;
+}
+@keyframes cmb-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0 round 14px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 14px);
+  }
+}
+.cmb-list.is-up {
+  animation-name: cmb-in-up;
+}
+@keyframes cmb-in-up {
+  from {
+    opacity: 0;
+    clip-path: inset(100% 0 0 0 round 14px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmb-list,
+  .cmb-chev,
+  .cmb-list li {
+    animation: none;
     transition: none;
   }
 }

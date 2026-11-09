@@ -393,7 +393,7 @@ export function MonthChart({
             {data.map((d, i) => (
               <text key={d.label} x={sx(i)} y={H - 10} textAnchor="middle" className={`${narrow ? "text-[10.5px]" : "text-[12.5px]"} transition-[fill] ${hover === i ? "fill-ink font-extrabold" : "fill-ink-soft font-semibold"}`}>
                 {/* จอแคบ: ชื่อเดือนย่อ 1 ตัวอักษร (ไม่ซ้อนกัน) - ชี้ / แตะแท่งยังเห็นชื่อเต็มใน Tooltip */}
-                {narrow ? d.label.slice(0, 1) : d.label}
+                {narrow && d.label.length > 2 ? d.label.slice(0, 1) : d.label}
               </text>
             ))}
 
@@ -450,7 +450,7 @@ export function MonthChart({
                     textAnchor={last[0] + 80 > W ? "end" : "start"}
                     className="fill-ink text-[12px] font-extrabold tracking-wider"
                   >
-                    FORECAST
+                    {nm("forecast")}
                   </text>
                 )}
               </g>

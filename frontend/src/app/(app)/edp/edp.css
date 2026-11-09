@@ -16,10 +16,7 @@
   min-height: calc(100dvh - 60px);
   color: var(--ink);
   /* พื้นเทาเข้มเฉพาะหน้านี้ (ไม่แตะพื้นของหน้าอื่น) */
-  background:
-    radial-gradient(60% 40% at 85% 0%, rgb(124 58 237 / 0.14), transparent 70%),
-    radial-gradient(50% 35% at 0% 100%, rgb(37 99 235 / 0.1), transparent 70%),
-    #17171a;
+  background: #1f1f23;
 }
 .edp-soft-vars,
 .edp-pick,
@@ -258,10 +255,7 @@
   border: 1px solid #33333a;
   border-radius: 22px;
   padding: 26px 26px 24px;
-  background:
-    radial-gradient(70% 120% at 100% 0%, rgb(139 92 246 / 0.32), transparent 60%),
-    radial-gradient(60% 120% at 0% 100%, rgb(37 99 235 / 0.22), transparent 60%),
-    #222226;
+  background: #27272b;
   animation: edp-in 0.6s var(--ease-drop) both;
 }
 .edp-pick-hero::after {
@@ -433,10 +427,11 @@
   background: var(--edp-card);
   box-shadow: 0 16px 34px -26px #000;
   animation: edp-card-in 0.65s var(--ease-drop) calc(var(--i, 0) * 45ms) both;
+  /* เอาเมาส์ออก: ค่อย ๆ ลงกลับที่เดิม (จังหวะเดียวกับ Dropdown ของระบบ) */
   transition:
-    translate 0.9s var(--edp-soft),
-    box-shadow 0.9s var(--edp-soft),
-    border-color 0.5s var(--edp-soft),
+    translate 0.6s var(--ease-drop),
+    box-shadow 0.6s var(--ease-drop),
+    border-color 0.45s var(--ease-drop),
     opacity 0.3s;
 }
 .edp-card::before {
@@ -459,11 +454,9 @@
 }
 .edp-card:hover {
   translate: 0 -6px;
-  border-color: rgb(139 92 246 / 0.55);
-  box-shadow:
-    0 0 0 1px rgb(139 92 246 / 0.25),
-    0 28px 50px -26px rgb(139 92 246 / 0.55);
-  transition-duration: 0.7s, 0.7s, 0.4s, 0.3s;
+  border-color: #52525b;
+  box-shadow: 0 26px 46px -26px #000;
+  transition-duration: 0.45s, 0.45s, 0.3s, 0.3s;
 }
 .edp-card:hover::after {
   translate: 120% 0;

@@ -116,9 +116,9 @@ export function ComboBox({
   }
 
   return (
-    <div ref={box} className={`cbx ${open ? "is-open" : ""} ${disabled ? "is-off" : ""} ${className}`}>
+    <div ref={box} className={`cmb ${open ? "is-open" : ""} ${disabled ? "is-off" : ""} ${className}`}>
       <input
-        className={`field cbx-in ${mono ? "font-mono" : ""}`}
+        className={`field cmb-in ${mono ? "font-mono" : ""}`}
         role="combobox"
         aria-label={ariaLabel}
         aria-expanded={open}
@@ -132,7 +132,7 @@ export function ComboBox({
         onKeyDown={key}
         onBlur={() => setTimeout(() => document.activeElement !== box.current?.querySelector("input") && open && close(), 120)}
       />
-      <span className="cbx-chev" aria-hidden>
+      <span className="cmb-chev" aria-hidden>
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -143,12 +143,12 @@ export function ComboBox({
             ref={list}
             id={id}
             role="listbox"
-            className={`cbx-list ${pos.up ? "is-up" : ""}`}
+            className={`cmb-list ${pos.up ? "is-up" : ""}`}
             style={{ left: pos.left, top: pos.top, width: pos.width, translate: pos.up ? "0 -100%" : undefined }}
             onMouseDown={(e) => e.preventDefault()}
           >
             {items.length === 0 ? (
-              <li className="cbx-none">{free && free(text) != null ? `ใช้ค่า "${free(text)}" (Enter)` : "ไม่พบรายการ"}</li>
+              <li className="cmb-none">{free && free(text) != null ? `ใช้ค่า "${free(text)}" (Enter)` : "ไม่พบรายการ"}</li>
             ) : (
               items.map((o, i) => (
                 <li key={o.value} role="option" aria-selected={o.value === value} className={`${i === hi ? "is-hi" : ""} ${o.value === value ? "is-on" : ""} ${mono ? "font-mono" : ""}`} onMouseEnter={() => setHi(i)} onClick={() => pick(o)}>
@@ -178,5 +178,5 @@ export function normTime(t: string): string | null {
 }
 export function TimeField({ value, onChange, disabled, ariaLabel }: { value: string; onChange: (v: string) => void; disabled?: boolean; ariaLabel?: string }) {
   const opts = TIMES.some((o) => o.value === value) ? TIMES : [{ value, label: value }, ...TIMES];
-  return <ComboBox value={value} options={opts} onChange={onChange} free={normTime} disabled={disabled} ariaLabel={ariaLabel} placeholder="HH:mm" mono className="cbx-time" />;
+  return <ComboBox value={value} options={opts} onChange={onChange} free={normTime} disabled={disabled} ariaLabel={ariaLabel} placeholder="HH:mm" mono className="cmb-time" />;
 }

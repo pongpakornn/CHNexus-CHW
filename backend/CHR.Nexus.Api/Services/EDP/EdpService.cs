@@ -528,12 +528,12 @@ public sealed class EdpService
             FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID
             WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) AND MONTH(H.PLH_DATE) = MONTH(GETDATE())
             GROUP BY H.PLH_DATE").ToDictionary(x => x.D.Day);
-        var rounds = c.Query<(int Round, double Plan, double Act)>(@"
-            SELECT R.ROUND_ID, ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
+        var rounds = c.Query<(int Round, int Start, int End, double Plan, double Act)>(@"
+            SELECT R.ROUND_ID, ISNULL(R.START_HOUR,0), ISNULL(R.END_HOUR,0), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
             FROM EDP.Rounds R
             LEFT JOIN (EDP.vw_PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID AND H.PLH_DATE = CAST(GETDATE() AS DATE))
                    ON D.EFF_ROUND_ID = R.ROUND_ID AND ISNULL(D.IS_VISIBLE,1) = 1
-            GROUP BY R.ROUND_ID ORDER BY R.ROUND_ID").ToList();
+            GROUP BY R.ROUND_ID, R.START_HOUR, R.END_HOUR ORDER BY R.ROUND_ID").ToList();
         var hgMonth = c.Query<(int M, double Plan, double Act)>(@"
             SELECT MONTH(H.PLH_DATE), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
             FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID
@@ -559,7 +559,7 @@ public sealed class EdpService
                 plan = daily.TryGetValue(d, out var v) ? v.Plan : 0,
                 act = daily.TryGetValue(d, out var w) ? w.Act : 0
             }),
-            rounds = rounds.Select(r => new { round = r.Round, plan = r.Plan, act = r.Act, eff = r.Plan > 0 ? Math.Min(100, Math.Round(r.Act * 100 / r.Plan, 1)) : 0 })
+            rounds = rounds.Select(r => new { round = r.Round, start = r.Start, end = r.End, plan = r.Plan, act = r.Act, eff = r.Plan > 0 ? Math.Min(100, Math.Round(r.Act * 100 / r.Plan, 1)) : 0 })
         };
     }
 }
