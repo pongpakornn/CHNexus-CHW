@@ -1,5 +1,6 @@
 // 🏭 EDP PLANNING: ชนิดข้อมูล + การคำนวณเวลา (เงื่อนไขเดียวกับโปรแกรม EDP Systems)
 //   1 HG = 3.25 นาที · ส่วนต่างสะสมแบบละเอียด แล้วปัดเป็นนาทีที่ใกล้ที่สุดตอนแสดง (±3.25 → ±3 · ±6.5 → ±7)
+//   ชิ้น <-> HG ใช้ QTY_HG (ชิ้นต่อ 1 HG · BaseQtyPerHg ของโปรแกรมเดิม) ไม่ใช่ PCS_HG
 //   รอบ 1-3 (08:00-20:00) = กะ DAY · รอบ 4-6 (20:00-08:00) = กะ NIGHT · กะดึก 00:xx อยู่หลัง 23:xx
 
 export const MIN_PER_HG = 3.25;
@@ -23,6 +24,7 @@ export type Card = {
   partName: string | null;
   img: string | null;
   pcsHg: number;
+  qtyHg: number; // ชิ้นต่อ 1 HG (QTY_HG) = ฐานแปลง ชิ้น <-> HG
   qtyPlan: number;
   hgPlan: number;
   qtyAct: number;
@@ -74,8 +76,8 @@ const len = (a: string, b: string) => {
   return Number.isNaN(x) || Number.isNaN(y) ? 0 : (y - x + 1440) % 1440;
 };
 
-// HG -> ชิ้น / ชิ้น -> HG (ปัดขึ้นเฉพาะเศษ >= 0.5)
-export const hgOf = (qty: number, pcsHg: number) => (pcsHg > 0 ? (qty / pcsHg) % 1 >= 0.5 ? Math.ceil(qty / pcsHg) : Math.floor(qty / pcsHg) : 0);
+// ชิ้น -> HG (ปัดขึ้นเฉพาะเศษ >= 0.5) · ไม่มีฐาน (QTY_HG = 0) = HG เท่าเดิม (แบบ PlanItem.QtyAct ของโปรแกรมเดิม)
+export const hgOf = (qty: number, perHg: number, keep = 0) => (perHg > 0 ? ((qty / perHg) % 1 >= 0.5 ? Math.ceil(qty / perHg) : Math.floor(qty / perHg)) : keep);
 
 /** ช่องเวลา 4 ค่า (START ต้น-ปลาย · OUT ต้น-ปลาย) */
 export type Times = { sb: string; se: string; ob: string; oe: string };
@@ -89,8 +91,9 @@ export const timesOf = (start: string | null, end: string | null): Times => {
  * คิดเวลาใหม่ทั้งชุดจากเวลาฐาน (ไม่บวกต่อจากค่าบนจอ):
  * ส่วนต่างการ์ด = (HG ตอนนี้ − HG ฐาน) × 3.25 · HG = 0 หรือผลิตไม่ได้ = ไม่คิดส่วนต่าง
  * เวลาต้น = ฐาน + ส่วนต่างสะสมของการ์ดก่อนหน้า · เวลาปลาย = เวลาต้น + ส่วนต่างของตัวเอง · ขึ้นกะใหม่ = เริ่มนับใหม่
+ * zeroBase = true (Plan Setting): HG ฐาน = 0 ไม่คิดส่วนต่างด้วย · false (Plan Submission): คิดตามจริง (เหมือน DashboardViewModel)
  */
-export function cascade<T extends { key: number | string; shift: Shift; base: Times; baseHg: number; hg: number; skip?: boolean }>(items: T[]): Map<T["key"], Times> {
+export function cascade<T extends { key: number | string; shift: Shift; base: Times; baseHg: number; hg: number; skip?: boolean }>(items: T[], zeroBase = true): Map<T["key"], Times> {
   const out = new Map<T["key"], Times>();
   let cum = 0;
   let last: Shift | null = null;
@@ -99,7 +102,7 @@ export function cascade<T extends { key: number | string; shift: Shift; base: Ti
       cum = 0;
       last = it.shift;
     }
-    const self = it.skip || it.hg <= 0 || it.baseHg <= 0 ? 0 : (it.hg - it.baseHg) * MIN_PER_HG;
+    const self = it.skip || it.hg <= 0 || (zeroBase && it.baseHg <= 0) ? 0 : (it.hg - it.baseHg) * MIN_PER_HG;
     out.set(it.key, { sb: addMin(it.base.sb, cum), se: addMin(it.base.se, cum + self), ob: addMin(it.base.ob, cum), oe: addMin(it.base.oe, cum + self) });
     cum += self;
   }

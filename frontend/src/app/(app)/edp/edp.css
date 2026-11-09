@@ -1682,3 +1682,26 @@
 .edp-panel:hover {
   box-shadow: 0 22px 40px -28px rgb(40 45 110 / 0.55);
 }
+
+/* ⏱ รอบ 7: ช่องเวลาไม่ถูกบีบตอนแก้จำนวน
+   Plan Submission: ชิป START / OUT ไม่หดตัว (ขึ้นบรรทัดใหม่แทน) · Plan Setting: ช่องเวลาเดิมไม่ถูกสร้างใหม่ + กว้างขั้นต่ำพอให้เห็น HH:mm เต็ม */
+.edp-times > span {
+  flex: none;
+  min-width: max-content;
+  white-space: nowrap;
+}
+.edp-tf {
+  display: block;
+  min-width: 0;
+}
+.edp-timegrid > div {
+  grid-template-columns: 40px minmax(78px, 1fr) auto minmax(78px, 1fr);
+}
+.edp-timegrid .cmb-in {
+  padding-right: 22px !important;
+  padding-left: 4px;
+  text-overflow: clip;
+}
+.edp-timegrid .cmb-chev {
+  right: 6px;
+}

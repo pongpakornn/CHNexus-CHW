@@ -20,6 +20,9 @@ import "../edp.css";
 //   ปิดกะแล้วกลับมาหน้าเลือกแผน (จำแผนที่เริ่มไว้ใน session)
 //   กรอกยอดจริง (ชิ้น / HG) แล้ว MARK SUCCESS · แก้ไข / แจ้งผลิตไม่ได้ · ลากการ์ดวางทับอีกใบ = สลับเวลา (ยืนยันก่อน · ย้อนกลับได้)
 //   เวลาของการ์ดไหลต่อกันทั้งกะ (3.25 นาที / HG) · เลยเวลา START แล้วยังไม่ MARK = ป้ายแดง "ช้า" · เครื่องอื่นแก้ = จอนี้อัพเดทเอง
+//   เงื่อนไขเวลา / ฟังก์ชัน = DashboardViewModel ของโปรแกรม EDP Systems (.exe) ทุกข้อ:
+//     ชิ้น <-> HG ด้วย QTY_HG · ส่วนต่าง = (HG − HG ตั้งต้นก่อนแก้ครั้งแรก) × 3.25 · ลากสลับใช้ HG ตั้งต้น · แถบเตือนกวาดทั้งกะ
+//     FINISH กะ DAY = ไปกะ NIGHT ต่อให้เลย · ALL = ปิดทั้ง 2 กะ
 type Typed = Record<number, { qty: number; hg: number; hgPlan: number }>;
 type Saved = { date: string; shift: Scope; round: number | null; started: boolean };
 const KEY = "edp-submit";
@@ -56,6 +59,7 @@ export default function PlanSubmission() {
   const [now, setNow] = useState(() => Date.now());
   const sig = useRef("");
   const auto = useRef(true); // เปิดหน้าครั้งแรก: แผนที่ START แล้ว = ข้ามหน้าเลือกแผน (ครั้งเดียว · กด CHANGE PLAN แล้วไม่เด้งกลับ)
+  const next = useRef(false); // FINISH กะ DAY แล้ว: โหลดกะ NIGHT เสร็จ = เริ่มงานต่อให้เลย (ไม่มีแผน = แจ้ง PLAN NOT FOUND)
 
   // โหลดครั้งเดียว (ไม่ผูกกับ toast = แจ้งเตือนแล้วไม่รีเซ็ตกะที่เลือก) · แผนที่ START ไว้จำใน session
   useEffect(() => {
@@ -98,6 +102,16 @@ export default function PlanSubmission() {
           auto.current = false;
           if (r.status === "IN PROGRESS" && r.cards.some((c) => c.isVisible && c.partNo)) setStarted(true);
         }
+        if (next.current) {
+          next.current = false;
+          if (r.cards.some((c) => c.isVisible && c.partNo)) {
+            setStarted(true);
+            if (r.status === "READY") api("/edp/start", { method: "POST", body: { date, shift } }).catch(() => {});
+          } else {
+            setStarted(false);
+            toastRef.current.show("PLAN NOT FOUND", `ไม่พบแผนการผลิตของ ${dmy(date)} กะ ${shift}\nกรุณาตั้งแผนงานที่หน้า PLAN SETTING ก่อน`, "warn");
+          }
+        }
       } catch (e) {
         if (!quiet) {
           toastRef.current.show("ERROR", "โหลดแผนไม่สำเร็จ\n" + (e as Error).message, "error");
@@ -124,8 +138,9 @@ export default function PlanSubmission() {
     }, 30_000);
     return () => clearInterval(t);
   }, [date, shift, edit, load]);
+  // นาฬิกาของป้าย "ช้า" (โปรแกรมเดิมเดินทุกวินาที · เว็บเดินทุก 5 วิ ป้ายขึ้นตรงนาทีโดยไม่วาดการ์ดใหม่ถี่เกิน)
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
+    const t = setInterval(() => setNow(Date.now()), 5_000);
     return () => clearInterval(t);
   }, []);
 
@@ -141,7 +156,7 @@ export default function PlanSubmission() {
   const hgNow = useCallback((c: Card) => (c.isDone && c.hgAct != null ? c.hgAct : typed[c.pldId] && typed[c.pldId].hgPlan === c.hgPlan ? typed[c.pldId].hg : c.hgPlan), [typed]);
   const qtyNow = (c: Card) => (c.isDone && c.hgAct != null ? c.qtyAct : typed[c.pldId] && typed[c.pldId].hgPlan === c.hgPlan ? typed[c.pldId].qty : c.qtyPlan);
   const times = useMemo(
-    () => cascade(cards.map((c) => ({ key: c.pldId, shift: c.shift, base: timesOf(c.timeStart, c.timeEnd), baseHg: c.origHg ?? c.hgPlan, hg: hgNow(c), skip: c.isProblem }))),
+    () => cascade(cards.map((c) => ({ key: c.pldId, shift: c.shift, base: timesOf(c.timeStart, c.timeEnd), baseHg: c.origHg ?? c.hgPlan, hg: hgNow(c), skip: c.isProblem })), false),
     [cards, hgNow],
   );
 
@@ -156,7 +171,8 @@ export default function PlanSubmission() {
     const due = t ? resolve(date, t.se, c.shift) : null;
     return due && now > due.getTime() ? Math.max(1, Math.floor((now - due.getTime()) / 60000)) : 0;
   };
-  const overdue = started ? shown.filter((c) => late(c) > 0) : [];
+  // กวาดทั้งกะ (ทุกรอบ) แบบ RefreshOverdueAlerts: การ์ดค้างจากรอบอื่นก็เตือน ถึงจอจะเปิดดูอยู่คนละรอบ
+  const overdue = started ? cards.filter((c) => late(c) > 0) : [];
 
   function type(c: Card, qty: number, hg: number) {
     setTyped((t) => ({ ...t, [c.pldId]: { qty: Math.max(0, qty), hg: Math.max(0, hg), hgPlan: c.hgPlan } }));
@@ -197,8 +213,9 @@ export default function PlanSubmission() {
     if (A.shift !== B.shift) return toast.show("SWAP", "สลับได้เฉพาะการ์ดในกะเดียวกัน", "warn");
     if (A.isDone || B.isDone) return toast.show("SWAP", "การ์ดที่ทำเสร็จแล้วสลับเวลาไม่ได้", "warn");
     if (!(await dlg.confirm({ title: "SWAP CARDS", message: `สลับเวลาการ์ด\n${A.customer} ${A.partNo} (${A.timeStart})\n↔ ${B.customer} ${B.partNo} (${B.timeStart}) ?`, ok: "SWAP" }))) return;
+    // ช่องเวลาตามแผนใน DB + HG ตั้งต้น (ก่อนแก้ครั้งแรก) แบบ ExecuteSwapCards · ส่วนต่างจากยอดจริงจึงไม่ถูกนับซ้ำ
     const same = cards.filter((c) => c.shift === A.shift);
-    const slots = same.map((c) => ({ ...timesOf(c.timeStart, c.timeEnd), hg: c.hgPlan }));
+    const slots = same.map((c) => ({ ...timesOf(c.timeStart, c.timeEnd), hg: c.origHg ?? c.hgPlan }));
     const ch = slotSwap(slots, same.indexOf(A), same.indexOf(B));
     const list = [...ch.entries()].map(([k, t]) => ({ pldId: same[k].pldId, timeStart: `${t.sb}-${t.se}`, timeEnd: `${t.ob}-${t.oe}` }));
     try {
@@ -222,12 +239,22 @@ export default function PlanSubmission() {
     }
   }
 
+  // ปิดกะ (ExecuteFinalSubmit): DAY = ปิดแล้วไปกะ NIGHT ต่อ · NIGHT = จบของวันนี้ · ALL = ปิดทั้ง 2 กะ
   async function finish() {
     const left = cards.filter((c) => !c.isDone && !c.isProblem).length;
-    if (!(await dlg.confirm({ title: "FINISH SHIFT", message: left ? `ยังมีการ์ดที่ยังไม่ MARK ${left} ใบ\nยืนยันปิดกะ ${shift} วันที่ ${dmy(date)} ?` : `ยืนยันปิดกะ ${shift} วันที่ ${dmy(date)} ?`, ok: "FINISH" }))) return;
+    const what = shift === "ALL" ? "ทั้ง 2 กะ (DAY + NIGHT)" : `กะ ${shift}`;
+    const msg = `ยืนยันจบแผนงาน${what} วันที่ ${dmy(date)} ?`;
+    if (!(await dlg.confirm({ title: "FINISH SHIFT", message: left ? `ยังมีการ์ดที่ยังไม่ MARK ${left} ใบ\n${msg}` : msg, ok: "FINISH" }))) return;
     try {
       const r = await api<{ message: string }>("/edp/finish", { method: "POST", body: { date, shift } });
-      toast.show("COMPLETED", r.message, "ok");
+      if (shift === "DAY") {
+        toast.show("COMPLETED", `${r.message}\nไปต่อที่กะ NIGHT`, "ok");
+        next.current = true;
+        setRound(null);
+        setShift("NIGHT");
+        return;
+      }
+      toast.show("ALL JOBS DONE", "จบการวางแผนการผลิตของวันนี้เรียบร้อยแล้ว", "ok");
       setStarted(false);
       load(true);
     } catch (e) {
@@ -260,7 +287,7 @@ export default function PlanSubmission() {
             <span className="edp-progress" style={{ "--p": shown.length ? done / shown.length : 0 } as React.CSSProperties}>
               <b>{done}</b> / {shown.length} DONE
             </span>
-            {canSubmit && shift !== "ALL" && cards.length > 0 && !closed && (
+            {canSubmit && cards.length > 0 && !closed && (
               <button type="button" className="cta-btn is-green" onClick={finish}>
                 ✔ FINISH SHIFT
               </button>
@@ -341,11 +368,11 @@ export default function PlanSubmission() {
                       </label>
                       <label>
                         <small>ACT (PCS)</small>
-                        <input type="number" min={0} className="field" disabled={lock || lifted} value={qtyNow(c)} onChange={(e) => type(c, +e.target.value || 0, hgOf(+e.target.value || 0, c.pcsHg))} />
+                        <input type="number" min={0} className="field" disabled={lock || lifted} value={qtyNow(c)} onChange={(e) => type(c, +e.target.value || 0, hgOf(+e.target.value || 0, c.qtyHg, hgNow(c)))} />
                       </label>
                       <label>
                         <small>HG</small>
-                        <input type="number" min={0} className="field" disabled={lock || lifted} value={hgNow(c)} onChange={(e) => type(c, (+e.target.value || 0) * c.pcsHg, +e.target.value || 0)} />
+                        <input type="number" min={0} className="field" disabled={lock || lifted} value={hgNow(c)} onChange={(e) => type(c, (+e.target.value || 0) * c.qtyHg, +e.target.value || 0)} />
                       </label>
                     </div>
                     {c.remark && <p className="edp-remark">📝 {c.remark}</p>}
@@ -366,7 +393,7 @@ export default function PlanSubmission() {
           )}
         </>
       )}
-      {edit && <EditCard card={edit} onClose={() => setEdit(null)} onSaved={() => (setEdit(null), load(true))} />}
+      {edit && <EditCard card={edit} qty0={qtyNow(edit)} hg0={hgNow(edit)} onClose={() => setEdit(null)} onSaved={() => (setEdit(null), load(true))} />}
     </PageBody>
   );
 }
@@ -471,14 +498,15 @@ function Picker({
 }
 
 // ✏ แก้ไขการ์ดจากหน้างาน: เปลี่ยนลูกค้า / ชิ้นงาน / จำนวน หรือแจ้งว่าผลิตไม่ได้ (ต้องมีหมายเหตุเสมอ · เก็บประวัติเดิม -> ใหม่)
-function EditCard({ card, onClose, onSaved }: { card: Card; onClose: () => void; onSaved: () => void }) {
+//   เปิดมาด้วยตัวเลขบนการ์ดตอนนี้ (ยอดที่พิมพ์ค้างไว้) · เลือกชิ้นงานใหม่ = 1 HG / QTY_HG ชิ้น · ชิ้น <-> HG ด้วย QTY_HG (แบบ EditPlanItemView)
+function EditCard({ card, qty0, hg0, onClose, onSaved }: { card: Card; qty0: number; hg0: number; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [parts, setParts] = useState<Part[] | null>(null);
   const [problem, setProblem] = useState(false);
   const [cust, setCust] = useState(card.customer);
   const [partId, setPartId] = useState<number | null>(card.partId);
-  const [qty, setQty] = useState(card.qtyPlan);
-  const [hg, setHg] = useState(card.hgPlan);
+  const [qty, setQty] = useState(qty0);
+  const [hg, setHg] = useState(hg0);
   const [remark, setRemark] = useState("");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -544,8 +572,8 @@ function EditCard({ card, onClose, onSaved }: { card: Card; onClose: () => void;
                   value={partId ? String(partId) : ""}
                   onChange={(v) => {
                     const p = parts?.find((x) => x.partId === +v);
+                    if (p && p.partId !== partId) (setHg(1), setQty(p.qtyHg));
                     setPartId(+v);
-                    if (p?.pcsHg) setQty(hg * p.pcsHg);
                   }}
                   options={list.map((p) => ({ value: String(p.partId), label: p.partNo, sub: p.partName ?? undefined }))}
                   placeholder={parts ? "พิมพ์ค้นหา PART NO / ชื่อ" : "LOADING..."}
@@ -554,11 +582,11 @@ function EditCard({ card, onClose, onSaved }: { card: Card; onClose: () => void;
               </label>
               <label className="fx">
                 <span className="fx-cap">QTY PLAN (PCS)</span>
-                <input type="number" min={0} className="field fx-in" value={qty} onChange={(e) => (setQty(+e.target.value || 0), part && setHg(hgOf(+e.target.value || 0, part.pcsHg)))} />
+                <input type="number" min={0} className="field fx-in" value={qty} onChange={(e) => (setQty(+e.target.value || 0), setHg(hgOf(+e.target.value || 0, part?.qtyHg ?? card.qtyHg, hg)))} />
               </label>
               <label className="fx">
-                <span className="fx-cap">HG PLAN {part ? `(${part.pcsHg} PCS/HG)` : ""}</span>
-                <input type="number" min={0} className="field fx-in" value={hg} onChange={(e) => (setHg(+e.target.value || 0), part && setQty((+e.target.value || 0) * part.pcsHg))} />
+                <span className="fx-cap">HG PLAN {part ? `(${part.qtyHg} PCS/HG)` : ""}</span>
+                <input type="number" min={0} className="field fx-in" value={hg} onChange={(e) => (setHg(+e.target.value || 0), setQty((+e.target.value || 0) * (part?.qtyHg ?? card.qtyHg)))} />
               </label>
             </div>
           </div>

@@ -24,9 +24,11 @@ type Tpl = { tplId: number; tplName: string; shift: string | null; roundId: numb
 let seq = 0;
 const nextKey = () => --seq;
 
+// โหลดแบบ PlanService.MapPlanItem: ชิ้น = QTY_PLAN · HG = HG_ACT (ถ้า MARK แล้วมียอดจริง > 0) ไม่งั้น HG_PLAN
 const toEd = (c: Card): Ed => {
   const t = timesOf(c.timeStart, c.timeEnd);
-  return { key: c.pldId, partId: c.partId, customer: c.customer, qty: c.qtyPlan, hg: c.hgPlan, pcsHg: c.pcsHg, t, base: t, baseHg: baseHgOf(c.hgPlan, t), visible: c.isVisible, roundId: c.roundId, done: c.isDone, img: imgOf(c), partName: c.partName };
+  const hg = c.hgAct != null && c.hgAct > 0 ? c.hgAct : c.hgPlan;
+  return { key: c.pldId, partId: c.partId, customer: c.customer, qty: c.qtyPlan, hg, perHg: c.qtyHg, t, base: t, baseHg: baseHgOf(hg, t), visible: c.isVisible, roundId: c.roundId, done: c.isDone, img: imgOf(c), partName: c.partName };
 };
 const out = (e: Ed) => ({ partId: e.partId, timeStart: `${e.t.sb}-${e.t.se}`, timeEnd: `${e.t.ob}-${e.t.oe}`, qty: e.qty, hg: e.hg, visible: e.visible, roundId: e.roundId });
 
@@ -128,7 +130,7 @@ export default function PlanSetting() {
     const b = `${String(cur.startHour % 24).padStart(2, "0")}:00`;
     const t = { sb: b, se: b, ob: b, oe: b };
     setDirty(true);
-    setEds((l) => [...(l ?? []), { key: nextKey(), partId: null, customer: "", qty: 0, hg: 0, pcsHg: 0, t, base: t, baseHg: 0, visible: true, roundId: cur.roundId, done: false, img: null, partName: null }]);
+    setEds((l) => [...(l ?? []), { key: nextKey(), partId: null, customer: "", qty: 0, hg: 0, perHg: 0, t, base: t, baseHg: 0, visible: true, roundId: cur.roundId, done: false, img: null, partName: null }]);
   }
   async function remove(e: Ed) {
     const name = e.partId ? `${e.customer} ${parts.find((p) => p.partId === e.partId)?.partNo ?? ""}` : "การ์ดใหม่ (ยังไม่ได้เลือกชิ้นงาน)";
@@ -157,9 +159,10 @@ export default function PlanSetting() {
       setHg: (k, h, q) => fns.current.setHg(k, h, q),
       setTime: (k, f, v) => fns.current.setTime(k, f, v),
       remove: (e) => void fns.current.remove(e),
+      // เลือกชิ้นงาน = 1 HG · จำนวน = QTY_HG ชิ้น (แบบ PlanItem.FetchPartDetails) แล้วเวลาในรอบคิดใหม่
       pickPart: (e, p) => {
-        fns.current.patch(e.key, { partId: p.partId, customer: p.customer, pcsHg: p.pcsHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
-        fns.current.setHg(e.key, p.qtyHg || e.hg, (p.qtyHg || e.hg) * p.pcsHg);
+        fns.current.patch(e.key, { partId: p.partId, customer: p.customer, perHg: p.qtyHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
+        fns.current.setHg(e.key, 1, p.qtyHg);
       },
     }),
     [],

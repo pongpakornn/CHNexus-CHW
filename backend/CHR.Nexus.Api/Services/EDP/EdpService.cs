@@ -34,6 +34,7 @@ public sealed class EdpCard
     public string PartName { get; set; }
     public string Img { get; set; }
     public int PcsHg { get; set; }
+    public int QtyHg { get; set; }          // ชิ้นต่อ 1 HG (QTY_HG) = ฐานแปลง ชิ้น <-> HG แบบโปรแกรม EDP Systems (BaseQtyPerHg)
     public int QtyPlan { get; set; }
     public int HgPlan { get; set; }
     public int QtyAct { get; set; }
@@ -162,7 +163,7 @@ public sealed class EdpService
             SELECT D.PLD_ID AS PldId, D.PLH_ID AS PlhId, H.SHIFT AS Shift, ISNULL(D.EFF_ROUND_ID, 0) AS RoundId,
                    D.TIME_START AS TimeStart, D.TIME_END AS TimeEnd, D.PT_ID AS PartId,
                    ISNULL(P.CUST_CODE,'') AS Customer, ISNULL(P.PT_NO,'') AS PartNo, P.PT_CODE AS PartCode, P.PT_NAME AS PartName, P.PT_IMG AS Img,
-                   ISNULL(P.PCS_HG,0) AS PcsHg, ISNULL(D.QTY_PLAN,0) AS QtyPlan, ISNULL(D.HG_PLAN,0) AS HgPlan, ISNULL(D.QTY_ACT,0) AS QtyAct, D.HG_ACT AS HgAct,
+                   ISNULL(P.PCS_HG,0) AS PcsHg, ISNULL(P.QTY_HG,0) AS QtyHg, ISNULL(D.QTY_PLAN,0) AS QtyPlan, ISNULL(D.HG_PLAN,0) AS HgPlan, ISNULL(D.QTY_ACT,0) AS QtyAct, D.HG_ACT AS HgAct,
                    CAST(ISNULL(D.IS_DONE,0) AS BIT) AS IsDone, CAST(ISNULL(D.IS_VISIBLE,1) AS BIT) AS IsVisible, CAST(ISNULL(D.IS_PROBLEM,0) AS BIT) AS IsProblem,
                    D.REMARK AS Remark
             FROM EDP.vw_PlanCards D

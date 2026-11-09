@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, rectSwappingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
@@ -15,7 +15,8 @@ import { hgOf, type Part, type Times } from "../edp";
 //   ปล่อย = สลับเวลา 2 ใบ (เงื่อนไขเดิม slotSwap: การ์ดระหว่างกลางเลื่อนตาม) · ลบ = หด + จาง แล้วการ์ดที่เหลือเลื่อนมาเติม
 //   rectSwappingStrategy (ไม่ใช่ sorting) เพราะผลจริงคือ "สลับ 2 ใบ" ตำแหน่งตอนลากจึงตรงกับผลหลังปล่อย
 
-export type Ed = { key: number; partId: number | null; customer: string; qty: number; hg: number; pcsHg: number; t: Times; base: Times; baseHg: number; visible: boolean; roundId: number; done: boolean; img: string | null; partName: string | null };
+// perHg = ชิ้นต่อ 1 HG (QTY_HG ของชิ้นงาน) ใช้แปลง ชิ้น <-> HG
+export type Ed = { key: number; partId: number | null; customer: string; qty: number; hg: number; perHg: number; t: Times; base: Times; baseHg: number; visible: boolean; roundId: number; done: boolean; img: string | null; partName: string | null };
 
 export type CardActions = {
   patch: (key: number, p: Partial<Ed>) => void;
@@ -164,7 +165,7 @@ const CardBody = memo(function CardBody({
           {ro ? (
             <b className="edp-ro">{e.customer || "-"}</b>
           ) : (
-            <ComboBox value={e.customer} onChange={(v) => v !== e.customer && actions.patch(e.key, { customer: v, partId: null, pcsHg: 0, img: null, partName: null })} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
+            <ComboBox value={e.customer} onChange={(v) => v !== e.customer && actions.patch(e.key, { customer: v, partId: null, perHg: 0, img: null, partName: null })} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
           )}
         </label>
         <label className="fx">
@@ -188,11 +189,11 @@ const CardBody = memo(function CardBody({
       <div className="edp-qty">
         <label>
           <small>QTY (PCS)</small>
-          <input type="number" min={0} className="field" disabled={ro} value={e.qty} onChange={(v) => actions.setHg(e.key, hgOf(+v.target.value || 0, e.pcsHg), +v.target.value || 0)} />
+          <input type="number" min={0} className="field" disabled={ro} value={e.qty} onChange={(v) => actions.setHg(e.key, hgOf(+v.target.value || 0, e.perHg, e.hg), +v.target.value || 0)} />
         </label>
         <label>
-          <small>HG {e.pcsHg ? `(${e.pcsHg}/HG)` : ""}</small>
-          <input type="number" min={0} className="field" disabled={ro} value={e.hg} onChange={(v) => actions.setHg(e.key, +v.target.value || 0, (+v.target.value || 0) * e.pcsHg)} />
+          <small>HG {e.perHg ? `(${e.perHg} PCS/HG)` : ""}</small>
+          <input type="number" min={0} className="field" disabled={ro} value={e.hg} onChange={(v) => actions.setHg(e.key, +v.target.value || 0, (+v.target.value || 0) * e.perHg)} />
         </label>
       </div>
       <div className="edp-timegrid">
@@ -204,17 +205,37 @@ const CardBody = memo(function CardBody({
         ).map(([cap, a, b]) => (
           <div key={cap}>
             <small>{cap}</small>
-            {/* เวลาเปลี่ยน (คิดใหม่จากการ์ดก่อนหน้า) = ตัวเลขเลื่อนขึ้นจาง ๆ ให้เห็นว่าค่าเปลี่ยน */}
-            <span key={e.t[a]} className="edp-tick">
+            {/* เวลาเปลี่ยน (คิดใหม่จากการ์ดก่อนหน้า) = ตัวเลขเลื่อนขึ้นจาง ๆ · ช่องเดิมไม่ถูกสร้างใหม่ (ไม่บีบ / ไม่หลุดโฟกัส) */}
+            <Tick v={e.t[a]}>
               <TimeField value={e.t[a]} disabled={ro} ariaLabel={`${cap} BEGIN`} onChange={(v) => actions.setTime(e.key, a, v)} />
-            </span>
+            </Tick>
             <span>-</span>
-            <span key={e.t[b]} className="edp-tick">
+            <Tick v={e.t[b]}>
               <TimeField value={e.t[b]} disabled={ro} ariaLabel={`${cap} END`} onChange={(v) => actions.setTime(e.key, b, v)} />
-            </span>
+            </Tick>
           </div>
         ))}
       </div>
     </article>
   );
 });
+
+// ⏱ ค่าเปลี่ยน = เลื่อนขึ้นจาง ๆ 0.3 วิ บนช่องเดิม (Web Animations) · ไม่ใช้ key สร้างช่องใหม่ ช่องเวลาจึงไม่ยุบ / ไม่หลุดโฟกัสระหว่างพิมพ์
+function Tick({ v, children }: { v: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const el = ref.current;
+    if (!el?.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.animate([{ opacity: 0.25, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+  }, [v]);
+  return (
+    <span ref={ref} className="edp-tf">
+      {children}
+    </span>
+  );
+}
