@@ -10547,8 +10547,11 @@ table.lqp code {
 /* =====================================================================
    🧭 หน้าเลือกระบบ (/systems): การ์ดระบบ · ลอยขึ้นทีละใบ · ชี้ = ยกนิด ๆ + ลูกศรเลื่อน
    ===================================================================== */
-/* แผงเลือกระบบ: พื้นฟ้าอ่อน · หัวข้อซ้าย (ตัวอักษรของระบบ) + ภาพ Stamping Cell ขวา (ขอบซ้ายจางกลืนพื้น) · การ์ดเล็กด้านล่าง */
+/* แผงเลือกระบบ: พื้นฟ้าอ่อน · หัวข้อซ้าย + ภาพ Stamping Cell ขวา · การ์ดด้านล่าง
+   เปิดหน้า: แผงลอยขึ้น -> แสงกวาดผ่าน -> คำโผล่ทีละคำ -> ขีดยืด -> ภาพเลื่อนเข้าแล้วลอยเบา ๆ -> การ์ดลอยขึ้นทีละใบ
+   ชี้การ์ด: ลอยขึ้นช้า ๆ นุ่ม ๆ · เอาเมาส์ออก: ค่อย ๆ ลงกลับช้ากว่าเล็กน้อย */
 .sys-stage {
+  --ease-soft: cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
   overflow: hidden;
   border: 1px solid #dfe8fb;
@@ -10556,7 +10559,18 @@ table.lqp code {
   padding: 0 clamp(14px, 2.4vw, 32px) clamp(16px, 2.4vw, 30px);
   background: linear-gradient(160deg, #f7faff 0%, #eaf1ff 55%, #dfeaff 100%);
   box-shadow: 0 24px 48px -36px rgb(37 99 235 / 0.6);
-  animation: sys-up 0.6s var(--ease-drop) both;
+  animation: sys-up 0.7s var(--ease-drop) both;
+}
+/* แสงกวาดผ่านแผงครั้งเดียวตอนเปิดหน้า */
+.sys-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.65) 50%, transparent 65%);
+  translate: -100% 0;
+  animation: sys-sweep 1.6s var(--ease-soft) 0.35s both;
 }
 .sys-hero {
   position: relative;
@@ -10569,29 +10583,49 @@ table.lqp code {
   position: relative;
   z-index: 1;
   padding: 28px 0 18px;
-  animation: sys-up 0.6s var(--ease-drop) 0.1s both;
+}
+.sys-hero-tx small {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #2563eb;
+  animation: sys-fade-up 0.7s var(--ease-drop) 0.2s both;
 }
 .sys-hero-tx h2 {
-  font-size: clamp(24px, 2.5vw, 38px);
+  font-size: clamp(26px, 2.7vw, 42px);
   font-weight: 800;
   line-height: 1.12;
   letter-spacing: -0.02em;
   color: #172b6b;
 }
+.sys-line {
+  display: block;
+}
+/* แต่ละคำ: เลื่อนขึ้นจากเบลอ ทีละคำ (--w) */
+.sys-word {
+  display: inline-block;
+  margin-right: 0.26em;
+  animation: sys-word 0.9s var(--ease-drop) calc(0.35s + var(--w, 0) * 0.12s) both;
+}
 .sys-hero-tx i {
   display: block;
-  width: 46px;
+  width: 52px;
   height: 4px;
   margin: 14px 0 10px;
   border-radius: 999px;
   background: linear-gradient(90deg, #2563eb, #60a5fa);
+  transform-origin: left;
+  animation: sys-grow 0.8s var(--ease-drop) 0.8s both;
 }
 .sys-hero-tx p {
   font-size: clamp(14px, 1.15vw, 17px);
   font-weight: 600;
   color: #33416b;
+  animation: sys-fade-up 0.7s var(--ease-drop) 0.95s both;
 }
-/* ภาพด้านขวา: ขอบซ้าย/ล่างจางกลืนพื้น · เข้าหน้า = ซูมออกช้า ๆ · ชี้ที่แผง = ซูมเข้านิด */
+/* ภาพด้านขวา: ขอบซ้าย/ล่างจางกลืนพื้น · เลื่อนเข้าจากขวา แล้วลอยขึ้นลงเบา ๆ */
 .sys-hero-art {
   justify-self: end;
   width: 100%;
@@ -10603,8 +10637,10 @@ table.lqp code {
   -webkit-mask-composite: source-in;
   mask-image: linear-gradient(90deg, transparent 0%, #000 30%), linear-gradient(0deg, transparent 0%, #000 22%);
   mask-composite: intersect;
-  animation: sys-hero-in 1.6s var(--ease-drop) both;
-  transition: scale 1.2s var(--ease-drop);
+  animation:
+    sys-art-in 1.4s var(--ease-drop) 0.15s both,
+    sys-drift 7s ease-in-out 1.6s infinite;
+  transition: scale 1.4s var(--ease-soft);
 }
 .sys-hero:hover .sys-hero-art {
   scale: 1.03;
@@ -10613,7 +10649,7 @@ table.lqp code {
   position: relative;
   margin-top: 6px;
 }
-/* การ์ดเล็ก: ภาพระบบในวงกลมสีอ่อน · ชื่อ + คำอธิบาย · ปุ่มลูกศร · ชี้ = เด้งขึ้น + เงาสีระบบ + ภาพขยาย + ลูกศรเป็นสี */
+/* การ์ดเล็ก: ภาพระบบในวงกลมสีอ่อน · ชื่อ + คำอธิบาย · ปุ่มลูกศร */
 .sys-grid {
   position: relative;
   z-index: 1;
@@ -10634,25 +10670,25 @@ table.lqp code {
   background: rgb(255 255 255 / 0.9);
   box-shadow: 0 10px 24px -18px rgb(30 50 110 / 0.45);
   backdrop-filter: blur(6px);
-  animation: sys-up 0.55s var(--ease-drop) both;
-  /* เอาเมาส์ออก: ค่อย ๆ ลงกลับที่เดิม */
+  animation: sys-card-in 0.9s var(--ease-drop) calc(0.55s + var(--i, 0) * 0.12s) both;
+  /* เอาเมาส์ออก: ค่อย ๆ ลงกลับ */
   transition:
-    translate 0.7s var(--ease-drop),
-    box-shadow 0.7s var(--ease-drop),
-    border-color 0.5s var(--ease-drop),
-    background-color 0.5s var(--ease-drop);
+    translate 0.95s var(--ease-soft),
+    box-shadow 0.95s var(--ease-soft),
+    border-color 0.6s var(--ease-soft),
+    background-color 0.6s var(--ease-soft);
 }
 .sys-card:hover {
-  /* ชี้: ลอยขึ้นนุ่ม ๆ */
-  transition-duration: 0.5s, 0.5s, 0.35s, 0.35s;
-  translate: 0 -6px;
+  /* ชี้: ลอยขึ้นช้า ๆ นุ่ม ๆ */
+  transition-duration: 0.8s, 0.8s, 0.45s, 0.45s;
+  translate: 0 -7px;
   border-color: color-mix(in srgb, var(--c) 35%, #fff);
   background: #fff;
-  box-shadow: 0 22px 34px -22px color-mix(in srgb, var(--c) 75%, transparent);
+  box-shadow: 0 26px 38px -24px color-mix(in srgb, var(--c) 75%, transparent);
 }
 .sys-card:active {
-  translate: 0 -1px;
-  transition-duration: 0.15s;
+  translate: 0 -2px;
+  transition-duration: 0.2s;
 }
 .sys-card:focus-visible {
   outline: 2px solid var(--c);
@@ -10667,20 +10703,18 @@ table.lqp code {
   border-radius: 999px;
   background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--c) 16%, #fff));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 14%, transparent);
-  transition: scale 0.7s var(--ease-drop), rotate 0.7s var(--ease-drop);
+  transition: scale 0.95s var(--ease-soft), rotate 0.95s var(--ease-soft);
 }
 .sys-card:hover .sys-art {
-  transition-duration: 0.5s;
+  transition-duration: 0.8s;
+  scale: 1.12;
+  rotate: -6deg;
 }
 .sys-art img {
   width: 46px;
   height: 46px;
   object-fit: contain;
   filter: drop-shadow(0 4px 5px color-mix(in srgb, var(--c) 30%, transparent));
-}
-.sys-card:hover .sys-art {
-  scale: 1.12;
-  rotate: -6deg;
 }
 .sys-tx {
   display: grid;
@@ -10709,10 +10743,10 @@ table.lqp code {
   border-radius: 999px;
   color: #64748b;
   background: #eef2fa;
-  transition: translate 0.7s var(--ease-drop), background-color 0.5s var(--ease-drop), color 0.5s var(--ease-drop);
+  transition: translate 0.95s var(--ease-soft), background-color 0.6s var(--ease-soft), color 0.6s var(--ease-soft);
 }
 .sys-card:hover .sys-go {
-  transition-duration: 0.5s, 0.35s, 0.35s;
+  transition-duration: 0.8s, 0.45s, 0.45s;
   translate: 3px 0;
   color: #fff;
   background: var(--c);
@@ -10736,16 +10770,53 @@ table.lqp code {
     margin-top: 4px;
   }
 }
-@keyframes sys-hero-in {
-  from {
-    scale: 1.08;
-    opacity: 0;
-  }
-}
 @keyframes sys-up {
   from {
     opacity: 0;
     translate: 0 14px;
+  }
+}
+@keyframes sys-fade-up {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+@keyframes sys-word {
+  from {
+    opacity: 0;
+    translate: 0 0.55em;
+    filter: blur(8px);
+  }
+}
+@keyframes sys-grow {
+  from {
+    scale: 0 1;
+  }
+}
+@keyframes sys-sweep {
+  to {
+    translate: 100% 0;
+  }
+}
+@keyframes sys-art-in {
+  from {
+    opacity: 0;
+    translate: 48px 0;
+    scale: 1.06;
+  }
+}
+@keyframes sys-drift {
+  50% {
+    translate: 0 -6px;
+  }
+}
+@keyframes sys-card-in {
+  from {
+    opacity: 0;
+    translate: 0 22px;
+    scale: 0.96;
+    filter: blur(4px);
   }
 }
 /* MASTER DATA: สถานะ ACTIVE / INACTIVE + ข้อมูลท้ายหน้าต่าง */
@@ -10778,13 +10849,20 @@ table.lqp code {
 }
 @media (prefers-reduced-motion: reduce) {
   .sys-stage,
-  .sys-hero-tx,
+  .sys-stage::after,
+  .sys-hero-tx small,
+  .sys-word,
+  .sys-hero-tx i,
+  .sys-hero-tx p,
   .sys-hero-art,
   .sys-card,
   .sys-art,
   .sys-go {
     animation: none;
     transition: none;
+  }
+  .sys-stage::after {
+    display: none;
   }
 }
 
@@ -10941,5 +11019,103 @@ table.lqp code {
     translate: none;
     transform: none;
     scale: none;
+  }
+}
+
+/* ⬛ Customer / Supplier: ข้อมูลในตารางตัวหนา */
+.md-gray .data-table td {
+  font-weight: 700;
+  color: #27272a;
+}
+/* แท็บสถานะ (ALL / ACTIVE / INACTIVE): ช่องเท่ากัน · แถบเทาเข้มเลื่อนไปหาแท็บที่เลือก (--n) */
+.md-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 330px;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+  padding: 4px;
+  background: #f4f4f5;
+}
+.md-seg-glider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #52525b, #3f3f46);
+  box-shadow: 0 8px 16px -10px #18181b;
+  translate: calc(var(--n, 0) * 100%) 0;
+  transition: translate 0.55s var(--ease-drop);
+}
+.md-seg button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #52525b;
+  transition: color 0.35s var(--ease-drop);
+}
+.md-seg button:hover:not(.is-on) {
+  color: #18181b;
+}
+.md-seg button:focus-visible {
+  outline: 2px solid #3f3f46;
+  outline-offset: -2px;
+}
+.md-seg button.is-on {
+  color: #fff;
+}
+.md-seg button b {
+  min-width: 24px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: #3f3f46;
+  background: #e4e4e7;
+  transition: color 0.35s var(--ease-drop), background-color 0.35s var(--ease-drop);
+}
+.md-seg button.is-on b {
+  color: #fff;
+  background: rgb(255 255 255 / 0.18);
+}
+/* ช่องค้นหา: พื้นเทาอ่อน ขอบมน · โฟกัส = พื้นขาว + วงแสงเทา */
+.md-search .field {
+  height: 42px !important;
+  border-color: #e4e4e7;
+  border-radius: 14px;
+  background: #f4f4f5;
+}
+.md-search .field:hover:not(:disabled):not(:focus) {
+  border-color: #d4d4d8;
+  background: #fafafa;
+}
+.md-search .field:focus {
+  border-color: #3f3f46;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgb(63 63 70 / 0.12), 0 10px 20px -16px rgb(24 24 27 / 0.5);
+}
+.md-search:focus-within svg {
+  color: #3f3f46;
+}
+@media (max-width: 640px) {
+  .md-seg {
+    min-width: 0;
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-seg-glider,
+  .md-seg button {
+    transition: none;
   }
 }

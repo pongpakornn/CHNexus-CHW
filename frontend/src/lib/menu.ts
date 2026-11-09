@@ -29,7 +29,7 @@ export const STOCK_TYPES: { type: string; label: string; icon: string }[] = [
   { type: "SPAREPART", label: "Spare Part Information", icon: "/icons/spareparts.png" },
 ];
 
-const SYSTEMS_ITEM: MenuItem = { href: "/systems", label: "Systems", title: "SELECT SYSTEM", icon: "/icons/IconSidebar.png" };
+const SYSTEMS_ITEM: MenuItem = { href: "/systems", label: "Systems", title: "SELECT SYSTEM", icon: "/icons/Systems.png" };
 const USERS_ITEM: MenuItem = { href: "/admin/users", label: "User Management", title: "USER MANAGEMENT", icon: "/icons/management.png", can: "userMgmt" };
 
 export const MASTER_ITEM: MenuItem = {

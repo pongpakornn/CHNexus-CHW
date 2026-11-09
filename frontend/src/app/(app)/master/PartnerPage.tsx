@@ -27,6 +27,8 @@ const META: Record<Kind, { title: string; icon: string; hint: string }> = {
   suppliers: { title: "SUPPLIER INFORMATION", icon: "/icons/StoreWarehouse.png", hint: "ข้อมูลผู้ขาย / ผู้ส่งของกลางของทุกระบบ" },
 };
 
+const STATUSES: Status[] = ["ALL", "ACTIVE", "INACTIVE"];
+
 export function PartnerPage({ kind }: { kind: Kind }) {
   const toast = useToast();
   const dlg = useDialogs();
@@ -95,15 +97,17 @@ export function PartnerPage({ kind }: { kind: Kind }) {
       />
       <Card>
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <div className="mrs-tabs" role="tablist">
-            {(["ALL", "ACTIVE", "INACTIVE"] as Status[]).map((s) => (
+          {/* แท็บสถานะ: แถบเทาเข้มเลื่อนไปหาแท็บที่เลือก */}
+          <div className="md-seg" role="tablist" style={{ "--n": STATUSES.indexOf(status) } as React.CSSProperties}>
+            <span className="md-seg-glider" aria-hidden />
+            {STATUSES.map((s) => (
               <button key={s} type="button" role="tab" aria-selected={status === s} className={status === s ? "is-on" : ""} onClick={() => (setStatus(s), setPage(0))}>
                 {s}
                 <b>{counts[s].toLocaleString()}</b>
               </button>
             ))}
           </div>
-          <SearchBox value={key} onChange={(v) => (setKey(v), setPage(0))} placeholder={`ค้นหา ${label} CODE / NAME`} className="ml-auto w-[280px] max-w-full" />
+          <SearchBox value={key} onChange={(v) => (setKey(v), setPage(0))} placeholder="ค้นหา CODE / NAME" className="md-search ml-auto w-[340px] max-w-full" />
         </div>
         {!data ? (
           <Loading />

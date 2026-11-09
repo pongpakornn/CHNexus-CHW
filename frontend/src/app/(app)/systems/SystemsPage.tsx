@@ -5,25 +5,35 @@ import { PageBody } from "@/components/layout/Page";
 import { useAuth } from "@/lib/auth";
 import { allowed, systemsFor, type MenuItem } from "@/lib/menu";
 
-// 🧭 เลือกระบบ (หลัง Login): แผงพื้นฟ้าอ่อน = หัวข้อ (ตัวอักษรของระบบ) ซ้าย + ภาพ Smart Factory Stamping Cell ขวา
-//   ด้านล่างเป็นการ์ดเล็กของระบบที่มีสิทธิ์ (ภาพระบบ + ชื่อ + คำอธิบาย + ปุ่มลูกศร · ชี้ = เด้งขึ้น)
+// 🧭 เลือกระบบ (หลัง Login): แผงพื้นฟ้าอ่อน = หัวข้อซ้าย + ภาพ Smart Factory Stamping Cell ขวา + การ์ดระบบด้านล่าง
+//   เปิดหน้า: แสงกวาดผ่านแผง · หัวข้อโผล่ทีละคำ · ขีดยืดออก · ภาพเลื่อนเข้าจากขวาแล้วลอยเบา ๆ · การ์ดลอยขึ้นทีละใบ
 //   กดการ์ด = เข้าหน้าแรกของระบบนั้น (Sidebar เปลี่ยนตามระบบ) · ระบบใหม่ = เพิ่มใน lib/menu.ts (SYSTEMS)
 const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children ? flat(m.children) : [m]));
+
+const TITLE = ["Choose Your", "Workspace"];
 
 export default function SystemsPage() {
   const { me } = useAuth();
   const can = me?.can ?? {};
   const list = systemsFor(can);
+  let w = 0; // ลำดับคำ (หน่วงทีละคำ)
 
   return (
     <PageBody>
       <section className="sys-stage" data-reveal="own">
         <div className="sys-hero">
           <div className="sys-hero-tx">
+            <small>CHR-NEXUS · SMART FACTORY PLATFORM</small>
             <h2>
-              Select a System
-              <br />
-              for Your Work
+              {TITLE.map((line) => (
+                <span key={line} className="sys-line">
+                  {line.split(" ").map((word) => (
+                    <span key={word} className="sys-word" style={{ "--w": w++ } as React.CSSProperties}>
+                      {word}
+                    </span>
+                  ))}
+                </span>
+              ))}
             </h2>
             <i aria-hidden />
             <p>เลือกระบบที่ต้องการใช้งาน</p>
@@ -42,8 +52,7 @@ export default function SystemsPage() {
                 href={flat(allowed(s.menu, can))[0].href}
                 title={s.desc}
                 className="sys-card"
-                data-reveal="own"
-                style={{ animationDelay: `${160 + i * 70}ms`, ["--c" as string]: s.color }}
+                style={{ "--i": i, "--c": s.color } as React.CSSProperties}
               >
                 <span className="sys-art" aria-hidden>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
