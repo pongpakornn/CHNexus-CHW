@@ -42,6 +42,10 @@ export default function PlanSetting() {
   const [drag, setDrag] = useState<number | null>(null);
   const [modal, setModal] = useState<"save" | "tpl" | "apply" | "clear" | null>(null);
   const loadVer = useRef(0);
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  });
 
   useEffect(() => {
     Promise.all([api<Meta>("/edp/meta"), api<Part[]>("/edp/parts")])
@@ -53,8 +57,8 @@ export default function PlanSetting() {
         setShift(s.shift);
         setRound(s.round);
       })
-      .catch((e) => toast.show("ERROR", "โหลดข้อมูลตั้งต้นไม่สำเร็จ\n" + (e as Error).message, "error"));
-  }, [toast]);
+      .catch((e) => toastRef.current.show("ERROR", "โหลดข้อมูลตั้งต้นไม่สำเร็จ\n" + (e as Error).message, "error"));
+  }, []);
 
   const rounds = useMemo(() => meta?.rounds ?? [], [meta]);
   const cur: Round | undefined = rounds.find((r) => r.roundId === round);
@@ -80,9 +84,9 @@ export default function PlanSetting() {
         setDirty(false);
       }
     } catch (e) {
-      toast.show("ERROR", "โหลดแผนงานไม่สำเร็จ\n" + (e as Error).message, "error");
+      toastRef.current.show("ERROR", "โหลดแผนงานไม่สำเร็จ\n" + (e as Error).message, "error");
     }
-  }, [date, shift, round, toast]);
+  }, [date, shift, round]);
   useEffect(() => {
     const t = setTimeout(() => (setEds(null), setAll(null), load()), 0);
     return () => clearTimeout(t);
@@ -146,8 +150,8 @@ export default function PlanSetting() {
 
   if (!meta) return <Loading />;
   return (
-    <PageBody>
-      <PageHeader icon="/icons/CalculatorMxMn.png" title="EDP • PLAN SETTING" subtitle="วางแผนผลิตรายรอบ · แก้ HG แล้วเวลาการ์ดถัดไปเลื่อนตาม · กด SAVE ALL เพื่อบันทึกจริง" />
+    <PageBody className="edp-dark">
+      <PageHeader icon="/icons/ProductControl.png" title="EDP • PLAN SETTING" subtitle="วางแผนผลิตรายรอบ · แก้ HG แล้วเวลาการ์ดถัดไปเลื่อนตาม · กด SAVE ALL เพื่อบันทึกจริง" />
       <EdpBar
         date={date}
         onDate={(d) => leave(() => setDate(d))}

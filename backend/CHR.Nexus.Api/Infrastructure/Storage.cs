@@ -23,9 +23,15 @@ namespace Nexus.Core
         //    ไม่ได้ตั้ง = ใช้เฉพาะรูปใน storage / อัปโหลดรูปจากเว็บเขียนลง storage เสมอ
         public static (string Local, string Fallback)[] ImageFallbacks { get; private set; } = Array.Empty<(string, string)>();
 
-        public static void Init(string root, string[] directExcelRoots = null, string stockImages = null, string legacyImages = null, string storePcImages = null)
+        // 🖼 โฟลเดอร์รูปสินค้ากลาง (Storage:ImagesRoot) เช่น \192.168.10.56\ProgramCHR\11. CHR Nexus\2. CHR Nexus - Images
+        //    ตั้งแล้ว: <ImagesRoot>\<STOCK CODE>\ = รูปของแต่ละคลัง · \StorePC = รูป StorePC · \EDP Planing = รูปจากโปรแกรม EDP
+        //    ไม่ได้ตั้ง = storage\images\… ในเครื่องเหมือนเดิม
+        public static string ImagesRoot { get; private set; }
+
+        public static void Init(string root, string[] directExcelRoots = null, string stockImages = null, string legacyImages = null, string storePcImages = null, string imagesRoot = null)
         {
             if (!string.IsNullOrWhiteSpace(root)) Root = Path.GetFullPath(root);
+            if (!string.IsNullOrWhiteSpace(imagesRoot)) ImagesRoot = imagesRoot.Trim().TrimEnd('\\', '/');
             foreach (var d in new[] { StockImages, LegacyImages, StorePcImages, Excel }) Directory.CreateDirectory(d);
             DirectExcelRoots = Array.FindAll(directExcelRoots ?? Array.Empty<string>(), r => !string.IsNullOrWhiteSpace(r))
                                     .Select(r => r.Trim().Replace('/', '\\').TrimEnd('\\') + "\\").ToArray();
@@ -54,9 +60,9 @@ namespace Nexus.Core
             return DirectExcelRoots.Any(r => full.StartsWith(r, StringComparison.OrdinalIgnoreCase));
         }
 
-        public static string StockImages => Path.Combine(Root, "images", "stock");
+        public static string StockImages => ImagesRoot ?? Path.Combine(Root, "images", "stock");
         public static string LegacyImages => Path.Combine(Root, "images", "legacy");
-        public static string StorePcImages => Path.Combine(Root, "images", "storepc");
+        public static string StorePcImages => ImagesRoot != null ? Path.Combine(ImagesRoot, "StorePC") : Path.Combine(Root, "images", "storepc");
         public static string Excel => Path.Combine(Root, "excel");
 
         // Path ที่ตั้งไว้ในฐานข้อมูล (เช่น \\192.168.10.56\...\RPA - PR-StoreSP.xlsx) -> storage\excel\RPA - PR-StoreSP.xlsx

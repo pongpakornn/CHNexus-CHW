@@ -36,7 +36,8 @@ Storage.Init(builder.Configuration["Storage:Root"] ?? Path.Combine(builder.Envir
              builder.Configuration.GetSection("Storage:DirectExcelRoots").Get<string[]>(),
              builder.Configuration["Storage:ImageFallback:Stock"],
              builder.Configuration["Storage:ImageFallback:Legacy"],
-             builder.Configuration["Storage:ImageFallback:StorePc"]);
+             builder.Configuration["Storage:ImageFallback:StorePc"],
+             builder.Configuration["Storage:ImagesRoot"]);
 // 📎 ไฟล์ / รูปที่แนบในแชท
 CHR.Nexus.Api.Web.ChatFiles.Init(builder.Configuration["Storage:ChatFiles"], builder.Configuration["Storage:ChatImages"]);
 // ✍ ลายเซ็นผู้ใช้ (<UserID>-Signature.png) - ไม่ตั้ง = \\192.168.10.56\ProgramCHR\11. CHR Nexus\2. CHR Nexus - Signature

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { api, download } from "@/lib/api";
@@ -49,12 +49,16 @@ export default function EdpPlanning() {
   const q = useDebounced(key, 250);
   const [data, setData] = useState<Res | null>(null);
   const [draft, setDraft] = useState<Record<number, Partial<Row>>>({});
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  });
 
   useEffect(() => {
     api<Meta>("/edp/meta")
       .then(setMeta)
-      .catch((e) => toast.show("ERROR", (e as Error).message, "error"));
-  }, [toast]);
+      .catch((e) => toastRef.current.show("ERROR", (e as Error).message, "error"));
+  }, []);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -63,11 +67,11 @@ export default function EdpPlanning() {
         setData(r);
         if (live && r.date) setDate(r.date.slice(0, 10));
       } catch (e) {
-        if (!quiet) toast.show("ERROR", "โหลดข้อมูลไม่สำเร็จ\n" + (e as Error).message, "error");
+        if (!quiet) toastRef.current.show("ERROR", "โหลดข้อมูลไม่สำเร็จ\n" + (e as Error).message, "error");
         if (!quiet) setData({ date: null, rows: [] });
       }
     },
-    [live, date, shift, q, toast],
+    [live, date, shift, q],
   );
   useEffect(() => {
     const t = setTimeout(() => load(), 0);
@@ -99,7 +103,7 @@ export default function EdpPlanning() {
 
   if (!meta) return <Loading />;
   return (
-    <PageBody className="md-gray">
+    <PageBody className="md-gray edp-dark">
       <PageHeader icon="/icons/ForecastOrder.png" title="EDP • EDP PLANNING" subtitle={`ติดตามแผนผลิต · ${live ? "LIVE (แผนล่าสุด อัพเดทเอง)" : "ย้อนดูวันที่ " + (date ? dmy(date) : "-")}`} />
       <EdpBar
         date={date}

@@ -91,10 +91,20 @@ public sealed class EdpController : AppController
     [HttpPost("swap")]
     public IActionResult Swap([FromBody] SwapReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
     {
-        _svc.Swap(r.A, r.B, r.Times);
-        LogService.WriteLog(Uid, "EDP_SWAP_CARD", $"สลับการ์ด {r.A} <-> {r.B} ({r.Times?.Count ?? 0} การ์ดเปลี่ยนเวลา)", $"{r.A}-{r.B}");
-        return Ok(new { message = "สลับการ์ดแล้ว" });
+        var batch = _svc.Swap(r.A, r.B, r.Times, Uid);
+        LogService.WriteLog(Uid, "EDP_SWAP_CARD", $"สลับการ์ด {r.A} <-> {r.B} ({r.Times?.Count ?? 0} การ์ดเปลี่ยนเวลา) · UNDO {batch}", $"{r.A}-{r.B}");
+        return Ok(new { message = "สลับการ์ดแล้ว (กด UNDO SWAP เพื่อย้อนได้)", batch });
     }, "สลับการ์ดไม่สำเร็จ");
+
+    public sealed record UndoReq(Guid Batch);
+
+    [HttpPost("swap/undo")]
+    public IActionResult UndoSwap([FromBody] UndoReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
+    {
+        int n = _svc.UndoSwap(r.Batch);
+        LogService.WriteLog(Uid, "EDP_SWAP_UNDO", $"ย้อนการสลับ {r.Batch} ({n} การ์ดกลับเวลาเดิม)", r.Batch.ToString());
+        return Ok(new { message = $"ย้อนการสลับแล้ว ({n} การ์ดกลับเวลาเดิม)" });
+    }, "ย้อนการสลับไม่สำเร็จ");
 
     // ---------------------------------------------------------------- Plan Setting
     public sealed record SaveReq(DateTime Date, string Shift, int Round, List<EdpPlanCardIn> Cards);

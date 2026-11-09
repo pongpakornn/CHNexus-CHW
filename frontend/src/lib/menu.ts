@@ -107,16 +107,16 @@ export const EDP: SystemDef = {
   label: "EDP PLANNING",
   name: "EDP Planning",
   sub: "Production Plan · HG · Round",
-  art: "/images/systems/stamping-cell-art.webp",
+  art: "/images/systems/edp-planning.webp",
   title: "EDP • PRODUCTION PLANNING",
   desc: "วางแผนผลิต EDP รายรอบ · หน้างาน MARK SUCCESS · ติดตามแผน · กราฟประสิทธิภาพ",
   icon: "/icons/ForecastOrder.png",
-  color: "#0d9488",
+  color: "#7c3aed",
   menu: [
-    { href: "/edp/submission", label: "Plan Submission", title: "EDP • PLAN SUBMISSION", icon: "/icons/Dashboard.png", can: "edpSubmit" },
+    { href: "/edp/submission", label: "Plan Submission", title: "EDP • PLAN SUBMISSION", icon: "/icons/registration.png", can: "edpSubmit" },
     { href: "/edp/planning", label: "EDP Planning", title: "EDP • EDP PLANNING", icon: "/icons/ForecastOrder.png", can: "edpPlanning" },
-    { href: "/edp/plan-setting", label: "Plan Setting", title: "EDP • PLAN SETTING", icon: "/icons/CalculatorMxMn.png", can: "edpSetting" },
-    { href: "/edp/graph", label: "Production Graph", title: "EDP • PRODUCTION GRAPH", icon: "/icons/ActivityLog.png", can: "edpGraph" },
+    { href: "/edp/plan-setting", label: "Plan Setting", title: "EDP • PLAN SETTING", icon: "/icons/ProductControl.png", can: "edpSetting" },
+    { href: "/edp/graph", label: "Production Graph", title: "EDP • PRODUCTION GRAPH", icon: "/icons/Dashboard.png", can: "edpGraph" },
   ],
 };
 
@@ -126,7 +126,7 @@ export const SYSTEMS: SystemDef[] = [CIMS, EDP, MASTER, ADMIN];
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
-export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu, MASTER_ITEM];
+export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
 // Sidebar ของแต่ละระบบ
 export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : ROOT_MENU);
 

@@ -1,59 +1,113 @@
 /* =====================================================================
-   🏭 EDP PLANNING: แถบเลือก · การ์ดแผน (ไหลเข้าทีละใบ · ลากสลับ · ป้ายช้า) · ภาพรวม · กราฟ
+   🏭 EDP PLANNING (ธีมเทาเข้ม · ทุกหน้าในระบบ EDP ครอบด้วย .edp-dark)
+   แถบเลือก · หน้าเลือกแผน · การ์ดแผน (ไหลเข้าทีละใบ · ชี้ = ลอย + เรืองแสง + แสงกวาด · ลากสลับ) · ตาราง · กราฟ
    เส้นโค้งเดียวกันทั้งระบบ --ease-drop · ปิดการเคลื่อนไหวเมื่อเครื่องตั้งลดการเคลื่อนไหว
    ===================================================================== */
+.edp-dark {
+  --bg: #17171a;
+  --surface: #232327;
+  --surface-2: #2c2c32;
+  --ink: #f4f4f5;
+  --ink-soft: #a1a1aa;
+  --line: #3a3a42;
+  --primary: #f4f4f5;
+  --edp-card: linear-gradient(165deg, #2a2a30 0%, #222226 100%);
+  --edp-glow: #8b5cf6;
+  --edp-soft: cubic-bezier(0.25, 0.8, 0.25, 1);
+  color: var(--ink);
+}
+/* พื้นหลังทั้งหน้า (พื้นที่เนื้อหา) = เทาเข้ม + แสงม่วง / ฟ้าจาง ๆ */
+main:has(.edp-dark) {
+  background:
+    radial-gradient(60% 40% at 85% 0%, rgb(124 58 237 / 0.14), transparent 70%),
+    radial-gradient(50% 35% at 0% 100%, rgb(37 99 235 / 0.1), transparent 70%),
+    #17171a;
+}
+.edp-dark .field {
+  border-color: #3a3a42;
+  background: #1c1c20;
+  color: #f4f4f5;
+}
+.edp-dark .field:hover:not(:disabled):not(:focus) {
+  border-color: #52525b;
+  background: #202024;
+}
+.edp-dark .field:focus {
+  border-color: #a78bfa;
+  background: #1c1c20;
+  box-shadow: 0 0 0 4px rgb(139 92 246 / 0.2);
+}
+.edp-dark .field:disabled {
+  opacity: 0.6;
+}
+.edp-dark .fill-btn {
+  --f: #d4d4d8;
+}
+.edp-dark .fill-btn.is-red {
+  --f: #f87171;
+}
+.edp-dark .fill-btn:hover,
+.edp-dark .fill-btn.is-on {
+  color: #18181b;
+}
+.edp-dark section.rounded-2xl {
+  border-color: #33333a;
+  background: #212125;
+  box-shadow: 0 18px 40px -28px #000;
+}
+
+/* แถบเลือก วันที่ · กะ · รอบ */
 .edp-bar {
+  position: relative;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--line, #e4e4e7);
+  border: 1px solid #33333a;
   border-radius: 18px;
   padding: 10px 12px;
-  background: var(--surface, #fff);
-  box-shadow: 0 10px 24px -20px rgb(24 24 27 / 0.5);
+  background: rgb(35 35 39 / 0.85);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 34px -26px #000;
   animation: edp-in 0.5s var(--ease-drop) both;
 }
 .edp-date {
   display: flex;
   align-items: center;
-  overflow: hidden;
-  border: 1px solid #e4e4e7;
-  border-radius: 12px;
-  background: #f4f4f5;
+  gap: 4px;
 }
-.edp-date button {
-  width: 34px;
+.edp-date > button {
+  display: grid;
+  place-items: center;
+  width: 32px;
   height: 38px;
+  border-radius: 10px;
   font-size: 20px;
   font-weight: 800;
-  color: #52525b;
-  transition: background-color 0.25s var(--ease-drop), color 0.25s;
+  color: #a1a1aa;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s, translate 0.3s var(--ease-drop);
 }
-.edp-date button:hover {
+.edp-date > button:hover {
   color: #fff;
   background: #3f3f46;
 }
-.edp-date input {
-  height: 38px;
-  border: 0;
-  padding: 0 6px;
-  font-size: 13px;
-  font-weight: 800;
-  background: transparent;
-  color: #18181b;
-  outline: none;
+.edp-date > button:first-child:active {
+  translate: -2px 0;
+}
+.edp-date > button:last-child:active {
+  translate: 2px 0;
 }
 /* แท็บแถบเลื่อน (--n = ตำแหน่ง · --c = จำนวนปุ่ม) */
 .edp-seg {
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr));
-  min-width: 260px;
-  border: 1px solid #e4e4e7;
+  min-width: 270px;
+  border: 1px solid #3a3a42;
   border-radius: 13px;
   padding: 3px;
-  background: #f4f4f5;
+  background: #1c1c20;
 }
 .edp-seg.is-2 {
   min-width: 0;
@@ -65,10 +119,10 @@
   left: 3px;
   width: calc((100% - 6px) / var(--c, 3));
   border-radius: 10px;
-  background: linear-gradient(180deg, #52525b, #3f3f46);
-  box-shadow: 0 8px 16px -10px #18181b;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  box-shadow: 0 8px 18px -8px rgb(139 92 246 / 0.9);
   translate: calc(var(--n, 0) * 100%) 0;
-  transition: translate 0.55s var(--ease-drop);
+  transition: translate 0.6s var(--ease-drop);
 }
 .edp-seg button {
   position: relative;
@@ -78,94 +132,276 @@
   padding: 0 10px;
   font-size: 12px;
   font-weight: 800;
-  color: #52525b;
+  color: #a1a1aa;
   transition: color 0.35s var(--ease-drop);
+}
+.edp-seg button:hover:not(.is-on) {
+  color: #fff;
 }
 .edp-seg button.is-on {
   color: #fff;
 }
 .edp-seg button:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
 }
 .edp-seg button:focus-visible {
-  outline: 2px solid #3f3f46;
+  outline: 2px solid #a78bfa;
   outline-offset: -2px;
+}
+/* ใน Modal (พื้นขาว) แท็บเป็นโทนสว่าง */
+.dlg .edp-seg,
+[role="dialog"] .edp-seg {
+  border-color: #e4e4e7;
+  background: #f4f4f5;
+}
+[role="dialog"] .edp-seg button {
+  color: #52525b;
+}
+[role="dialog"] .edp-seg button.is-on {
+  color: #fff;
 }
 .edp-progress {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   border-radius: 999px;
+  border: 1px solid #3a3a42;
   padding: 7px 14px;
   font-size: 12px;
   font-weight: 800;
-  color: #27272a;
-  background: #f4f4f5;
+  color: #f4f4f5;
+  background: #1c1c20;
 }
 .edp-progress::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #bbf7d0, #86efac);
+  z-index: -1;
+  background: linear-gradient(90deg, rgb(34 197 94 / 0.55), rgb(74 222 128 / 0.35));
   transform-origin: left;
   scale: var(--p, 0) 1;
-  transition: scale 0.8s var(--ease-drop);
-}
-.edp-progress b {
-  position: relative;
-}
-.edp-progress {
-  isolation: isolate;
-}
-.edp-progress::before {
-  z-index: -1;
+  transition: scale 0.9s var(--ease-drop);
 }
 .edp-stat {
+  display: inline-block;
+  margin-left: 8px;
   border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: 5px 13px;
+  font-size: 11px;
+  font-style: normal;
   font-weight: 800;
   color: #fff;
-  background: #71717a;
+  background: #52525b;
 }
 .edp-stat.is-in-progress {
   background: #2563eb;
+  box-shadow: 0 0 18px rgb(37 99 235 / 0.6);
   animation: edp-breathe 2.4s ease-in-out infinite;
 }
 .edp-stat.is-completed {
   background: #16a34a;
 }
 .edp-alert {
-  border: 1px solid #fecaca;
+  border: 1px solid rgb(248 113 113 / 0.35);
   border-radius: 14px;
   padding: 10px 14px;
   font-size: 13px;
   font-weight: 800;
-  color: #b91c1c;
-  background: linear-gradient(90deg, #fef2f2, #fff);
+  color: #fecaca;
+  background: linear-gradient(90deg, rgb(127 29 29 / 0.55), rgb(127 29 29 / 0.1));
   animation: edp-in 0.45s var(--ease-drop) both, edp-shake 0.5s ease 0.5s;
 }
 
-/* การ์ดแผน: ไหลเข้าทีละใบ (--i) · ชี้ = ยกขึ้นนุ่ม ๆ · ลาก = จาง · วางทับได้ = เส้นประฟ้า */
+/* ▶ หน้าเลือกแผน */
+.edp-pick {
+  display: grid;
+  gap: 14px;
+}
+.edp-pick-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #33333a;
+  border-radius: 22px;
+  padding: 26px 26px 24px;
+  background:
+    radial-gradient(70% 120% at 100% 0%, rgb(139 92 246 / 0.32), transparent 60%),
+    radial-gradient(60% 120% at 0% 100%, rgb(37 99 235 / 0.22), transparent 60%),
+    #222226;
+  animation: edp-in 0.6s var(--ease-drop) both;
+}
+.edp-pick-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.12) 50%, transparent 65%);
+  translate: -100% 0;
+  animation: edp-sweep 1.6s var(--edp-soft) 0.3s both;
+}
+.edp-pick-hero small {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #c4b5fd;
+}
+.edp-pick-hero h2 {
+  margin-top: 4px;
+  font-size: clamp(24px, 2.4vw, 34px);
+  font-weight: 800;
+  color: #fff;
+}
+.edp-pick-hero p {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+.edp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.edp-chips > span {
+  margin-right: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #a1a1aa;
+}
+.edp-chips button {
+  border: 1px solid #3a3a42;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #d4d4d8;
+  background: #232327;
+  animation: edp-in 0.45s var(--ease-drop) calc(var(--i, 0) * 35ms) both;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s, border-color 0.3s, translate 0.4s var(--ease-drop);
+}
+.edp-chips button:hover {
+  translate: 0 -2px;
+  border-color: #71717a;
+  color: #fff;
+}
+.edp-chips button.is-on {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+.edp-rounds {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.edp-rounds button {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #33333a;
+  border-radius: 16px;
+  padding: 14px 16px;
+  text-align: left;
+  background: var(--edp-card);
+  animation: edp-card-in 0.55s var(--ease-drop) calc(var(--i, 0) * 50ms) both;
+  transition: translate 0.7s var(--edp-soft), border-color 0.4s, box-shadow 0.7s var(--edp-soft);
+}
+.edp-rounds button b {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+.edp-rounds button small {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+.edp-rounds button:hover {
+  translate: 0 -4px;
+  border-color: #52525b;
+  transition-duration: 0.5s;
+}
+.edp-rounds button.is-on {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 1px #8b5cf6, 0 18px 36px -18px rgb(139 92 246 / 0.8);
+}
+.edp-pick-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #33333a;
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: #1f1f23;
+  font-size: 14px;
+  font-weight: 600;
+  color: #d4d4d8;
+}
+.edp-pick-foot b {
+  font-size: 18px;
+  color: #fff;
+}
+.edp-start {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  padding: 13px 26px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  box-shadow: 0 14px 30px -14px rgb(34 197 94 / 0.9);
+  transition: translate 0.5s var(--edp-soft), box-shadow 0.5s var(--edp-soft), filter 0.3s;
+}
+.edp-start::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%);
+  translate: -110% 0;
+  transition: translate 0.9s var(--edp-soft);
+}
+.edp-start:hover:not(:disabled) {
+  translate: 0 -3px;
+  box-shadow: 0 20px 38px -14px rgb(34 197 94 / 1);
+}
+.edp-start:hover:not(:disabled)::after {
+  translate: 110% 0;
+}
+.edp-start:active:not(:disabled) {
+  translate: 0 0;
+  transition-duration: 0.15s;
+}
+.edp-start:disabled {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+/* การ์ดแผน: ไหลเข้าทีละใบ (--i) · ชี้ = ลอยขึ้นนุ่ม ๆ + ขอบเรืองม่วง + แสงกวาด · ลาก = จาง · วางทับได้ = เส้นประ */
 .edp-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr));
+  gap: 16px;
 }
 .edp-card {
   position: relative;
+  isolation: isolate;
   display: grid;
   gap: 10px;
   align-content: start;
-  border: 1px solid #e4e4e7;
-  border-radius: 18px;
-  padding: 12px 14px 14px;
-  background: #fff;
-  box-shadow: 0 10px 24px -20px rgb(24 24 27 / 0.55);
-  animation: edp-card-in 0.6s var(--ease-drop) calc(var(--i, 0) * 45ms) both;
+  overflow: hidden;
+  border: 1px solid #33333a;
+  border-radius: 20px;
+  padding: 14px 15px 15px;
+  background: var(--edp-card);
+  box-shadow: 0 16px 34px -26px #000;
+  animation: edp-card-in 0.65s var(--ease-drop) calc(var(--i, 0) * 45ms) both;
   transition:
-    translate 0.8s cubic-bezier(0.25, 0.8, 0.25, 1),
-    box-shadow 0.8s cubic-bezier(0.25, 0.8, 0.25, 1),
-    border-color 0.4s,
+    translate 0.9s var(--edp-soft),
+    box-shadow 0.9s var(--edp-soft),
+    border-color 0.5s var(--edp-soft),
     opacity 0.3s;
 }
 .edp-card::before {
@@ -173,39 +409,54 @@
   position: absolute;
   inset: 0 0 auto;
   height: 4px;
-  border-radius: 18px 18px 0 0;
-  background: #3f3f46;
-  transition: background-color 0.4s;
+  background: linear-gradient(90deg, #8b5cf6, #3b82f6);
+  transition: background 0.4s;
+}
+/* แสงกวาดผ่านตอนชี้ */
+.edp-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.06) 48%, transparent 66%);
+  translate: -120% 0;
+  transition: translate 1.1s var(--edp-soft);
 }
 .edp-card:hover {
-  translate: 0 -4px;
-  box-shadow: 0 22px 34px -24px rgb(24 24 27 / 0.6);
-  transition-duration: 0.6s, 0.6s, 0.3s, 0.3s;
+  translate: 0 -6px;
+  border-color: rgb(139 92 246 / 0.55);
+  box-shadow:
+    0 0 0 1px rgb(139 92 246 / 0.25),
+    0 28px 50px -26px rgb(139 92 246 / 0.55);
+  transition-duration: 0.7s, 0.7s, 0.4s, 0.3s;
+}
+.edp-card:hover::after {
+  translate: 120% 0;
 }
 .edp-card[draggable="true"] {
   cursor: grab;
 }
 .edp-card.is-drag {
-  opacity: 0.45;
+  opacity: 0.4;
   scale: 0.98;
 }
 .edp-card.is-over {
-  border: 2px dashed #2563eb;
-  translate: 0 -6px;
+  border: 2px dashed #a78bfa;
+  translate: 0 -8px;
 }
 .edp-card.is-done {
-  border-color: #bbf7d0;
-  background: linear-gradient(180deg, #f0fdf4, #fff 60%);
+  border-color: rgb(34 197 94 / 0.4);
+  background: linear-gradient(165deg, #1f2d24 0%, #212125 70%);
 }
 .edp-card.is-done::before {
-  background: #16a34a;
+  background: linear-gradient(90deg, #22c55e, #4ade80);
 }
 .edp-card.is-problem {
   filter: grayscale(1);
-  opacity: 0.7;
+  opacity: 0.6;
 }
 .edp-card.is-late::before {
-  background: #ef4444;
+  background: linear-gradient(90deg, #ef4444, #f97316);
   animation: edp-breathe 1.6s ease-in-out infinite;
 }
 .edp-card.is-hidden {
@@ -218,6 +469,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
+  color: #f4f4f5;
 }
 .edp-round {
   flex: none;
@@ -226,7 +478,8 @@
   font-size: 11px;
   font-weight: 800;
   color: #fff;
-  background: #3f3f46;
+  background: rgb(139 92 246 / 0.35);
+  box-shadow: inset 0 0 0 1px rgb(167 139 250 / 0.5);
 }
 .edp-badge {
   flex: none;
@@ -234,17 +487,17 @@
   padding: 2px 9px;
   font-size: 10.5px;
   font-weight: 800;
-  color: #3f3f46;
-  background: #f4f4f5;
+  color: #d4d4d8;
+  background: #3f3f46;
 }
 .edp-badge.is-ok {
-  color: #15803d;
-  background: #dcfce7;
+  color: #bbf7d0;
+  background: rgb(22 163 74 / 0.35);
   animation: edp-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .edp-badge.is-bad {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: #fecaca;
+  background: rgb(220 38 38 / 0.35);
 }
 .edp-late {
   margin-left: auto;
@@ -254,38 +507,44 @@
   font-weight: 800;
   color: #fff;
   background: #ef4444;
+  box-shadow: 0 0 14px rgb(239 68 68 / 0.6);
 }
 .edp-card-body {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 82px minmax(0, 1fr);
   gap: 12px;
 }
 .edp-img {
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 76px;
+  width: 82px;
+  height: 82px;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 16px;
   font-size: 9px;
   font-weight: 800;
   color: #a1a1aa;
-  background: #f4f4f5;
+  background: radial-gradient(circle at 35% 30%, #fff, #e4e4e7);
+  box-shadow: 0 10px 20px -12px #000;
+}
+.edp-img span {
+  color: #71717a;
 }
 .edp-img img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transition: scale 0.6s var(--ease-drop);
+  padding: 4px;
+  transition: scale 0.8s var(--edp-soft);
 }
 .edp-card:hover .edp-img img {
-  scale: 1.08;
+  scale: 1.1;
 }
 .edp-part {
   overflow: hidden;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
-  color: #18181b;
+  color: #fff;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -293,7 +552,7 @@
   overflow: hidden;
   font-size: 12px;
   font-weight: 600;
-  color: #71717a;
+  color: #a1a1aa;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -312,13 +571,14 @@
   font-family: ui-monospace, monospace;
   font-size: 12px;
   font-weight: 800;
-  color: #27272a;
-  background: #f4f4f5;
+  color: #e4e4e7;
+  background: #1a1a1d;
+  box-shadow: inset 0 0 0 1px #33333a;
 }
 .edp-times small {
   font-family: var(--font-sans);
   font-size: 9.5px;
-  color: #71717a;
+  color: #a78bfa;
 }
 .edp-qty {
   display: grid;
@@ -334,20 +594,22 @@
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.05em;
-  color: #71717a;
+  color: #a1a1aa;
 }
 .edp-qty b {
   font-size: 13px;
   font-weight: 800;
+  color: #fff;
 }
 .edp-qty i {
   font-style: normal;
   font-size: 10px;
-  color: #71717a;
+  color: #a1a1aa;
 }
 .edp-qty .field {
-  height: 36px;
+  height: 38px;
   text-align: center;
+  font-size: 15px;
   font-weight: 800;
 }
 .edp-remark {
@@ -355,8 +617,8 @@
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: #92400e;
-  background: #fffbeb;
+  color: #fde68a;
+  background: rgb(146 64 14 / 0.3);
 }
 .edp-card footer {
   display: flex;
@@ -372,6 +634,7 @@
   grid-template-columns: 44px minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 6px;
+  color: #a1a1aa;
 }
 .edp-timegrid .field {
   height: 34px;
@@ -384,23 +647,23 @@
   place-items: center;
   align-content: center;
   gap: 4px;
-  min-height: 180px;
-  border: 2px dashed #d4d4d8;
-  border-radius: 18px;
+  min-height: 200px;
+  border: 2px dashed #3f3f46;
+  border-radius: 20px;
   font-size: 12px;
   font-weight: 800;
-  color: #71717a;
-  transition: border-color 0.35s var(--ease-drop), color 0.35s, background-color 0.35s, translate 0.5s var(--ease-drop);
+  color: #a1a1aa;
+  transition: border-color 0.4s var(--ease-drop), color 0.4s, background-color 0.4s, translate 0.6s var(--edp-soft);
 }
 .edp-add span {
-  font-size: 30px;
-  transition: rotate 0.5s var(--ease-drop);
+  font-size: 32px;
+  transition: rotate 0.6s var(--edp-soft);
 }
 .edp-add:hover {
-  border-color: #3f3f46;
-  color: #18181b;
-  background: #fafafa;
-  translate: 0 -3px;
+  border-color: #8b5cf6;
+  color: #fff;
+  background: rgb(139 92 246 / 0.08);
+  translate: 0 -4px;
 }
 .edp-add:hover span {
   rotate: 90deg;
@@ -409,11 +672,12 @@
   animation: edp-breathe 1.6s ease-in-out infinite;
 }
 
-/* ภาพรวมทั้งวัน */
+/* ภาพรวมทั้งวัน (Plan Setting · ALL) */
 .edp-ov {
-  border: 1px solid #e4e4e7;
+  border: 1px solid #33333a;
   border-radius: 14px;
   padding: 10px 12px;
+  background: #1f1f23;
   animation: edp-in 0.5s var(--ease-drop) both;
 }
 .edp-ov header {
@@ -426,23 +690,28 @@
 .edp-ov header span {
   font-size: 12px;
   font-weight: 700;
-  color: #71717a;
+  color: #a1a1aa;
 }
 .edp-ov-row {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr) minmax(0, 90px) 64px;
   gap: 8px;
-  border-top: 1px dashed #e4e4e7;
+  border-top: 1px dashed #33333a;
   padding: 6px 2px;
   font-size: 12px;
   font-weight: 600;
+  color: #d4d4d8;
+  transition: background-color 0.3s;
+}
+.edp-ov-row:hover {
+  background: #26262b;
 }
 .edp-ov-row.is-hidden {
   opacity: 0.45;
 }
 .edp-ov-row.is-done b::after {
   content: " ✔";
-  color: #16a34a;
+  color: #4ade80;
 }
 .fill-btn.is-sm {
   padding: 4px 12px;
@@ -452,7 +721,7 @@
   --f: #ef4444;
 }
 
-/* แม่แบบ */
+/* แม่แบบ (ใน Modal พื้นขาว) */
 .edp-tpls {
   display: grid;
   gap: 6px;
@@ -483,59 +752,97 @@
   color: #71717a;
 }
 
-/* ตาราง EDP Planning */
+/* ตาราง EDP Planning (ธีมเข้ม) */
+.edp-dark .data-table td {
+  color: #e4e4e7;
+  border-bottom-color: #2f2f35;
+}
+.edp-dark .data-table tbody tr {
+  animation: edp-row-in 0.5s var(--ease-drop) both;
+}
+.edp-dark .data-table tbody tr:hover {
+  background: #2a2a30;
+}
+.edp-dark .data-table th {
+  background: linear-gradient(180deg, #34343b, #2a2a30);
+  box-shadow: inset 0 -3px 0 #8b5cf6;
+}
 .edp-row-done td {
-  background: #f0fdf4;
+  background: rgb(22 163 74 / 0.12);
 }
 .edp-row-bad td {
-  color: #a1a1aa;
+  color: #71717a !important;
 }
 .edp-total td {
   font-weight: 800 !important;
-  background: #f4f4f5;
+  color: #fff !important;
+  background: #2c2c32;
 }
 
-/* กราฟ */
+/* กราฟ (โทนเดียวกับ Dashboard: KPI การ์ด + วงแหวน + แท่งไล่สี + เส้นมีพื้น) */
 .edp-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
 }
 .edp-kpi {
   position: relative;
   display: grid;
-  gap: 2px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
   overflow: hidden;
-  border: 1px solid #e4e4e7;
-  border-radius: 18px;
-  padding: 16px 18px 20px;
-  background: #fff;
-  animation: edp-card-in 0.6s var(--ease-drop) calc(var(--i, 0) * 90ms) both;
+  border: 1px solid #33333a;
+  border-radius: 20px;
+  padding: 18px 20px;
+  background:
+    radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--k, #8b5cf6) 22%, transparent), transparent 60%),
+    var(--edp-card);
+  animation: edp-card-in 0.65s var(--ease-drop) calc(var(--i, 0) * 90ms) both;
+  transition: translate 0.8s var(--edp-soft), box-shadow 0.8s var(--edp-soft), border-color 0.4s;
+}
+.edp-kpi:hover {
+  translate: 0 -5px;
+  border-color: color-mix(in srgb, var(--k, #8b5cf6) 50%, transparent);
+  box-shadow: 0 26px 46px -26px color-mix(in srgb, var(--k, #8b5cf6) 80%, transparent);
 }
 .edp-kpi small {
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #71717a;
+  letter-spacing: 0.1em;
+  color: #a1a1aa;
 }
 .edp-kpi b {
-  font-size: 32px;
+  display: block;
+  font-size: 34px;
   font-weight: 800;
-  color: #18181b;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
 }
 .edp-kpi span {
   font-size: 12px;
   font-weight: 600;
-  color: #71717a;
+  color: #a1a1aa;
 }
-.edp-kpi i {
-  position: absolute;
-  inset: auto 0 0;
-  height: 5px;
-  background: #2563eb;
-  transform-origin: left;
-  scale: var(--p, 0) 1;
-  animation: edp-grow 1.2s var(--ease-drop) 0.3s both;
+.edp-ring {
+  width: 74px;
+  height: 74px;
+  rotate: -90deg;
+}
+.edp-ring circle {
+  fill: none;
+  stroke-width: 8;
+}
+.edp-ring .bg {
+  stroke: #33333a;
+}
+.edp-ring .fg {
+  stroke: var(--k, #8b5cf6);
+  stroke-linecap: round;
+  stroke-dasharray: 201;
+  stroke-dashoffset: calc(201 - 201 * var(--p, 0));
+  filter: drop-shadow(0 0 6px var(--k, #8b5cf6));
+  animation: edp-ring 1.4s var(--ease-drop) both;
 }
 .edp-bars {
   position: relative;
@@ -543,18 +850,18 @@
   grid-template-columns: repeat(var(--n), minmax(0, 1fr));
   align-items: end;
   gap: 8px;
-  height: 220px;
-  padding-top: 18px;
+  height: 230px;
+  padding-top: 20px;
 }
 .edp-target {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1.5px dashed #a1a1aa;
+  margin-bottom: 20px;
+  border-top: 1.5px dashed #52525b;
   font-size: 10px;
   font-weight: 800;
-  color: #71717a;
-  margin-bottom: 20px;
+  color: #a1a1aa;
 }
 .edp-bar-col {
   position: relative;
@@ -562,54 +869,66 @@
   grid-template-rows: auto 1fr auto;
   height: 100%;
   justify-items: center;
+  cursor: default;
 }
 .edp-bar-val {
   font-size: 10.5px;
   font-weight: 800;
-  color: #27272a;
+  color: #e4e4e7;
+  opacity: 0.8;
+  transition: opacity 0.3s, translate 0.4s var(--ease-drop);
+}
+.edp-bar-col.is-hi .edp-bar-val {
+  opacity: 1;
+  translate: 0 -3px;
 }
 .edp-bar-fill {
   align-self: end;
-  width: min(70%, 42px);
+  width: min(68%, 44px);
   height: var(--h);
-  border-radius: 4px 4px 0 0;
-  background: #2563eb;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #a78bfa, #6d28d9);
+  box-shadow: 0 0 0 rgb(139 92 246 / 0);
   transform-origin: bottom;
-  animation: edp-rise 0.9s var(--ease-drop) var(--d, 0ms) both;
-  transition: filter 0.25s, background-color 0.25s;
+  animation: edp-rise 1s var(--ease-drop) var(--d, 0ms) both;
+  transition: box-shadow 0.4s, filter 0.3s;
 }
 .edp-bar-col.is-hi .edp-bar-fill {
-  background: #1d4ed8;
+  filter: brightness(1.2);
+  box-shadow: 0 0 22px rgb(139 92 246 / 0.7);
 }
 .edp-bar-col small {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 11px;
   font-weight: 800;
-  color: #52525b;
+  color: #a1a1aa;
 }
 .edp-line {
   height: auto;
   overflow: visible;
 }
 .edp-grid {
-  stroke: #e4e4e7;
+  stroke: #2f2f35;
   stroke-width: 1;
 }
 .edp-axis {
   font-size: 10px;
   font-weight: 700;
-  fill: #71717a;
+  fill: #a1a1aa;
 }
 .edp-cross {
-  stroke: #a1a1aa;
+  stroke: #71717a;
   stroke-dasharray: 3 3;
+}
+.edp-area {
+  animation: edp-fade 1.2s ease 0.4s both;
 }
 .edp-draw {
   stroke-dasharray: 2400;
   stroke-dashoffset: 2400;
-  animation: edp-draw 1.6s var(--ease-drop) forwards;
+  animation: edp-draw 1.8s var(--ease-drop) forwards;
 }
-.edp-draw:not(.is-act) {
+.edp-draw.is-plan {
   stroke-dasharray: 5 4;
   stroke-dashoffset: 0;
   animation: edp-fade 0.8s ease both;
@@ -620,14 +939,16 @@
   display: grid;
   gap: 1px;
   translate: -50% 0;
+  border: 1px solid #3f3f46;
   border-radius: 10px;
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 700;
   color: #fff;
-  background: rgb(24 24 27 / 0.9);
+  background: rgb(24 24 27 / 0.95);
   pointer-events: none;
   white-space: nowrap;
+  animation: edp-pop 0.25s var(--ease-drop);
 }
 .edp-legend {
   display: inline-flex;
@@ -635,7 +956,7 @@
   gap: 6px;
   font-size: 11px;
   font-weight: 800;
-  color: #52525b;
+  color: #d4d4d8;
 }
 .edp-legend i {
   display: inline-block;
@@ -653,14 +974,20 @@
 @keyframes edp-card-in {
   from {
     opacity: 0;
-    translate: 0 18px;
-    scale: 0.97;
-    filter: blur(3px);
+    translate: 0 22px;
+    scale: 0.96;
+    filter: blur(4px);
+  }
+}
+@keyframes edp-row-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
   }
 }
 @keyframes edp-pop {
   from {
-    scale: 0.4;
+    scale: 0.6;
     opacity: 0;
   }
 }
@@ -677,14 +1004,19 @@
     translate: 4px 0;
   }
 }
+@keyframes edp-sweep {
+  to {
+    translate: 100% 0;
+  }
+}
 @keyframes edp-rise {
   from {
     scale: 1 0;
   }
 }
-@keyframes edp-grow {
+@keyframes edp-ring {
   from {
-    scale: 0 1;
+    stroke-dashoffset: 201;
   }
 }
 @keyframes edp-draw {
@@ -708,18 +1040,28 @@
   .edp-ov-row > span:nth-child(3) {
     display: none;
   }
+  .edp-start {
+    width: 100%;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .edp-bar,
   .edp-card,
+  .edp-card::after,
   .edp-kpi,
-  .edp-kpi i,
+  .edp-ring .fg,
   .edp-bar-fill,
   .edp-draw,
+  .edp-area,
   .edp-alert,
   .edp-ov,
   .edp-stat,
   .edp-pulse,
+  .edp-chips button,
+  .edp-rounds button,
+  .edp-pick-hero,
+  .edp-pick-hero::after,
+  .edp-dark .data-table tbody tr,
   .edp-card.is-late::before {
     animation: none;
     transition: none;

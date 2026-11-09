@@ -1,9 +1,10 @@
 "use client";
 
 import { Select } from "@/components/dropdowns/Select";
+import { DateField } from "@/components/forms/DateField";
 import { roundLabel, type Round, type Scope } from "./edp";
 
-// 🏭 แถบเลือก วันที่ · กะ · รอบ (ใช้ร่วมทุกหน้า EDP) · กะ: แถบเลื่อนไปหาปุ่มที่เลือก
+// 🏭 แถบเลือก วันที่ (ปฏิทินแบบเดียวกับทั้งระบบ + ปุ่มวันก่อน / ถัดไป) · กะ (แถบเลื่อน) · รอบ  - ใช้ร่วมทุกหน้า EDP
 export function EdpBar({
   date,
   onDate,
@@ -37,7 +38,7 @@ export function EdpBar({
         <button type="button" onClick={() => step(-1)} aria-label="วันก่อนหน้า">
           ‹
         </button>
-        <input type="date" value={date} onChange={(e) => e.target.value && onDate(e.target.value)} aria-label="วันที่แผน" />
+        <DateField label="DATE" value={date} onChange={(v) => v && onDate(v)} className="w-[180px]" />
         <button type="button" onClick={() => step(1)} aria-label="วันถัดไป">
           ›
         </button>

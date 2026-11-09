@@ -234,7 +234,7 @@ public sealed class EdpService
     public sealed record SlotTime(int PldId, string TimeStart, string TimeEnd);
 
     // ลากสลับการ์ด 2 ใบ: แลกรอบกัน + เวลาใหม่ของทุกการ์ดที่ขยับ (คำนวณจากหน้าจอแล้ว) · Transaction เดียว ล็อกแถว
-    public void Swap(int a, int b, IEnumerable<SlotTime> times)
+    public Guid Swap(int a, int b, IEnumerable<SlotTime> times, string uid)
     {
         const string conflict = "แผนนี้ถูกแก้ไขจากเครื่องอื่นไปแล้ว ระบบจะโหลดแผนล่าสุดให้ กรุณาลองใหม่อีกครั้ง";
         if (a <= 0 || b <= 0 || a == b) throw new InvalidOperationException("เลือกการ์ดที่จะสลับไม่ถูกต้อง");
@@ -247,12 +247,40 @@ public sealed class EdpService
         if (!rows.TryGetValue(a, out var ra) || !rows.TryGetValue(b, out var rb)) throw new InvalidOperationException(conflict);
         if (ra.Plh != rb.Plh) throw new InvalidOperationException("สลับได้เฉพาะการ์ดในแผนวันที่และกะเดียวกัน");
         if (ra.Done || rb.Done) throw new InvalidOperationException("การ์ดที่ทำเสร็จแล้วสลับเวลาไม่ได้");
+        // เก็บค่าเดิมของทุกการ์ดที่จะขยับ (ย้อนกลับได้ด้วย UNDO SWAP)
+        var list = (times ?? Enumerable.Empty<SlotTime>()).ToList();
+        var ids = list.Select(x => x.PldId).Append(a).Append(b).Distinct().ToList();
+        var batch = Guid.NewGuid();
+        c.Execute(@"INSERT INTO EDP.PlanTimeFixLogs (PLD_ID, OLD_TIME_START, NEW_TIME_START, OLD_TIME_END, NEW_TIME_END, OLD_ROUND_ID, NEW_ROUND_ID, BATCH_ID, FIX_BY)
+                    SELECT PLD_ID, TIME_START, TIME_START, TIME_END, TIME_END, ROUND_ID, ROUND_ID, @batch, @uid FROM EDP.PlanCards WHERE PLD_ID IN @ids",
+                  new { ids, batch, uid }, t);
         c.Execute("UPDATE EDP.PlanCards SET ROUND_ID = @r WHERE PLD_ID = @id", new[] { new { r = rb.Round, id = a }, new { r = ra.Round, id = b } }, t);
-        foreach (var s in times ?? Enumerable.Empty<SlotTime>())
+        foreach (var s in list)
             if (c.Execute("UPDATE EDP.PlanCards SET TIME_START = @s, TIME_END = @e WHERE PLD_ID = @id AND PLH_ID = @h",
                           new { s = s.TimeStart, e = s.TimeEnd, id = s.PldId, h = ra.Plh }, t) != 1)
                 throw new InvalidOperationException(conflict);
+        c.Execute(@"UPDATE L SET NEW_TIME_START = D.TIME_START, NEW_TIME_END = D.TIME_END, NEW_ROUND_ID = D.ROUND_ID
+                    FROM EDP.PlanTimeFixLogs L JOIN EDP.PlanCards D ON D.PLD_ID = L.PLD_ID WHERE L.BATCH_ID = @batch", new { batch }, t);
         t.Commit();
+        return batch;
+    }
+
+    // ↶ ย้อนการสลับ: คืนเวลา / รอบเดิมของทุกการ์ดในชุดนั้น (เฉพาะเมื่อยังไม่มีใครแก้การ์ดชุดนี้ต่อ)
+    public int UndoSwap(Guid batch)
+    {
+        using var c = Conn();
+        c.Open();
+        using var t = c.BeginTransaction();
+        var rows = c.Query<(int Id, string Os, string Ns, string Oe, string Ne, int? Or, int? Nr, string Cs, string Ce, int? Cr)>(@"
+            SELECT L.PLD_ID, L.OLD_TIME_START, L.NEW_TIME_START, L.OLD_TIME_END, L.NEW_TIME_END, L.OLD_ROUND_ID, L.NEW_ROUND_ID, D.TIME_START, D.TIME_END, D.ROUND_ID
+            FROM EDP.PlanTimeFixLogs L JOIN EDP.PlanCards D WITH (UPDLOCK, HOLDLOCK) ON D.PLD_ID = L.PLD_ID WHERE L.BATCH_ID = @batch", new { batch }, t).ToList();
+        if (rows.Count == 0) throw new InvalidOperationException("ไม่พบรายการสลับนี้แล้ว");
+        if (rows.Any(r => r.Cs != r.Ns || r.Ce != r.Ne || r.Cr != r.Nr))
+            throw new InvalidOperationException("การ์ดชุดนี้ถูกแก้ไข / ย้อนไปแล้ว จึงย้อนการสลับไม่ได้");
+        foreach (var r in rows)
+            c.Execute("UPDATE EDP.PlanCards SET TIME_START = @Os, TIME_END = @Oe, ROUND_ID = @Or WHERE PLD_ID = @Id", new { r.Os, r.Oe, r.Or, r.Id }, t);
+        t.Commit();
+        return rows.Count;
     }
 
     // ---------------------------------------------------------------- Plan Setting (ผู้วางแผน)
