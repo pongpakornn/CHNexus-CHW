@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
-import { Modal } from "@/components/modals/Modal";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
@@ -13,13 +12,14 @@ import { useLive } from "@/lib/live";
 import { useDebounced } from "@/lib/useDebounced";
 
 // 🗂 MASTER DATA › Customer Information / Supplier Information (หน้าเดียวใช้ทั้งสองตาราง: kind)
-//   ตาราง: CODE · NAME · UPDATE DATE (DD-MM-YYYY:HH:mm:ss) · STATUS · ใช้ในสินค้า · ACTION (ดู / แก้ไข / ลบ)
+//   ฟอร์มกรอกอยู่ด้านบนแบบ Product Control (REGISTER) · ตารางอยู่ด้านล่าง: CODE · NAME · STATUS · ใช้ในสินค้า · UPDATE DATE · ACTION (ดู / แก้ไข / ลบ)
+//   👁 / ✏ ในตาราง = โหลดรายการขึ้นฟอร์มด้านบน (ดูอย่างเดียว / แก้ไข) · RESET = ล้างฟอร์มกลับเป็นเพิ่มใหม่
 //   เพิ่มใหม่ = ACTIVE อัตโนมัติ · รหัสที่มีสินค้าใช้อยู่: เปลี่ยนรหัส / ลบไม่ได้ (เปลี่ยนเป็น INACTIVE แทน) · Server ตรวจสิทธิ์ซ้ำทุกครั้ง
 type Kind = "customers" | "suppliers";
 type Row = { id: number; code: string; name: string | null; isActive: boolean; createdBy: string | null; createdDate: string; updatedBy: string | null; updatedDate: string; parts: number };
 type Data = { label: string; can: { add: boolean; edit: boolean; delete: boolean }; rows: Row[] };
 type Status = "ALL" | "ACTIVE" | "INACTIVE";
-type Edit = { mode: "add" | "edit" | "view"; row?: Row };
+type Mode = "add" | "edit" | "view";
 const PAGE = 50;
 
 const META: Record<Kind, { title: string; icon: string; hint: string }> = {
@@ -38,7 +38,15 @@ export function PartnerPage({ kind }: { kind: Kind }) {
   const k = useDebounced(key, 200);
   const [status, setStatus] = useState<Status>("ALL");
   const [page, setPage] = useState(0);
-  const [edit, setEdit] = useState<Edit | null>(null);
+  // ฟอร์มด้านบน
+  const [mode, setMode] = useState<Mode>("add");
+  const [row, setRow] = useState<Row | null>(null);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [active, setActive] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -58,6 +66,7 @@ export function PartnerPage({ kind }: { kind: Kind }) {
   useLive(["master"], () => load(true)); // เครื่องอื่นเพิ่ม / แก้ = อัพเดทเอง
 
   const label = data?.label || (kind === "customers" ? "CUSTOMER" : "SUPPLIER");
+  const can = data?.can ?? { add: false, edit: false, delete: false };
   const rows = useMemo(() => {
     const q = k.trim().toUpperCase();
     return (data?.rows ?? []).filter(
@@ -69,118 +78,36 @@ export function PartnerPage({ kind }: { kind: Kind }) {
   const shown = rows.slice(cur * PAGE, cur * PAGE + PAGE);
   const counts = { ALL: data?.rows.length ?? 0, ACTIVE: data?.rows.filter((r) => r.isActive).length ?? 0, INACTIVE: data?.rows.filter((r) => !r.isActive).length ?? 0 };
 
-  async function remove(r: Row) {
-    if (r.parts > 0) return toast.show("ลบไม่ได้", `${label} ${r.code} มีสินค้าใช้อยู่ ${r.parts.toLocaleString()} รายการ\nเปลี่ยนสถานะเป็น INACTIVE แทน`, "warn");
-    if (!(await dlg.confirm({ title: `DELETE ${label}`, message: `ลบ ${label} "${r.code}"${r.name ? ` (${r.name})` : ""} ?`, ok: "DELETE" }))) return;
-    try {
-      const res = await api<{ message: string }>(`/master/${kind}/${r.id}`, { method: "DELETE" });
-      toast.show("DELETED", res.message, "ok");
-      load(true);
-    } catch (e) {
-      toast.show("ERROR", (e as Error).message, "error");
-    }
+  const ro = mode === "view";
+  const codeLocked = ro || (!!row && row.parts > 0);
+
+  function reset() {
+    setMode("add");
+    setRow(null);
+    setCode("");
+    setName("");
+    setActive(true);
   }
-
-  return (
-    <PageBody className="md-gray">
-      <PageHeader
-        icon={m.icon}
-        title={m.title}
-        subtitle={`MASTER DATA · ${m.hint}`}
-        actions={
-          data?.can.add && (
-            <button type="button" className="cta-btn is-green" onClick={() => setEdit({ mode: "add" })}>
-              ＋ ADD {label}
-            </button>
-          )
-        }
-      />
-      <Card>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {/* แท็บสถานะ: แถบเทาเข้มเลื่อนไปหาแท็บที่เลือก */}
-          <div className="md-seg" role="tablist" style={{ "--n": STATUSES.indexOf(status) } as React.CSSProperties}>
-            <span className="md-seg-glider" aria-hidden />
-            {STATUSES.map((s) => (
-              <button key={s} type="button" role="tab" aria-selected={status === s} className={status === s ? "is-on" : ""} onClick={() => (setStatus(s), setPage(0))}>
-                {s}
-                <b>{counts[s].toLocaleString()}</b>
-              </button>
-            ))}
-          </div>
-          <SearchBox value={key} onChange={(v) => (setKey(v), setPage(0))} placeholder="ค้นหา CODE / NAME" className="md-search ml-auto w-[340px] max-w-full" />
-        </div>
-        {!data ? (
-          <Loading />
-        ) : rows.length === 0 ? (
-          <Empty>{data.rows.length ? "ไม่พบรายการที่ค้นหา" : `ยังไม่มี ${label}`}</Empty>
-        ) : (
-          <>
-            <div className="overflow-auto">
-              <table className="data-table t-center w-full">
-                <thead className="sticky top-0">
-                  <tr>
-                    <th className="w-14 text-center">NO.</th>
-                    <th>{label} CODE</th>
-                    <th>{label} NAME</th>
-                    <th>STATUS</th>
-                    <th>USED IN PARTS</th>
-                    <th>UPDATE DATE</th>
-                    <th>ACTION</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((r, i) => (
-                    <tr key={r.id} className={r.isActive ? "" : "opacity-60"}>
-                      <td className="text-center">{cur * PAGE + i + 1}</td>
-                      <td className="font-mono font-extrabold">{r.code}</td>
-                      <td className="font-semibold">{r.name || <span className="text-ink-soft">-</span>}</td>
-                      <td>
-                        <span className={`md-status ${r.isActive ? "is-on" : ""}`}>{r.isActive ? "ACTIVE" : "INACTIVE"}</span>
-                      </td>
-                      <td className="font-bold">{r.parts ? r.parts.toLocaleString() : "-"}</td>
-                      <td className="whitespace-nowrap font-mono text-xs" title={r.updatedBy ? `โดย ${r.updatedBy}` : undefined}>
-                        {stamp(r.updatedDate)}
-                      </td>
-                      <td>
-                        <RowActions>
-                          <RowAction kind="view" onClick={() => setEdit({ mode: "view", row: r })} />
-                          {data.can.edit && <RowAction kind="edit" onClick={() => setEdit({ mode: "edit", row: r })} />}
-                          {data.can.delete && <RowAction kind="delete" title={r.parts ? "มีสินค้าใช้อยู่ ลบไม่ได้ (เปลี่ยนเป็น INACTIVE แทน)" : "DELETE"} onClick={() => remove(r)} />}
-                        </RowActions>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {pages > 1 && <Pager page={cur} pages={pages} total={rows.length} size={PAGE} onPage={setPage} />}
-          </>
-        )}
-      </Card>
-      {edit && <PartnerModal kind={kind} label={label} edit={edit} canEdit={!!data?.can.edit} onEdit={() => setEdit((e) => (e ? { ...e, mode: "edit" } : e))} onClose={() => setEdit(null)} onSaved={() => (setEdit(null), load(true))} />}
-    </PageBody>
-  );
-}
-
-// หน้าต่าง ดู / เพิ่ม / แก้ไข
-function PartnerModal({ kind, label, edit, canEdit, onEdit, onClose, onSaved }: { kind: Kind; label: string; edit: Edit; canEdit: boolean; onEdit: () => void; onClose: () => void; onSaved: () => void }) {
-  const toast = useToast();
-  const r = edit.row;
-  const ro = edit.mode === "view";
-  const [code, setCode] = useState(r?.code ?? "");
-  const [name, setName] = useState(r?.name ?? "");
-  const [active, setActive] = useState(r?.isActive ?? true);
-  const [busy, setBusy] = useState(false);
-  const codeLocked = ro || (!!r && r.parts > 0);
+  // 👁 / ✏ ในตาราง = ขึ้นฟอร์มด้านบน แล้วเลื่อนขึ้นไปหา
+  function open(r: Row, m2: Mode) {
+    setMode(m2);
+    setRow(r);
+    setCode(r.code);
+    setName(r.name ?? "");
+    setActive(r.isActive);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (m2 === "edit") setTimeout(() => codeRef.current?.focus(), 350);
+  }
 
   async function save() {
     if (!code.trim()) return toast.show("WARNING", `กรุณากรอก ${label} CODE`, "warn");
     setBusy(true);
     try {
       const body = { code: code.trim(), name: name.trim(), isActive: active };
-      const res = await api<{ message: string }>(r ? `/master/${kind}/${r.id}` : `/master/${kind}`, { method: r ? "PUT" : "POST", body });
+      const res = await api<{ message: string }>(row ? `/master/${kind}/${row.id}` : `/master/${kind}`, { method: row ? "PUT" : "POST", body });
       toast.show("SAVED", res.message, "ok");
-      onSaved();
+      reset();
+      load(true);
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -188,61 +115,170 @@ function PartnerModal({ kind, label, edit, canEdit, onEdit, onClose, onSaved }: 
     }
   }
 
+  async function remove(r: Row) {
+    if (r.parts > 0) return toast.show("ลบไม่ได้", `${label} ${r.code} มีสินค้าใช้อยู่ ${r.parts.toLocaleString()} รายการ\nเปลี่ยนสถานะเป็น INACTIVE แทน`, "warn");
+    if (!(await dlg.confirm({ title: `DELETE ${label}`, message: `ลบ ${label} "${r.code}"${r.name ? ` (${r.name})` : ""} ?`, ok: "DELETE", danger: true }))) return;
+    try {
+      const res = await api<{ message: string }>(`/master/${kind}/${r.id}`, { method: "DELETE" });
+      toast.show("DELETED", res.message, "ok");
+      if (row?.id === r.id) reset();
+      load(true);
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    }
+  }
+
+  const showForm = can.add || mode !== "add";
+
   return (
-    <Modal
-      open
-      title={ro ? `👁 ${label} • ${r?.code}` : r ? `✏ EDIT ${label}` : `＋ ADD ${label}`}
-      onClose={onClose}
-      footer={
-        <>
-          <button className="fill-btn" onClick={onClose}>
-            {ro ? "CLOSE" : "CANCEL"}
-          </button>
-          {ro ? (
-            canEdit && (
-              <button className="cta-btn is-purple" onClick={onEdit}>
-                ✏ EDIT
-              </button>
-            )
-          ) : (
-            <button className="cta-btn is-green" onClick={save} disabled={busy}>
-              {busy ? "…" : "💾 SAVE"}
-            </button>
-          )}
-        </>
-      }
-    >
-      <div className="grid gap-3">
-        <label className="fx">
-          <span className="fx-cap">{label} CODE *</span>
-          <input className="field fx-in font-mono font-bold uppercase" autoFocus={!codeLocked} readOnly={codeLocked} maxLength={50} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-        </label>
-        {r && r.parts > 0 && !ro && <p className="-mt-1 text-xs font-bold text-warning">มีสินค้าใช้รหัสนี้ {r.parts.toLocaleString()} รายการ · เปลี่ยนรหัสไม่ได้ (แก้ชื่อ / สถานะได้)</p>}
-        <label className="fx">
-          <span className="fx-cap">{label} NAME</span>
-          <input className="field fx-in" autoFocus={codeLocked && !ro} readOnly={ro} maxLength={200} value={name} placeholder="เติมทีหลังได้" onChange={(e) => setName(e.target.value)} />
-        </label>
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" role="switch" aria-checked={active} disabled={ro || !r} className={`sw ${active ? "is-on" : ""}`} onClick={() => setActive((v) => !v)}>
-            <span className="sw-track" />
-            {active ? "ACTIVE" : "INACTIVE"}
-          </button>
-          {!r && <span className="text-xs font-bold text-ink-soft">เพิ่มใหม่ = ACTIVE อัตโนมัติ</span>}
-        </div>
-        {r && (
-          <div className="md-meta">
-            <span>
-              UPDATE DATE <b>{stamp(r.updatedDate)}</b> {r.updatedBy ? `· ${r.updatedBy}` : ""}
-            </span>
-            <span>
-              CREATED <b>{stamp(r.createdDate)}</b> {r.createdBy ? `· ${r.createdBy}` : ""}
-            </span>
-            <span>
-              USED IN PARTS <b>{r.parts.toLocaleString()}</b>
-            </span>
+    <PageBody className="md-gray md-partner">
+      <PageHeader icon={m.icon} title={m.title} subtitle={`MASTER DATA · ${m.hint}`} />
+      <div className="flex flex-col gap-4">
+        {/* ฟอร์มกรอกข้อมูล (แบบ Product Control): เพิ่มใหม่ / แก้ไข / ดู */}
+        {showForm && (
+          <div ref={formRef} className="scroll-mt-4">
+            <Card
+              title={mode === "edit" ? `✏️ EDIT ${label}` : mode === "view" ? `👁 VIEW ${label}` : `＋ REGISTER ${label}`}
+              actions={mode !== "add" && row ? <span className={`md-status ${row.isActive ? "is-on" : ""}`}>{row.code}</span> : undefined}
+              bodyClass="p-4 md:p-5"
+            >
+              <div className="reg-fields grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">{label} CODE *</span>
+                  <input
+                    ref={codeRef}
+                    className="field font-mono font-bold uppercase"
+                    readOnly={codeLocked}
+                    maxLength={50}
+                    value={code}
+                    placeholder="เช่น CHW"
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === "Enter" && !ro && save()}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">{label} NAME</span>
+                  <input className="field" readOnly={ro} maxLength={200} value={name} placeholder="เติมทีหลังได้" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !ro && save()} />
+                </label>
+                <div className="block">
+                  <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">STATUS</span>
+                  <div className="flex h-10 items-center gap-2">
+                    <button type="button" role="switch" aria-checked={active} disabled={ro || !row} className={`sw ${active ? "is-on" : ""}`} onClick={() => setActive((v) => !v)}>
+                      <span className="sw-track" />
+                      {active ? "ACTIVE" : "INACTIVE"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {row && row.parts > 0 && mode === "edit" && <p className="mt-2 text-xs font-bold text-warning">มีสินค้าใช้รหัสนี้ {row.parts.toLocaleString()} รายการ · เปลี่ยนรหัสไม่ได้ (แก้ชื่อ / สถานะได้)</p>}
+
+              <div className="mt-4 flex flex-col gap-3 border-t border-line/60 pt-4 lg:flex-row lg:items-end">
+                <div className="min-w-0 flex-1">
+                  {row ? (
+                    <div className="md-meta">
+                      <span>
+                        UPDATE DATE <b>{stamp(row.updatedDate)}</b> {row.updatedBy ? `· ${row.updatedBy}` : ""}
+                      </span>
+                      <span>
+                        CREATED <b>{stamp(row.createdDate)}</b> {row.createdBy ? `· ${row.createdBy}` : ""}
+                      </span>
+                      <span>
+                        USED IN PARTS <b>{row.parts.toLocaleString()}</b>
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold text-ink-soft">เพิ่มใหม่ = ACTIVE อัตโนมัติ · กด Enter เพื่อบันทึกได้</span>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
+                    {mode === "add" ? "↺ RESET" : "✕ CANCEL"}
+                  </button>
+                  {mode === "view" ? (
+                    can.edit && (
+                      <button type="button" className="btn bg-accent min-w-[180px]" onClick={() => setMode("edit")}>
+                        ✏ EDIT
+                      </button>
+                    )
+                  ) : mode === "edit" ? (
+                    <button type="button" className="btn bg-success min-w-[180px]" disabled={busy} onClick={save}>
+                      {busy ? "…" : "💾 SAVE CHANGES"}
+                    </button>
+                  ) : (
+                    <button type="button" className="btn bg-accent min-w-[180px]" disabled={busy} onClick={save}>
+                      {busy ? "…" : `＋ ${label} REGISTRATION`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Card>
           </div>
         )}
+
+        <Card title={`${label}S • ${rows.length.toLocaleString()}`}>
+          {/* แถบเครื่องมือ: มีระยะห่างจากขอบการ์ด */}
+          <div className="md-toolbar">
+            {/* แท็บสถานะ: แถบเทาเข้มเลื่อนไปหาแท็บที่เลือก */}
+            <div className="md-seg" role="tablist" style={{ "--n": STATUSES.indexOf(status) } as React.CSSProperties}>
+              <span className="md-seg-glider" aria-hidden />
+              {STATUSES.map((s) => (
+                <button key={s} type="button" role="tab" aria-selected={status === s} className={status === s ? "is-on" : ""} onClick={() => (setStatus(s), setPage(0))}>
+                  {s}
+                  <b>{counts[s].toLocaleString()}</b>
+                </button>
+              ))}
+            </div>
+            <SearchBox value={key} onChange={(v) => (setKey(v), setPage(0))} placeholder="ค้นหา CODE / NAME" className="md-search ml-auto w-[340px] max-w-full" />
+          </div>
+          {!data ? (
+            <Loading />
+          ) : rows.length === 0 ? (
+            <Empty>{data.rows.length ? "ไม่พบรายการที่ค้นหา" : `ยังไม่มี ${label}`}</Empty>
+          ) : (
+            <>
+              <div className="overflow-auto">
+                <table className="data-table t-center w-full">
+                  <thead className="sticky top-0">
+                    <tr>
+                      <th className="w-14 text-center">NO.</th>
+                      <th>{label} CODE</th>
+                      <th>{label} NAME</th>
+                      <th>STATUS</th>
+                      <th>USED IN PARTS</th>
+                      <th>UPDATE DATE</th>
+                      <th>ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((r, i) => (
+                      <tr key={r.id} className={`${r.isActive ? "" : "opacity-60"} ${row?.id === r.id ? "is-picked" : ""}`}>
+                        <td className="text-center">{cur * PAGE + i + 1}</td>
+                        <td className="font-mono font-extrabold">{r.code}</td>
+                        <td className="font-semibold">{r.name || <span className="text-ink-soft">-</span>}</td>
+                        <td>
+                          <span className={`md-status ${r.isActive ? "is-on" : ""}`}>{r.isActive ? "ACTIVE" : "INACTIVE"}</span>
+                        </td>
+                        <td className="font-bold">{r.parts ? r.parts.toLocaleString() : "-"}</td>
+                        <td className="whitespace-nowrap font-mono text-xs" title={r.updatedBy ? `โดย ${r.updatedBy}` : undefined}>
+                          {stamp(r.updatedDate)}
+                        </td>
+                        <td>
+                          <RowActions>
+                            <RowAction kind="view" onClick={() => open(r, "view")} />
+                            {can.edit && <RowAction kind="edit" active={row?.id === r.id && mode === "edit"} onClick={() => open(r, "edit")} />}
+                            {can.delete && <RowAction kind="delete" title={r.parts ? "มีสินค้าใช้อยู่ ลบไม่ได้ (เปลี่ยนเป็น INACTIVE แทน)" : "DELETE"} onClick={() => remove(r)} />}
+                          </RowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {pages > 1 && <Pager page={cur} pages={pages} total={rows.length} size={PAGE} onPage={setPage} />}
+            </>
+          )}
+        </Card>
       </div>
-    </Modal>
+    </PageBody>
   );
 }

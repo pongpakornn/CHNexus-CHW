@@ -11678,3 +11678,40 @@ table.lqp code {
     animation: none;
   }
 }
+
+/* =====================================================================
+   🗂 MASTER DATA › CUSTOMER / SUPPLIER: แถบเครื่องมือมีระยะจากขอบการ์ด · ปุ่ม ACTION มีสีตามหน้าที่ · แถวที่เปิดในฟอร์ม
+   ===================================================================== */
+.md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid #ececee;
+}
+.md-toolbar .md-search {
+  margin-left: auto;
+}
+.md-partner .ra-view {
+  --c: #0d9488;
+}
+.md-partner .ra-edit {
+  --c: #2563eb;
+}
+.md-partner .ra-delete {
+  --c: #dc2626;
+}
+.md-partner .data-table tbody tr.is-picked {
+  background: #eef4ff;
+  box-shadow: inset 4px 0 0 #2563eb;
+}
+@media (max-width: 640px) {
+  .md-toolbar {
+    padding: 12px;
+  }
+  .md-toolbar .md-search {
+    width: 100%;
+    margin-left: 0;
+  }
+}
