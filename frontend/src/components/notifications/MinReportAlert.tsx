@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, download } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { dt, n0, span, titleOf, useNow, type MinItem } from "@/components/print/MinReportSheet";
+import { ReportPreview, dt, n0, span, titleOf, useNow, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { IC, Ico, PendingRow } from "@/components/notifications/MinPending";
 
 // ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ เมื่อมีสินค้าค้างอยู่ใต้ค่า MIN ต่อเนื่องครบตามวันที่ตั้ง (SETUP > MIN REPORT)
@@ -29,6 +29,7 @@ function MinReportAlertHost() {
   const [data, setData] = useState<Alerts | null>(null);
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{ sheet: SheetData; items: MinItem[] } | null>(null); // 👁 PREVIEW เอกสาร (รายชิ้น / ทั้งหมด)
   const now = useNow();
   const skew = useRef(0); // เวลาเครื่อง Server - เครื่องผู้ใช้
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,7 +66,7 @@ function MinReportAlertHost() {
     };
   }, [until, load]);
 
-  const show = !!data && data.items.length > 0 && !snoozed && !hidden;
+  const show = !!data && data.items.length > 0 && !snoozed && !hidden && !preview;
   useEffect(() => {
     window.dispatchEvent(new CustomEvent<boolean>(MIN_ALERT_EVENT, { detail: show }));
     return () => void window.dispatchEvent(new CustomEvent<boolean>(MIN_ALERT_EVENT, { detail: false }));
@@ -83,7 +84,31 @@ function MinReportAlertHost() {
     }
   }
 
-  if (!show || !data) return null;
+  // 👁 PREVIEW: เอกสาร FM-EN-04-22 รายชิ้น / ทั้งหมด (ระหว่างดู หน้าต่างแจ้งเตือนหลบให้ ปิดแล้วกลับมา)
+  function openPreview(items: MinItem[]) {
+    if (!data) return;
+    const stocks = [...new Set(items.map((i) => i.stockCode))];
+    setPreview({ items, sheet: { kind: "pending", stock: stocks.join(" · "), stuckDays: data.stuckDays, rows: items } });
+  }
+  async function excel() {
+    if (!preview) return;
+    // Excel แยกไฟล์ตามคลัง (แบบหน้า Store › MIN REPORT) · รายชิ้น = เฉพาะรายการนั้น
+    const one = preview.items.length === 1 ? preview.items[0] : null;
+    for (const stk of [...new Set(preview.items.map((i) => i.stkId))])
+      await download(`/minreport/stock/${stk}/export`, { kind: "pending", ...(one ? { id: one.watchId } : {}) });
+  }
+  const previewEl = (
+    <ReportPreview
+      data={preview?.sheet ?? null}
+      onClose={() => setPreview(null)}
+      onExcel={excel}
+      onPdfDone={(n) => {
+        for (const stk of [...new Set((preview?.items ?? []).map((i) => i.stkId))]) api(`/minreport/stock/${stk}/pdf-log`, { method: "POST", body: { kind: "pending", rows: n } }).catch(() => {});
+      }}
+    />
+  );
+
+  if (!show || !data) return preview ? previewEl : null;
   const items = data.items; // Server เรียงค้างนานสุดก่อน
   const oldest = items[0];
   const ref = now || Date.parse(oldest.lastSeen);
@@ -149,7 +174,7 @@ function MinReportAlertHost() {
           </div>
           <div className="mrp-list">
             {items.map((it, i) => (
-              <PendingRow key={it.watchId} no={i + 1} item={it} stuckDays={data.stuckDays} reasons={data.reasons} now={now} onReported={load} showStock />
+              <PendingRow key={it.watchId} no={i + 1} item={it} stuckDays={data.stuckDays} reasons={data.reasons} now={now} onReported={load} onPreview={() => openPreview([it])} showStock />
             ))}
           </div>
         </div>
@@ -157,6 +182,9 @@ function MinReportAlertHost() {
           <small>
             <i>i</i>CANCEL = ซ่อนชั่วคราว แล้วแจ้งเตือนอีกครั้งใน {every(data.remindMinutes)} จนกว่าจะรายงาน · สินค้ากลับมาพ้นค่า MIN แล้วจะหายจากรายการเอง
           </small>
+          <button type="button" className="cta-btn is-purple" onClick={() => openPreview(items)} disabled={busy}>
+            🖨 PREVIEW ALL
+          </button>
           <button type="button" className="cta-btn is-gray" onClick={cancel} disabled={busy}>
             CANCEL
           </button>

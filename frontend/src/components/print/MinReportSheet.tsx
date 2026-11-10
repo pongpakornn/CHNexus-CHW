@@ -258,7 +258,7 @@ function Sheets({ data, now, signing, interactive = false }: { data: SheetData; 
                 </tr>
                 <tr className="fm-h">
                   <td colSpan={4} className="fm-kv is-bot">
-                    <span>Other</span>: <b>STOCK {data.stock}</b>
+                    <span>Other</span>: <b>{data.stock}</b>
                   </td>
                 </tr>
                 <tr className="fm-h">

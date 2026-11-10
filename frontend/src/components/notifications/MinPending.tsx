@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
+import { useLive } from "@/lib/live";
 import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { refreshNotifications } from "@/lib/support";
@@ -129,7 +130,15 @@ export function PendingRow({
     <div className={`mrp-row ${late ? "is-late" : "is-watch"} ${open ? "is-open" : ""}`} style={{ animationDelay: `${Math.min(no, 12) * 25}ms` }}>
       <div className="mrp-main">
         <span className="mrp-no">{no}</span>
-        <div className="mrp-part">
+        <div className="mrp-part has-img">
+          {/* 🖼 รูปสินค้า (ทะเบียน Master Data) · ไม่มีรูป = กรอบว่าง */}
+          <span className="mrp-img" aria-hidden>
+            {it.partId > 0 && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/api/images/part/${it.partId}`} alt="" loading="lazy" draggable={false} onError={(e) => (e.currentTarget.style.display = "none")} />
+            )}
+          </span>
+          <div className="mrp-part-tx">
           <b className={title ? "" : "is-none"}>
             {showStock && <em className="mrp-stk">{it.stockCode}</em>}
             {title || "ไม่มีรหัส"}
@@ -139,6 +148,7 @@ export function PendingRow({
             {it.customer && <i>CUSTOMER : {it.customer}</i>}
             {it.supplier && <i>SUPPLIER : {it.supplier}</i>}
             {it.test && <i className="is-test">TEST</i>}
+          </div>
           </div>
         </div>
         <div className="mrp-nums">
@@ -211,11 +221,17 @@ export function FlowModal({ stkId, stockCode, title, reportId, onClose }: { stkI
   const [data, setData] = useState<FlowRes | null>(null);
   const [err, setErr] = useState("");
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  // ⚡ เปิดค้างไว้ได้: มีคนเซ็น / ตั้ง FLOW ใหม่จากเครื่องอื่น = อัพเดทเอง (หัวข้อ minreport)
+  const load = useCallback(() => {
     api<FlowRes>(reportId ? `/minreport/reports/${reportId}/flow` : `/minreport/flow/${stkId}`)
-      .then(setData)
+      .then((d) => (setData(d), setErr("")))
       .catch((e: Error) => setErr(e.message));
   }, [stkId, reportId]);
+  useEffect(() => {
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+  useLive(["minreport"], load);
   useEffect(() => {
     box.current?.focus();
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -223,6 +239,8 @@ export function FlowModal({ stkId, stockCode, title, reportId, onClose }: { stkI
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
   const used = (data?.slots ?? []).filter((s) => s.mode !== "OFF" && s.users.length > 0);
+  const signed = used.filter((s) => s.signed).length;
+  const waiting = used.find((s) => s.waiting);
   return createPortal(
     <div className="mr-flow-bg" onMouseDown={onClose}>
       <div ref={box} tabIndex={-1} className="mr-flow-box" role="dialog" aria-modal="true" aria-label="SIGN FLOW" onMouseDown={(e) => e.stopPropagation()}>
@@ -241,6 +259,16 @@ export function FlowModal({ stkId, stockCode, title, reportId, onClose }: { stkI
           ) : used.length === 0 ? (
             <p className="mr-flow-empty">คลัง {data.stockCode} ยังไม่ได้ตั้ง FLOW ลายเซ็น (USER MANAGEMENT › SETUP › SIGN FLOW)</p>
           ) : (
+            <>
+            {reportId && (
+              <div className={`mr-flow-prog ${signed === used.length ? "is-done" : ""}`}>
+                <b>{signed === used.length ? "✔ อนุมัติครบทุกลำดับแล้ว" : waiting ? `⏳ อยู่ที่ลำดับ ${used.indexOf(waiting) + 1} · ${waiting.name}` : "ยังไม่เริ่ม FLOW"}</b>
+                <span>
+                  อนุมัติแล้ว {signed} / {used.length} ลำดับ
+                </span>
+                <i style={{ "--p": used.length ? signed / used.length : 0 } as React.CSSProperties} />
+              </div>
+            )}
             <ol className="mr-steps">
               {data.slots.map((s, i) => {
                 const off = s.mode === "OFF" || s.users.length === 0;
@@ -271,6 +299,7 @@ export function FlowModal({ stkId, stockCode, title, reportId, onClose }: { stkI
                 );
               })}
             </ol>
+            </>
           )}
         </div>
       </div>

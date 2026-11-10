@@ -145,7 +145,7 @@ public static class MinReportForm
         title.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center; title.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         Box(title);
         string[] labels = { "Customer  :  ", "Supplier    :  ", "Other        :  " };
-        string[] vals = { string.IsNullOrEmpty(customer) ? "-" : customer, string.IsNullOrEmpty(supplier) ? "-" : supplier, $"STOCK {stock}" };
+        string[] vals = { string.IsNullOrEmpty(customer) ? "-" : customer, string.IsNullOrEmpty(supplier) ? "-" : supplier, stock };
         for (int i = 0; i < 3; i++)
         {
             var x = M(r + i, 5, r + i, 8);
@@ -157,7 +157,7 @@ public static class MinReportForm
         foreach (var (c1, c2, t) in new[] { (9, 10, "Prepared"), (11, 11, "Checked"), (12, 12, "Checked"), (13, 13, "Approved") })
         {
             var h = M(r, c1, r, c2);
-            h.Value = t; h.Style.Font.FontSize = 12;
+            h.Value = t; h.Style.Font.FontSize = 12; h.Style.Font.Bold = true;
             h.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             Box(h);
             Box(M(r + 1, c1, r + 3, c2));   // ช่องเซ็น
@@ -187,7 +187,7 @@ public static class MinReportForm
                 cap.Style.Alignment.Vertical = XLAlignmentVerticalValues.Bottom;
             }
         var sub = M(r + 3, 1, r + 3, 8);
-        sub.Value = "Subject : " + subject;
+        sub.Value = "Subject : " + subject; sub.Style.Font.Bold = true;
         sub.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         Box(sub);
 

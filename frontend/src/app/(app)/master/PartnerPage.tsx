@@ -23,8 +23,8 @@ type Mode = "add" | "edit" | "view";
 const PAGE = 50;
 
 const META: Record<Kind, { title: string; icon: string; hint: string }> = {
-  customers: { title: "CUSTOMER INFORMATION", icon: "/icons/user.png", hint: "ข้อมูลลูกค้ากลางของทุกระบบ" },
-  suppliers: { title: "SUPPLIER INFORMATION", icon: "/icons/StoreWarehouse.png", hint: "ข้อมูลผู้ขาย / ผู้ส่งของกลางของทุกระบบ" },
+  customers: { title: "CUSTOMER INFORMATION", icon: "/icons/Customer.png", hint: "ข้อมูลลูกค้ากลางของทุกระบบ" },
+  suppliers: { title: "SUPPLIER INFORMATION", icon: "/icons/Supplier.png", hint: "ข้อมูลผู้ขาย / ผู้ส่งของกลางของทุกระบบ" },
 };
 
 const STATUSES: Status[] = ["ALL", "ACTIVE", "INACTIVE"];
