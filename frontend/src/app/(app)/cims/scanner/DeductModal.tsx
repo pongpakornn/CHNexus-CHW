@@ -8,6 +8,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { Badge, Empty, Loading, SearchBox } from "@/components/layout/Page";
 import { PartPicker, PartSuggestInput, type PartOption } from "@/components/dropdowns/PartPicker";
 import { api, download } from "@/lib/api";
+import { askCutPending, type DeductMore } from "@/lib/deductFollowUp";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { DrawIcon } from "@/components/icons/DrawIcon";
 import { parseNum, qty, today } from "@/lib/format";
@@ -351,9 +352,11 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
           row={reg}
           stocks={stocks}
           onClose={() => setReg(null)}
-          onDone={async (msg) => {
+          onDone={async (msg, more, pcode) => {
             setReg(null);
             await dlg.alert({ title: "REGISTER & RECEIVE", message: msg });
+            // ป้ายอื่นของสินค้าเดียวกันที่ยังค้าง -> ถามว่าจะรับเข้า + ตัดคลังต้นทางให้ทั้งหมดเลยไหม
+            await askCutPending(dlg, more, pcode);
             onChanged();
             await load();
           }}
@@ -367,7 +370,7 @@ type RegStock = { stkId: number; code: string; name: string; countCoil: boolean 
 
 // ＋ PRODUCT: เลือกคลังที่รับเข้า + สินค้า (เลือกจากรายการ หรือกรอก PRODUCT CODE + NAME) แล้วรับเข้าตามป้าย - MAX / MIN / STOCK ไม่บังคับ
 //   กรอก CODE ที่มีอยู่แล้ว = ใช้สินค้านั้น (ชื่อต่าง = แก้ชื่อให้) · ยังไม่มี = ลงทะเบียนใหม่ให้เลย (แบบหน้า Inventory Registration)
-function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: RegStock[]; onClose: () => void; onDone: (msg: string) => void }) {
+function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: RegStock[]; onClose: () => void; onDone: (msg: string, more: DeductMore | null, partCode: string) => void }) {
   const toast = useToast();
   const dlg = useDialogs();
   const [part, setPart] = useState<PartOption | null>(null);
@@ -402,11 +405,11 @@ function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: Reg
     if (!ok) return;
     setBusy(true);
     try {
-      const r = await api<{ message: string }>(`/scanner/deduct/${row.missId}/register`, {
+      const r = await api<{ message: string; more?: DeductMore | null }>(`/scanner/deduct/${row.missId}/register`, {
         method: "POST",
         body: { partId: mode === "PICK" ? part!.partId : 0, partCode: mode === "CODE" ? code.trim() : null, partName: mode === "CODE" ? name.trim() : null, packSize: mode === "CODE" ? pack.trim() : null, stkId: stk, masterCoil: master, coilNo: coil, ...v },
       });
-      onDone(`${pcode}\n${r.message}`);
+      onDone(`${pcode}\n${r.message}`, r.more ?? null, pcode);
     } catch (e) {
       toast.show("ERROR", "บันทึกไม่สำเร็จ\n" + (e as Error).message, "error");
     } finally {

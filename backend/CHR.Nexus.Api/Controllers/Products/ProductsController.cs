@@ -337,6 +337,8 @@ public sealed class ProductsController : AppController
             var c = coil.Value;
             try
             {
+                // 🧲 Coil นี้ค้างอยู่ใน NOT DEDUCTED (สแกนแล้วยังไม่รับเข้า) = รับเข้าตามรายการนั้น + ตัดคลังต้นทาง (เช่น STOCK-PANTA) แทนการเพิ่มเฉยๆ
+                if (TakePendingCoil(ptId, c.Stock, c.No, c.Master, c.Kg) is { } took) { notes.Add(took); return notes; }
                 _svc.AddCoil(ptId, c.Stock, c.No, c.Master, c.Kg, Uid);
                 LogService.WriteLog(Uid, "ADD_COIL", $"{c.Stock.Code} | {m.PartCode} | Coil {c.No} | Master {c.Master ?? "-"} | {Qty.Plain(c.Kg)} KG", m.PartCode);
                 notes.Add($"เพิ่ม Coil {c.No} ({Qty.Plain(c.Kg)} KG) เข้า {c.Stock.Code} แล้ว");
@@ -344,6 +346,37 @@ public sealed class ProductsController : AppController
             catch (Exception ex) { notes.Add($"⚠ บันทึกสินค้าแล้ว แต่เพิ่ม Coil {c.No} ไม่สำเร็จ\n{ex.Message}"); }
         }
         return notes;
+    }
+
+    private string TakePendingCoil(int ptId, StockModel stock, string coilNo, string master, decimal kg)
+    {
+        if (!DbSchema.HasMissStatus) return null;
+        var svc = new DeductMissService();
+        var miss = svc.GetRows(coilNo, new DateTime(2000, 1, 1), DateTime.Today)
+                      .FirstOrDefault(r => r.IsPending && string.Equals(r.CoilNo, coilNo, StringComparison.OrdinalIgnoreCase));
+        if (miss == null) return null;
+        if (miss.StockId != stock.StkId) { svc.MoveTarget(miss.MissId, stock.StkId); miss.StockId = stock.StkId; miss.StockCode = stock.Code; }
+        if (!string.IsNullOrWhiteSpace(master)) miss.MotherCoil = master.Trim();
+        var a = svc.Receive(miss, ptId, kg, Uid, "REGISTERED");
+        if (!a.Ok) return $"⚠ บันทึกสินค้าแล้ว แต่รับ Coil {coilNo} จาก NOT DEDUCTED ไม่สำเร็จ\n{a.Message}";
+        var d = a.Deduct;
+        LogService.WriteLog(Uid, "ADD_COIL", $"{stock.Code} | Coil {coilNo} | Master {miss.MotherCoil} | {Qty.Plain(kg)} KG | from NOT DEDUCTED | cut {d?.SourceCode} {Qty.Plain(d?.Deducted ?? 0)}", coilNo);
+        return $"เพิ่ม Coil {coilNo} ({Qty.Plain(kg)} KG) เข้า {stock.Code} แล้ว\nพบป้ายค้างใน NOT DEDUCTED → " +
+               (d != null && d.Deducted > 0 ? $"ตัด {d.SourceCode} {Qty.Plain(d.Deducted)} KG ({d.SourcePartCode} เหลือ {Qty.Plain(d.SourceAfter)}) ให้แล้ว" : $"ยังตัด {miss.SourceCode} ไม่ได้ (ไม่มี Master Coil {miss.MotherCoil})");
+    }
+
+    // 📋 หลังเพิ่ม / แก้สินค้า: ผูกป้าย NO PD CODE ที่ตรงกับสินค้านี้ แล้วบอกว่ายังค้างกี่ป้าย (ตัดได้ครบกี่ป้าย) -> หน้าเว็บถามว่าจะตัดคลังต้นทางเลยไหม
+    private object DeductFollowUp(int ptId)
+    {
+        if (!DbSchema.HasMissStatus || ptId <= 0) return null;
+        try
+        {
+            var svc = new DeductMissService();
+            svc.Relink(force: true);
+            var p = svc.PendingFor(ptId);
+            return p.Count == 0 ? null : new { count = p.Count, ready = p.Ready, readyKg = p.ReadyKg, source = p.Source, target = p.Target, canApprove = Me?.CanApproveScan == true };
+        }
+        catch { return null; }
     }
 
     private static string CheckForm(ProductForm f, List<StockModel> stocks)
@@ -376,7 +409,7 @@ public sealed class ProductsController : AppController
                                                       m.CustomerCode, m.Location, m.Customer, m.PartA, m.PartNo, m.Model, m.PartB);
             if (newId <= 0) return Fail("ฐานข้อมูลปฏิเสธการบันทึกข้อมูล กรุณาตรวจสอบการกรอกข้อมูลให้ครบถ้วน");
             var notes = AfterSave(m, f, newId, coil);
-            return Ok(new { ptId = newId, partCode = m.PartCode, message = "ลงทะเบียนสินค้าใหม่เรียบร้อยแล้ว!" + (notes.Count > 0 ? "\n\n" + string.Join("\n\n", notes) : "") });
+            return Ok(new { ptId = newId, partCode = m.PartCode, message = "ลงทะเบียนสินค้าใหม่เรียบร้อยแล้ว!" + (notes.Count > 0 ? "\n\n" + string.Join("\n\n", notes) : ""), deduct = DeductFollowUp(newId) });
         }
         catch (Exception ex) { return Fail(ex, "ลงทะเบียนสินค้าใหม่ไม่สำเร็จ"); }
     }
@@ -405,7 +438,7 @@ public sealed class ProductsController : AppController
                                                          m.ImageFileName, m.CustomerCode, m.Location, m.Customer, m.PartA, m.PartNo, m.Model, ptId, m.PartB);
             if (!ok) return Fail("อัปเดตข้อมูลไม่สำเร็จ");
             var notes = AfterSave(m, f, ptId, coil);
-            return Ok(new { ptId, message = "แก้ไขข้อมูลเรียบร้อยแล้ว!" + (notes.Count > 0 ? "\n\n" + string.Join("\n\n", notes) : "") });
+            return Ok(new { ptId, message = "แก้ไขข้อมูลเรียบร้อยแล้ว!" + (notes.Count > 0 ? "\n\n" + string.Join("\n\n", notes) : ""), deduct = DeductFollowUp(ptId) });
         }
         catch (Exception ex) { return Fail(ex, "อัปเดตข้อมูลไม่สำเร็จ"); }
     }

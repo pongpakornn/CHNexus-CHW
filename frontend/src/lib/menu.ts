@@ -127,7 +127,8 @@ export const EDP: SystemDef = {
 export const SYSTEMS: SystemDef[] = [CIMS, EDP, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
-export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM];
+// USER MANAGEMENT ใต้ MASTER DATA (เห็นเฉพาะผู้มีสิทธิ์ userMgmt) + เข้าได้จาก SELECT SYSTEM เหมือนเดิม
+export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
 export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
 // Sidebar ของแต่ละระบบ
@@ -161,7 +162,10 @@ export function findItem(path: string, search: string): MenuItem | undefined {
     if (path !== p && !path.startsWith(p + "/")) continue;
     if (q && new URLSearchParams(q).get("type") !== type) continue;
     const sc = (path === p ? 10000 : 0) + p.length * 2 + (q ? 1 : 0);
-    if (sc > score) (best = m), (score = sc);
+    if (sc > score) {
+      best = m;
+      score = sc;
+    }
   }
   return best;
 }

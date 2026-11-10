@@ -791,6 +791,7 @@ namespace Nexus.Services
             public string MotherCoil { get; set; }
             public decimal RequestedQty { get; set; }
             public bool Held { get; set; }              // ตัดต้นทางไม่ได้ -> ค้างไว้ที่ NOT DEDUCTED (ยังไม่รับเข้า)
+            public decimal? TookOverKg { get; set; }    // Coil ถูกเพิ่มเข้าคลังเองไว้ก่อน -> ถอนยอดนั้นแล้วรับเข้าตามป้ายแทน (ไม่ซ้ำ)
             public int TxId { get; set; }
         }
 
@@ -954,6 +955,34 @@ namespace Nexus.Services
                             return result;
                         }
 
+                        // 🧲 APPROVE / ลงทะเบียนจาก NOT DEDUCTED แต่ Coil ลูกนี้ถูกเพิ่มเข้าคลังที่รับเองไปแล้ว (PRODUCT CONTROL / STORE ก่อน APPROVE)
+                        //    = ถอนยอดที่เพิ่มเองออกก่อน แล้วรับเข้าตามป้ายแทน -> ยอดไม่ซ้ำ + มีรายการสแกน + ตัดคลังต้นทางได้ (Coil ที่เคยรับจากการสแกนแล้ว = ไม่แตะ)
+                        int tookOverPart = 0;
+                        if (approveMissId.HasValue && existingTxId == null && coil?.HasCoilNo == true && Nexus.Helpers.DbSchema.HasCoilRegister)
+                        {
+                            int cId = 0; decimal cW = 0;
+                            using (var cmd = new SqlCommand(@"SELECT TOP 1 c.CoilID, c.PartID, c.WeightKG FROM Nexus.Coils c WITH (UPDLOCK, HOLDLOCK)
+                                                              WHERE c.CoilNo = @c AND c.StockID = @s AND c.Status = 'IN'
+                                                                AND NOT EXISTS (SELECT 1 FROM Nexus.CoilMoves m WHERE m.CoilID = c.CoilID AND m.ScanTransactionID IS NOT NULL)", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@c", coil.CoilNo.Trim());
+                                cmd.Parameters.AddWithValue("@s", stock.StkId);
+                                using (var r = cmd.ExecuteReader())
+                                    if (r.Read()) { cId = r.GetInt32(0); tookOverPart = r.GetInt32(1); cW = r.GetDecimal(2); }
+                            }
+                            if (cId > 0 && cW > 0)
+                                using (var cmd = new SqlCommand(stock.IsMain
+                                    ? "UPDATE Nexus.Parts SET StockQuantity = ISNULL(StockQuantity, 0) - @w WHERE PartID = @p"
+                                    : "UPDATE Nexus.PartStocks SET Quantity = ISNULL(Quantity, 0) - @w, UpdatedDate = GETDATE() WHERE StockID = @s AND PartID = @p", conn, trans))
+                                {
+                                    cmd.Parameters.Add(Nexus.Helpers.QtyParam.Of("@w", cW));
+                                    cmd.Parameters.AddWithValue("@p", tookOverPart);
+                                    cmd.Parameters.AddWithValue("@s", stock.StkId);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            result.TookOverKg = cId > 0 ? cW : (decimal?)null;
+                        }
+
                         // 1) รับเข้าคลังที่สแกน (Nexus.sp_Stock_AddQty: คลังหลัก = Nexus.Parts / คลังอื่น = Nexus.PartStocks) - รายการเดิมที่รับไปแล้ว = ข้าม
                         if (existingTxId == null)
                         {
@@ -1047,6 +1076,13 @@ namespace Nexus.Services
 
                         // 🧲 ย้าย Coil ลูก (มีอยู่ในคลังต้นทาง) / เพิ่มใหม่ เข้าคลังที่รับ - น้ำหนักตามป้าย (รายการเดิมที่รับไปแล้ว = ทำไปแล้ว)
                         if (stock.CountCoil && !remainder && existingTxId == null) CoilReceive(conn, trans, coil, ptId, stock.StkId, qty, txId, userId);
+
+                        // Coil ที่เพิ่มเองไว้ก่อน: STOCK (COIL) ของคลังที่รับนับใหม่จากทะเบียน (สินค้าเดิมของ Coil + สินค้าที่รับเข้า)
+                        if (tookOverPart > 0)
+                        {
+                            CoilImportService.RecountCoils(conn, trans, tookOverPart, stock.StkId, stock.IsMain);
+                            if (tookOverPart != ptId) CoilImportService.RecountCoils(conn, trans, ptId, stock.StkId, stock.IsMain);
+                        }
 
                         // STOCK (COIL) ของต้นทาง = จำนวน Coil ในทะเบียน (เมื่อหาเจอผ่านทะเบียน Coil)
                         if (how != null && sourceCoil && srcPart > 0) CoilImportService.RecountCoils(conn, trans, srcPart, sourceStkId, false);

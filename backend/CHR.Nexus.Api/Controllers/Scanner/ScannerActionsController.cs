@@ -30,6 +30,8 @@ public sealed class ScannerActionsController : AppController
         DateTime f = (from ?? (deducted ? DateTime.Today : DateTime.Today.AddDays(-60))).Date, t = (to ?? DateTime.Today).Date;
         if (t < f) (f, t) = (t, f);
         var svc = new DeductMissService();
+        // 🔗 ป้าย NO PD CODE ที่ตอนนี้มีสินค้าแล้ว = ผูก PD CODE ให้เอง (APPROVE / APPROVE READY ใช้ได้ทันที)
+        if (!deducted) try { svc.Relink(); } catch { /* ใช้ข้อมูลเดิม */ }
         var rows = deducted ? svc.GetDeducted(key ?? "", f, t, sc.DeductStockIds) : svc.GetRows(key ?? "", f, t, sc.DeductStockIds);
         return Ok(new
         {
@@ -162,8 +164,12 @@ public sealed class ScannerActionsController : AppController
         if (req.Max.HasValue || req.Min.HasValue || (req.CoilCount.HasValue && req.CoilCount.Value != 1))
             svc.ApplyStockSetting(r.StockId, partId, req.Max, req.Min, req.CoilCount.HasValue ? Math.Max(0, (int)req.CoilCount.Value - 1) : null, Uid);
         var d = res.Deduct;
+        // สินค้านี้ยังมีป้ายอื่นค้างอยู่ -> หน้าเว็บถามว่าจะรับเข้า + ตัดคลังต้นทางให้ทั้งหมดเลยไหม
+        try { svc.Relink(force: true); } catch { /* ใช้ข้อมูลเดิม */ }
+        var more = svc.PendingFor(partId, Scope().DeductStockIds);
         return Ok(new
         {
+            more = more.Count == 0 ? null : new { count = more.Count, ready = more.Ready, readyKg = more.ReadyKg, source = more.Source, target = more.Target, canApprove = true },
             message = (note != null ? note + "\n" : "") + $"รับเข้า {r.StockCode} แล้ว  {Qty.Plain(qty)}\n" +
                       (d != null && d.Deducted > 0 ? $"ตัด {d.SourceCode} {Qty.Plain(d.Deducted)} ({d.SourcePartCode} เหลือ {Qty.Plain(d.SourceAfter)})" : $"ยังไม่ได้ตัด {r.SourceCode} (ไม่มี Master Coil)") +
                       "\n\nรายการย้ายไปที่ DEDUCTED แล้ว"

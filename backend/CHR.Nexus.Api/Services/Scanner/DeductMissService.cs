@@ -64,7 +64,10 @@ namespace Nexus.Services
             ? $"รับเข้า {StockCode} แล้ว (รายการเดิม) • ยังไม่ตัด {SourceCode}"
             : $"⏸ รอดำเนินการ • ยังไม่รับเข้า {StockCode}";
         public string ReasonText =>
-            Reason == "NO_PRODUCT" ? "ไม่มี PD CODE นี้ในระบบ" :
+            !HasProduct ? "ไม่มี PD CODE นี้ในระบบ" :
+            // Master Coil อยู่ในคลังต้นทางตอนนี้ (เพิ่มเข้ามาทีหลัง / ป้ายพิมพ์เลข Master ขาด) = พร้อมตัด หรือเหลือไม่พอ
+            MotherNow.HasValue && MotherNow.Value >= LabelQty ? $"✔ พร้อมตัด • Master Coil {MotherCoil} ใน {SourceCode} มี {Qty.Plain(MotherNow.Value)} KG (กด APPROVE)" :
+            MotherNow.HasValue ? $"Master Coil {MotherCoil} ใน {SourceCode} เหลือ {Qty.Plain(MotherNow.Value)} KG ไม่พอตามป้าย" :
             Reason == "SHORT" ? $"Master Coil {MotherCoil} ใน {SourceCode} เหลือไม่พอ (ตัดได้ {Qty.Plain(Deducted)} KG)" :
             $"ไม่มี Master Coil {MotherCoil} ใน {SourceCode}";
 
@@ -91,6 +94,83 @@ namespace Nexus.Services
             if (ids.Count == 0) return " AND 1 = 0";
             string list = string.Join(",", ids.Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             return $" AND ({toCol} IN ({list}) OR {fromCol} IN ({list}))";
+        }
+
+        // 🔗 ป้าย NO PD CODE ที่ตอนนี้มีสินค้าในระบบแล้ว (เพิ่มทีหลังจาก PRODUCT CONTROL / STORE / ＋ PRODUCT) -> ผูก PD CODE ให้เอง
+        //    ค้นสินค้าแบบเดียวกับตอนสแกน (รูปแบบป้ายของรายการ + ชื่อ / รหัสบนป้าย) · เจอรายการเดียวเท่านั้นถึงผูก (กันผูกผิดสินค้า)
+        //    force = false: ไม่เกิน 1 ครั้ง / 15 วินาที (เปิดหน้าต่าง NOT DEDUCTED พร้อมกันหลายเครื่องไม่หนักฐาน)
+        private static DateTime _lastRelink = DateTime.MinValue;
+        private static readonly object _relinkLock = new object();
+
+        public int Relink(bool force = false)
+        {
+            if (!DbSchema.HasMissStatus) return 0;
+            lock (_relinkLock)
+            {
+                if (!force && (DateTime.UtcNow - _lastRelink).TotalSeconds < 15) return 0;
+                _lastRelink = DateTime.UtcNow;
+            }
+            var rows = new List<(int Id, int Stock, int Src, int? Fmt, string Bc)>();
+            using (var conn = new SqlConnection(_cs))
+            {
+                conn.Open();
+                using (var cmd = new SqlCommand("SELECT MissID, StockID, SourceStockID, FormatID, Barcode FROM Nexus.DeductMisses WHERE Status = 'PENDING' AND PartID IS NULL", conn))
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read())
+                        rows.Add((r.GetInt32(0), r.GetInt32(1), r.GetInt32(2), r.IsDBNull(3) ? (int?)null : r.GetInt32(3), r.IsDBNull(4) ? "" : r.GetString(4)));
+                if (rows.Count == 0) return 0;
+                var formats = new StockService().GetFormats(activeOnly: true);
+                var scan = new ScanService();
+                var cache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                int n = 0;
+                foreach (var row in rows)
+                {
+                    var fmts = formats.Where(f => row.Fmt.HasValue ? f.FmtId == row.Fmt.Value : f.SourceStkId == row.Src);
+                    foreach (var f in fmts)
+                    {
+                        if (!f.TryParse(row.Bc, out var codes, out _)) continue;
+                        string key = f.FmtId + "|" + row.Stock + "|" + string.Join("|", codes);
+                        if (!cache.TryGetValue(key, out int pid))
+                            cache[key] = pid = scan.FindPart(f, codes, out _, new List<int> { row.Stock })?.PartId ?? 0;
+                        if (pid > 0)
+                            using (var up = new SqlCommand(@"UPDATE Nexus.DeductMisses SET PartID = @p, Reason = CASE WHEN Reason = 'NO_PRODUCT' THEN 'NOT_FOUND' ELSE Reason END
+                                                             WHERE MissID = @id AND PartID IS NULL AND Status = 'PENDING'", conn))
+                            {
+                                up.Parameters.AddWithValue("@p", pid);
+                                up.Parameters.AddWithValue("@id", row.Id);
+                                n += up.ExecuteNonQuery();
+                            }
+                        break;
+                    }
+                }
+                if (n > 0) LogService.WriteLog("SYSTEM", "NOT_DEDUCTED_RELINK", $"Linked {n} NO PD CODE label(s) to products registered later", "NOT_DEDUCTED");
+                return n;
+            }
+        }
+
+        // 📋 ป้ายที่ค้างของสินค้านี้ (หลังเพิ่ม / ลงทะเบียนสินค้า): ทั้งหมด + ที่ตัด Master Coil ได้ครบตอนนี้ (ไล่ตามลำดับสแกน หักน้ำหนักทีละใบ)
+        public sealed class PendingInfo { public int Count; public List<int> Ready = new List<int>(); public decimal ReadyKg; public string Source; public string Target; }
+
+        public PendingInfo PendingFor(int partId, IEnumerable<int> stockIds = null)
+        {
+            var info = new PendingInfo();
+            if (!DbSchema.HasMissStatus || partId <= 0) return info;
+            var rows = GetRows("", new DateTime(2000, 1, 1), DateTime.Today, stockIds).Where(r => r.IsPending && r.PartId == partId)
+                          .OrderBy(r => r.ScanDate).ThenBy(r => r.MissId).ToList();
+            info.Count = rows.Count;
+            var left = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in rows.Where(r => r.MotherNow.HasValue))
+            {
+                string key = r.SourceStockId + "|" + r.MotherCoil;
+                decimal have = left.TryGetValue(key, out var v) ? v : r.MotherNow.Value;
+                if (have < r.LabelQty) continue;
+                left[key] = have - r.LabelQty;
+                info.Ready.Add(r.MissId);
+                info.ReadyKg += r.LabelQty;
+            }
+            info.Source = rows.FirstOrDefault()?.SourceCode;
+            info.Target = rows.FirstOrDefault()?.StockCode;
+            return info;
         }
 
         // จำนวนรายการทั้งหมด (ปุ่ม NOT DEDUCTED (n) หน้า Multi-Scanner)
@@ -316,6 +396,7 @@ namespace Nexus.Services
         public ReadyResult ApproveReady(IEnumerable<int> stockIds, ICollection<int> ids, string userId)
         {
             var res = new ReadyResult();
+            try { Relink(force: true); } catch { /* ผูก PD CODE ไม่ได้ = ใช้ข้อมูลเดิม */ }
             var rows = GetRows("", new DateTime(2000, 1, 1), DateTime.Today, stockIds)
                           .Where(r => r.HasProduct && r.MotherNow.HasValue && (ids == null || ids.Contains(r.MissId)))
                           .OrderBy(r => r.ScanDate).ThenBy(r => r.MissId).ToList();
