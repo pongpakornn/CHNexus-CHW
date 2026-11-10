@@ -104,11 +104,11 @@ export function Stat({
 }
 
 export function Empty({ children = "ไม่พบรายการ" }: { children?: React.ReactNode }) {
-  return <div className="py-12 text-center text-sm font-semibold text-ink-soft">{children}</div>;
+  return <div className="nx-fade py-12 text-center text-sm font-semibold text-ink-soft">{children}</div>;
 }
 
 export function Loading() {
-  return <div className="py-12 text-center text-sm font-semibold text-ink-soft">⏳ LOADING...</div>;
+  return <div className="nx-fade py-12 text-center text-sm font-semibold text-ink-soft">⏳ LOADING...</div>;
 }
 
 export function Badge({ children, color = "var(--primary)" }: { children: React.ReactNode; color?: string }) {
