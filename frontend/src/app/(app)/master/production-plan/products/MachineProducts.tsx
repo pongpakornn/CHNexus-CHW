@@ -14,7 +14,7 @@ import { useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { f0, f1, f2, mcHrOf, sphOf, strokeOf, thisMonth, type PpPart } from "@/lib/pp";
-import { MonthPicker } from "../../../pp/shared";
+import { MonthPicker, ProcessChips } from "../../../pp/shared";
 import "../../../pp/pp.css";
 
 // 📋 MASTER DATA › PRODUCTION PLAN › MACHINE PRODUCTS (ตาราง Product ของเครื่อง = ตารางล่างของชีทเครื่องใน Excel)
@@ -324,7 +324,7 @@ export default function MachineProducts() {
                           </td>
                           <td>{p.customer}</td>
                           <td className="proc" title={p.process ?? ""}>
-                            {p.process ?? ""}
+                            <ProcessChips code={p.process} />
                           </td>
                           <td>{p.tp}</td>
                           <td>{p.col}</td>

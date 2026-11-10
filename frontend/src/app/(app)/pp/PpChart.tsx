@@ -1,36 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { EASE } from "@/lib/motion";
 import { shortN } from "@/lib/pp";
 
-// 📊 กราฟ Plan vs Actual (SVG): แท่ง = ค่าจริง / แผน · เส้น = แผน / สะสม / เป้า
-//   เปิดหน้า = แท่งโตขึ้นจากฐานทีละแท่ง + เส้นลากจากซ้ายไปขวา · เปลี่ยนโหมด = แท่ง / เส้นเลื่อนไปค่าใหม่นุ่ม ๆ (ไม่วาดใหม่กระตุก)
-//   ชี้ / แตะ = แถบไฮไลต์ + กล่องค่าลอยตามจุด (ลากนิ้วบนมือถือได้) · กด Legend = ซ่อน / แสดงชุดข้อมูล · ลดการเคลื่อนไหว = ไม่มีแอนิเมชัน
-export type Series = { key: string; label: string; kind: "bar" | "line"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; fmt?: (v: number) => string };
+// 📊 กราฟ Plan vs Actual (SVG)
+//   แท่ง = ไล่สี + มุมบนมน โตขึ้นจากฐานทีละแท่ง · เส้น = ลากจากซ้ายไปขวา + เงาเรือง + พื้นไล่สีใต้เส้น (area)
+//   วันหยุด = ลายเส้นทแยงจาง ๆ · วันนี้ = เส้นประ TODAY · ชี้ / แตะ = เส้น crosshair + จุดขยาย + กล่องค่าลอยแบบกระจกฝ้า
+//   เปลี่ยนโหมด / ข้อมูล = แท่ง / เส้น / แกน Y เลื่อนไปค่าใหม่นุ่ม ๆ · กด Legend = ซ่อน / แสดง · ลดการเคลื่อนไหว = ไม่มีแอนิเมชัน
+export type Series = { key: string; label: string; kind: "bar" | "line"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string };
 
 type Props = {
   cats: string[];
   sub?: string[];
-  off?: boolean[]; // คอลัมน์วันหยุด (พื้นสีอ่อน)
+  off?: boolean[]; // คอลัมน์วันหยุด
+  today?: number; // index ของวันนี้ (เส้น TODAY)
   series: Series[];
   height?: number;
   tipTitle?: (i: number) => React.ReactNode;
   tipExtra?: (i: number) => React.ReactNode;
   onPick?: (i: number) => void;
+  empty?: string; // ข้อความเมื่อไม่มีข้อมูลเลย
   ariaLabel: string;
 };
 
 function nice(max: number) {
-  const raw = (Math.max(max, 1e-9) * 1.08) / 4;
+  const raw = (Math.max(max, 1e-9) * 1.1) / 4;
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));
   const n = raw / mag;
   const st = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
-  return { step: st, top: Math.max(st, Math.ceil((max * 1.08) / st) * st) };
+  return { step: st, top: Math.max(st, Math.ceil((max * 1.1) / st) * st) };
 }
 
-// เส้นโค้งนุ่ม (Catmull-Rom -> Bezier) ข้ามจุดที่ไม่มีค่า
+// เส้นโค้งนุ่ม (Catmull-Rom -> Bezier)
 function curve(pts: [number, number][]) {
   if (!pts.length) return "";
   let d = `M${pts[0][0]},${pts[0][1]}`;
@@ -45,8 +48,15 @@ function curve(pts: [number, number][]) {
   return d;
 }
 
-export function PpChart({ cats, sub, off, series, height, tipTitle, tipExtra, onPick, ariaLabel }: Props) {
+// แท่งมุมบนมน ฐานตรง
+function barPath(x: number, y: number, w: number, h: number) {
+  const r = Math.min(6, w / 2, h);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+
+export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipExtra, onPick, empty, ariaLabel }: Props) {
   const reduce = useReducedMotion();
+  const uid = useId().replace(/:/g, "");
   const box = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
   const [hide, setHide] = useState<Record<string, boolean>>({});
@@ -62,10 +72,11 @@ export function PpChart({ cats, sub, off, series, height, tipTitle, tipExtra, on
     return () => ro.disconnect();
   }, []);
 
-  const H = height ?? (W && W < 560 ? 250 : 320);
-  const m = { t: 14, r: 10, b: sub ? 40 : 30, l: W && W < 560 ? 40 : 52 };
+  const H = height ?? (W && W < 560 ? 260 : 340);
+  const m = { t: 18, r: 12, b: sub ? 42 : 32, l: W && W < 560 ? 40 : 54 };
   const shown = series.filter((s) => !hide[s.key]);
   const max = Math.max(0, ...shown.flatMap((s) => s.values.map((v) => v ?? 0)));
+  const hasData = series.some((s) => s.values.some((v) => (v ?? 0) > 0));
   const { step, top } = nice(max);
   const n = cats.length;
   const iw = Math.max(0, W - m.l - m.r);
@@ -75,28 +86,37 @@ export function PpChart({ cats, sub, off, series, height, tipTitle, tipExtra, on
   const base = H - m.b;
   const bars = shown.filter((s) => s.kind === "bar");
   const lines = shown.filter((s) => s.kind === "line");
-  const bw = Math.max(2, Math.min(30, (band * 0.74) / Math.max(1, bars.length)));
-  const labelEvery = Math.max(1, Math.ceil((n * (sub ? 30 : 38)) / Math.max(1, iw)));
+  const bw = Math.max(2, Math.min(28, (band * 0.72) / Math.max(1, bars.length)));
+  const labelEvery = Math.max(1, Math.ceil((n * (sub ? 30 : 40)) / Math.max(1, iw)));
   const ticks = useMemo(() => Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step), [top, step]);
-  const dl = (i: number) => (reduce ? 0 : Math.min(i * 0.018, 0.45));
+  const dl = (i: number) => (reduce ? 0 : Math.min(i * 0.02, 0.5));
+  const T = (d: number, delay = 0) => ({ duration: reduce ? 0 : d, ease: EASE, delay });
 
   function at(clientX: number, clientY: number) {
     const r = box.current!.getBoundingClientRect();
-    const x = clientX - r.left;
-    const i = Math.floor((x - m.l) / band);
+    const i = Math.floor((clientX - r.left - m.l) / band);
     if (i < 0 || i >= n || !band) return setHover(-1);
     setHover(i);
-    setTipPos({ x: sx(i), y: Math.max(8, Math.min(clientY - r.top, H - 60)), flip: sx(i) > W * 0.62 });
+    setTipPos({ x: sx(i), y: Math.max(8, Math.min(clientY - r.top - 30, H - 120)), flip: sx(i) > W * 0.6 });
   }
 
   return (
     <div className="pp-chart">
       <div className="pp-legend" role="group" aria-label="Series">
-        {series.map((s) => (
-          <button key={s.key} type="button" aria-pressed={!hide[s.key]} onClick={() => setHide((h) => ({ ...h, [s.key]: !h[s.key] }))}>
+        {series.map((s, i) => (
+          <motion.button
+            key={s.key}
+            type="button"
+            aria-pressed={!hide[s.key]}
+            onClick={() => setHide((h) => ({ ...h, [s.key]: !h[s.key] }))}
+            initial={reduce ? false : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={T(0.35, 0.1 + i * 0.06)}
+            whileTap={{ scale: 0.95 }}
+          >
             <i className={s.kind === "line" ? (s.dashed ? "is-dash" : "is-line") : ""} style={{ "--c": s.color, "--c2": s.color2 ?? s.color } as React.CSSProperties} />
             {s.label}
-          </button>
+          </motion.button>
         ))}
       </div>
       <div
@@ -121,25 +141,57 @@ export function PpChart({ cats, sub, off, series, height, tipTitle, tipExtra, on
           <svg width={W} height={H} role="img" aria-label={ariaLabel}>
             <defs>
               {series.map((s) => (
-                <linearGradient key={s.key} id={`ppg-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient key={s.key} id={`${uid}-g-${s.key}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" stopColor={s.color2 ?? s.color} />
                   <stop offset="1" stopColor={s.color} />
                 </linearGradient>
               ))}
+              {series.map((s) => (
+                <linearGradient key={"a" + s.key} id={`${uid}-a-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor={s.color} stopOpacity={0.28} />
+                  <stop offset="1" stopColor={s.color} stopOpacity={0} />
+                </linearGradient>
+              ))}
+              <pattern id={`${uid}-hatch`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="6" height="6" fill="#fff7ed" />
+                <line x1="0" y1="0" x2="0" y2="6" stroke="#fdba74" strokeWidth="1.2" strokeOpacity="0.45" />
+              </pattern>
             </defs>
-            {off?.map((o, i) => (o ? <rect key={"o" + i} x={m.l + i * band} y={m.t} width={band} height={base - m.t} className="pp-off" /> : null))}
-            {ticks.map((t) => (
-              <g key={t}>
-                <line x1={m.l} x2={W - m.r} y1={sy(t)} y2={sy(t)} className="pp-grid" />
+
+            {off?.map((o, i) => (o ? <rect key={"o" + i} x={m.l + i * band + 1} y={m.t} width={Math.max(0, band - 2)} height={base - m.t} rx={4} fill={`url(#${uid}-hatch)`} opacity={0.75} /> : null))}
+
+            {ticks.map((t, i) => (
+              <motion.g key={t} initial={{ opacity: 0 }} animate={{ opacity: 1, y: 0 }} transition={T(0.4, i * 0.04)}>
+                <line x1={m.l} x2={W - m.r} y1={sy(t)} y2={sy(t)} className={t === 0 ? "pp-base" : "pp-grid"} />
                 <text x={m.l - 8} y={sy(t)} dy="0.32em" textAnchor="end" className="pp-ax">
                   {shortN(t)}
                 </text>
-              </g>
+              </motion.g>
             ))}
-            {hover >= 0 && <rect x={m.l + hover * band} y={m.t} width={band} height={base - m.t} rx={6} className="pp-band" />}
+
+            {/* แถบ / เส้น crosshair ตามจุดที่ชี้ */}
+            <AnimatePresence>
+              {hover >= 0 && (
+                <motion.g key="hv" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <motion.rect y={m.t} height={base - m.t} rx={8} className="pp-band" animate={{ x: m.l + hover * band, width: band }} initial={false} transition={{ type: "spring", stiffness: 500, damping: 40 }} />
+                  <motion.line y1={m.t} y2={base} className="pp-cross" animate={{ x1: sx(hover), x2: sx(hover) }} initial={false} transition={{ type: "spring", stiffness: 500, damping: 40 }} />
+                </motion.g>
+              )}
+            </AnimatePresence>
+
+            {today != null && today >= 0 && today < n && (
+              <g className="pp-today">
+                <line x1={sx(today)} x2={sx(today)} y1={m.t - 4} y2={base} />
+                <rect x={sx(today) - 22} y={m.t - 16} width={44} height={14} rx={7} />
+                <text x={sx(today)} y={m.t - 6} textAnchor="middle">
+                  TODAY
+                </text>
+              </g>
+            )}
+
             {cats.map((c, i) =>
               i % labelEvery === 0 || hover === i ? (
-                <text key={"x" + i} x={sx(i)} y={base + 14} textAnchor="middle" className={`pp-ax ${hover === i ? "is-on" : ""} ${off?.[i] ? "is-off" : ""}`}>
+                <text key={"x" + i} x={sx(i)} y={base + 15} textAnchor="middle" className={`pp-ax ${hover === i ? "is-on" : ""} ${off?.[i] ? "is-off" : ""} ${today === i ? "is-today" : ""}`}>
                   {c}
                   {sub && (
                     <tspan x={sx(i)} dy="12" className="pp-ax-sub">
@@ -149,72 +201,85 @@ export function PpChart({ cats, sub, off, series, height, tipTitle, tipExtra, on
                 </text>
               ) : null,
             )}
+
             {bars.map((s, k) =>
               s.values.map((v, i) => {
                 if (v == null || v <= 0) return null;
                 const x = sx(i) - (bw * bars.length) / 2 + k * bw + 1;
                 const y = sy(v);
+                const w = Math.max(1, bw - 2);
                 return (
-                  <motion.rect
+                  <motion.path
                     key={`${s.key}-${i}`}
-                    x={x}
-                    width={Math.max(1, bw - 2)}
-                    rx={Math.min(5, bw / 3)}
-                    fill={`url(#ppg-${s.key})`}
-                    initial={{ y: base, height: 0 }}
-                    animate={{ y, height: base - y, opacity: hover < 0 || hover === i ? 1 : 0.45 }}
-                    transition={{ duration: reduce ? 0 : 0.6, ease: EASE, delay: dl(i), opacity: { duration: 0.2, delay: 0 } }}
+                    fill={`url(#${uid}-g-${s.key})`}
+                    className="pp-bar"
+                    initial={reduce ? false : { d: barPath(x, base, w, 0) }}
+                    animate={{ d: barPath(x, y, w, base - y), opacity: hover < 0 || hover === i ? 1 : 0.4 }}
+                    transition={{ ...T(0.7, dl(i)), opacity: { duration: 0.2 } }}
                   />
                 );
               }),
             )}
-            <AnimatePresence>
-              {lines.map((s) => {
-                const pts = s.values.map((v, i) => (v == null ? null : ([sx(i), sy(v)] as [number, number]))).filter((p): p is [number, number] => !!p);
-                return (
-                  <motion.g key={s.key} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-                    <motion.path
-                      d={curve(pts)}
-                      fill="none"
-                      stroke={s.color}
-                      strokeWidth={2.4}
-                      strokeLinecap="round"
-                      strokeDasharray={s.dashed ? "6 5" : undefined}
-                      initial={reduce ? false : { pathLength: 0 }}
-                      animate={{ pathLength: 1, d: curve(pts) }}
-                      transition={{ duration: reduce ? 0 : 0.9, ease: EASE }}
-                    />
-                    {!s.dashed &&
-                      pts.length <= 40 &&
-                      s.values.map((v, i) =>
-                        v == null ? null : (
-                          <motion.circle
-                            key={i}
-                            r={hover === i ? 5 : 3}
-                            fill="#fff"
-                            stroke={s.color}
-                            strokeWidth={2}
-                            initial={{ cx: sx(i), cy: base, opacity: 0 }}
-                            animate={{ cx: sx(i), cy: sy(v), opacity: 1 }}
-                            transition={{ duration: reduce ? 0 : 0.6, ease: EASE, delay: dl(i) }}
-                          />
-                        ),
-                      )}
-                  </motion.g>
-                );
-              })}
-            </AnimatePresence>
-            <line x1={m.l} x2={W - m.r} y1={base} y2={base} className="pp-base" />
+
+            {lines.map((s) => {
+              const pts = s.values.map((v, i) => (v == null ? null : ([sx(i), sy(v)] as [number, number]))).filter((p): p is [number, number] => !!p);
+              if (!pts.length) return null;
+              const d = curve(pts);
+              const area = `${d} L${pts[pts.length - 1][0]},${base} L${pts[0][0]},${base} Z`;
+              return (
+                <g key={s.key}>
+                  {s.area && <motion.path d={area} fill={`url(#${uid}-a-${s.key})`} initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1, d: area }} transition={T(0.9, 0.35)} />}
+                  <motion.path
+                    d={d}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={s.dashed ? 2 : 2.6}
+                    strokeLinecap="round"
+                    strokeDasharray={s.dashed ? "6 6" : undefined}
+                    className={s.dashed ? "" : "pp-glow"}
+                    style={{ "--c": s.color } as React.CSSProperties}
+                    // เส้นประ: pathLength จะทับ strokeDasharray -> ใช้จางเข้าแทน
+                    initial={reduce ? false : s.dashed ? { opacity: 0 } : { pathLength: 0, opacity: 0 }}
+                    animate={s.dashed ? { opacity: 1, d } : { pathLength: 1, opacity: 1, d }}
+                    transition={T(1.1)}
+                  />
+                  {!s.dashed &&
+                    s.values.map((v, i) =>
+                      v == null || (pts.length > 16 && hover !== i && i !== pts.length - 1) ? null : (
+                        <motion.circle
+                          key={i}
+                          fill="#fff"
+                          stroke={s.color}
+                          strokeWidth={2.4}
+                          initial={reduce ? false : { r: 0 }}
+                          animate={{ cx: sx(i), cy: sy(v), r: hover === i ? 6 : 3.5 }}
+                          transition={{ cx: T(0.6), cy: T(0.6), r: { type: "spring", stiffness: 500, damping: 22 } }}
+                        />
+                      ),
+                    )}
+                </g>
+              );
+            })}
           </svg>
         )}
+
+        <AnimatePresence>
+          {W > 0 && !hasData && empty && (
+            <motion.div className="pp-chart-empty" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={T(0.4, 0.3)}>
+              <span>📭</span>
+              {empty}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {hover >= 0 && (
             <motion.div
               className="pp-tip"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1, x: tipPos.flip ? tipPos.x - 16 - 220 : tipPos.x + 16, y: tipPos.y - 20 }}
-              exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.12 } }}
-              transition={{ duration: 0.18, ease: EASE }}
+              initial={{ opacity: 0, scale: 0.94, x: tipPos.flip ? tipPos.x - 236 : tipPos.x + 16, y: tipPos.y }}
+              animate={{ opacity: 1, scale: 1, x: tipPos.flip ? tipPos.x - 236 : tipPos.x + 16, y: tipPos.y }}
+              exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.12 } }}
+              transition={{ type: "spring", stiffness: 420, damping: 34 }}
             >
               <h4>{tipTitle ? tipTitle(hover) : cats[hover]}</h4>
               {series.map((s) => {
@@ -255,4 +320,64 @@ export function useCount(target: number, ms = 900) {
     return () => cancelAnimationFrame(raf);
   }, [target, ms]);
   return v;
+}
+
+// 🍩 วงแหวนความคืบหน้า (0-1 · เกิน 1 = วงเต็ม + สีเดิม)
+export function Ring({ frac, color, color2, size = 64, stroke = 7, label }: { frac: number; color: string; color2?: string; size?: number; stroke?: number; label?: React.ReactNode }) {
+  const reduce = useReducedMotion();
+  const id = useId().replace(/:/g, "");
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const f = Math.max(0, Math.min(1, frac || 0));
+  return (
+    <div className="pp-ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={color2 ?? color} />
+            <stop offset="1" stopColor={color} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeOpacity={0.12} strokeWidth={stroke} />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={`url(#${id})`}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          initial={reduce ? false : { strokeDashoffset: c }}
+          animate={{ strokeDashoffset: c * (1 - f) }}
+          transition={{ duration: reduce ? 0 : 1.2, ease: EASE, delay: 0.2 }}
+        />
+      </svg>
+      {label != null && <span>{label}</span>}
+    </div>
+  );
+}
+
+// 〰 กราฟเส้นเล็ก (sparkline) พื้นไล่สี
+export function Spark({ values, color, w = 120, h = 34 }: { values: (number | null)[]; color: string; w?: number; h?: number }) {
+  const reduce = useReducedMotion();
+  const id = useId().replace(/:/g, "");
+  const v = values.map((x) => x ?? 0);
+  const mx = Math.max(1, ...v);
+  if (!v.some((x) => x > 0)) return <svg width={w} height={h} className="pp-spark" aria-hidden />;
+  const pts = v.map((x, i) => [(i / Math.max(1, v.length - 1)) * (w - 4) + 2, h - 3 - (x / mx) * (h - 8)] as [number, number]);
+  const d = curve(pts);
+  return (
+    <svg width={w} height={h} className="pp-spark" aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={color} stopOpacity={0.3} />
+          <stop offset="1" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <motion.path d={`${d} L${w - 2},${h} L2,${h} Z`} fill={`url(#${id})`} initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }} />
+      <motion.path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: reduce ? 0 : 1.2, ease: EASE, delay: 0.2 }} />
+    </svg>
+  );
 }

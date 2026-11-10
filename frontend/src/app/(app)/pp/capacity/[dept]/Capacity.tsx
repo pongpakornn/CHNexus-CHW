@@ -10,9 +10,9 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
 import { EASE, fadeOnly, panelIn, springSoft } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
-import { DOW, calcMachine, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine } from "@/lib/pp";
-import { PpChart, type Series } from "../../PpChart";
-import { conditionRows, EffPill, Kpi, MonthPicker, usePpMonth } from "../../shared";
+import { DOW, calcMachine, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine } from "@/lib/pp";
+import { PpChart, Ring, type Series } from "../../PpChart";
+import { conditionRows, EffPill, Kpi, MonthPicker, PpIcon, ProcessChips, usePpMonth } from "../../shared";
 import { Seg } from "../../Seg";
 import "../../pp.css";
 
@@ -35,7 +35,7 @@ export default function Capacity({ dept }: { dept: string }) {
   const [month, setMonth] = useState(() => params.get("month") || thisMonth());
   const [draft, setDraft] = useState<Draft>({});
   const dirty = Object.keys(draft).length;
-  const { res, data, reload } = usePpMonth(D, month, dirty > 0);
+  const { res, data, calcs, reload } = usePpMonth(D, month, dirty > 0);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState("");
   const qd = useDebounced(q, 150);
@@ -151,14 +151,15 @@ export default function Capacity({ dept }: { dept: string }) {
   const isHr = metric === "hr";
   const series: Series[] = acc
     ? [
-        { key: "pacc", label: "PLAN ACC", kind: "line", color: C.plan, values: isHr ? c.planHrAcc : c.planAcc, fmt: isHr ? f1 : f0 },
-        { key: "aacc", label: "ACTUAL ACC", kind: "line", color: C.act, values: isHr ? c.actHrAcc : c.actAcc, fmt: isHr ? f1 : f0 },
+        { key: "pacc", label: "PLAN ACC", kind: "line", color: C.plan, area: true, values: isHr ? c.planHrAcc : c.planAcc, fmt: isHr ? f1 : f0 },
+        { key: "aacc", label: "ACTUAL ACC", kind: "line", color: C.act, area: true, values: isHr ? c.actHrAcc : c.actAcc, fmt: isHr ? f1 : f0 },
       ]
     : [
         { key: "act", label: isHr ? "ACTUAL HR. (A2)" : "ACTUAL STROKE (A1)", kind: "bar", color: C.act, color2: C.act2, values: isHr ? c.actHr : c.actStroke, fmt: isHr ? f2 : f0 },
         { key: "plan", label: isHr ? "PLAN HR. (P5)" : "PLAN STROKE (P2)", kind: "line", color: C.plan, dashed: true, values: isHr ? c.planHr : c.plan, fmt: isHr ? f2 : f0 },
       ];
   const load1 = c.sh[0] ? c.P1 / c.sh[0] : 0;
+  const todayIdx = month === thisMonth() ? new Date().getDate() - 1 : -1;
   const rows = conditionRows(data);
 
   return (
@@ -167,6 +168,9 @@ export default function Capacity({ dept }: { dept: string }) {
 
       {/* เลือกเครื่อง */}
       <div className="pp-chipbar">
+        <button type="button" className="pp-chipnav" aria-label="Scroll left" onClick={() => chipBox.current?.scrollBy({ left: -320, behavior: reduce ? "auto" : "smooth" })}>
+          ‹
+        </button>
         <div ref={chipBox} className="pp-chips" role="group" aria-label="Machine">
           {chips.map((m, i) => (
             <motion.button
@@ -180,11 +184,15 @@ export default function Capacity({ dept }: { dept: string }) {
               transition={{ duration: 0.35, ease: EASE, delay: Math.min(i * 0.025, 0.4) }}
             >
               {m.id === machine.id && <motion.span layoutId="pp-chip-on" className="pp-chip-on" transition={springSoft} />}
+              <span className={`pp-chip-dot is-${toneOf(calcs.get(m.id))}`} aria-hidden />
               <span className="relative">{m.code}</span>
             </motion.button>
           ))}
           {chips.length === 0 && <span className="pp-hint m-0 px-2">ไม่พบเครื่อง</span>}
         </div>
+        <button type="button" className="pp-chipnav" aria-label="Scroll right" onClick={() => chipBox.current?.scrollBy({ left: 320, behavior: reduce ? "auto" : "smooth" })}>
+          ›
+        </button>
         <SearchBox value={q} onChange={setQ} placeholder="ค้นหาเครื่อง / GROUP" className="pp-chipsearch" />
       </div>
 
@@ -193,6 +201,8 @@ export default function Capacity({ dept }: { dept: string }) {
           ⚠ ยังไม่ได้ตั้ง <b>Company Workdays</b> ของเดือนนี้ · ใช้ จันทร์–เสาร์ ({data.workdays.length} วัน) ไปก่อน
         </div>
       )}
+
+      <MachineBanner key={machine.id} code={machine.code} group={machine.subGroup ?? machine.group} month={month} c={c} parts={machine.parts.length} withPcs={machine.parts.filter((p) => p.pcs > 0).length} byPcs={machine.byPcs} />
 
       <div className="pp-hero">
         <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={0} className="pp-cal">
@@ -220,27 +230,50 @@ export default function Capacity({ dept }: { dept: string }) {
               return (
                 <motion.span
                   key={d}
-                  className={`day ${wd.has(d) ? "is-on" : "is-off"} ${has ? "has-act" : ""}`}
+                  className={`day ${wd.has(d) ? "is-on" : "is-off"} ${has ? "has-act" : ""} ${d - 1 === todayIdx ? "is-today" : ""}`}
                   title={`${d} ${monthLabel(month)}${wd.has(d) ? " · วันทำงาน" : " · วันหยุด"}${has ? ` · Actual ${f0(c.actStroke[d - 1])} stroke` : ""}`}
-                  initial={reduce ? false : { opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, ease: EASE, delay: Math.min(i * 0.012, 0.4) }}
+                  initial={reduce ? false : { opacity: 0, scale: 0.6, rotate: -8 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  whileHover={reduce ? undefined : { y: -3, scale: 1.08 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 22, delay: reduce ? 0 : Math.min(i * 0.014, 0.45) }}
                 >
                   {d}
                 </motion.span>
               );
             })}
           </div>
+          <div className="pp-cal-legend">
+            <span>
+              <i className="is-on" />
+              วันทำงาน
+            </span>
+            <span>
+              <i className="is-off" />
+              วันหยุด
+            </span>
+            <span>
+              <i className="is-act" />
+              มี Actual
+            </span>
+            {todayIdx >= 0 && (
+              <span>
+                <i className="is-today" />
+                วันนี้
+              </span>
+            )}
+          </div>
         </motion.div>
         <div className="pp-kpis is-2">
-          <Kpi key={machine.id + "k0"} i={0} tone="plan" label="PLAN STROKE • P1" value={c.P1} fmt={f0} sub={`${f0(c.P2)} stroke/วัน (P2) · PCS ${f0(c.pcs)}`} frac={c.sh[0] ? Math.min(1, load1) : null} />
-          <Kpi key={machine.id + "k1"} i={1} tone="act" label="ACTUAL STROKE • A1" value={c.A1} fmt={f0} sub={`${pc(c.P1 ? c.A1 / c.P1 : 0)} ของแผน · ${f1(c.A2)} hr`} frac={c.P1 ? c.A1 / c.P1 : 0} />
-          <Kpi key={machine.id + "k2"} i={2} tone="day" label="PLAN HR. • P4" value={c.P4} fmt={f1} unit=" hr" sub={`${f2(c.P5)} hr/วัน · โหลด 1 กะ ${pc(load1)}`} frac={load1} />
+          <Kpi key={machine.id + "k0"} i={0} tone="plan" label="PLAN STROKE • P1" icon={<PpIcon k="plan" />} spark={c.plan} value={c.P1} fmt={f0} sub={`${f0(c.P2)} stroke/วัน (P2) · PCS ${f0(c.pcs)}`} frac={c.sh[0] ? Math.min(1, load1) : null} />
+          <Kpi key={machine.id + "k1"} i={1} tone="act" label="ACTUAL STROKE • A1" icon={<PpIcon k="act" />} spark={c.actStroke} value={c.A1} fmt={f0} sub={`${pc(c.P1 ? c.A1 / c.P1 : 0)} ของแผน · ${f1(c.A2)} hr`} frac={c.P1 ? c.A1 / c.P1 : 0} />
+          <Kpi key={machine.id + "k2"} i={2} tone="day" label="PLAN HR. • P4" icon={<PpIcon k="hr" />} spark={c.actHr} value={c.P4} fmt={f1} unit=" hr" sub={`${f2(c.P5)} hr/วัน · โหลด 1 กะ ${pc(load1)}`} frac={load1} />
           <Kpi
             key={machine.id + "k3"}
             i={3}
             tone={!c.A2 ? "mid" : c.A4 >= c.C4 ? "ok" : c.A4 >= c.C4 * 0.85 ? "mid" : "low"}
             label="EFF% • A4"
+            icon={<PpIcon k="eff" />}
+            spark={c.effDay}
             value={c.A4 * 100}
             fmt={(v) => v.toFixed(1)}
             unit="%"
@@ -251,7 +284,7 @@ export default function Capacity({ dept }: { dept: string }) {
         </div>
       </div>
 
-      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={1}>
+      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
         <Card
           clip={false}
           title={`${machine.code} • PLAN vs ACTUAL`}
@@ -269,6 +302,8 @@ export default function Capacity({ dept }: { dept: string }) {
             cats={days.map(String)}
             sub={days.map((d) => DOW[dowOf(month, d)].slice(0, 2))}
             off={days.map((d) => !wd.has(d))}
+            today={todayIdx >= 0 ? todayIdx : undefined}
+            empty={acc ? undefined : "ยังไม่มี Actual ของเดือนนี้ · กรอกที่ตาราง DAILY ด้านล่าง"}
             series={series}
             tipTitle={(i) => `${i + 1} ${monthLabel(month)} · ${DOW[dowOf(month, i + 1)]}${wd.has(i + 1) ? "" : " · วันหยุด"}`}
             tipExtra={(i) =>
@@ -284,7 +319,7 @@ export default function Capacity({ dept }: { dept: string }) {
       </motion.div>
 
       <div className="pp-two is-cp">
-        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={2}>
+        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
           <Card title="CONDITION • PLAN • ACTUAL" actions={<span className="pp-tag">{machine.subGroup ?? machine.group}</span>}>
             <div className="pp-scroll">
               <table className="pp-cp">
@@ -303,7 +338,7 @@ export default function Capacity({ dept }: { dept: string }) {
                         <td colSpan={4}>{r.g}</td>
                       </tr>
                     ) : (
-                      <tr key={r.code}>
+                      <tr key={r.code} className="pp-rise" style={{ "--i": i } as React.CSSProperties}>
                         <td className="code">{r.code}</td>
                         <td className="lab">{r.label}</td>
                         <td className="fx">{r.code === "C3" && !c.C3auto ? "STD (กำหนดเอง)" : r.fx}</td>
@@ -323,12 +358,12 @@ export default function Capacity({ dept }: { dept: string }) {
             )}
           </Card>
         </motion.div>
-        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={3}>
+        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={1}>
           <ProductTable machine={machine} month={month} canSetup={!!res?.can.setup} />
         </motion.div>
       </div>
 
-      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={4}>
+      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
         <Card
           title="DAILY • M/C PLAN vs M/C ACTUAL"
           actions={<span className="pp-hint m-0">{canEdit ? "กรอก Working hour / Stroke / Man ในแถว M/C ACTUAL แล้วกด SAVE · %EFF คำนวณเอง" : "ดูอย่างเดียว (ไม่มีสิทธิ์บันทึก Actual)"}</span>}
@@ -560,7 +595,7 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
                   {p.name}
                 </td>
                 <td className="proc" title={p.process ?? ""}>
-                  {p.process ?? ""}
+                  <ProcessChips code={p.process} />
                 </td>
                 <td>{f0(p.tp)}</td>
                 <td>{f0(p.col)}</td>
@@ -596,5 +631,63 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
         PCS = ยอด <em className="pp-src is-order">O</em> Order ของเดือน · ไม่มี Order = <em className="pp-src is-forecast">F</em> Forecast · SPH = 3600 ÷ MC CT · Stroke = {bp ? "PCS ÷ Pcs./Stroke (เครื่อง Transfer)" : "PCS × Total Process ÷ Pcs./Stroke"} · MC Hr = Stroke ÷ SPH
       </p>
     </Card>
+  );
+}
+
+const toneOf = (c?: { A2: number; A4: number; C4: number }) => (!c || !c.A2 ? "none" : c.A4 >= c.C4 ? "ok" : c.A4 >= c.C4 * 0.85 ? "mid" : "low");
+
+const SHIFT_SHORT = ["1 SHIFT", "1 SHIFT + OT", "2 SHIFT", "2 SHIFT + OT", "2 SHIFT + OT 6"];
+
+// 🎛 แถบหัวเครื่อง: พื้นไล่สี + วงกลมลอย · ชื่อเครื่อง · กลุ่ม · ตัวเลขย่อ · วงแหวน Actual ÷ Plan ของเดือน
+function MachineBanner({ code, group, month, c, parts, withPcs, byPcs }: { code: string; group: string; month: string; c: Calc; parts: number; withPcs: number; byPcs: boolean }) {
+  const reduce = useReducedMotion();
+  const done = c.actStroke.filter((v) => (v ?? 0) > 0).length;
+  const need = c.sh.findIndex((v) => v != null && v >= c.P1);
+  const prog = c.P1 ? c.A1 / c.P1 : 0;
+  const stats: [string, string][] = [
+    ["PRODUCTS", `${withPcs} / ${parts}`],
+    ["PCS", f0(c.pcs)],
+    ["SPH 100%", f0(c.C3)],
+    ["ACTUAL DAYS", `${done} / ${c.C1}`],
+    ["SHIFT NEED", need < 0 ? (c.P1 ? "OVER" : "–") : (SHIFT_SHORT[need] ?? `C${5 + need}`)],
+  ];
+  return (
+    <motion.div className="pp-banner" initial={reduce ? false : { opacity: 0, y: 14, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.6, ease: EASE }}>
+      <span className="blob b1" aria-hidden />
+      <span className="blob b2" aria-hidden />
+      <span className="blob b3" aria-hidden />
+      <div className="tx">
+        <motion.small initial={reduce ? false : { opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}>
+          PRESS 1 · {group} · {monthLabel(month).toUpperCase()}
+          {byPcs && <em>TRANSFER · STROKE = PCS</em>}
+        </motion.small>
+        <motion.h2 initial={reduce ? false : { opacity: 0, y: 12, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.6, ease: EASE, delay: 0.15 }}>
+          {code}
+        </motion.h2>
+        <div className="stats">
+          {stats.map(([k, v], i) => (
+            <motion.span key={k} initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: EASE, delay: 0.25 + i * 0.06 }}>
+              <small>{k}</small>
+              <b>{v}</b>
+            </motion.span>
+          ))}
+        </div>
+      </div>
+      <div className="ring">
+        <Ring
+          frac={prog}
+          color="#ffffff"
+          color2="#a5f3fc"
+          size={116}
+          stroke={10}
+          label={
+            <>
+              <b>{pc(prog)}</b>
+              <small>ACTUAL / PLAN</small>
+            </>
+          }
+        />
+      </div>
+    </motion.div>
   );
 }

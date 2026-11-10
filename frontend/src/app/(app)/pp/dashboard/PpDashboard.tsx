@@ -7,7 +7,7 @@ import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { EASE, panelIn, fadeOnly } from "@/lib/motion";
 import { DOW, dowOf, f0, f1, monthLabel, pc, thisMonth, type Calc } from "@/lib/pp";
 import { PpChart, type Series } from "../PpChart";
-import { ConditionMatrix, EffPill, Kpi, MonthPicker, usePpMonth } from "../shared";
+import { ConditionMatrix, EffPill, Kpi, MonthPicker, PpIcon, usePpMonth } from "../shared";
 import { Seg } from "../Seg";
 import "../pp.css";
 
@@ -93,8 +93,8 @@ export default function PpDashboard() {
       return {
         ...base,
         series: [
-          { key: "pacc", label: "PLAN ACC", kind: "line", color: C.plan, values: isHr ? daily.planHrAcc : daily.planAcc, fmt },
-          { key: "aacc", label: "ACTUAL ACC", kind: "line", color: C.act, values: isHr ? daily.actHrAcc : daily.actAcc, fmt },
+          { key: "pacc", label: "PLAN ACC", kind: "line", color: C.plan, area: true, values: isHr ? daily.planHrAcc : daily.planAcc, fmt },
+          { key: "aacc", label: "ACTUAL ACC", kind: "line", color: C.act, area: true, values: isHr ? daily.actHrAcc : daily.actAcc, fmt },
         ],
       };
     return {
@@ -132,11 +132,12 @@ export default function PpDashboard() {
       )}
 
       <div className="pp-kpis">
-        <Kpi i={0} tone="day" label="WORKING DAYS • C1" value={data.workdays.length} fmt={f0} unit=" days" sub={`${data.workdaySource === "COMPANY" ? "Company Workdays" : "จันทร์–เสาร์"} · ${data.days} วันในเดือน`} frac={data.workdays.length / data.days} />
-        <Kpi i={1} tone="plan" label="PLAN STROKE • P1" value={sum.p1} fmt={f0} sub={`Actual ${f0(sum.a1)} · ${pc(sum.p1 ? sum.a1 / sum.p1 : 0)} ของแผน`} frac={sum.p1 ? sum.a1 / sum.p1 : 0} />
-        <Kpi i={2} tone="act" label="WORKING HR. • P4 / A2" value={sum.p4} fmt={f0} unit=" hr" sub={`Actual ${f1(sum.a2)} hr · Req. Man ${f1(sum.p9)}`} frac={sum.p4 ? sum.a2 / sum.p4 : 0} />
+        <Kpi i={0} tone="day" icon={<PpIcon k="day" />} label="WORKING DAYS • C1" value={data.workdays.length} fmt={f0} unit=" days" sub={`${data.workdaySource === "COMPANY" ? "Company Workdays" : "จันทร์–เสาร์"} · ${data.days} วันในเดือน`} frac={data.workdays.length / data.days} />
+        <Kpi i={1} tone="plan" icon={<PpIcon k="plan" />} spark={daily.act} label="PLAN STROKE • P1" value={sum.p1} fmt={f0} sub={`Actual ${f0(sum.a1)} · ${pc(sum.p1 ? sum.a1 / sum.p1 : 0)} ของแผน`} frac={sum.p1 ? sum.a1 / sum.p1 : 0} />
+        <Kpi i={2} tone="act" icon={<PpIcon k="hr" />} spark={daily.actHr} label="WORKING HR. • P4 / A2" value={sum.p4} fmt={f0} unit=" hr" sub={`Actual ${f1(sum.a2)} hr · Req. Man ${f1(sum.p9)}`} frac={sum.p4 ? sum.a2 / sum.p4 : 0} />
         <Kpi
           i={3}
+          icon={<PpIcon k="eff" />}
           tone={sum.run && sum.ok / sum.run >= 0.5 ? "ok" : "mid"}
           label="ON TARGET EFF"
           value={sum.ok}
@@ -173,6 +174,8 @@ export default function PpDashboard() {
               cats={chart.cats}
               sub={chart.sub}
               off={chart.off}
+              today={view === "daily" && month === thisMonth() ? new Date().getDate() - 1 : undefined}
+              empty={view === "daily" && !acc ? "ยังไม่มี Actual ของเดือนนี้" : undefined}
               series={chart.series}
               tipTitle={(i) => (view === "machine" ? list[i].m.code : `${i + 1} ${monthLabel(month)} · ${DOW[dowOf(month, i + 1)]}${chart.off?.[i] ? " · วันหยุด" : ""}`)}
               tipExtra={(i) =>
@@ -192,7 +195,7 @@ export default function PpDashboard() {
       </motion.div>
 
       <div className="pp-two">
-        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={3}>
+        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
           <Card title="EFF% BY MACHINE • TARGET" bodyClass="p-3 md:p-4">
             <div className="pp-eff">
               {effList.map(({ m, c }: { m: { id: number; code: string; group: string }; c: Calc }, i) => {
@@ -215,14 +218,14 @@ export default function PpDashboard() {
             <p className="pp-hint">เส้นสีส้ม = Target Eff ของเครื่อง · เขียว = ถึงเป้า · ส้ม = ใกล้เป้า (≥ 85% ของเป้า) · แดง = ต่ำกว่า</p>
           </Card>
         </motion.div>
-        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={4}>
+        <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
           <Card title="PLAN SPH • SHIFT LOAD" bodyClass="p-3 md:p-4">
             <ShiftLoad list={list} shifts={data.shifts.map((s) => s.name)} />
           </Card>
         </motion.div>
       </div>
 
-      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={5}>
+      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
         <Card title={`CONDITION M/C • ${DEPT === "PRESS1" ? "PRESS 1" : DEPT} TABLE`} actions={<span className="pp-hint m-0">กดชื่อเครื่อง = ดูรายละเอียด / บันทึก Actual</span>}>
           <ConditionMatrix data={data} calcs={calcs} dept="press1" />
         </Card>
