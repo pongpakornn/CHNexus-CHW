@@ -19,6 +19,11 @@ const key = (y: number, m: number, d: number) => isoDate(new Date(y, m, d));
 //   ลูกค้า: การ์ดลูกค้า -> ปฏิทิน · บริษัท (fixed = COMPANY_CODE): เปิดปฏิทินของบริษัทเลย
 //   ข้อมูลเดียวกับที่ Max-Min Calculator ใช้หาค่าเฉลี่ยต่อวัน (Nexus.CustomerWorkdays)
 export const COMPANY_CODE = "#COMPANY";
+// 🎨 สีประจำลูกค้า (คงที่ตามชื่อ = ลูกค้าเดิมสีเดิมทุกครั้ง) · สถานะความครบของปฏิทินดูจากป้าย / แถบด้านล่าง
+const HUES = ["#6750a4", "#2563eb", "#0891b2", "#0d9488", "#7c3aed", "#db2777", "#ea580c", "#4f46e5", "#0284c7", "#9333ea"];
+const hueOf = (name: string) => HUES[[...name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % HUES.length];
+const stateOf = (months: number) =>
+  months >= 12 ? { cls: "is-full", text: "ครบทั้งปี" } : months > 0 ? { cls: "is-part", text: `ตั้งแล้ว ${months} เดือน` } : { cls: "is-none", text: "ยังไม่ตั้ง" };
 const nameOf = (c: string) => (c === COMPANY_CODE ? "CH RADIATORS (COMPANY)" : c);
 export function WorkdayBoard({ canEdit, fixed, onChanged = () => {} }: { canEdit: boolean; fixed?: string; onChanged?: () => void }) {
   const open = true;
@@ -64,7 +69,9 @@ export function WorkdayBoard({ canEdit, fixed, onChanged = () => {} }: { canEdit
   // ปีปัจจุบัน -> เลื่อนไปที่เดือนนี้ให้เลย
   useEffect(() => {
     if (!days || year !== new Date().getFullYear()) return;
-    monthRefs.current[new Date().getMonth()]?.scrollIntoView({ block: "nearest" });
+    // หน้าเต็ม (MASTER DATA): ไม่เลื่อนหน้าลงไปเอง - เดือนนี้มีกรอบเน้น (is-now) ให้เห็นอยู่แล้ว
+    const el = monthRefs.current[new Date().getMonth()];
+    if (el && el.closest(".modal-body")) el.scrollIntoView({ block: "nearest" });
   }, [days, year]);
 
   async function save(dates: string[], working: boolean) {
@@ -215,7 +222,8 @@ export function WorkdayBoard({ canEdit, fixed, onChanged = () => {} }: { canEdit
         ) : (
           <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {customers.map((c, i) => {
-              const col = c.monthsSet >= 12 ? "#16a34a" : c.monthsSet > 0 ? "#6750a4" : "#f59e0b";
+              const col = hueOf(c.customer);
+              const st = stateOf(c.monthsSet);
               return (
                 <button
                   key={c.customer}
@@ -224,7 +232,7 @@ export function WorkdayBoard({ canEdit, fixed, onChanged = () => {} }: { canEdit
                     setSaved("");
                     setCustomer(c.customer);
                   }}
-                  className="adm-card ch-card wd-cust"
+                  className={`adm-card ch-card wd-cust ${st.cls}`}
                   style={{ "--c": col, animationDelay: `${Math.min(i, 12) * 40}ms` } as React.CSSProperties}
                 >
                   <span className="adm-bar" />
@@ -232,7 +240,10 @@ export function WorkdayBoard({ canEdit, fixed, onChanged = () => {} }: { canEdit
                     {c.customer.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1 text-left">
-                    <span className="block truncate text-[15px] font-extrabold text-[#1f2350]">{c.customer}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 truncate text-[15px] font-extrabold text-[#1f2350]">{c.customer}</span>
+                      <em className="wd-state">{st.text}</em>
+                    </span>
                     <span className="mt-1 flex items-baseline gap-2">
                       <span className="text-2xl font-extrabold tabular-nums" style={{ color: col }}>
                         {c.yearDays.toLocaleString()}

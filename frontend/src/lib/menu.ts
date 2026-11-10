@@ -153,11 +153,17 @@ export const systemOf = (path: string): SystemKey | null =>
 export function findItem(path: string, search: string): MenuItem | undefined {
   const all = [...CIMS_MENU, ...EDP_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
   const type = new URLSearchParams(search).get("type");
-  return all.find((m) => {
+  // ตรงที่สุดก่อน: path ตรงเป๊ะ > path ยาวกว่า (เช่น /master/workdays/company ไม่ไปไฮไลต์ /master/workdays)
+  let best: MenuItem | undefined;
+  let score = -1;
+  for (const m of all) {
     const [p, q] = m.href.split("?");
-    if (path !== p && !path.startsWith(p + "/")) return false;
-    return !q || new URLSearchParams(q).get("type") === type;
-  });
+    if (path !== p && !path.startsWith(p + "/")) continue;
+    if (q && new URLSearchParams(q).get("type") !== type) continue;
+    const sc = (path === p ? 10000 : 0) + p.length * 2 + (q ? 1 : 0);
+    if (sc > score) (best = m), (score = sc);
+  }
+  return best;
 }
 
 // หน้าแรกหลัง Login = หน้าเลือกระบบ (มีสิทธิ์อย่างน้อย 1 ระบบ)

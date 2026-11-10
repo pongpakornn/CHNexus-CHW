@@ -940,8 +940,8 @@ namespace Nexus.Services
             using (var wb = new XLWorkbook())
             {
                 var ws = wb.AddWorksheet("WORKDAYS");
-                string[] heads = { "NO", "CUSTOMER", "DATE", "DAY" };
-                ImportTemplateService.Header(ws, heads, new double[] { 6.4, 20, 14, 12 });
+                string[] heads = { "NO", "CUSTOMER", "DATE" };   // DATE อย่างเดียวพอ (ไม่ต้องมีชื่อวัน)
+                ImportTemplateService.Header(ws, heads, new double[] { 6.4, 20, 14 });
                 int r = 2;
                 foreach (var c in custs)
                 {
@@ -958,7 +958,6 @@ namespace Nexus.Services
                         ws.Cell(r, 2).Value = c;
                         ws.Cell(r, 3).Value = d;
                         ws.Cell(r, 3).Style.DateFormat.Format = "dd/MM/yyyy";
-                        ws.Cell(r, 4).Value = d.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant();
                         r++;
                     }
                 }
@@ -968,7 +967,7 @@ namespace Nexus.Services
                 {
                     ("CUSTOMER *", "รหัสลูกค้า (บังคับ) - ตรงกับ CUSTOMER ของสินค้าในระบบ"),
                     ("DATE *", "วันทำงาน 1 แถว = 1 วัน เช่น 01/10/2026 (วัน/เดือน/ปี ค.ศ.)"),
-                    ("DAY", "ไว้ดูเท่านั้น - ระบบไม่ได้อ่าน"),
+                    ("", "ลูกค้า #COMPANY = วันทำงานของบริษัท (MASTER DATA › Company Workdays)"),
                     ("", "ลูกค้า + เดือนที่อยู่ในไฟล์ จะถูกแทนที่ด้วยวันในไฟล์ทั้งเดือน (เดือนที่ไม่อยู่ในไฟล์ไม่เปลี่ยน)"),
                     ("", "ไฟล์นี้มีวันทำงานของปีที่เลือกใส่ไว้ให้แล้ว (ลูกค้าที่ยังไม่มี = จ.-ศ. ของเดือนนี้เป็นตัวอย่าง) แก้แล้วกด IMPORT WORKDAYS"),
                 });
