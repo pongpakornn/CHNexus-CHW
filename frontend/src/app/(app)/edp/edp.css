@@ -1986,3 +1986,62 @@
     display: none;
   }
 }
+
+/* =====================================================================
+   ⏰ EDP ALERT รอบ 9: ไม่มีกรอบขาวคุม - เหลือการ์ด + เวลาที่ยังไม่อัพเดท ลอยบนพื้นหลังเบลอ (Motion เดิมทุกอย่าง)
+   ===================================================================== */
+.eda-box.is-bare {
+  width: min(1180px, 100%);
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.eda-box.is-bare .eda-head {
+  justify-content: center;
+  padding: 0 12px 6px;
+  border: 0;
+  text-align: center;
+  background: none;
+}
+.eda-box.is-bare .eda-head b {
+  color: #fff;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 0.45);
+}
+.eda-box.is-bare .eda-head span:not(.eda-bell) {
+  color: #fde2e2;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.5);
+}
+.eda-box.is-bare .eda-bell {
+  background: rgb(255 255 255 / 0.92);
+}
+.eda-box.is-bare .eda-ring-wrap,
+.eda-box.is-bare .eda-few {
+  background: none;
+}
+.eda-box.is-bare .eda-bars span {
+  background: rgb(255 255 255 / 0.35);
+}
+.eda-box.is-bare .eda-bars span.is-on {
+  background: linear-gradient(90deg, #ef4444, #f97316, #ef4444);
+  background-size: 200% 100%;
+}
+.eda-box.is-bare .eda-count {
+  color: rgb(255 255 255 / 0.8);
+}
+.eda-box.is-bare .eda-count b {
+  color: #fff;
+}
+.eda-box.is-bare .eda-foot {
+  justify-content: center;
+  border: 0;
+  background: none;
+}
+.eda-box.is-bare .eda-foot small {
+  flex: 0 1 auto;
+  text-align: center;
+  color: rgb(255 255 255 / 0.8);
+}
+.eda-box.is-bare .eda-shadow {
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.45), transparent);
+}

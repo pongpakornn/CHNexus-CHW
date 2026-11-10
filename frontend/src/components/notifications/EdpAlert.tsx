@@ -181,7 +181,7 @@ function EdpAlertHost({ path }: { path: string }) {
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
           >
             <motion.div
-              className="eda-box edp-light"
+              className="eda-box edp-light is-bare"
               initial={reduce ? { opacity: 0 } : { opacity: 0, y: 28, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1, transition: reduce ? { duration: 0.2 } : springSoft }}
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98, transition: { duration: 0.22 } }}
