@@ -215,6 +215,10 @@ namespace Nexus.Helpers
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);
 
+        // 📋 MIN REPORT ผู้รับแจ้งเตือนรายคลัง (32_Min_Report_Alert_Users.sql): Nexus.MinReportStocks.AlertUsers
+        private static bool _minUsers;
+        public static bool HasMinAlertUsers => _minUsers || (_minUsers = HasMinReport && ColumnIn("Nexus.MinReportStocks", "AlertUsers") == true);
+
         // 🔐 รหัสผ่านแบบ Hash (22_User_Password_Hash.sql): Nexus.Users.PasswordHash
         private static bool _pwHash;
         public static bool HasPasswordHash => _pwHash || (_pwHash = ColumnIn("Nexus.Users", "PasswordHash") == true);

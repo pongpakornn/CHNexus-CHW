@@ -27,9 +27,10 @@ public sealed class MinReportController : AppController
     private string[] ReasonTypes => _svc.Reasons();
 
     // คลังที่ผู้ใช้เห็น ∩ คลังที่เปิด MIN REPORT
+    // หน้าต่างแจ้งเตือนกลางจอ: คลังที่เปิด MIN REPORT + ดูคลังนั้นได้ + อยู่ในรายชื่อผู้รับแจ้งเตือนของคลัง (ไม่ตั้ง = ทุกคน)
     private List<StockModel> MyStocks(MinReportSettings set) =>
         Me?.CanViewStore != true || !set.Enabled ? new()
-        : _stocks.GetStocks().Where(s => set.Stocks.Contains(s.StkId) && Me.CanViewStock(s)).ToList();
+        : _stocks.GetStocks().Where(s => set.Stocks.Contains(s.StkId) && Me.CanViewStock(s) && set.AlertsFor(s.StkId, Uid)).ToList();
 
     private StockModel Visible(int stkId)
     {
@@ -401,12 +402,26 @@ public sealed class MinReportController : AppController
         var set = _svc.GetSettings();
         return Ok(new
         {
-            set.Enabled, set.StuckDays, set.RemindMinutes, set.UpdatedBy, set.UpdatedDate, hasSign = DbSchema.HasMinSign,
-            stocks = _stocks.GetStocks().Select(s => new { s.StkId, s.Code, s.Name, s.StockType, s.IsMain, s.IsLiveView, on = set.Stocks.Contains(s.StkId) })
+            set.Enabled, set.StuckDays, set.RemindMinutes, set.UpdatedBy, set.UpdatedDate, hasSign = DbSchema.HasMinSign, hasUsers = DbSchema.HasMinAlertUsers,
+            stocks = _stocks.GetStocks().Select(s => new
+            {
+                s.StkId, s.Code, s.Name, s.StockType, s.IsMain, s.IsLiveView, on = set.Stocks.Contains(s.StkId),
+                users = set.AlertUsers.TryGetValue(s.StkId, out var u) ? u : new List<string>()
+            }),
+            users = UserList()
         });
     }
 
-    public sealed record SettingsRequest(bool Enabled, int StuckDays, int RemindMinutes, List<int> Stocks);
+    public sealed record SettingsRequest(bool Enabled, int StuckDays, int RemindMinutes, List<int> Stocks, Dictionary<int, List<string>> Users);
+
+    // รายชื่อผู้ใช้ที่เลือกได้ (ไม่ถูกล็อก)
+    private static List<object> UserList()
+    {
+        using var c = new SqlConnection(GlobalConfig.ConnStr);
+        return c.Query<(string UserID, string FullName, string Department, string Section)>(
+                "SELECT UserID, FullName, Department, Section FROM Nexus.Users WHERE ISNULL(IsLocked, 0) = 0 ORDER BY UserID")
+            .Select(u => (object)new { userId = u.UserID, name = u.FullName, dept = string.IsNullOrWhiteSpace(u.Section) ? u.Department : u.Section }).ToList();
+    }
 
     [HttpPost("settings")]
     public IActionResult SaveSettings([FromBody] SettingsRequest req)
@@ -420,9 +435,19 @@ public sealed class MinReportController : AppController
         var ids = (req.Stocks ?? new()).Where(all.ContainsKey).Distinct().ToList();
         try
         {
-            _svc.SaveSettings(new MinReportSettings { Enabled = req.Enabled, StuckDays = req.StuckDays, RemindMinutes = req.RemindMinutes, Stocks = ids }, Uid);
+            // 👥 ผู้รับแจ้งเตือนรายคลัง: เฉพาะ UserID ที่มีจริง
+            var alertUsers = new Dictionary<int, List<string>>();
+            if (req.Users != null)
+            {
+                using var uc = new SqlConnection(GlobalConfig.ConnStr);
+                var known = uc.Query<string>("SELECT UserID FROM Nexus.Users").ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var (stk, list) in req.Users)
+                    if (ids.Contains(stk))
+                        alertUsers[stk] = (list ?? new()).Select(u => (u ?? "").Trim()).Where(known.Contains).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+            _svc.SaveSettings(new MinReportSettings { Enabled = req.Enabled, StuckDays = req.StuckDays, RemindMinutes = req.RemindMinutes, Stocks = ids, AlertUsers = alertUsers }, Uid);
             try { _svc.Sweep(); } catch { /* รอบถัดไปของ MinWatchService */ }
-            string codes = ids.Count == 0 ? "-" : string.Join(", ", ids.Select(i => all[i].Code));
+            string codes = ids.Count == 0 ? "-" : string.Join(", ", ids.Select(i => all[i].Code + (alertUsers.TryGetValue(i, out var au) && au.Count > 0 ? $" ({string.Join("/", au)})" : "")));
             LogService.WriteLog(Uid, "MIN_REPORT_SETTINGS", $"Enabled: {(req.Enabled ? "ON" : "OFF")} | Stuck: {req.StuckDays} days | Remind every {req.RemindMinutes} min | Stocks: {codes}", "MIN_REPORT");
             LiveBus.Publish("minreport");
             return Ok(new { message = $"บันทึก MIN REPORT แล้ว\n\nแจ้งเตือนเมื่อค้างที่ MIN ≥ {req.StuckDays} วัน · กด CANCEL แล้วแจ้งซ้ำทุก {Every(req.RemindMinutes)}\nคลัง: {codes}" });

@@ -369,7 +369,7 @@ namespace Nexus.Services
                 SELECT c.CUST,
                        (SELECT COUNT(*) FROM Nexus.CustomerWorkdays w WHERE w.CustomerCode = c.CUST AND YEAR(w.WorkDate) = @y) AS DAYS_,
                        (SELECT COUNT(DISTINCT MONTH(w.WorkDate)) FROM Nexus.CustomerWorkdays w WHERE w.CustomerCode = c.CUST AND YEAR(w.WorkDate) = @y) AS MONTHS_
-                FROM c ORDER BY c.CUST", conn))
+                FROM c WHERE c.CUST <> '#COMPANY' ORDER BY c.CUST", conn))   // #COMPANY = วันทำงานของบริษัท (MASTER DATA › Company Workdays) ไม่ใช่ลูกค้า
             {
                 cmd.Parameters.AddWithValue("@y", year);
                 conn.Open();

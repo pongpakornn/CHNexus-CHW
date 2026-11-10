@@ -584,7 +584,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const ncols = cols.length + 2;
 
   return (
-    <PageBody className="md-gray">
+    <PageBody className="md-gray md-color-actions">
       <PageHeader
         icon="/icons/InventoryRegistration.png"
         title={title ?? "PRODUCT CONTROL"}

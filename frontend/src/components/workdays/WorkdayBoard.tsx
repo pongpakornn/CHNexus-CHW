@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { Empty, Loading } from "@/components/layout/Page";
@@ -16,13 +15,18 @@ const DOW = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 const daysIn = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
 const key = (y: number, m: number, d: number) => isoDate(new Date(y, m, d));
 
-// 📅 วันทำงานของลูกค้า (WorkdayWindow): การ์ดลูกค้า -> ปฏิทิน 12 เดือน (กดวัน = วันทำงาน / กดซ้ำ = ยกเลิก บันทึกทันที)
-export function WorkdayModal({ open, canEdit, onClose, onChanged }: { open: boolean; canEdit: boolean; onClose: () => void; onChanged: () => void }) {
+// 📅 WORKDAYS (MASTER DATA): ปฏิทิน 12 เดือน (กดวัน = วันทำงาน / กดซ้ำ = ยกเลิก บันทึกทันที)
+//   ลูกค้า: การ์ดลูกค้า -> ปฏิทิน · บริษัท (fixed = COMPANY_CODE): เปิดปฏิทินของบริษัทเลย
+//   ข้อมูลเดียวกับที่ Max-Min Calculator ใช้หาค่าเฉลี่ยต่อวัน (Nexus.CustomerWorkdays)
+export const COMPANY_CODE = "#COMPANY";
+const nameOf = (c: string) => (c === COMPANY_CODE ? "CH RADIATORS (COMPANY)" : c);
+export function WorkdayBoard({ canEdit, fixed, onChanged = () => {} }: { canEdit: boolean; fixed?: string; onChanged?: () => void }) {
+  const open = true;
   const toast = useToast();
   const dlg = useDialogs();
   const [year, setYear] = useState(new Date().getFullYear());
   const [yearDir, setYearDir] = useState(0); // ทิศที่เปลี่ยนปี (อนิเมชันตัวเลขปี)
-  const [customer, setCustomer] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<string | null>(fixed ?? null);
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [days, setDays] = useState<Set<string> | null>(null);
   const [saved, setSaved] = useState("");
@@ -109,7 +113,7 @@ export function WorkdayModal({ open, canEdit, onClose, onChanged }: { open: bool
   }
 
   async function template() {
-    const who = customer ?? "ทุกลูกค้า";
+    const who = customer ? nameOf(customer) : "ทุกลูกค้า";
     if (
       !(await dlg.confirm({
         title: "TEMPLATE EXCEL",
@@ -146,35 +150,14 @@ export function WorkdayModal({ open, canEdit, onClose, onChanged }: { open: bool
   };
 
   return (
-    <Modal
-      open={open}
-      size="xl"
-      title={customer ? `📅 ${customer}` : "📅 CUSTOMER WORKDAYS"}
-      onClose={onClose}
-      footer={
-        <>
-          {customer && days && (
-            <span className="mr-auto flex items-center gap-2 text-sm font-extrabold text-primary">
-              <span className="wd-total">{total}</span> WORKDAYS IN {year}
-            </span>
-          )}
-          {saved && (
-            <span key={saved} className="wd-saved">
-              {saved}
-            </span>
-          )}
-          <button className="cta-btn is-gray" onClick={onClose}>
-            CLOSE
-          </button>
-        </>
-      }
-    >
+    <div className="wd-board">
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        {customer && (
+        {customer && !fixed && (
           <button className="fill-btn is-sm" onClick={() => setCustomer(null)}>
             ← ALL CUSTOMERS
           </button>
         )}
+        {customer && <span className="wd-who">📅 {nameOf(customer)}</span>}
         {/* 📆 เลือกปี: ‹ ปี › (ตัวเลขเลื่อนตามทิศ) + กลับปีนี้ */}
         <div className="yr-pick">
           <button type="button" className="yr-arrow" onClick={() => shiftYear(-1)} aria-label="Previous year">
@@ -352,6 +335,19 @@ export function WorkdayModal({ open, canEdit, onClose, onChanged }: { open: bool
           </div>
         </>
       )}
-    </Modal>
+      {/* แถบล่าง: รวมวันทำงานทั้งปี · บันทึกล่าสุด */}
+      {customer && days && (
+        <div className="wd-foot">
+          <span className="flex items-center gap-2 text-sm font-extrabold text-primary">
+            <span className="wd-total">{total}</span> WORKDAYS IN {year}
+          </span>
+          {saved && (
+            <span key={saved} className="wd-saved ml-auto">
+              {saved}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

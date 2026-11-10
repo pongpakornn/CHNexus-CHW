@@ -16,7 +16,6 @@ import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { FormulaModal } from "./FormulaModal";
 import type { CalcData, CalcRow, Stock } from "./types";
-import { WorkdayModal } from "./WorkdayModal";
 import { useLive } from "@/lib/live";
 
 const PAGE = 100; // แถวต่อหน้า (เหมือนหน้าคลัง)
@@ -53,7 +52,6 @@ export default function MaxMinPage() {
   const [dayMin, setDayMin] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
-  const [workdayOpen, setWorkdayOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [choice, setChoice] = useState<{ title: string; text: string; calc: string; only: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -324,7 +322,6 @@ export default function MaxMinPage() {
                 ...(canEdit
                   ? [{ key: "formula", title: "FORMULAS", detail: "ตั้งสูตรคำนวณ MAX / MIN (แหล่งยอด, จำนวนวัน, การปัดเศษ) เลือกใช้ต่อคลังได้", color: "#6750a4", icon: "formula" as const, onClick: () => setFormulaOpen(true) }]
                   : []),
-                { key: "workdays", title: "WORKDAYS", detail: "ปฏิทินวันทำงานของแต่ละเดือน ใช้หาค่าเฉลี่ยต่อวันในการคำนวณ", color: "#0891b2", icon: "calendar" as const, onClick: () => setWorkdayOpen(true) },
                 ...(canEdit
                   ? [
                       {
@@ -519,7 +516,6 @@ export default function MaxMinPage() {
       </Card>
 
       <FormulaModal open={formulaOpen} stock={stock} selectId={data?.formula.formulaId} canEdit={canEdit} onClose={() => setFormulaOpen(false)} onChanged={() => load(true)} />
-      <WorkdayModal open={workdayOpen} canEdit={canEdit} onClose={() => setWorkdayOpen(false)} onChanged={() => load(true)} />
 
       {/* 📄 TEMPLATE EXCEL: เลือกก่อนว่าจะเตรียมไฟล์ของปุ่มไหน (การ์ดแบบหน้า Store) */}
       <Modal open={templateOpen} wide title="📄 TEMPLATE EXCEL" onClose={() => setTemplateOpen(false)}>

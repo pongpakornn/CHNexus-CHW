@@ -17,6 +17,10 @@ public sealed class MinReportSettings
     public int StuckDays { get; set; } = 3;
     public int RemindMinutes { get; set; } = 60;
     public List<int> Stocks { get; set; } = new();
+    // 👥 ผู้รับแจ้งเตือนรายคลัง: StockID -> UserID (ไม่มี / ว่าง = ทุกคนที่ดูคลังนั้นได้)
+    public Dictionary<int, List<string>> AlertUsers { get; set; } = new();
+    public bool AlertsFor(int stockId, string uid) =>
+        !AlertUsers.TryGetValue(stockId, out var u) || u.Count == 0 || u.Any(x => string.Equals(x, uid, StringComparison.OrdinalIgnoreCase));
     public string UpdatedBy { get; set; }
     public DateTime? UpdatedDate { get; set; }
 }
@@ -129,6 +133,9 @@ public sealed class MinReportService
         using var c = Conn();
         var s = c.QueryFirstOrDefault<MinReportSettings>("SELECT Enabled, StuckDays, RemindMinutes, UpdatedBy, UpdatedDate FROM Nexus.MinReportSettings WHERE Id = 1") ?? new MinReportSettings();
         s.Stocks = c.Query<int>("SELECT StockID FROM Nexus.MinReportStocks").ToList();
+        if (DbSchema.HasMinAlertUsers)
+            s.AlertUsers = c.Query<(int StockID, string Users)>("SELECT StockID, AlertUsers FROM Nexus.MinReportStocks WHERE NULLIF(AlertUsers, '') IS NOT NULL")
+                            .ToDictionary(x => x.StockID, x => x.Users.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
         return s;
     }
 
@@ -144,6 +151,13 @@ public sealed class MinReportService
         c.Execute("DELETE FROM Nexus.MinReportStocks WHERE StockID NOT IN @ids", new { ids = s.Stocks.DefaultIfEmpty(-1) }, tx);
         foreach (int id in s.Stocks.Distinct())
             c.Execute("IF NOT EXISTS (SELECT 1 FROM Nexus.MinReportStocks WHERE StockID = @id) INSERT INTO Nexus.MinReportStocks (StockID, UpdatedBy) VALUES (@id, @uid)", new { id, uid }, tx);
+        if (DbSchema.HasMinAlertUsers)
+            foreach (int id in s.Stocks.Distinct())
+            {
+                var users = s.AlertUsers.TryGetValue(id, out var u) ? u : new List<string>();
+                c.Execute("UPDATE Nexus.MinReportStocks SET AlertUsers = @users WHERE StockID = @id",
+                          new { id, users = users.Count == 0 ? null : string.Join(",", users) }, tx);
+            }
         tx.Commit();
     }
 

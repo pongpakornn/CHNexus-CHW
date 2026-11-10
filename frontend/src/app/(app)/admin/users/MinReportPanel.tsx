@@ -8,8 +8,11 @@ import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import { MinDisplayPanel } from "./MinDisplayPanel";
 
 // 📋 SETUP › MIN REPORT (ทั้งระบบ ไม่ใช่รายบุคคล): เปิด / ปิด · ค้างที่ MIN กี่วันจึงแจ้งเตือน · กด CANCEL แล้วแจ้งซ้ำทุกกี่นาที / ชม. · คลังที่ใช้
-type St = { stkId: number; code: string; name: string; stockType: string | null; isMain: boolean; isLiveView: boolean; on: boolean };
-type Cfg = { enabled: boolean; stuckDays: number; remindMinutes: number; updatedBy: string | null; updatedDate: string | null; hasSign?: boolean; stocks: St[] };
+//   👥 ผู้รับแจ้งเตือนรายคลัง: เลือก UserID ที่ต้องรับผิดชอบคลังนั้น (ไม่เลือก = ทุกคนที่ดูคลังนั้นได้) กันหน้างานที่ไม่เกี่ยวข้องกด REPORT ผิด
+type St = { stkId: number; code: string; name: string; stockType: string | null; isMain: boolean; isLiveView: boolean; on: boolean; users?: string[] };
+type U = { userId: string; name: string | null; dept: string | null };
+type Cfg = { enabled: boolean; stuckDays: number; remindMinutes: number; updatedBy: string | null; updatedDate: string | null; hasSign?: boolean; hasUsers?: boolean; stocks: St[]; users?: U[] };
+const same = (a: string[] = [], b: string[] = []) => a.length === b.length && a.every((x) => b.some((y) => y.toLowerCase() === x.toLowerCase()));
 type Unit = "MIN" | "HR";
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
@@ -19,6 +22,8 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [unit, setUnit] = useState<Unit>("HR");
   const [busy, setBusy] = useState(false);
+  const [pick, setPick] = useState<number | null>(null); // คลังที่กำลังเลือกผู้รับแจ้งเตือน
+  const [key, setKey] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -37,7 +42,7 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
 
   const dirty = useMemo(() => {
     if (!cfg || !orig) return false;
-    return cfg.enabled !== orig.enabled || cfg.stuckDays !== orig.stuckDays || cfg.remindMinutes !== orig.remindMinutes || cfg.stocks.some((s, i) => s.on !== orig.stocks[i]?.on);
+    return cfg.enabled !== orig.enabled || cfg.stuckDays !== orig.stuckDays || cfg.remindMinutes !== orig.remindMinutes || cfg.stocks.some((s, i) => s.on !== orig.stocks[i]?.on || !same(s.users, orig.stocks[i]?.users));
   }, [cfg, orig]);
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
 
@@ -52,7 +57,13 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
     try {
       const r = await api<{ message: string }>("/minreport/settings", {
         method: "POST",
-        body: { enabled: cfg.enabled, stuckDays: cfg.stuckDays, remindMinutes: cfg.remindMinutes, stocks: cfg.stocks.filter((s) => s.on).map((s) => s.stkId) },
+        body: {
+          enabled: cfg.enabled,
+          stuckDays: cfg.stuckDays,
+          remindMinutes: cfg.remindMinutes,
+          stocks: cfg.stocks.filter((s) => s.on).map((s) => s.stkId),
+          users: Object.fromEntries(cfg.stocks.filter((s) => s.on).map((s) => [s.stkId, s.users ?? []])),
+        },
       });
       toast.show("Saved", r.message, "ok");
       await load();
@@ -129,7 +140,8 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           {cfg.stocks.map((r, i) => {
             const [ic, col] = stockIcon(r.code, i, r.stockType);
             const toggle = () => set({ stocks: cfg.stocks.map((x) => (x.stkId === r.stkId ? { ...x, on: !x.on } : x)) });
-            const changed = r.on !== orig?.stocks[i]?.on;
+            const changed = r.on !== orig?.stocks[i]?.on || !same(r.users, orig?.stocks[i]?.users);
+            const nUsers = r.users?.length ?? 0;
             return (
               <div
                 key={r.stkId}
@@ -155,6 +167,17 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
                       {changed && <span className="adm-dirty" title="ยังไม่ได้ SAVE" />}
                     </div>
                     <div className="truncate text-xs font-semibold text-ink-soft">{r.name}</div>
+                    {r.on && cfg.hasUsers && (
+                      <button
+                        type="button"
+                        className={`mr-users-btn ${nUsers ? "is-set" : ""}`}
+                        onClick={(e) => (e.stopPropagation(), setPick(r.stkId), setKey(""))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        title="เลือกผู้รับแจ้งเตือนของคลังนี้"
+                      >
+                        👥 {nUsers ? `ผู้รับแจ้งเตือน ${nUsers} คน` : "ผู้รับ: ทุกคนที่ดูคลังได้"}
+                      </button>
+                    )}
                   </div>
                   <span className={`sw ${r.on ? "is-on" : ""} pointer-events-none`}>
                     <span className="sw-track" />
@@ -166,6 +189,50 @@ export function MinReportPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           })}
         </div>
       </div>
+
+      {pick != null && cfg.hasUsers && (() => {
+        const st = cfg.stocks.find((x) => x.stkId === pick);
+        if (!st) return null;
+        const sel = st.users ?? [];
+        const has = (id: string) => sel.some((x) => x.toLowerCase() === id.toLowerCase());
+        const q = key.trim().toLowerCase();
+        const list = (cfg.users ?? []).filter((u) => !q || [u.userId, u.name, u.dept].some((v) => v?.toLowerCase().includes(q))).slice(0, 300);
+        const setUsers = (users: string[]) => set({ stocks: cfg.stocks.map((x) => (x.stkId === pick ? { ...x, users } : x)) });
+        return (
+          <div className="mr-users">
+            <div className="mr-users-head">
+              <b>👥 ผู้รับแจ้งเตือน • {st.code}</b>
+              <span>{sel.length ? `เลือกแล้ว ${sel.length} คน · แจ้งเตือนเฉพาะคนที่เลือก` : "ยังไม่เลือก = แจ้งเตือนทุกคนที่ดูคลังนี้ได้"}</span>
+              <button type="button" className="fill-btn is-sm ml-auto" disabled={!sel.length} onClick={() => setUsers([])}>
+                ↺ ทุกคน
+              </button>
+              <button type="button" className="cta-btn is-gray is-sm" onClick={() => setPick(null)}>
+                DONE
+              </button>
+            </div>
+            {sel.length > 0 && (
+              <div className="mr-users-sel">
+                {sel.map((id) => (
+                  <button key={id} type="button" onClick={() => setUsers(sel.filter((x) => x.toLowerCase() !== id.toLowerCase()))} title="เอาออก">
+                    {cfg.users?.find((u) => u.userId.toLowerCase() === id.toLowerCase())?.name || id} <i>✕</i>
+                  </button>
+                ))}
+              </div>
+            )}
+            <input className="field" value={key} onChange={(e) => setKey(e.target.value)} placeholder="ค้นหา USER ID / ชื่อ / แผนก" aria-label="ค้นหาผู้ใช้" />
+            <div className="mr-users-list">
+              {list.map((u) => (
+                <label key={u.userId} className={has(u.userId) ? "is-on" : ""}>
+                  <input type="checkbox" checked={has(u.userId)} onChange={() => setUsers(has(u.userId) ? sel.filter((x) => x.toLowerCase() !== u.userId.toLowerCase()) : [...sel, u.userId])} />
+                  <b>{u.userId}</b>
+                  <span>{u.name || "-"}</span>
+                  <small>{u.dept || ""}</small>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs font-bold text-ink-soft">{orig?.updatedBy ? `แก้ล่าสุด: ${orig.updatedBy}` : ""}</span>

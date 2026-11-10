@@ -49,6 +49,9 @@ export const MASTER_ITEM: MenuItem = {
       stockType: t.type,
       caption: i === 0 ? "Product Control" : undefined,
     })),
+    // 📅 WORKDAYS (ย้ายมาจาก CIMS › Max-Min Calculator): ลูกค้า · บริษัท
+    { href: "/master/workdays", label: "Customer Workdays", title: "MASTER DATA • CUSTOMER WORKDAYS", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc", caption: "Workdays" },
+    { href: "/master/workdays/company", label: "Company Workdays", title: "MASTER DATA • COMPANY WORKDAYS", icon: "/icons/Dashboard.png", can: "maxMinCalc" },
   ],
 };
 
@@ -71,7 +74,7 @@ export const CIMS: SystemDef = {
     { href: "/cims/forecast", label: "Forecast / Order", title: "FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast" },
     { href: "/cims/pr", label: "PR Management", title: "PURCHASE REQUEST", icon: "/icons/PR.png", can: "pr" },
     // 🕘 Activity Log ย้ายไปที่ USER MANAGEMENT › ปุ่ม ACTIVITY LOG (ข้าง ADD USER) · หน้า /cims/activity-log ยังเปิดตรงได้
-    USERS_ITEM,
+    // 👤 USER MANAGEMENT ไม่อยู่ใน Sidebar แล้ว -> เข้าจากการ์ดที่หน้า SELECT SYSTEM
   ],
 };
 
@@ -124,7 +127,7 @@ export const EDP: SystemDef = {
 export const SYSTEMS: SystemDef[] = [CIMS, EDP, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
-export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
+export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
 export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
 // Sidebar ของแต่ละระบบ
@@ -148,7 +151,7 @@ export const systemOf = (path: string): SystemKey | null =>
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
-  const all = [...CIMS_MENU, ...EDP_MENU, ...ROOT_MENU].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
+  const all = [...CIMS_MENU, ...EDP_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
   const type = new URLSearchParams(search).get("type");
   return all.find((m) => {
     const [p, q] = m.href.split("?");
