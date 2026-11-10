@@ -211,6 +211,12 @@ namespace Nexus.Helpers
         private static bool _edp;
         public static bool HasEdp => _edp || (_edp = TableExists("EDP.PlanCards") == true && TableExists("EDP.PlanTemplates") == true);
 
+        // 📈 PRODUCTION PLAN (33_Production_Plan.sql): ProductionPlan.Machines / MachineParts / DailyActuals
+        private static bool _pp;
+        public static bool HasProductionPlan => _pp || (_pp = TableExists("ProductionPlan.Machines") == true && TableExists("ProductionPlan.MachineParts") == true
+                                                             && TableExists("ProductionPlan.DailyActuals") == true && TableExists("ProductionPlan.ShiftHours") == true
+                                                             && ColumnIn("ProductionPlan.Machines", "StrokeByPcs") == true);
+
         // ⏰ EDP ALERT (29_EDP_Alert.sql): EDP.AlertSettings (แจ้งเตือนการ์ดเลยเวลา)
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);

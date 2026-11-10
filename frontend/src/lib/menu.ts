@@ -15,7 +15,7 @@ export type MenuItem = {
   stockType?: string; // เมนูย่อยเป็นรายชื่อคลังประเภทนี้ (โหลดจาก /master/menu)
 };
 
-export type SystemKey = "root" | "cims" | "edp";
+export type SystemKey = "root" | "cims" | "edp" | "pp";
 
 // การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · art = ภาพประกอบการ์ด · color = สีแถบ/เงาการ์ด · desc = tooltip
 export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
@@ -52,6 +52,9 @@ export const MASTER_ITEM: MenuItem = {
     // 📅 WORKDAYS (ย้ายมาจาก CIMS › Max-Min Calculator): ลูกค้า · บริษัท
     { href: "/master/workdays", label: "Customer Workdays", title: "MASTER DATA • CUSTOMER WORKDAYS", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc", caption: "Workdays" },
     { href: "/master/workdays/company", label: "Company Workdays", title: "MASTER DATA • COMPANY WORKDAYS", icon: "/icons/Dashboard.png", can: "maxMinCalc" },
+    // 📈 PRODUCTION PLAN STD: เครื่องจักร + Target Eff + Plan SPH · ตาราง Product ของเครื่อง (PART A / PART B / Process)
+    { href: "/master/production-plan", label: "Machine STD", title: "MASTER DATA • PRODUCTION PLAN STD", icon: "/icons/64engine_motorFF.png", can: "ppSetup", caption: "Production Plan" },
+    { href: "/master/production-plan/products", label: "Machine Products", title: "MASTER DATA • MACHINE PRODUCTS", icon: "/icons/InventoryRegistration.png", can: "ppSetup" },
   ],
 };
 
@@ -123,16 +126,40 @@ export const EDP: SystemDef = {
   ],
 };
 
+// 📈 PRODUCTION PLAN: Capacity Planning ต่อหน่วยงาน (เริ่ม PRESS 1) · ค่า STD อยู่ที่ MASTER DATA › Production Plan
+export const PP: SystemDef = {
+  key: "pp",
+  label: "PRODUCTION PLAN",
+  name: "Production Plan",
+  sub: "Capacity Planning · PRESS 1",
+  art: "/images/systems/production-plan.webp",
+  title: "PRODUCTION PLAN • CAPACITY",
+  desc: "Capacity Planning: แผนเครื่องจักรจาก Forecast / Order · บันทึก M/C Actual · %EFF รายวัน",
+  icon: "/icons/DashboardChart.png",
+  color: "#0d9488",
+  menu: [
+    { href: "/pp/dashboard", label: "Dashboard", title: "PRODUCTION PLAN • DASHBOARD", icon: "/icons/Dashboard.png", can: "ppDashboard" },
+    {
+      href: "/pp/capacity",
+      label: "Capacity",
+      title: "PRODUCTION PLAN • CAPACITY",
+      icon: "/icons/DashboardChart.png",
+      children: [{ href: "/pp/capacity/press1", label: "PRESS 1", title: "CAPACITY • PRESS 1", icon: "/icons/64engine_motorFF.png", can: "ppCapacity" }],
+    },
+  ],
+};
+
 // การ์ดหน้าเลือกระบบ (ลำดับที่แสดง)
-export const SYSTEMS: SystemDef[] = [CIMS, EDP, MASTER, ADMIN];
+export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 // USER MANAGEMENT ใต้ MASTER DATA (เห็นเฉพาะผู้มีสิทธิ์ userMgmt) + เข้าได้จาก SELECT SYSTEM เหมือนเดิม
 export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
 export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
+export const PP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...PP.menu];
 // Sidebar ของแต่ละระบบ
-export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : ROOT_MENU);
+export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : ROOT_MENU);
 
 // เห็นเมนูไหนบ้างตามสิทธิ์ (กลุ่มที่ไม่มีเมนูย่อยเหลือ = ซ่อนทั้งกลุ่ม)
 export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuItem[] {
@@ -148,11 +175,11 @@ export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) =
 
 // ระบบของหน้าปัจจุบัน: /cims = CIMS · /admin = คงระบบที่มา (ไม่ระบุ) · อื่น ๆ = ROOT
 export const systemOf = (path: string): SystemKey | null =>
-  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/admin") || path.startsWith("/master") ? null : "root";
+  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/admin") || path.startsWith("/master") ? null : "root";
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
-  const all = [...CIMS_MENU, ...EDP_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
+  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
   const type = new URLSearchParams(search).get("type");
   // ตรงที่สุดก่อน: path ตรงเป๊ะ > path ยาวกว่า (เช่น /master/workdays/company ไม่ไปไฮไลต์ /master/workdays)
   let best: MenuItem | undefined;

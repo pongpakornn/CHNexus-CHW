@@ -1,0 +1,1366 @@
+/* 📈 PRODUCTION PLAN (Dashboard · Capacity · MASTER DATA › Production Plan)
+   สีระบบ (เทาเข้ม + ขาว + ม่วง accent) + สีกราฟ: Plan = คราม · Actual = ฟ้าน้ำทะเล · เป้า = ส้ม · ถึงเป้า = เขียว
+   เส้นโค้งเดียวทั้งระบบ --ease-drop · จอใหญ่ = ตาราง / จอกลาง = ย่อ / มือถือ = การ์ด · ลดการเคลื่อนไหว = ไม่มีแอนิเมชัน */
+.pp-page {
+  --pp-plan: #4f46e5;
+  --pp-plan-soft: #eef2ff;
+  --pp-act: #0891b2;
+  --pp-act-soft: #ecfeff;
+  --pp-target: #d97706;
+  --pp-ok: #059669;
+  --pp-ok-soft: #d1fae5;
+  --pp-mid: #b45309;
+  --pp-mid-soft: #fef3c7;
+  --pp-low: #dc2626;
+  --pp-low-soft: #fee2e2;
+  --pp-off: #fff7ed;
+  --pp-off-ink: #c2410c;
+  --pp-head: #f6f7fb;
+  --pp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pp-note {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pp-hint {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 10px;
+}
+.pp-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--pp-plan-soft);
+  color: var(--pp-plan);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 10px;
+}
+.pp-link {
+  font-weight: 800;
+  color: var(--pp-plan);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------- เลือกเดือน */
+.pp-month {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.pp-month > button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  transition: background-color 0.2s var(--pp-ease), color 0.2s, transform 0.2s;
+}
+.pp-month > button:hover {
+  background: var(--pp-plan-soft);
+  color: var(--pp-plan);
+}
+.pp-month > button:active {
+  transform: scale(0.92);
+}
+.pp-month label {
+  position: relative;
+  min-width: 96px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+  cursor: pointer;
+}
+.pp-month input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- แถบสลับ */
+.pp-seg {
+  display: inline-flex;
+  background: #eef0f4;
+  border-radius: 999px;
+  padding: 3px;
+}
+.pp-seg button {
+  position: relative;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  transition: color 0.25s var(--pp-ease);
+  white-space: nowrap;
+}
+.pp-seg button.is-on {
+  color: var(--pp-plan);
+}
+.pp-seg button:active {
+  transform: scale(0.97);
+}
+.pp-seg-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(30 41 59 / 0.14);
+}
+
+/* ---------------------------------------------------------------- KPI */
+.pp-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.pp-kpis.is-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pp-kpi {
+  --k: var(--pp-plan);
+  --k2: #a5b4fc;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -18px rgb(30 41 59 / 0.35);
+  transition: transform 0.4s var(--pp-ease), box-shadow 0.4s var(--pp-ease);
+}
+.pp-kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--k2), var(--k));
+}
+.pp-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 18px 40px -18px rgb(30 41 59 / 0.4);
+}
+.pp-kpi.is-act {
+  --k: var(--pp-act);
+  --k2: #67e8f9;
+}
+.pp-kpi.is-day {
+  --k: #6750a4;
+  --k2: #c4b5fd;
+}
+.pp-kpi.is-ok {
+  --k: var(--pp-ok);
+  --k2: #6ee7b7;
+}
+.pp-kpi.is-mid {
+  --k: var(--pp-mid);
+  --k2: #fcd34d;
+}
+.pp-kpi.is-low {
+  --k: var(--pp-low);
+  --k2: #fca5a5;
+}
+.pp-kpi .l {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.pp-kpi .l > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--k);
+}
+.pp-kpi .v {
+  margin-top: 4px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.pp-kpi .v small {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-left: 2px;
+}
+.pp-kpi .s {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.pp-kpi .meter {
+  height: 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--k) 12%, #fff);
+  margin-top: 12px;
+  overflow: hidden;
+}
+.pp-kpi .meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--k2), var(--k));
+}
+.pp-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  margin-left: 4px;
+}
+.pp-pill.is-ok {
+  background: var(--pp-ok-soft);
+  color: #047857;
+}
+.pp-pill.is-mid {
+  background: var(--pp-mid-soft);
+  color: #92400e;
+}
+.pp-pill.is-low {
+  background: var(--pp-low-soft);
+  color: #b91c1c;
+}
+
+/* ---------------------------------------------------------------- กราฟ */
+.pp-chart {
+  min-width: 0;
+}
+.pp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px 6px;
+}
+.pp-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  transition: opacity 0.25s var(--pp-ease), background-color 0.2s;
+}
+.pp-legend button:hover {
+  background: var(--pp-head);
+}
+.pp-legend button[aria-pressed="false"] {
+  opacity: 0.42;
+}
+.pp-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--c2), var(--c));
+}
+.pp-legend i.is-line,
+.pp-legend i.is-dash {
+  height: 3px;
+  width: 18px;
+  border-radius: 2px;
+  background: var(--c);
+}
+.pp-legend i.is-dash {
+  background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 8px);
+}
+.pp-stage {
+  position: relative;
+  width: 100%;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+.pp-stage svg {
+  display: block;
+  overflow: visible;
+}
+.pp-grid {
+  stroke: #eceef3;
+  stroke-width: 1;
+}
+.pp-base {
+  stroke: #cfd3dc;
+  stroke-width: 1;
+}
+.pp-off {
+  fill: var(--pp-off);
+}
+.pp-band {
+  fill: rgb(79 70 229 / 0.07);
+}
+.pp-ax {
+  fill: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  transition: fill 0.2s;
+}
+.pp-ax.is-on {
+  fill: var(--ink);
+  font-weight: 800;
+}
+.pp-ax.is-off {
+  fill: var(--pp-off-ink);
+}
+.pp-ax-sub {
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+.pp-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  pointer-events: none;
+  width: 220px;
+  background: rgb(17 24 39 / 0.82);
+  color: #f8fafc;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 18px 40px -10px rgb(0 0 0 / 0.45);
+}
+.pp-tip h4 {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.pp-tip .r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+.pp-tip .r i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+.pp-tip .r span {
+  opacity: 0.8;
+  font-weight: 600;
+}
+.pp-tip .r b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.pp-tip .r.is-hidden {
+  opacity: 0.4;
+}
+.pp-tip .r.is-sum {
+  border-top: 1px solid rgb(255 255 255 / 0.16);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+/* ---------------------------------------------------------------- 2 คอลัมน์ */
+.pp-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.pp-two.is-cp {
+  grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+}
+.pp-two > * {
+  min-width: 0;
+}
+
+/* Eff รายเครื่อง */
+.pp-eff {
+  display: grid;
+  gap: 4px;
+}
+.pp-eff-row {
+  --t: var(--ink-soft);
+  display: grid;
+  grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) 62px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  padding: 5px 8px;
+  transition: background-color 0.2s var(--pp-ease), transform 0.25s var(--pp-ease);
+}
+.pp-eff-row:hover {
+  background: var(--pp-head);
+  transform: translateX(2px);
+}
+.pp-eff-row.is-ok {
+  --t: var(--pp-ok);
+}
+.pp-eff-row.is-mid {
+  --t: #f59e0b;
+}
+.pp-eff-row.is-low {
+  --t: var(--pp-low);
+}
+.pp-eff-row .n b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pp-eff-row .n small {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.pp-eff-row .bar {
+  position: relative;
+  height: 12px;
+  border-radius: 99px;
+  background: #f1f2f6;
+}
+.pp-eff-row .bar i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--t) 45%, #fff), var(--t));
+}
+.pp-eff-row .bar em {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--pp-target);
+  box-shadow: 0 0 0 2px #fff;
+}
+.pp-eff-row .v {
+  text-align: right;
+  font-weight: 800;
+  font-size: 12.5px;
+  color: var(--t);
+  font-variant-numeric: tabular-nums;
+}
+
+/* กะที่ต้องใช้ */
+.pp-shift {
+  display: grid;
+  gap: 8px;
+}
+.pp-shift-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.pp-shift-row > span {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.pp-shift-row > b {
+  text-align: right;
+  font-weight: 800;
+  color: var(--pp-plan);
+}
+.pp-shift-row .chips {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.pp-shift-row .chips:empty {
+  display: none;
+}
+.pp-shift-row em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--pp-plan-soft);
+  color: var(--pp-plan);
+}
+.pp-shift-row.is-over {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+.pp-shift-row.is-over b,
+.pp-shift-row.is-over em {
+  color: var(--pp-low);
+}
+.pp-shift-row.is-over em {
+  background: var(--pp-low-soft);
+}
+
+/* ---------------------------------------------------------------- ตาราง */
+.pp-scroll {
+  overflow: auto;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+.pp-matrix,
+.pp-cp,
+.pp-daily,
+.pp-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+}
+.pp-matrix th,
+.pp-matrix td,
+.pp-cp th,
+.pp-cp td,
+.pp-daily th,
+.pp-daily td,
+.pp-table th,
+.pp-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #eceef3;
+  text-align: right;
+  white-space: nowrap;
+}
+.pp-matrix thead th,
+.pp-cp thead th,
+.pp-daily thead th,
+.pp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--pp-head);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.pp-matrix tbody tr,
+.pp-cp tbody tr,
+.pp-daily tbody tr,
+.pp-table tbody tr {
+  transition: background-color 0.15s;
+}
+.pp-matrix tbody tr:hover td,
+.pp-cp tbody tr:hover td,
+.pp-table tbody tr:hover td {
+  background: #f5f3ff;
+}
+.pp-stick {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  text-align: left !important;
+  box-shadow: 1px 0 0 #eceef3;
+}
+thead .pp-stick {
+  z-index: 3;
+  background: var(--pp-head);
+}
+.pp-matrix th span,
+.pp-daily th span {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  opacity: 0.7;
+  letter-spacing: 0.03em;
+}
+.pp-matrix th a {
+  color: var(--pp-plan);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.2s;
+}
+.pp-matrix th a:hover {
+  text-decoration-color: currentColor;
+}
+.pp-matrix td.pp-stick {
+  min-width: 210px;
+  font-weight: 600;
+}
+.pp-matrix td.pp-stick b,
+.pp-cp td.code {
+  display: inline-block;
+  min-width: 30px;
+  font-weight: 800;
+  color: var(--pp-plan);
+  margin-right: 6px;
+}
+.pp-matrix th.is-group,
+.pp-matrix td.is-group {
+  background: #f5f3ff;
+  color: #4c1d95;
+  font-weight: 700;
+}
+.pp-matrix th.is-total,
+.pp-matrix td.is-total {
+  background: #eef2ff;
+  color: #312e81;
+  font-weight: 800;
+}
+.pp-grp td {
+  background: linear-gradient(90deg, #f5f3ff, transparent) !important;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #6750a4;
+  text-align: left !important;
+}
+.pp-tone-ok {
+  color: #047857 !important;
+  font-weight: 800 !important;
+}
+.pp-tone-mid {
+  color: #b45309 !important;
+  font-weight: 800 !important;
+}
+.pp-tone-low {
+  color: #b91c1c !important;
+  font-weight: 800 !important;
+}
+td.pp-tone-ok {
+  background: #f0fdf4;
+}
+td.pp-tone-mid {
+  background: #fffbeb;
+}
+td.pp-tone-low {
+  background: #fef2f2;
+}
+
+.pp-cp th:nth-child(2),
+.pp-cp th:nth-child(3),
+.pp-cp td.lab,
+.pp-cp td.fx {
+  text-align: left;
+}
+.pp-cp th:first-child {
+  text-align: left;
+}
+.pp-cp td.lab {
+  font-weight: 600;
+  white-space: normal;
+  min-width: 150px;
+}
+.pp-cp td.fx {
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+.pp-cp td.val {
+  font-weight: 800;
+}
+.pp-cardfoot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid #eceef3;
+}
+
+/* ตาราง Product */
+.pp-prod {
+  max-height: 560px;
+}
+.pp-prod.is-tall {
+  max-height: 70vh;
+}
+.pp-table td.n {
+  color: var(--ink-soft);
+}
+.pp-table th:nth-child(-n + 6),
+.pp-table td.code,
+.pp-table td.t,
+.pp-table td.proc {
+  text-align: left;
+}
+.pp-table td.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+}
+.pp-table td.t {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pp-table td.proc {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #5b21b6;
+}
+.pp-table td.st {
+  color: var(--pp-plan);
+  font-weight: 800;
+}
+.pp-table td.hr {
+  color: var(--pp-act);
+  font-weight: 800;
+}
+.pp-table tr.is-zero td {
+  color: #9ca3af;
+}
+.pp-table tr.is-zero td.code {
+  color: #6b7280;
+}
+.pp-table tr.is-picked td {
+  background: #ede9fe;
+}
+.pp-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  background: var(--pp-head);
+  font-weight: 800;
+  border-top: 1px solid var(--line);
+}
+.pp-table tfoot td:first-child {
+  text-align: left;
+}
+.pp-emptycell {
+  text-align: center !important;
+  padding: 28px !important;
+  color: var(--ink-soft);
+}
+.pp-src {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-style: normal;
+  vertical-align: 1px;
+}
+.pp-src.is-order {
+  background: var(--pp-ok-soft);
+  color: #047857;
+}
+.pp-src.is-forecast {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+/* ตารางรายวัน */
+.pp-daily th,
+.pp-daily td {
+  padding: 6px 7px;
+  font-size: 12px;
+}
+.pp-daily td.pp-stick,
+.pp-daily th.pp-stick {
+  min-width: 180px;
+}
+.pp-daily .off {
+  background: var(--pp-off);
+}
+.pp-daily th.off {
+  background: #ffedd5;
+  color: var(--pp-off-ink);
+}
+.pp-daily .sec td {
+  background: #eef2ff;
+  color: var(--pp-plan);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.pp-daily .sec.is-act td {
+  background: #ecfeff;
+  color: #0e7490;
+}
+.pp-daily td.tot,
+.pp-daily th.tot {
+  font-weight: 800;
+  background: var(--pp-head);
+}
+.pp-daily td.pl {
+  color: var(--pp-plan);
+  font-weight: 600;
+}
+.pp-daily tr.in td {
+  padding: 3px;
+}
+.pp-daily tr.in td.pp-stick {
+  padding: 6px 7px;
+  color: #0e7490;
+}
+.pp-daily td.is-dirty {
+  background: #fef9c3;
+}
+.pp-in {
+  width: 62px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 4px 6px;
+  text-align: right;
+  font-weight: 800;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+  color: var(--ink);
+  transition: border-color 0.2s var(--pp-ease), box-shadow 0.2s var(--pp-ease);
+}
+.pp-in:hover {
+  border-color: #c7d2fe;
+}
+.pp-in:focus {
+  outline: none;
+  border-color: var(--pp-act);
+  box-shadow: 0 0 0 3px rgb(8 145 178 / 0.15);
+}
+.pp-daycards {
+  display: none;
+}
+
+/* แถบ SAVE ลอย */
+.pp-savebar {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 24px);
+  background: rgb(28 28 30 / 0.92);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 8px 8px 18px;
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.5);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.pp-savebar > span {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pp-savebar .btn-ghost {
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* ---------------------------------------------------------------- Capacity: ชิปเครื่อง + ปฏิทิน */
+.pp-chipbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.pp-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+.pp-chip {
+  position: relative;
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  transition: color 0.25s var(--pp-ease), border-color 0.25s, transform 0.25s var(--pp-ease);
+}
+.pp-chip:hover {
+  transform: translateY(-1px);
+  border-color: #c7d2fe;
+}
+.pp-chip:active {
+  transform: scale(0.96);
+}
+.pp-chip[aria-pressed="true"] {
+  color: #fff;
+  border-color: transparent;
+}
+.pp-chip-on {
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6366f1, var(--pp-plan));
+  box-shadow: 0 6px 16px -6px rgb(79 70 229 / 0.6);
+}
+.pp-chipsearch {
+  width: 220px;
+  flex: none;
+}
+.pp-hero {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 16px;
+}
+.pp-cal {
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -18px rgb(30 41 59 / 0.35);
+}
+.pp-cal .head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pp-cal h3 {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+}
+.pp-cal p {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.pp-cal .n {
+  text-align: right;
+}
+.pp-cal .n b {
+  display: block;
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 800;
+  color: #6750a4;
+  font-variant-numeric: tabular-nums;
+}
+.pp-cal .n span {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.pp-cal .grid7 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 12px;
+}
+.pp-cal .dow {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+}
+.pp-cal .day {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.pp-cal .day.is-on {
+  background: linear-gradient(160deg, #818cf8, var(--pp-plan));
+  color: #fff;
+  box-shadow: 0 4px 10px -5px rgb(79 70 229 / 0.6);
+}
+.pp-cal .day.is-off {
+  background: var(--pp-off);
+  color: var(--pp-off-ink);
+  border: 1px solid #fed7aa;
+}
+.pp-cal .day.has-act::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: #67e8f9;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+/* ---------------------------------------------------------------- MASTER DATA ฟอร์ม */
+.pp-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.pp-form .is-wide {
+  grid-column: span 2;
+}
+.pp-form.is-prod .is-wide:nth-child(3) {
+  grid-column: span 4;
+}
+.pp-auto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.pp-auto > span {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 120px;
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: var(--pp-plan-soft);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--pp-plan);
+}
+.pp-auto b {
+  font-size: 18px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.pp-auto em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+.pp-picked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  border: 2px solid var(--success);
+  background: #e8f5e9;
+  border-radius: 12px;
+  padding: 6px 10px;
+}
+.pp-picked b {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  color: var(--primary);
+}
+.pp-picked span {
+  display: block;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pp-picked em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: #fff;
+  color: var(--success);
+}
+.pp-hits {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  max-height: 300px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -14px rgb(30 41 59 / 0.35);
+  padding: 4px;
+}
+.pp-hits li.empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.pp-hits button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 8px;
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  padding: 7px 10px;
+  transition: background-color 0.15s;
+}
+.pp-hits button.is-hi {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+.pp-hits b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.pp-hits em {
+  justify-self: start;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: #eef2ff;
+  color: var(--pp-plan);
+}
+.pp-hits span {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pp-pickm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+}
+.pp-pickm > label {
+  width: 320px;
+  max-width: 100%;
+}
+.pp-pickm-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pp-pickm-stats span {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 92px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.pp-pickm-stats b {
+  font-size: 16px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.pp-shifts {
+  display: grid;
+  gap: 8px;
+}
+.pp-shift-in {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 150px;
+  align-items: center;
+  gap: 10px;
+}
+.pp-shift-in > b {
+  font-weight: 800;
+  color: var(--pp-plan);
+}
+.pp-shift-in label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-shift-in label span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.pp-shift-in .lbl {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.pp-shift-in.is-k {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+/* ---------------------------------------------------------------- จอกลาง / มือถือ */
+@media (max-width: 1280px) {
+  .pp-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pp-two,
+  .pp-two.is-cp {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 1024px) {
+  .pp-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pp-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pp-form.is-prod .is-wide:nth-child(3) {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 767px) {
+  .pp-kpis,
+  .pp-kpis.is-2 {
+    gap: 10px;
+  }
+  .pp-kpi {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+  .pp-kpi .v {
+    font-size: 22px;
+  }
+  .pp-chipbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pp-chipsearch {
+    width: 100%;
+  }
+  .pp-form,
+  .pp-form.is-prod {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pp-form .is-wide,
+  .pp-form.is-prod .is-wide:nth-child(3) {
+    grid-column: auto;
+  }
+  .pp-shift-in {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .pp-shift-in label {
+    grid-column: 2;
+  }
+  .pp-eff-row {
+    grid-template-columns: minmax(80px, 110px) minmax(0, 1fr) 54px;
+    gap: 8px;
+  }
+  /* รายวัน: มือถือใช้การ์ดแทนตารางกว้าง */
+  .pp-daily-wrap {
+    display: none;
+  }
+  .pp-daycards {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+  .pp-daycard {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 10px 12px;
+    background: var(--surface);
+    transition: border-color 0.25s var(--pp-ease), background-color 0.25s;
+  }
+  .pp-daycard.is-off {
+    background: var(--pp-off);
+  }
+  .pp-daycard.is-dirty {
+    border-color: #facc15;
+    background: #fefce8;
+  }
+  .pp-daycard .h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pp-daycard .h b {
+    font-size: 18px;
+    font-weight: 800;
+    min-width: 26px;
+  }
+  .pp-daycard .h span {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+  .pp-daycard .h em {
+    margin-left: auto;
+  }
+  .pp-daycard .f {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .pp-daycard .f span {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: var(--ink-soft);
+    margin-bottom: 2px;
+  }
+  .pp-daycard .f .field {
+    text-align: right;
+    font-weight: 800;
+    padding-inline: 8px;
+  }
+  .pp-savebar > span {
+    max-width: 38vw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-page *,
+  .pp-page *::before,
+  .pp-page *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

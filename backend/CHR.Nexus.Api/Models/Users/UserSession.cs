@@ -76,6 +76,19 @@ namespace Nexus.Models
         public bool CanViewEdpGraph => P("EdpGraph", p => p.CanView);
         public bool CanViewEdpAny => CanViewEdpSubmit || CanViewEdpPlanning || CanViewEdpSetting || CanViewEdpGraph;
 
+        // 📈 PRODUCTION PLAN (schema ProductionPlan · Capacity Planning)
+        //    PpDashboard : VIEW = หน้า Dashboard (ทุกเครื่อง · Condition M/C · กราฟ)
+        //    PpCapacity  : VIEW = หน้า Capacity (รายเครื่อง) · EDIT = บันทึก M/C Actual (Working hour / Stroke / Man)
+        //    PpSetup     : MASTER DATA › Production Plan (STD) · VIEW = ดู · ADD = เพิ่มเครื่อง / Product · EDIT = แก้ STD / Plan SPH / Product · DEL = ลบ
+        public bool CanViewPpDashboard => P("PpDashboard", p => p.CanView);
+        public bool CanViewPpCapacity => P("PpCapacity", p => p.CanView);
+        public bool CanEditPpCapacity => CanViewPpCapacity && P("PpCapacity", p => p.CanEdit);
+        public bool CanViewPpSetup => P("PpSetup", p => p.CanView);
+        public bool CanAddPpSetup => CanViewPpSetup && P("PpSetup", p => p.CanAdd);
+        public bool CanEditPpSetup => CanViewPpSetup && P("PpSetup", p => p.CanEdit);
+        public bool CanDeletePpSetup => CanViewPpSetup && P("PpSetup", p => p.CanDelete);
+        public bool CanViewPpAny => CanViewPpDashboard || CanViewPpCapacity || CanViewPpSetup;
+
         // 📍 LAYOUT SETUP (ตำแหน่งจัดเก็บ) อยู่ที่ User Management › SETUP = Admin Level 1 (P() ให้ Level 1 ผ่านเสมอ · ไม่มีแถวสิทธิ์แยก)
         public bool CanViewLayout => P("LayoutSetup", p => p.CanView);
         public bool CanAddLayout => CanViewLayout && P("LayoutSetup", p => p.CanAdd);

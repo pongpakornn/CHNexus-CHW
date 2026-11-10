@@ -21,12 +21,13 @@ const GROUPS: Grp[] = [
   { key: "STOCK", title: "CIMS • STOCKS", sub: "สิทธิ์รายคลัง (ดู / Import / แก้ Max-Min)", color: "#0ea5e9", icon: "/icons/StoreWarehouse.png" },
   { key: "MASTER", title: "MASTER DATA", sub: "Customer · Supplier · Product Control", color: "#2563eb", icon: "/icons/ProductControl.png", ids: ["MasterData", "ProductControl"] },
   { key: "EDP", title: "EDP PLANNING", sub: "Dashboard · Plan Submission · EDP Planning · Plan Setting", color: "#7c3aed", icon: "/icons/ForecastOrder.png", ids: ["EdpGraph", "EdpSubmission", "EdpPlanning", "EdpPlanSetting"] },
+  { key: "PP", title: "PRODUCTION PLAN", sub: "Dashboard · Capacity (M/C Actual) · Master Data › Production Plan STD", color: "#0d9488", icon: "/icons/DashboardChart.png", ids: ["PpDashboard", "PpCapacity", "PpSetup"] },
   { key: "ADMIN", title: "USER MANAGEMENT", sub: "ผู้ใช้ · สิทธิ์ · Activity Log", color: "#4f46e5", icon: "/icons/management.png", ids: ["UserManagement", "ActivityLog"] },
   { key: "OTHER", title: "OTHER", sub: "ระบบอื่น ๆ", color: "#71717a", icon: "/icons/Systems.png" },
 ];
 const groupOf = (r: PermRow) => (r.group === "STOCK" ? "STOCK" : (GROUPS.find((g) => g.ids?.some((id) => id.toLowerCase() === r.sysId.toLowerCase()))?.key ?? "OTHER"));
 // ชื่อในกลุ่มไม่ต้องซ้ำชื่อระบบ (EDP › Plan Setting -> Plan Setting)
-const shortTitle = (t: string) => t.replace(/^(EDP|Master Data)\s*›\s*/i, "");
+const shortTitle = (t: string) => t.replace(/^(EDP|Master Data|Production Plan)\s*›\s*/i, "");
 const GKEY = "perm-groups-closed";
 
 // 🔑 PERMISSION / 👤 USER PROFILE (UserPermissionWindow) - สิทธิ์ทุกระบบ + ทุกคลัง

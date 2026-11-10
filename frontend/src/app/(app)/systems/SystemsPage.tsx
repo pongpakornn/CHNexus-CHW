@@ -14,7 +14,7 @@ const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children
 const TITLE = ["Choose Your", "Workspace"];
 
 // 🚧 ระบบที่กำลังพัฒนา: แสดงการ์ดไว้ก่อน (ทุกคนเห็น) กดแล้วแจ้งว่าอยู่ระหว่างการอัพเดทระบบ · เปิดใช้จริง = ย้ายไปเพิ่มใน lib/menu.ts (SYSTEMS)
-const SOON = [{ key: "production-plan", name: "Production Plan", sub: "Production Planning · Schedule", art: "/images/systems/production-plan.webp", color: "#2563eb" }];
+const SOON: { key: string; name: string; sub: string; art: string; color: string }[] = []; // Production Plan เปิดใช้แล้ว (lib/menu.ts › PP)
 
 export default function SystemsPage() {
   const { me } = useAuth();
