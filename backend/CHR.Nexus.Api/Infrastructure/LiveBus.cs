@@ -106,7 +106,8 @@ public sealed class LivePublishMiddleware
     public LivePublishMiddleware(RequestDelegate next) => _next = next;
 
     private static readonly HashSet<string> OwnTopicAreas = new(StringComparer.OrdinalIgnoreCase) { "log", "chat", "support" };
-    private static readonly HashSet<string> PrefPaths = new(StringComparer.OrdinalIgnoreCase) { "/api/products/filter", "/api/products/default-stocks", "/api/pr/stock" };
+    private static readonly HashSet<string> PrefPaths = new(StringComparer.OrdinalIgnoreCase) { "/api/products/filter", "/api/products/default-stocks", "/api/pr/stock",
+        "/api/forecast/file/read", "/api/forecast/file/preview", "/api/forecast/file/check", "/api/forecast/file/export" };   // 📂 FORECAST FILE: อ่าน / ตรวจ / ส่งออก ไม่ได้เปลี่ยนข้อมูล
 
     public async Task Invoke(HttpContext ctx)
     {

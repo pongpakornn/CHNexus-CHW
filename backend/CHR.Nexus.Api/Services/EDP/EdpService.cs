@@ -112,7 +112,24 @@ public sealed class EdpAlertSettings
     public bool OnlyStarted { get; set; } = true;
     public string UpdatedBy { get; set; }
     public DateTime? UpdatedDate { get; set; }
+    // 🔊 40_EDP_Alert_Sound_Users.sql: ผู้รับแจ้งเตือน + เสียง (ไม่มีคอลัมน์ = ค่าเริ่มต้น / ทุกคนที่ MARK ได้)
+    public string AlertUsers { get; set; }
+    public bool SoundOn { get; set; } = true;
+    public int SoundId { get; set; } = 15;
+    public int LeadRepeat { get; set; } = 1;
+    public bool EndChime { get; set; } = true;
+    public int GapSeconds { get; set; } = 30;
+    public decimal AlarmVolume { get; set; } = 1;
+    public decimal VoiceVolume { get; set; } = 1;
+    public decimal VoiceRate { get; set; } = 0.9m;
+    public string MsgTh { get; set; }
+    public string MsgMy { get; set; }
+
+    public List<string> Users() => (AlertUsers ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 }
+
+// 🗣 ไฟล์เสียงประโยคแจ้งเตือนที่อัพโหลดเอง (EDP.AlertVoices) · Key = SHA-256 ของประโยค
+public sealed record EdpVoice(string Lang, string TextKey, string ContentType, DateTime UpdatedDate, string UpdatedBy);
 
 public sealed class EdpService
 {
@@ -582,7 +599,8 @@ public sealed class EdpService
     public EdpAlertSettings AlertSettings()
     {
         using var c = Conn();
-        return c.QueryFirstOrDefault<EdpAlertSettings>("SELECT Enabled, GraceMinutes, RemindMinutes, OnlyStarted, UpdatedBy, UpdatedDate FROM EDP.AlertSettings WHERE Id = 1") ?? new EdpAlertSettings();
+        string extra = DbSchema.HasEdpAlertSound ? ", AlertUsers, SoundOn, SoundId, LeadRepeat, EndChime, GapSeconds, AlarmVolume, VoiceVolume, VoiceRate, MsgTh, MsgMy" : "";
+        return c.QueryFirstOrDefault<EdpAlertSettings>($"SELECT Enabled, GraceMinutes, RemindMinutes, OnlyStarted, UpdatedBy, UpdatedDate{extra} FROM EDP.AlertSettings WHERE Id = 1") ?? new EdpAlertSettings();
     }
 
     public void SaveAlertSettings(EdpAlertSettings s, string uid)
@@ -592,6 +610,47 @@ public sealed class EdpService
                     WHEN MATCHED THEN UPDATE SET Enabled = @Enabled, GraceMinutes = @GraceMinutes, RemindMinutes = @RemindMinutes, OnlyStarted = @OnlyStarted, UpdatedBy = @uid, UpdatedDate = GETDATE()
                     WHEN NOT MATCHED THEN INSERT (Id, Enabled, GraceMinutes, RemindMinutes, OnlyStarted, UpdatedBy) VALUES (1, @Enabled, @GraceMinutes, @RemindMinutes, @OnlyStarted, @uid);",
                   new { s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, uid });
+        if (!DbSchema.HasEdpAlertSound) return;
+        c.Execute(@"UPDATE EDP.AlertSettings SET AlertUsers = @AlertUsers, SoundOn = @SoundOn, SoundId = @SoundId, LeadRepeat = @LeadRepeat, EndChime = @EndChime, GapSeconds = @GapSeconds,
+                           AlarmVolume = @AlarmVolume, VoiceVolume = @VoiceVolume, VoiceRate = @VoiceRate, MsgTh = @MsgTh, MsgMy = @MsgMy WHERE Id = 1",
+                  new { s.AlertUsers, s.SoundOn, s.SoundId, s.LeadRepeat, s.EndChime, s.GapSeconds, s.AlarmVolume, s.VoiceVolume, s.VoiceRate, s.MsgTh, s.MsgMy });
+    }
+
+    // ---------------------------------------------------------------- 🗣 ไฟล์เสียงประโยค (อัพโหลดเอง)
+    public static string TextKey(string text)
+    {
+        var h = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes((text ?? "").Trim()));
+        return Convert.ToHexString(h).ToLowerInvariant();
+    }
+
+    public List<EdpVoice> Voices()
+    {
+        using var c = Conn();
+        return c.Query<EdpVoice>("SELECT Lang, TextKey, ContentType, UpdatedDate, UpdatedBy FROM EDP.AlertVoices").ToList();
+    }
+
+    public (byte[] Audio, string ContentType)? Voice(string lang, string key)
+    {
+        using var c = Conn();
+        var r = c.QueryFirstOrDefault<(byte[] Audio, string ContentType)?>("SELECT Audio, ContentType FROM EDP.AlertVoices WHERE Lang = @lang AND TextKey = @key", new { lang, key });
+        return r;
+    }
+
+    public string SaveVoice(string lang, string text, byte[] audio, string contentType, string uid)
+    {
+        string key = TextKey(text);
+        using var c = Conn();
+        c.Execute(@"MERGE EDP.AlertVoices AS t USING (SELECT @lang AS Lang, @key AS TextKey) AS x ON t.Lang = x.Lang AND t.TextKey = x.TextKey
+                    WHEN MATCHED THEN UPDATE SET [Text] = @text, Audio = @audio, ContentType = @contentType, UpdatedBy = @uid, UpdatedDate = GETDATE()
+                    WHEN NOT MATCHED THEN INSERT (Lang, TextKey, [Text], Audio, ContentType, UpdatedBy) VALUES (@lang, @key, @text, @audio, @contentType, @uid);",
+                  new { lang, key, text = text.Trim(), audio, contentType, uid });
+        return key;
+    }
+
+    public bool DeleteVoice(string lang, string key)
+    {
+        using var c = Conn();
+        return c.Execute("DELETE FROM EDP.AlertVoices WHERE Lang = @lang AND TextKey = @key", new { lang, key }) > 0;
     }
 
     // CANCEL ของผู้ใช้แต่ละคน (Nexus.UserSettings) -> ซ่อนจนถึงเวลานี้ แล้วแจ้งซ้ำ

@@ -235,6 +235,10 @@ namespace Nexus.Helpers
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);
 
+        // 🔊 EDP ALERT เสียง + ผู้รับแจ้งเตือน (40_EDP_Alert_Sound_Users.sql): EDP.AlertSettings.MsgMy · EDP.AlertVoices
+        private static bool _edpSound;
+        public static bool HasEdpAlertSound => _edpSound || (_edpSound = HasEdpAlert && ColumnIn("EDP.AlertSettings", "MsgMy") == true && TableExists("EDP.AlertVoices") == true);
+
         // 📋 MIN REPORT ผู้รับแจ้งเตือนรายคลัง (32_Min_Report_Alert_Users.sql): Nexus.MinReportStocks.AlertUsers
         private static bool _minUsers;
         public static bool HasMinAlertUsers => _minUsers || (_minUsers = HasMinReport && ColumnIn("Nexus.MinReportStocks", "AlertUsers") == true);

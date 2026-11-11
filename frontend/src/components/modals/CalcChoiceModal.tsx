@@ -26,7 +26,8 @@ const CARDS = [
   },
 ] as const;
 
-export function CalcChoiceModal({ choice, onClose, onPick }: { choice: CalcChoice | null; onClose: () => void; onPick: (calc: boolean) => void }) {
+// pickLabel = ข้อความปุ่ม (ค่าเริ่มต้น "📂 SELECT FILE" · หน้า FORECAST FILE เลือกไฟล์ไว้แล้ว = "NEXT ▶")
+export function CalcChoiceModal({ choice, onClose, onPick, pickLabel }: { choice: CalcChoice | null; onClose: () => void; onPick: (calc: boolean) => void; pickLabel?: string }) {
   const [sel, setSel] = useState<boolean | null>(null);
   useEffect(() => {
     if (choice) queueMicrotask(() => setSel(null));
@@ -52,7 +53,7 @@ export function CalcChoiceModal({ choice, onClose, onPick }: { choice: CalcChoic
             CANCEL
           </button>
           <button className="btn bg-accent" disabled={sel == null} onClick={() => sel != null && go(sel)}>
-            📂 SELECT FILE
+            {pickLabel ?? "📂 SELECT FILE"}
           </button>
         </>
       }

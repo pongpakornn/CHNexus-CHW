@@ -17,6 +17,7 @@ import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/compone
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { useLive } from "@/lib/live";
+import { useRouter } from "next/navigation";
 
 type Month = { key: string; label: string };
 type Row = { customer: string; partA: string; partNo: string; productName: string; forecast: number; order: number; delivery: number; month: string };
@@ -30,6 +31,7 @@ const n0 = (v: number) => Math.round(v).toLocaleString("en-US");
 export default function ForecastPage() {
   const toast = useToast();
   const dlg = useDialogs();
+  const router = useRouter();
   const [months, setMonths] = useState<Month[] | null>(null);
   const [canImport, setCanImport] = useState(false);
   const [tableMonth, setTableMonth] = useState("ALL");
@@ -250,6 +252,14 @@ export default function ForecastPage() {
                   : []),
                 ...(canImport
                   ? [
+                      {
+                        key: "file",
+                        title: "📂 FORECAST FILE",
+                        detail: "เลือกไฟล์ FORECAST ของฝ่ายขายทั้งไฟล์ แล้วกรองลูกค้า / เดือนในหน้าเว็บ ตรวจยอดกับ DIFF (3) แล้ว IMPORT ได้เลย ไม่ต้องทำไฟล์ Excel · เพิ่ม Product ที่ไม่มีในระบบได้ในขั้นตอนเดียว",
+                        color: "#2563eb",
+                        icon: "import" as const,
+                        onClick: () => router.push("/master/forecast/file"),
+                      },
                       {
                         key: "template",
                         title: "TEMPLATE EXCEL",

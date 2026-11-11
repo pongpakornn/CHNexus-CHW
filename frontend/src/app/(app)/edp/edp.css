@@ -2045,3 +2045,122 @@
 .eda-box.is-bare .eda-shadow {
   background: radial-gradient(closest-side, rgb(0 0 0 / 0.45), transparent);
 }
+
+/* 🔊 EDP ALERT: ปุ่ม ✕ (ซ่อนชั่วคราว) + แถบประโยคที่กำลังพูด (ไทย / พม่า) */
+.eda-box {
+  position: relative;
+}
+.eda-x {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(255 255 255 / 0.16);
+  border: 1px solid rgb(255 255 255 / 0.35);
+  backdrop-filter: blur(6px);
+  transition: background 0.22s var(--ease-drop), scale 0.4s var(--ease-drop);
+}
+.eda-x:hover {
+  background: rgb(239 68 68 / 0.85);
+  scale: 1.06;
+}
+.eda-x:active {
+  scale: 0.94;
+}
+.eda-x:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.eda-box:not(.is-bare) .eda-x {
+  top: 14px;
+  right: 14px;
+  color: #b91c1c;
+  background: #fff;
+  border-color: #fecaca;
+}
+.eda-say {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(760px, calc(100% - 24px));
+  margin: 2px auto 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  color: #fff;
+  background: rgb(15 10 25 / 0.42);
+  border: 1px solid rgb(255 255 255 / 0.22);
+  backdrop-filter: blur(8px);
+  animation: eda-say-in 0.45s var(--ease-drop) both;
+}
+.eda-say p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.eda-say .eda-my {
+  margin-top: 2px;
+  font-family: "Myanmar Text", "Noto Sans Myanmar", "Padauk", "Pyidaungsu", system-ui, sans-serif;
+  font-weight: 500;
+  color: #fde68a;
+  line-height: 1.8;
+}
+.eda-say-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  font-size: 18px;
+  background: rgb(255 255 255 / 0.9);
+  opacity: 0.55;
+}
+.eda-say-ic.is-on {
+  opacity: 1;
+  animation: eda-say-pulse 1.4s var(--ease-drop) infinite;
+}
+.eda-tap {
+  flex: none;
+  margin-left: auto;
+  background: #2563eb;
+  color: #fff;
+}
+.eda-box:not(.is-bare) .eda-say {
+  color: #1f2350;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.eda-box:not(.is-bare) .eda-say .eda-my {
+  color: #92400e;
+}
+@keyframes eda-say-in {
+  from { opacity: 0; translate: 0 8px; }
+}
+@keyframes eda-say-pulse {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.08; }
+}
+@media (max-width: 640px) {
+  .eda-say {
+    flex-wrap: wrap;
+  }
+  .eda-say p {
+    font-size: 12px;
+  }
+  .eda-tap {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eda-say,
+  .eda-say-ic.is-on {
+    animation: none;
+  }
+}

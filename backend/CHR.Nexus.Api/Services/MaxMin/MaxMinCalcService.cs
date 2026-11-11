@@ -615,6 +615,49 @@ namespace Nexus.Services
             return map;
         }
 
+        // 📂 FORECAST FILE (หน้า Forecast / Order › FORECAST FILE): จับคู่ PART A แบบเดียวกับ Import Excel + รายละเอียดทุกรายการ (ใหม่ / ยอดเปลี่ยน / ยอดเดิมตรงกัน)
+        public void MatchForecastRows(List<CalcImportRow> rows) => MatchByPartA(rows);
+
+        public sealed class FcDetail
+        {
+            public string Status { get; set; }   // NEW / CHANGED / SAME
+            public string Customer { get; set; }
+            public string PartA { get; set; }
+            public DateTime Month { get; set; }
+            public decimal F { get; set; }
+            public decimal O { get; set; }
+            public decimal D { get; set; }
+            public decimal? OldF { get; set; }
+            public decimal? OldO { get; set; }
+            public decimal? OldD { get; set; }
+        }
+
+        // เงื่อนไขเดียวกับ Merge (ลูกค้า + PART A + เดือน = 1 รายการ · ยอดเดิมตรงกันทุกช่อง = ข้าม) แต่คืนทุกรายการ ไม่บันทึก
+        public List<FcDetail> ForecastDetail(List<CalcImportRow> rows)
+        {
+            var valid = rows.Where(r => r.IsValid).ToList();
+            var list = new List<FcDetail>();
+            if (valid.Count == 0) return list;
+            using (var conn = new SqlConnection(_cs))
+            {
+                conn.Open();
+                var old = ExistingForecast(conn, null, valid.Select(v => v.Month));
+                foreach (var g in valid.GroupBy(v => FcKey(v.Customer, v.Part, v.Month)))
+                {
+                    var first = g.First();
+                    decimal f = g.Sum(x => x.Forecast), o = g.Sum(x => x.Order), d = g.Sum(x => x.Delivery);
+                    bool had = old.TryGetValue(g.Key, out var was);
+                    list.Add(new FcDetail
+                    {
+                        Status = !had ? "NEW" : was.F == f && was.O == o && was.D == d ? "SAME" : "CHANGED",
+                        Customer = first.Customer, PartA = first.Part, Month = first.Month, F = f, O = o, D = d,
+                        OldF = had ? was.F : (decimal?)null, OldO = had ? was.O : (decimal?)null, OldD = had ? was.D : (decimal?)null
+                    });
+                }
+            }
+            return list;
+        }
+
         // เทียบไฟล์กับของเดิม (ไม่บันทึก) - ใช้แสดงก่อนยืนยันการนำเข้า
         public ForecastMerge ForecastDiff(List<CalcImportRow> rows)
         {

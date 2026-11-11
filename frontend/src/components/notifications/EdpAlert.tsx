@@ -11,6 +11,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { cascade, dmy, hgOf, imgOf, nowSlot, shiftStart, sortMin, timesOf, type Card, type CardsRes, type Meta, type Shift } from "@/app/(app)/edp/edp";
 import { EditCard } from "@/app/(app)/edp/submission/EditCard";
+import { audioReady, loopAlert, stopAll, unlockAudio, type AlertSoundCfg } from "@/lib/alertSound";
 import "@/app/(app)/edp/edp.css";
 
 // ⏰ EDP ALERT : การ์ดเลยเวลา START แล้วแต่ยังไม่ MARK SUCCESS -> หน้าต่างแจ้งเตือนกลางจอ (พื้นหลังเบลอมืดใส เห็นหน้าระบบด้านหลัง)
@@ -18,8 +19,10 @@ import "@/app/(app)/edp/edp.css";
 //   CANCEL / GO UPDATE = ซ่อนชั่วคราว แล้วแจ้งซ้ำตามเวลาที่ตั้ง (ค่าเริ่มต้น 10 นาที) จนกว่าจะ MARK ครบ
 //   ตั้งค่า (เปิด / ปิด · เลยกี่นาที · แจ้งซ้ำทุกกี่นาที · เฉพาะแผนที่ START แล้ว) = USER MANAGEMENT › SETUP › EDP ALERT
 //   การ์ด = การ์ดจริงของหน้า Plan Submission (ข้อมูลจากระบบ) เรียงช้ามากสุด -> น้อยสุด · กรอก ACT / HG แล้ว MARK SUCCESS / EDIT ได้จากหน้าต่างนี้เลย
+//   🔊 เสียง (SETUP › EDP ALERT): เสียงเตือน -> ประโยคไทย -> พม่า -> เสียงปิดท้าย วนจนกว่าจะ MARK ครบ / กด CANCEL หรือ ✕ (ซ่อนชั่วคราว ไม่มีปิดถาวร · เก็บ Activity Log)
+//   ผู้รับ = UserID ที่เลือกที่ SETUP (ไม่เลือก = ทุกคนที่ MARK SUCCESS ได้) · Server เป็นคนตัดสิน
 //   4 ใบขึ้นไป = วงแหวน 3D (Coverflow) เลื่อนเอง: ลูกศร · ลาก / swipe · กดการ์ดข้าง · ล้อเมาส์ · คีย์ ← →  ·  น้อยกว่า 4 ใบ = เรียงธรรมดา
-type Cfg = { enabled: boolean; graceMinutes?: number; remindMinutes?: number; onlyStarted?: boolean; snoozeUntil?: string | null; now?: string };
+type Cfg = { enabled: boolean; graceMinutes?: number; remindMinutes?: number; onlyStarted?: boolean; snoozeUntil?: string | null; now?: string; sound?: AlertSoundCfg | null };
 type Late = { c: Card; sb: string; se: string; min: number };
 type Typed = Record<number, { qty: number; hg: number }>;
 
@@ -38,7 +41,7 @@ export function EdpAlert() {
   const path = usePathname() ?? "";
   const { me } = useAuth();
   const inEdp = path.startsWith("/edp");
-  const can = !!me && (me.userLevel === 1 || !!me.can.edpSubmitEdit);
+  const can = !!me && (me.userLevel === 1 || !!me.can.edpSubmit); // ผู้รับจริง = Server ตัดสิน (UserID ที่เลือก / ผู้ที่ MARK ได้)
   return inEdp && can ? <EdpAlertHost path={path} /> : null;
 }
 
@@ -124,10 +127,30 @@ function EdpAlertHost({ path }: { path: string }) {
   const show = late.length > 0 && !snoozed && !hidden && !edit;
   const remind = cfg?.remindMinutes ?? 10;
 
-  async function snooze(go: boolean) {
+  // 🔊 ปลดล็อกเสียง: เบราว์เซอร์ให้เล่นเสียงหลังผู้ใช้กด / พิมพ์บนหน้านี้ครั้งแรก
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => {
+    const on = () => void unlockAudio().then((ok) => ok && setUnlocked(true));
+    document.addEventListener("pointerdown", on);
+    document.addEventListener("keydown", on);
+    return () => (document.removeEventListener("pointerdown", on), document.removeEventListener("keydown", on));
+  }, []);
+  // 🔊 วนเสียงตลอดที่หน้าต่างแจ้งเตือนเปิดอยู่ · หายเมื่อ MARK ครบ / CANCEL / ✕ / ระหว่างกด EDIT
+  const sound = cfg?.sound?.on ? cfg.sound : null;
+  const soundKey = sound ? JSON.stringify(sound) : "";
+  useEffect(() => {
+    if (!show || !soundKey) return;
+    const ac = new AbortController();
+    void loopAlert(JSON.parse(soundKey) as AlertSoundCfg, ac.signal);
+    return () => (ac.abort(), stopAll());
+  }, [show, soundKey]);
+  const needTap = !!sound && show && !unlocked && !audioReady();
+
+  async function snooze(go: boolean, why: "cancel" | "x" | "go" = go ? "go" : "cancel") {
     setBusy(true);
+    stopAll();
     try {
-      const r = await api<{ until: string }>("/edp/alert/snooze", { method: "POST" });
+      const r = await api<{ until: string }>("/edp/alert/snooze", { method: "POST", body: { late: late.length, why } });
       setCfg((c) => (c ? { ...c, snoozeUntil: r.until } : c));
     } catch {
       setHidden(true); // บันทึกไม่ได้ = ซ่อนจนกว่าจะเช็ครอบหน้า
@@ -196,7 +219,32 @@ function EdpAlertHost({ path }: { path: string }) {
                     การ์ด {late.length} ใบ เลยเวลา START แล้วแต่ยังไม่กด MARK SUCCESS · {dmy(plan.date)} กะ {plan.shift} · ค้างนานสุด {lateText(late[0].min)}
                   </span>
                 </div>
+                <button type="button" className="eda-x" aria-label="ปิดชั่วคราว" title={`ซ่อนชั่วคราว แล้วแจ้งเตือนอีกครั้งใน ${remind} นาที`} disabled={busy} onClick={() => snooze(false, "x")}>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden>
+                    <path d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
               </div>
+              {sound && (
+                <div className="eda-say">
+                  <span className={`eda-say-ic ${needTap ? "" : "is-on"}`} aria-hidden>
+                    🔊
+                  </span>
+                  <div className="min-w-0">
+                    <p>{sound.msgTh}</p>
+                    {sound.msgMy && (
+                      <p className="eda-my" lang="my">
+                        {sound.msgMy}
+                      </p>
+                    )}
+                  </div>
+                  {needTap && (
+                    <button type="button" className="cta-btn is-sm eda-tap" onClick={() => void unlockAudio().then((ok) => ok && setUnlocked(true))}>
+                      🔊 กดเพื่อเปิดเสียง
+                    </button>
+                  )}
+                </div>
+              )}
               {late.length >= 4 ? (
                 <Ring late={late} reduce={!!reduce} {...cardProps} />
               ) : (
@@ -209,7 +257,7 @@ function EdpAlertHost({ path }: { path: string }) {
                 </div>
               )}
               <div className="eda-foot">
-                <small>CANCEL = ซ่อนชั่วคราว แล้วแจ้งเตือนอีกครั้งใน {remind} นาที จนกว่าจะ MARK SUCCESS ครบ</small>
+                <small>CANCEL / ✕ = ซ่อน{sound ? "และหยุดเสียง" : ""}ชั่วคราว แล้วแจ้งเตือนอีกครั้งใน {remind} นาที จนกว่าจะ MARK SUCCESS ครบ</small>
                 <button type="button" className="cta-btn is-gray" disabled={busy} onClick={() => snooze(false)}>
                   CANCEL
                 </button>

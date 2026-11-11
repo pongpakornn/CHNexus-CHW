@@ -1,4 +1,7 @@
 using CHR.Nexus.Api.Web;
+using Dapper;
+using Microsoft.Data.SqlClient;
+using Nexus.Core;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Helpers;
 using Nexus.Services;
@@ -221,26 +224,71 @@ public sealed class EdpController : AppController
     [HttpGet("graph")]
     public IActionResult Graph() => Guard(Me?.CanViewEdpGraph == true) ?? Ok(_svc.Graph());
 
-    // ---------------------------------------------------------------- ⏰ แจ้งเตือนการ์ดเลยเวลา (เห็นเฉพาะในระบบ EDP · ผู้ที่ MARK SUCCESS ได้)
-    public sealed record AlertReq(bool Enabled, int GraceMinutes, int RemindMinutes, bool OnlyStarted);
+    // ---------------------------------------------------------------- ⏰ แจ้งเตือนการ์ดเลยเวลา (เห็นเฉพาะในระบบ EDP)
+    //   ผู้รับ: ไม่ได้เลือก UserID = ทุกคนที่ MARK SUCCESS ได้ (แบบเดิม) · เลือกแล้ว = เฉพาะ UserID ที่เลือก (ต้องดู Plan Submission ได้)
+    //   🔊 เสียง: เสียงเตือน -> ประโยคไทย -> ประโยคพม่า -> เสียงปิดท้าย วนจนกว่าจะ MARK ครบ หรือกด CANCEL / ✕ (ซ่อนชั่วคราว ไม่มีปิดถาวร)
+    public sealed record AlertReq(bool Enabled, int GraceMinutes, int RemindMinutes, bool OnlyStarted,
+                                  List<string> Users = null, bool? SoundOn = null, int? SoundId = null, int? LeadRepeat = null, bool? EndChime = null, int? GapSeconds = null,
+                                  decimal? AlarmVolume = null, decimal? VoiceVolume = null, decimal? VoiceRate = null, string MsgTh = null, string MsgMy = null);
+    public sealed record SnoozeReq(int? Late = null, string Why = null);
     private bool IsAdmin => Me?.UserLevel == 1;
-    private static object AlertRow(EdpAlertSettings s) => new { s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, s.UpdatedBy, s.UpdatedDate };
+    private static readonly string[] Langs = { "th", "my" };
+
+    // URL ไฟล์เสียงที่อัพโหลดของประโยคนี้ (ไม่มี = null -> หน้าเว็บใช้ไฟล์เสียงในระบบ / เสียงอ่านของเบราว์เซอร์)
+    private static string VoiceUrl(List<EdpVoice> voices, string lang, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string key = EdpService.TextKey(text);
+        var v = voices.FirstOrDefault(x => x.Lang == lang && x.TextKey == key);
+        return v == null ? null : $"/api/edp/alert/voice/{lang}/{key}?v={v.UpdatedDate.Ticks}";
+    }
+
+    private static object Sound(EdpAlertSettings s, List<EdpVoice> voices) => new
+    {
+        on = s.SoundOn, soundId = s.SoundId, leadRepeat = s.LeadRepeat, endChime = s.EndChime, gapSeconds = s.GapSeconds,
+        alarmVolume = s.AlarmVolume, voiceVolume = s.VoiceVolume, voiceRate = s.VoiceRate,
+        msgTh = s.MsgTh ?? "", msgMy = s.MsgMy ?? "",
+        voiceTh = VoiceUrl(voices, "th", s.MsgTh), voiceMy = VoiceUrl(voices, "my", s.MsgMy)
+    };
+
+    // ผู้ใช้คนนี้รับแจ้งเตือนไหม
+    private bool Receives(EdpAlertSettings s)
+    {
+        if (Me == null) return false;
+        var users = DbSchema.HasEdpAlertSound ? s.Users() : new List<string>();
+        return users.Count == 0 ? Me.CanEditEdpSubmit : Me.CanViewEdpSubmit && users.Contains(Uid, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private object AlertRow(EdpAlertSettings s) => new
+    {
+        s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, s.UpdatedBy, s.UpdatedDate,
+        users = DbSchema.HasEdpAlertSound ? s.Users() : new List<string>(),
+        sound = DbSchema.HasEdpAlertSound ? Sound(s, _svc.Voices()) : null
+    };
 
     [HttpGet("alert")]
     public IActionResult Alert()
     {
-        if (Me?.CanEditEdpSubmit != true || !DbSchema.HasEdpAlert) return Ok(new { enabled = false });
+        if (Me == null || !DbSchema.HasEdpAlert) return Ok(new { enabled = false });
         var s = _svc.AlertSettings();
-        return Ok(new { s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, snoozeUntil = EdpService.GetSnooze(Uid), now = DateTime.Now });
+        if (!Receives(s)) return Ok(new { enabled = false });
+        return Ok(new
+        {
+            s.Enabled, s.GraceMinutes, s.RemindMinutes, s.OnlyStarted, snoozeUntil = EdpService.GetSnooze(Uid), now = DateTime.Now,
+            sound = DbSchema.HasEdpAlertSound ? Sound(s, _svc.Voices()) : null
+        });
     }
 
     [HttpPost("alert/snooze")]
-    public IActionResult AlertSnooze()
+    public IActionResult AlertSnooze([FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] SnoozeReq r = null)
     {
-        if (Me?.CanEditEdpSubmit != true) return Deny();
         if (!DbSchema.HasEdpAlert) return Fail("ฐานข้อมูลยังไม่มีตาราง EDP ALERT (database/nexus/29_EDP_Alert.sql)");
         var s = _svc.AlertSettings();
-        return Ok(new { until = EdpService.Snooze(Uid, s.RemindMinutes), minutes = s.RemindMinutes });
+        if (!Receives(s)) return Deny();
+        var until = EdpService.Snooze(Uid, s.RemindMinutes);
+        string why = r?.Why == "x" ? "✕" : r?.Why == "go" ? "GO UPDATE" : "CANCEL";
+        LogService.WriteLog(Uid, "EDP_ALERT_SNOOZE", $"{why} | Hide {s.RemindMinutes} min (until {until:HH:mm}) | Late cards: {r?.Late ?? 0}", "EDP_ALERT");
+        return Ok(new { until, minutes = s.RemindMinutes });
     }
 
     [HttpGet("alert/settings")]
@@ -248,7 +296,15 @@ public sealed class EdpController : AppController
     {
         if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
         if (!DbSchema.HasEdpAlert) return Ok(new { ready = false });
-        return Ok(new { ready = true, settings = AlertRow(_svc.AlertSettings()) });
+        object users = null;
+        if (DbSchema.HasEdpAlertSound)
+        {
+            using var c = new SqlConnection(GlobalConfig.ConnStr);
+            users = c.Query<(string UserID, string FullName, string Department, string Section)>(
+                    "SELECT UserID, FullName, Department, Section FROM Nexus.Users WHERE ISNULL(IsLocked, 0) = 0 ORDER BY UserID")
+                .Select(u => new { userId = u.UserID, name = u.FullName, dept = string.IsNullOrWhiteSpace(u.Section) ? u.Department : u.Section }).ToList();
+        }
+        return Ok(new { ready = true, sound = DbSchema.HasEdpAlertSound, settings = AlertRow(_svc.AlertSettings()), users });
     }
 
     [HttpPost("alert/settings")]
@@ -258,11 +314,85 @@ public sealed class EdpController : AppController
         if (!DbSchema.HasEdpAlert) return Fail("ฐานข้อมูลยังไม่มีตาราง EDP ALERT (database/nexus/29_EDP_Alert.sql)");
         if (r == null || r.GraceMinutes < 0 || r.GraceMinutes > 240) return Fail("เลยเวลากี่นาทีจึงแจ้งเตือน ต้องอยู่ระหว่าง 0 - 240 นาที");
         if (r.RemindMinutes < 1 || r.RemindMinutes > 480) return Fail("แจ้งเตือนซ้ำต้องอยู่ระหว่าง 1 - 480 นาที");
+        var old = _svc.AlertSettings();
+        var s = new EdpAlertSettings { Enabled = r.Enabled, GraceMinutes = r.GraceMinutes, RemindMinutes = r.RemindMinutes, OnlyStarted = r.OnlyStarted };
+        string soundLog = "";
+        if (DbSchema.HasEdpAlertSound)
+        {
+            if (r.SoundId is < 1 or > 18) return Fail("เลือกเสียงเตือนไม่ถูกต้อง");
+            if (r.LeadRepeat is < 1 or > 5) return Fail("เสียงนำต้องอยู่ระหว่าง 1 - 5 รอบ");
+            if (r.GapSeconds is < 5 or > 600) return Fail("เว้นแล้ววนซ้ำต้องอยู่ระหว่าง 5 - 600 วินาที");
+            if (r.AlarmVolume is < 0.1m or > 1.5m || r.VoiceVolume is < 0 or > 1 || r.VoiceRate is < 0.5m or > 1.5m) return Fail("ค่าความดัง / ความเร็วพูดไม่ถูกต้อง");
+            if ((r.MsgTh ?? "").Trim().Length > 1000 || (r.MsgMy ?? "").Trim().Length > 1000) return Fail("ประโยคยาวเกิน 1,000 ตัวอักษร");
+            using (var c = new SqlConnection(GlobalConfig.ConnStr))
+            {
+                var known = c.Query<string>("SELECT UserID FROM Nexus.Users").ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var users = (r.Users ?? new()).Select(u => (u ?? "").Trim()).Where(known.Contains).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                s.AlertUsers = users.Count == 0 ? null : string.Join(",", users);
+            }
+            s.SoundOn = r.SoundOn ?? old.SoundOn; s.SoundId = r.SoundId ?? old.SoundId; s.LeadRepeat = r.LeadRepeat ?? old.LeadRepeat; s.EndChime = r.EndChime ?? old.EndChime;
+            s.GapSeconds = r.GapSeconds ?? old.GapSeconds; s.AlarmVolume = r.AlarmVolume ?? old.AlarmVolume; s.VoiceVolume = r.VoiceVolume ?? old.VoiceVolume; s.VoiceRate = r.VoiceRate ?? old.VoiceRate;
+            s.MsgTh = (r.MsgTh ?? old.MsgTh ?? "").Trim(); s.MsgMy = (r.MsgMy ?? old.MsgMy ?? "").Trim();
+            soundLog = $" | Users: {s.AlertUsers ?? "ALL (can MARK)"} | Sound: {(s.SoundOn ? "ON" : "OFF")} #{s.SoundId} x{s.LeadRepeat}{(s.EndChime ? " + end" : "")} every {s.GapSeconds}s | Vol {s.AlarmVolume:0.##}/{s.VoiceVolume:0.##} | Rate {s.VoiceRate:0.##}" +
+                       (s.MsgTh != (old.MsgTh ?? "") ? $" | TH: {s.MsgTh}" : "") + (s.MsgMy != (old.MsgMy ?? "") ? $" | MY: {s.MsgMy}" : "");
+        }
         return Run(() =>
         {
-            _svc.SaveAlertSettings(new EdpAlertSettings { Enabled = r.Enabled, GraceMinutes = r.GraceMinutes, RemindMinutes = r.RemindMinutes, OnlyStarted = r.OnlyStarted }, Uid);
-            LogService.WriteLog(Uid, "EDP_ALERT_SETTINGS", $"Enabled: {(r.Enabled ? "ON" : "OFF")} | Late ≥ {r.GraceMinutes} min | Remind every {r.RemindMinutes} min | Only started: {(r.OnlyStarted ? "Y" : "N")}", "EDP_ALERT");
-            return Ok(new { message = $"บันทึก EDP ALERT แล้ว\n\n{(r.Enabled ? "แจ้งเตือน : ON" : "แจ้งเตือน : OFF")} · เลยเวลา ≥ {r.GraceMinutes} นาที · กด CANCEL แล้วแจ้งซ้ำทุก {r.RemindMinutes} นาที" });
+            _svc.SaveAlertSettings(s, Uid);
+            LogService.WriteLog(Uid, "EDP_ALERT_SETTINGS", $"Enabled: {(r.Enabled ? "ON" : "OFF")} | Late ≥ {r.GraceMinutes} min | Remind every {r.RemindMinutes} min | Only started: {(r.OnlyStarted ? "Y" : "N")}{soundLog}", "EDP_ALERT");
+            string who = s.AlertUsers == null ? "ทุกคนที่ MARK SUCCESS ได้" : $"{s.Users().Count} คน";
+            return Ok(new { message = $"บันทึก EDP ALERT แล้ว\n\n{(r.Enabled ? "แจ้งเตือน : ON" : "แจ้งเตือน : OFF")} · เลยเวลา ≥ {r.GraceMinutes} นาที · กด CANCEL แล้วแจ้งซ้ำทุก {r.RemindMinutes} นาที" +
+                                        (DbSchema.HasEdpAlertSound ? $"\nผู้รับ: {who} · เสียง : {(s.SoundOn ? "ON" : "OFF")}" : "") });
         }, "บันทึกไม่สำเร็จ");
+    }
+
+    // 🗣 ไฟล์เสียงของประโยค (เล่นที่หน้าต่างแจ้งเตือน / ลองฟังที่ SETUP) · ผู้ที่ login แล้วฟังได้
+    [HttpGet("alert/voice/{lang}/{key}")]
+    public IActionResult AlertVoice(string lang, string key)
+    {
+        if (Me == null) return Deny();
+        if (!DbSchema.HasEdpAlertSound || !Langs.Contains(lang) || key is not { Length: 64 }) return NotFound();
+        var v = _svc.Voice(lang, key);
+        if (v == null) return NotFound();
+        Response.Headers.CacheControl = "private, max-age=86400";
+        return File(v.Value.Audio, v.Value.ContentType);
+    }
+
+    // อัพโหลดไฟล์เสียงของประโยค (mp3 / wav / ogg / m4a ไม่เกิน 3 MB) · ผูกกับข้อความประโยค (แก้ประโยค = ต้องอัพโหลดใหม่)
+    [HttpPost("alert/voice")]
+    [RequestSizeLimit(4_000_000)]
+    public async Task<IActionResult> UploadVoice(IFormFile file, [FromForm] string lang, [FromForm] string text)
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        if (!DbSchema.HasEdpAlertSound) return Fail("ฐานข้อมูลยังไม่มีตาราง EDP.AlertVoices (database/nexus/40_EDP_Alert_Sound_Users.sql)");
+        if (!Langs.Contains(lang)) return Fail("ภาษาไม่ถูกต้อง");
+        if (string.IsNullOrWhiteSpace(text) || text.Trim().Length > 1000) return Fail("กรุณากรอกประโยคก่อนอัพโหลดไฟล์เสียง");
+        if (file == null || file.Length == 0 || file.Length > 3_000_000) return Fail("ไฟล์เสียงต้องไม่ว่างและไม่เกิน 3 MB");
+        string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string ct = ext switch { ".mp3" => "audio/mpeg", ".wav" => "audio/wav", ".ogg" => "audio/ogg", ".m4a" => "audio/mp4", _ => null };
+        if (ct == null) return Fail("รองรับเฉพาะไฟล์ .mp3 / .wav / .ogg / .m4a");
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        return Run(() =>
+        {
+            string key = _svc.SaveVoice(lang, text, ms.ToArray(), ct, Uid);
+            LogService.WriteLog(Uid, "EDP_ALERT_VOICE_UPLOAD", $"Lang: {lang.ToUpperInvariant()} | File: {file.FileName} ({file.Length / 1024:N0} KB) | Text: {text.Trim()}", "EDP_ALERT");
+            return Ok(new { message = $"อัพโหลดไฟล์เสียง{(lang == "th" ? "ภาษาไทย" : "ภาษาพม่า")}แล้ว", url = $"/api/edp/alert/voice/{lang}/{key}?v={DateTime.Now.Ticks}" });
+        }, "อัพโหลดไม่สำเร็จ");
+    }
+
+    public sealed record VoiceDelReq(string Lang, string Text);
+
+    [HttpPost("alert/voice/delete")]
+    public IActionResult DeleteVoice([FromBody] VoiceDelReq r)
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        if (!DbSchema.HasEdpAlertSound || r == null || !Langs.Contains(r.Lang)) return Fail("ข้อมูลไม่ถูกต้อง");
+        return Run(() =>
+        {
+            bool ok = _svc.DeleteVoice(r.Lang, EdpService.TextKey(r.Text));
+            if (ok) LogService.WriteLog(Uid, "EDP_ALERT_VOICE_DELETE", $"Lang: {r.Lang.ToUpperInvariant()} | Text: {(r.Text ?? "").Trim()}", "EDP_ALERT");
+            return Ok(new { message = ok ? "ลบไฟล์เสียงที่อัพโหลดแล้ว (กลับไปใช้เสียงในระบบ / เสียงอ่านของเบราว์เซอร์)" : "ไม่มีไฟล์เสียงที่อัพโหลดของประโยคนี้" });
+        }, "ลบไม่สำเร็จ");
     }
 }
