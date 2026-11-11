@@ -160,6 +160,8 @@ export default function ChemRecord() {
         <SearchBox fancy value={q} onChange={setQ} placeholder="ค้นหารหัส / ชื่อ / บ่อ" className="ch-search" />
       </div>
 
+      <RecordGuide />
+
       {!d ? (
         <Loading />
       ) : (
@@ -182,6 +184,7 @@ export default function ChemRecord() {
                     <div className="info">
                       <b>{p.code}</b>
                       <span>{p.name}</span>
+                      {p.method && <small className="how">วิธีตรวจ : {p.method}</small>}
                       <SpecBar p={p} v={(() => {
                         const vs = slots.map((_, i) => val(p.id, i + 1)).filter((x) => x !== "");
                         return vs.length ? Number(vs[vs.length - 1]) : null;
@@ -258,5 +261,59 @@ export default function ChemRecord() {
         )}
       </AnimatePresence>
     </PageBody>
+  );
+}
+
+// 📘 วิธีบันทึกผล (อ่านครั้งแรก) · ปิดแล้วจำไว้ในเครื่อง · กด "วิธีบันทึก" เพื่อเปิดอีกครั้ง
+const GUIDE_KEY = "chem-record-guide";
+function RecordGuide() {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(GUIDE_KEY) === "0") queueMicrotask(() => setOpen(false));
+    } catch {
+      /* ไม่มี storage = แสดงตลอด */
+    }
+  }, []);
+  const set = (v: boolean) => {
+    setOpen(v);
+    try {
+      localStorage.setItem(GUIDE_KEY, v ? "1" : "0");
+    } catch {
+      /* ไม่มี storage */
+    }
+  };
+  const steps: [string, string][] = [
+    ["เลือกวันที่ + กะ", "ปกติระบบเลือกวันนี้และกะปัจจุบันให้ (กลางวัน 08:00-20:00 · กลางคืน 20:00-08:00) · กด ⟲ กะปัจจุบัน เพื่อกลับมา"],
+    ["1 แถว = 1 ค่าที่ต้องตรวจ", "เช่น Free Alkali ของบ่อ Degreasing · วัดตาม \"วิธีตรวจ\" ใต้ชื่อ และแบบฟอร์ม FM-PD-04-03/1"],
+    ["กรอกตัวเลขที่วัดได้", "ในช่องตามเวลาตรวจ (เช่น 08:30 · 13:30) หน่วยตามที่แสดงท้ายช่อง · สีเปลี่ยนทันที เขียว = ในเกณฑ์ · ส้ม = เกินขีดควบคุม · แดง = นอกข้อกำหนด"],
+    ["กด 💾 SAVE", "แถบ SAVE ขึ้นด้านล่างเมื่อมีค่าที่แก้ · ค่าแดงกด ＋ บันทึกการแก้ไข ต่อได้ทันที"],
+  ];
+  return (
+    <div className={`ch-guide ${open ? "is-open" : ""}`} data-reveal="" style={{ "--i": 2 } as React.CSSProperties}>
+      <button type="button" className="ch-guide-h" aria-expanded={open} onClick={() => set(!open)}>
+        <span className="ic" aria-hidden>
+          ?
+        </span>
+        <b>วิธีบันทึกผลการตรวจวัด</b>
+        <small>{open ? "ซ่อน" : "แสดง"}</small>
+        <svg viewBox="0 0 24 24" className="chev" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      <div className="ch-guide-body">
+        <ol>
+          {steps.map(([h, t], i) => (
+            <li key={h} style={{ "--i": i } as React.CSSProperties}>
+              <i>{i + 1}</i>
+              <div>
+                <b>{h}</b>
+                <span>{t}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
   );
 }

@@ -61,6 +61,21 @@ public sealed class ChemControlController : AppController
         });
     }, "โหลด Dashboard ไม่สำเร็จ");
 
+    // ✍ ใบบันทึกที่ FLOW ส่งมาถึงคิวฉัน (หน้าต่างเด้งแบบ MIN REPORT ในระบบ Chemical Control) · อ่านอย่างเดียว
+    [HttpGet("sheets/inbox")]
+    public IActionResult SignInbox() => Guard(CanView) ?? Run(() =>
+    {
+        var ps = _svc.Params(false).ToDictionary(x => x.Id);
+        return Ok(_svc.Inbox(Uid).Select(s => new
+        {
+            s.Id, s.ParamId, s.Year, s.Month,
+            code = ps.TryGetValue(s.ParamId, out var p) ? p.Code : "",
+            name = p?.Name ?? "",
+            slotName = ChemControlService.SlotName(s.NextSlot ?? 0),
+            s.SubmittedAt
+        }));
+    }, "โหลดรายการรอลงลายเซ็นไม่สำเร็จ");
+
     // ---------------------------------------------------------------- บันทึกผลการตรวจวัด
     [HttpGet("day")]
     public IActionResult Day(DateTime date) => Guard(CanView) ?? Run(() => Ok(new
@@ -161,6 +176,9 @@ public sealed class ChemControlController : AppController
         Changed();
         return Ok(new { id, message = a.Id > 0 ? "แก้ไขบันทึกการแก้ไขแล้ว" : "เพิ่มบันทึกการแก้ไขแล้ว" });
     }, "บันทึกการแก้ไขไม่สำเร็จ");
+
+    [HttpGet("actions/recent")]
+    public IActionResult RecentActions(int paramId) => Guard(Me?.CanAddChemRecord == true || Me?.CanEditChemRecord == true) ?? Run(() => Ok(_svc.RecentActions(Uid, paramId)), "โหลดค่าล่าสุดไม่สำเร็จ");
 
     [HttpDelete("actions/{id:int}")]
     public IActionResult DeleteAction(int id) => Guard(Me?.CanEditChemRecord == true) ?? Run(() =>

@@ -12657,3 +12657,62 @@ table.lqp code {
     transition: opacity 0.2s;
   }
 }
+
+/* ⏰ ClockField: ปฏิทินแบบ DateField แต่เป็นเวลา · หัว = เวลาที่เลือก (ตัวที่กำลังเลือกกะพริบ) + ช่องพิมพ์ · ชั่วโมง 6 คอลัมน์ / นาที 4 คอลัมน์ */
+.ck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 8px;
+}
+.ck-big {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink, #1f1d24);
+}
+.ck-big b {
+  border-radius: 8px;
+  padding: 0 4px;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s var(--ease-drop);
+}
+.ck-big b.is-now {
+  color: var(--accent);
+  background: #f1ecfc;
+}
+.ck-type {
+  width: 120px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e2e4f0;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: border-color 0.2s var(--ease-drop), box-shadow 0.25s var(--ease-drop);
+}
+.ck-type:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(103 80 164 / 0.12);
+}
+.ck-cap {
+  padding: 0 2px 4px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft, #7a7492);
+}
+.ck-grid.is-h {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 5px;
+}
+.ck-grid.is-m {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ck-grid .dp-cell {
+  height: 38px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}

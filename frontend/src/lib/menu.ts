@@ -176,7 +176,7 @@ export const CHEM: SystemDef = {
   menu: [
     { href: "/chem/dashboard", label: "Dashboard", title: "CHEMICAL CONTROL • DASHBOARD", icon: "/icons/Dashboard.png", can: "chemRecord" },
     { href: "/chem/record", label: "Inspection Record", title: "CHEMICAL CONTROL • INSPECTION RECORD", icon: "/icons/registration.png", can: "chemRecord" },
-    { href: "/chem/chart", label: "Control Chart", title: "CHEMICAL CONTROL • CONTROL CHART", icon: "/icons/DashboardChart.png", can: "chemRecord" },
+    { href: "/chem/chart", label: "Control Chart", title: "CHEMICAL CONTROL • CONTROL CHART", icon: "/icons/ControlChart.png", can: "chemRecord" },
     { href: "/chem/setup", label: "Parameter Setup", title: "CHEMICAL CONTROL • PARAMETER SETUP", icon: "/icons/ProductControl.png", can: "chemSetup" },
   ],
 };

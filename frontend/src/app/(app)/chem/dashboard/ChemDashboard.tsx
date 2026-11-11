@@ -29,6 +29,25 @@ export default function ChemDashboard() {
   const [d, setD] = useState<Data | null>(null);
   const [cat, setCat] = useState("ALL");
   const last = useRef("");
+  // 📌 กันหน้าเด้งขึ้นตอนกรองหมวด: กล่องการ์ดสูงไม่น้อยกว่าครั้งที่สูงที่สุด (PAINT 3 ใบ / TEMPERATURE 4 ใบ เคยทำให้หน้าสั้นลงจน Browser เลื่อนขึ้นเอง)
+  //    ความกว้างจอเปลี่ยน (จำนวนคอลัมน์เปลี่ยน) = เริ่มวัดใหม่
+  const grid = useRef<HTMLDivElement>(null);
+  const [minH, setMinH] = useState(0);
+  useEffect(() => {
+    const el = grid.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let w = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth !== w) {
+        w = el.clientWidth;
+        setMinH(0);
+        return;
+      }
+      setMinH((m) => Math.max(m, el.scrollHeight));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [d]);
   const load = useCallback(
     async (quiet = false) => {
       try {
@@ -157,7 +176,7 @@ export default function ChemDashboard() {
         options={CATS.map((c) => ({ v: c, l: <>{c === "ALL" ? "ALL" : catOf(c).label} <b className="ch-cnt">{c === "ALL" ? view.items.length : view.items.filter((x) => x.p.category === c).length}</b></> }))}
       />
       </div>
-      <motion.div className="ch-grid" layout data-reveal="" style={{ "--i": 4 } as React.CSSProperties}>
+      <motion.div ref={grid} className="ch-grid" layout data-reveal="" style={{ "--i": 4, minHeight: minH || undefined } as React.CSSProperties}>
         <AnimatePresence mode="popLayout">
           {shown.map((x, i) => (
             <motion.div
@@ -169,31 +188,52 @@ export default function ChemDashboard() {
               transition={{ duration: 0.45, ease: EASE, delay: reduce ? 0 : Math.min(i * 0.035, 0.5) }}
             >
               <Link href={`/chem/chart?p=${x.p.id}`} className={`ch-pcard is-${x.st.toLowerCase()}`} style={{ "--c": catOf(x.p.category).color } as React.CSSProperties}>
+                <span className="shine" aria-hidden />
                 <div className="h">
-                  <span className="cat">{catOf(x.p.category).label}</span>
+                  <span className="cat">
+                    <i />
+                    {catOf(x.p.category).label}
+                  </span>
                   <b>{x.p.code}</b>
                   <em className={`ch-st is-${x.st.toLowerCase()}`}>{STATUS_TEXT[x.st]}</em>
                 </div>
-                <div className="n" title={x.p.nameTh ?? ""}>
-                  {x.p.name}
+                <div className="n">
+                  <b title={x.p.name}>{x.p.name}</b>
+                  {x.p.nameTh && <small title={x.p.nameTh}>{x.p.nameTh}</small>}
                 </div>
                 <div className="v">
-                  <strong>{x.last ? fmt(x.p, x.last.value) : "–"}</strong>
-                  <small>{x.p.unit}</small>
-                  <span className="spec">
-                    SPEC {specText(x.p)} {x.p.unit}
-                  </span>
+                  <div className="num">
+                    <strong key={x.last?.id ?? "none"}>{x.last ? fmt(x.p, x.last.value) : "–"}</strong>
+                    <small>{x.p.unit}</small>
+                  </div>
+                  <div className="lim">
+                    <span>
+                      SPEC <b>{specText(x.p)}</b>
+                    </span>
+                    {x.p.target != null && (
+                      <span>
+                        TARGET <b>{fmt(x.p, x.p.target)}</b>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <SpecBar p={x.p} v={x.last?.value ?? null} />
-                <ControlChart compact p={x.p} ariaLabel={`${x.p.code} trend`} points={x.rs.map((r) => ({ key: String(r.id), label: "", value: r.value, status: statusOf(x.p, r.value), tip: null }))} />
+                <div className="cw">
+                  <ControlChart compact p={x.p} ariaLabel={`${x.p.code} trend`} points={x.rs.map((r) => ({ key: String(r.id), label: "", value: r.value, status: statusOf(x.p, r.value), tip: null }))} />
+                </div>
                 <div className="f">
-                  <span>
+                  <span className="when">
                     {x.last ? `ล่าสุด ${new Date(x.last.date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })} ${x.last.shift === "D" ? "กลางวัน" : "กลางคืน"} ${x.last.time ?? ""}` : STATUS_TH.NONE}
                   </span>
-                  <span className={`shift ${x.done >= x.need && x.need ? "is-done" : ""}`}>
-                    กะนี้ {Math.min(x.done, x.need)}/{x.need}
-                  </span>
                   {x.sheet && <span className={`sheet is-${x.sheet.status.toLowerCase()}`}>{x.sheet.status === "APPROVED" ? "✓ APPROVED" : x.sheet.status === "SIGNING" ? "✍ SIGNING" : "DRAFT"}</span>}
+                </div>
+                <div className={`prog ${x.done >= x.need && x.need ? "is-done" : ""}`} title={`กะนี้ตรวจแล้ว ${Math.min(x.done, x.need)} จาก ${x.need} ครั้ง`}>
+                  <span>
+                    กะนี้ <b>{Math.min(x.done, x.need)}</b>/{x.need}
+                  </span>
+                  <i>
+                    <em style={{ transform: `scaleX(${x.need ? Math.min(x.done, x.need) / x.need : 0})` }} />
+                  </i>
                 </div>
               </Link>
             </motion.div>

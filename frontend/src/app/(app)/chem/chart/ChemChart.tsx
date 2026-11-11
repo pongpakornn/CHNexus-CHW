@@ -16,6 +16,8 @@ import { catOf, fmt, slotsOf, specText, stats, statusOf, thisMonth, type ChemAct
 import { ControlChart, type ChartPoint } from "../ControlChart";
 import { ChemHero, FlowMap, MonthStep, PkSeg, SpecBar } from "../ui";
 import { DateField } from "@/components/forms/DateField";
+import { ClockField } from "@/components/forms/ClockField";
+import { RecentInput } from "@/components/forms/RecentInput";
 import "../chem.css";
 
 // 📈 CHEMICAL CONTROL › CONTROL CHART (แผนภูมิควบคุมรายเดือน + ใบบันทึก + อนุมัติ)
@@ -52,6 +54,22 @@ export default function ChemChart() {
   const [form, setForm] = useState<Form | null>(null);
   const [busy, setBusy] = useState(false);
   const [pdf, setPdf] = useState(false);
+  // 🕘 ค่าที่ผู้ใช้คนนี้เคยกรอกในบันทึกการแก้ไข (โหลดตอนเปิดหน้าต่าง)
+  type Recent = { problem: string[]; before: number[]; after: number[]; correction: string[]; responsible: string[] };
+  const [recent, setRecent] = useState<Recent | null>(null);
+  const formOpen = !!form;
+  const formParam = d?.parameter?.id;
+  useEffect(() => {
+    if (!formOpen || !formParam) return;
+    let alive = true;
+    api<Recent>("/chem/actions/recent", { query: { paramId: formParam } })
+      .then((r) => alive && setRecent(r))
+      .catch(() => alive && setRecent(null));
+    return () => {
+      alive = false;
+    };
+  }, [formOpen, formParam]);
+  const recentOf = (k: keyof Recent) => (recent?.[k] ?? []).map((v) => String(v));
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -396,37 +414,37 @@ export default function ChemChart() {
       >
         {form && p && (
           <div className="ch-form">
-            <label>
+            <div className="ch-fl">
               <span>วันที่</span>
-              <DateField label="DATE" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
-            </label>
-            <label>
+              <DateField label="DATE" value={form.date} onChange={(v) => v && setForm({ ...form, date: v })} />
+            </div>
+            <div className="ch-fl">
               <span>เวลาที่ตรวจพบ</span>
-              <input type="time" className="field" value={form.checkTime} onChange={(e) => setForm({ ...form, checkTime: e.target.value })} />
-            </label>
+              <ClockField label="TIME" value={form.checkTime} onChange={(v) => setForm({ ...form, checkTime: v })} />
+            </div>
             <label className="is-wide">
               <span>ปัญหาที่พบในการตรวจสอบ</span>
-              <input className="field" maxLength={500} value={form.problem} onChange={(e) => setForm({ ...form, problem: e.target.value })} />
+              <RecentInput maxLength={500} value={form.problem} recent={recentOf("problem")} onChange={(v) => setForm({ ...form, problem: v })} ariaLabel="ปัญหาที่พบ" />
             </label>
             <label>
               <span>ค่าที่วัดได้ก่อนการแก้ไข ({p.unit})</span>
-              <input className={`field text-right font-bold is-${statusOf(p, form.before === "" ? null : Number(form.before)).toLowerCase()}`} inputMode="decimal" value={form.before} onChange={(e) => /^-?\d*\.?\d*$/.test(e.target.value) && setForm({ ...form, before: e.target.value })} />
+              <RecentInput className={`field text-right font-bold is-${statusOf(p, form.before === "" ? null : Number(form.before)).toLowerCase()}`} inputMode="decimal" value={form.before} recent={recentOf("before")} onChange={(v) => /^-?\d*\.?\d*$/.test(v) && setForm({ ...form, before: v })} ariaLabel="ค่าก่อนการแก้ไข" />
             </label>
             <label>
               <span>ค่าที่วัดได้หลังการแก้ไข ({p.unit})</span>
-              <input className={`field text-right font-bold is-${statusOf(p, form.after === "" ? null : Number(form.after)).toLowerCase()}`} inputMode="decimal" value={form.after} onChange={(e) => /^-?\d*\.?\d*$/.test(e.target.value) && setForm({ ...form, after: e.target.value })} />
+              <RecentInput className={`field text-right font-bold is-${statusOf(p, form.after === "" ? null : Number(form.after)).toLowerCase()}`} inputMode="decimal" value={form.after} recent={recentOf("after")} onChange={(v) => /^-?\d*\.?\d*$/.test(v) && setForm({ ...form, after: v })} ariaLabel="ค่าหลังการแก้ไข" />
             </label>
             <label className="is-wide">
               <span>วิธีการแก้ไข (จำนวนน้ำยาที่เติม)</span>
-              <input className="field" maxLength={500} value={form.correction} placeholder="เช่น เติมน้ำยา FC-L4460 5 ลิตร" onChange={(e) => setForm({ ...form, correction: e.target.value })} />
+              <RecentInput maxLength={500} value={form.correction} recent={recentOf("correction")} placeholder="เช่น เติมน้ำยา FC-L4460 5 ลิตร" onChange={(v) => setForm({ ...form, correction: v })} ariaLabel="วิธีการแก้ไข" />
             </label>
-            <label>
+            <div className="ch-fl">
               <span>เวลาที่ปรับค่าน้ำยา</span>
-              <input type="time" className="field" value={form.adjustTime} onChange={(e) => setForm({ ...form, adjustTime: e.target.value })} />
-            </label>
+              <ClockField label="TIME" value={form.adjustTime} onChange={(v) => setForm({ ...form, adjustTime: v })} />
+            </div>
             <label>
               <span>ผู้รับผิดชอบ</span>
-              <input className="field" maxLength={200} value={form.responsible} onChange={(e) => setForm({ ...form, responsible: e.target.value })} />
+              <RecentInput maxLength={200} value={form.responsible} recent={recentOf("responsible")} onChange={(v) => setForm({ ...form, responsible: v })} ariaLabel="ผู้รับผิดชอบ" />
             </label>
             <p className="is-wide text-xs font-bold text-ink-soft">
               SPEC {specText(p)} {p.unit} · UCL {fmt(p, p.ucl)} · LCL {fmt(p, p.lcl)}

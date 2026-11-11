@@ -238,6 +238,22 @@ public sealed class ChemControlService
                                      VALUES (@ParamId, @d, @ct, @problem, @Before, @After, @corr, @at, @resp, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p);
     }
 
+    // 🕘 ค่าที่ผู้ใช้คนนี้ (UserID) เคยกรอกในบันทึกการแก้ไข ล่าสุดก่อน (ให้กดเลือกแทนพิมพ์)
+    //    ปัญหา / ค่าก่อน-หลัง / วิธีแก้ไข = เฉพาะพารามิเตอร์นี้ · ผู้รับผิดชอบ = ทุกพารามิเตอร์
+    public sealed record ActionRecent(List<string> Problem, List<decimal> Before, List<decimal> After, List<string> Correction, List<string> Responsible);
+    public ActionRecent RecentActions(string uid, int paramId)
+    {
+        using var c = Conn();
+        List<T> Q<T>(string col, bool byParam) => c.Query<T>($@"
+            SELECT TOP 8 v FROM (
+                SELECT {col} AS v, MAX(UpdatedAt) AS t
+                FROM ChemControl.Actions
+                WHERE (UpdatedBy = @uid OR CreatedBy = @uid) AND {col} IS NOT NULL {(byParam ? "AND ParamID = @paramId" : "")}
+                GROUP BY {col}) x
+            ORDER BY t DESC", new { uid, paramId }).ToList();
+        return new ActionRecent(Q<string>("Problem", true), Q<decimal>("ValueBefore", true), Q<decimal>("ValueAfter", true), Q<string>("Correction", true), Q<string>("Responsible", false));
+    }
+
     public ChemAction Action(int id)
     {
         using var c = Conn();

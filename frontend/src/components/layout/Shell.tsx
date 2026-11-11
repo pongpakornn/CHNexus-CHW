@@ -12,6 +12,7 @@ import { MinReportAlert } from "@/components/notifications/MinReportAlert";
 import { EdpAlert } from "@/components/notifications/EdpAlert";
 import { MinSignHost } from "@/components/notifications/MinSignHost";
 import { MinSignAlert } from "@/components/notifications/MinSignAlert";
+import { ChemSignAlert } from "@/components/notifications/ChemSignAlert";
 import { ProfileBubble } from "@/components/profile/ProfileBubble";
 import { SupportButton } from "@/components/chat/SupportButton";
 import { SupportChat } from "@/components/chat/SupportChat";
@@ -142,6 +143,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <MinReportAlert />
       <EdpAlert />
       <MinSignAlert />
+      <ChemSignAlert />
       <MinSignHost />
     </div>
   );

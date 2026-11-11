@@ -1,5 +1,6 @@
 "use client";
 
+import { ClockField } from "@/components/forms/ClockField";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Card, Empty, Loading, PageBody, SearchBox } from "@/components/layout/Page";
@@ -152,7 +153,7 @@ export default function ChemSetup() {
       <div className="list">
         {f[key].map((t, i) => (
           <span key={i} className="t">
-            <input type="time" className="field" value={t} disabled={!editable} onChange={(e) => set({ [key]: f[key].map((x, j) => (j === i ? e.target.value : x)) } as Partial<Form>)} aria-label={`${label} ${i + 1}`} />
+            <ClockField label={`ครั้งที่ ${i + 1}`} clearable={false} value={t} disabled={!editable} onChange={(v) => v && set({ [key]: f[key].map((x, j) => (j === i ? v : x)) } as Partial<Form>)} className="w-[132px]" />
             {f[key].length > 1 && editable && (
               <button type="button" aria-label="ลบเวลา" onClick={() => set({ [key]: f[key].filter((_, j) => j !== i) } as Partial<Form>)}>
                 ✕
