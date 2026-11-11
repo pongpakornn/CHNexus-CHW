@@ -8,7 +8,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api } from "@/lib/api";
 import { stamp } from "@/lib/format";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { CATEGORY, catOf, fmt, specText, statusOf, times, type ChemCan, type ChemParam } from "@/lib/chem";
@@ -58,10 +58,13 @@ export default function ChemSetup() {
   const k = useDebounced(q, 150).trim().toUpperCase();
   const formRef = useRef<HTMLDivElement>(null);
 
+  const last = useRef("");
   const load = useCallback(
     async (quiet = false) => {
       try {
-        setD(await api("/chem/params"));
+        const r = await api<{ parameters: ChemParam[]; can: ChemCan }>("/chem/params");
+        if (sameData(last, r) && quiet) return;
+        setD(r);
       } catch (e) {
         if (!quiet) toast.show("ERROR", (e as Error).message, "error");
       }

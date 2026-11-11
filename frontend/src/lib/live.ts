@@ -118,3 +118,14 @@ export function useLive(topics: string[], callback: () => void | Promise<unknown
     };
   }, [key, fallbackMs]);
 }
+
+/**
+ * โหลดเงียบจากสัญญาณเรียลไทม์แล้วได้ข้อมูลเดิม = ไม่ต้อง setState (ไม่ re-render · ไม่กระพริบ · กราฟ / แอนิเมชันไม่เล่นซ้ำ)
+ * ใช้: const last = useRef(""); ... const r = await api(...); if (sameData(last, r)) return; setData(r);
+ */
+export function sameData(last: { current: string }, value: unknown): boolean {
+  const s = JSON.stringify(value);
+  if (s === last.current) return true;
+  last.current = s;
+  return false;
+}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { api } from "@/lib/api";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE, staggerDelay } from "@/lib/motion";
 import { DEPTS, calcMachine, conditionCols, f0, f1, f2, monthLabel, pc, type Calc, type Col, type PpMonth, type Sum } from "@/lib/pp";
 import { useToast } from "@/components/notifications/Toasts";
@@ -18,6 +18,7 @@ export function usePpMonth(dept: string, month: string, paused = false) {
   const [res, setRes] = useState<MonthRes | null>(null);
   const [err, setErr] = useState("");
   const seq = useRef(0);
+  const last = useRef("");
   const pausedRef = useRef(paused);
   useEffect(() => {
     pausedRef.current = paused;
@@ -29,6 +30,7 @@ export function usePpMonth(dept: string, month: string, paused = false) {
       try {
         const r = await api<MonthRes>("/pp/month", { query: { dept, month } });
         if (my === seq.current) {
+          if (sameData(last, r) && quiet) return; // เรียลไทม์แต่ข้อมูลเดิม = ไม่วาดใหม่
           setRes(r);
           setErr("");
         }
@@ -45,7 +47,8 @@ export function usePpMonth(dept: string, month: string, paused = false) {
     return () => clearTimeout(t);
   }, [load]);
   // ⚡ เครื่องอื่นบันทึก Actual / แก้ STD = โหลดเงียบ ๆ (ระหว่างกำลังแก้ตาราง = ไม่ทับค่าที่พิมพ์ค้างไว้)
-  useLive(["pp"], () => (pausedRef.current ? undefined : load(true)), 60_000);
+  // ⚡ "pp" = บันทึก Actual / STD / Product · "forecast" = นำเข้า Forecast / Order (PCS เปลี่ยน) · "maxmin" = วันทำงานบริษัท (C1)
+  useLive(["pp", "forecast", "maxmin"], () => (pausedRef.current ? undefined : load(true)), 60_000);
 
   const calcs = useMemo(() => {
     const map = new Map<number, Calc>();

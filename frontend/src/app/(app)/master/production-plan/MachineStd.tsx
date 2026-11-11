@@ -9,7 +9,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api } from "@/lib/api";
 import { stamp } from "@/lib/format";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { deptOf, type PpShift } from "@/lib/pp";
@@ -50,10 +50,12 @@ export default function MachineStd() {
   };
   const formRef = useRef<HTMLDivElement>(null);
 
+  const last = useRef("");
   const load = useCallback(
     async (quiet = false) => {
       try {
         const r = await api<Data>("/pp/setup", { query: { dept: DEPT } });
+        if (sameData(last, r) && quiet) return;
         setData(r);
         // กำลังแก้ Plan SPH ค้างอยู่ = ไม่ทับค่าที่พิมพ์
         if (!stdDirtyRef.current) {

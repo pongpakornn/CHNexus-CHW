@@ -10,7 +10,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api, download } from "@/lib/api";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE } from "@/lib/motion";
 import { catOf, fmt, slotsOf, specText, stats, statusOf, thisMonth, type ChemAction, type ChemCan, type ChemParam, type ChemReading } from "@/lib/chem";
 import { ControlChart, type ChartPoint } from "../ControlChart";
@@ -62,11 +62,14 @@ export default function ChemChart() {
       })
       .catch((e: Error) => toast.show("ERROR", e.message, "error"));
   }, [toast]);
+  const last = useRef("");
   const load = useCallback(
     async (quiet = false) => {
       if (!pid) return;
       try {
-        setD(await api<Data>("/chem/chart", { query: { paramId: pid, month } }));
+        const r = await api<Data>("/chem/chart", { query: { paramId: pid, month } });
+        if (sameData(last, r) && quiet) return; // เรียลไทม์แต่ข้อมูลเดิม = ไม่วาดใหม่
+        setD(r);
       } catch (e) {
         if (!quiet) toast.show("ERROR", (e as Error).message, "error");
       }

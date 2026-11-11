@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Loading, PageBody } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { catOf, currentShift, fmt, slotsOf, specText, STATUS_TEXT, STATUS_TH, statusOf, type ChemCan, type ChemParam, type ChemReading, type Status } from "@/lib/chem";
 import { Ring } from "../../pp/PpChart";
@@ -28,10 +28,13 @@ export default function ChemDashboard() {
   const reduce = useReducedMotion();
   const [d, setD] = useState<Data | null>(null);
   const [cat, setCat] = useState("ALL");
+  const last = useRef("");
   const load = useCallback(
     async (quiet = false) => {
       try {
-        setD(await api<Data>("/chem/dashboard", { query: { days: 14 } }));
+        const r = await api<Data>("/chem/dashboard", { query: { days: 14 } });
+        if (sameData(last, r) && quiet) return; // เรียลไทม์แต่ข้อมูลเดิม = ไม่วาดใหม่
+        setD(r);
       } catch (e) {
         if (!quiet) toast.show("ERROR", (e as Error).message, "error");
       }

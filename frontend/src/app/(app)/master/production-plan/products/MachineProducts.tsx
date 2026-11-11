@@ -10,7 +10,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api } from "@/lib/api";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { deptOf, f0, f1, f2, mcHrOf, sphOf, strokeOf, thisMonth, type PpPart } from "@/lib/pp";
@@ -46,6 +46,7 @@ export default function MachineProducts() {
   const k = useDebounced(key, 150).trim().toUpperCase();
   const formRef = useRef<HTMLDivElement>(null);
 
+  const lastRows = useRef("");
   const loadSetup = useCallback(async () => {
     try {
       const r = await api<Setup>("/pp/setup", { query: { dept } });
@@ -60,7 +61,9 @@ export default function MachineProducts() {
     async (quiet = false) => {
       if (!mid) return;
       try {
-        setRows(await api<PpPart[]>("/pp/parts", { query: { machineId: mid, month } }));
+        const r = await api<PpPart[]>("/pp/parts", { query: { machineId: mid, month } });
+        if (sameData(lastRows, r) && quiet) return;
+        setRows(r);
       } catch (e) {
         if (!quiet) toast.show("ERROR", "โหลดตาราง Product ไม่สำเร็จ\n" + (e as Error).message, "error");
         setRows((r) => r ?? []);
@@ -76,7 +79,8 @@ export default function MachineProducts() {
     const t = setTimeout(() => loadRows(), 0);
     return () => clearTimeout(t);
   }, [loadRows]);
-  useLive(["pp"], () => Promise.all([loadSetup(), loadRows(true)]));
+  // ⚡ STD / Product เปลี่ยน · นำเข้า Forecast / Order (PCS)
+  useLive(["pp", "forecast"], () => Promise.all([loadSetup(), loadRows(true)]));
 
   const can = setup?.can ?? { add: false, edit: false, delete: false };
   const machine = setup?.machines.find((m) => m.id === mid) ?? null;

@@ -7,7 +7,7 @@ import { Loading, PageBody, SearchBox } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 import { EASE } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { catOf, currentShift, fmt, isoDate, slotsOf, specText, STATUS_TEXT, statusOf, type ChemCan, type ChemParam, type ChemReading } from "@/lib/chem";
@@ -39,10 +39,13 @@ export default function ChemRecord() {
     dirtyRef.current = dirty;
   }, [dirty]);
 
+  const last = useRef("");
   const load = useCallback(
     async (quiet = false) => {
       try {
-        setD(await api<Data>("/chem/day", { query: { date } }));
+        const r = await api<Data>("/chem/day", { query: { date } });
+        if (sameData(last, r) && quiet) return; // เรียลไทม์แต่ข้อมูลเดิม = ไม่วาดใหม่
+        setD(r);
       } catch (e) {
         if (!quiet) toast.show("ERROR", (e as Error).message, "error");
       }
