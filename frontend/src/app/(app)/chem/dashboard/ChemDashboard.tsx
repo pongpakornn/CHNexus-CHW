@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
+import { Card, Loading, PageBody } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { EASE, fadeOnly, panelIn, springSoft } from "@/lib/motion";
+import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { catOf, currentShift, fmt, slotsOf, specText, STATUS_TEXT, STATUS_TH, statusOf, type ChemCan, type ChemParam, type ChemReading, type Status } from "@/lib/chem";
 import { Ring } from "../../pp/PpChart";
 import { ControlChart } from "../ControlChart";
+import { ChemHero, PkSeg, SpecBar } from "../ui";
 import "../chem.css";
 
 // 🧪 CHEMICAL CONTROL › DASHBOARD
@@ -70,7 +71,7 @@ export default function ChemDashboard() {
   if (!d || !view)
     return (
       <PageBody className="ch-page">
-        <PageHeader icon="/icons/DashboardChart.png" title="CHEMICAL CONTROL • DASHBOARD" subtitle="ED PAINT LINE · ระบบควบคุมคุณภาพน้ำยาเคมี" />
+        <ChemHero tag="CHEMICAL CONTROL · ED PAINT LINE" title={["Chemical Control", "Dashboard"]} sub="ระบบควบคุมคุณภาพน้ำยาเคมี" />
         <Loading />
       </PageBody>
     );
@@ -78,21 +79,19 @@ export default function ChemDashboard() {
 
   return (
     <PageBody className="ch-page">
-      <PageHeader
-        icon="/icons/DashboardChart.png"
-        title="CHEMICAL CONTROL • DASHBOARD"
-        subtitle={`ED PAINT LINE · ระบบควบคุมคุณภาพน้ำยาเคมี · ${d.parameters.length} พารามิเตอร์ควบคุม`}
-        actions={
-          d.can.record && (
-            <Link href="/chem/record" className="btn bg-accent">
-              ＋ บันทึกผลการตรวจวัด
-            </Link>
-          )
-        }
-      />
+      <ChemHero tag="CHEMICAL CONTROL · ED PAINT LINE" title={["Chemical Control", "Dashboard"]} sub={`ระบบควบคุมคุณภาพน้ำยาเคมี · ${d.parameters.length} พารามิเตอร์ควบคุม · อัพเดทอัตโนมัติ`}>
+        {d.can.record && (
+          <Link href="/chem/record" className="cta-btn is-purple">
+            ＋ บันทึกผลการตรวจวัด
+          </Link>
+        )}
+        <Link href="/chem/chart" className="cta-btn is-teal">
+          📈 CONTROL CHART
+        </Link>
+      </ChemHero>
 
       {/* แถบสรุปกะปัจจุบัน */}
-      <motion.div className="ch-banner" initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
+      <motion.div className="ch-banner" data-reveal="" style={{ "--i": 1 } as React.CSSProperties}>
         <span className="blob b1" aria-hidden />
         <span className="blob b2" aria-hidden />
         <div className="tx">
@@ -147,19 +146,15 @@ export default function ChemDashboard() {
         )}
       </AnimatePresence>
 
-      <div className="ch-cats" role="tablist" aria-label="Category">
-        {CATS.map((c) => (
-          <button key={c} type="button" role="tab" aria-selected={cat === c} className={cat === c ? "is-on" : ""} onClick={() => setCat(c)}>
-            {cat === c && <motion.span layoutId="ch-cat-on" className="ch-cat-on" transition={springSoft} />}
-            <span className="relative">
-              {c === "ALL" ? "ALL" : catOf(c).label}
-              <b>{c === "ALL" ? view.items.length : view.items.filter((x) => x.p.category === c).length}</b>
-            </span>
-          </button>
-        ))}
+      <div data-reveal="" style={{ "--i": 3 } as React.CSSProperties}>
+      <PkSeg
+        id="ch-cat"
+        value={cat}
+        onChange={setCat}
+        options={CATS.map((c) => ({ v: c, l: <>{c === "ALL" ? "ALL" : catOf(c).label} <b className="ch-cnt">{c === "ALL" ? view.items.length : view.items.filter((x) => x.p.category === c).length}</b></> }))}
+      />
       </div>
-
-      <motion.div className="ch-grid" layout>
+      <motion.div className="ch-grid" layout data-reveal="" style={{ "--i": 4 } as React.CSSProperties}>
         <AnimatePresence mode="popLayout">
           {shown.map((x, i) => (
             <motion.div
@@ -186,6 +181,7 @@ export default function ChemDashboard() {
                     SPEC {specText(x.p)} {x.p.unit}
                   </span>
                 </div>
+                <SpecBar p={x.p} v={x.last?.value ?? null} />
                 <ControlChart compact p={x.p} ariaLabel={`${x.p.code} trend`} points={x.rs.map((r) => ({ key: String(r.id), label: "", value: r.value, status: statusOf(x.p, r.value), tip: null }))} />
                 <div className="f">
                   <span>

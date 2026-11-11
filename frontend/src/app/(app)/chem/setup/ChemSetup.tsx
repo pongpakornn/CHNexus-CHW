@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
+import { Card, Empty, Loading, PageBody, SearchBox } from "@/components/layout/Page";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api } from "@/lib/api";
 import { stamp } from "@/lib/format";
 import { useLive } from "@/lib/live";
-import { EASE, fadeOnly, panelIn } from "@/lib/motion";
+import { EASE } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { CATEGORY, catOf, fmt, specText, statusOf, times, type ChemCan, type ChemParam } from "@/lib/chem";
-import { Seg } from "../../pp/Seg";
 import { ControlChart } from "../ControlChart";
+import { ChemHero, PkSeg } from "../ui";
 import "../chem.css";
 
 // ⚙ CHEMICAL CONTROL › PARAMETER SETUP (ตั้งค่าพารามิเตอร์ควบคุม)
@@ -168,13 +168,13 @@ export default function ChemSetup() {
 
   return (
     <PageBody className="md-gray ch-page">
-      <PageHeader icon="/icons/ProductControl.png" title="CHEMICAL CONTROL • PARAMETER SETUP" subtitle="ตั้งค่าพารามิเตอร์ควบคุม · ขีดจำกัดข้อกำหนด / ขีดจำกัดควบคุม / เวลาตรวจวัด · เพิ่มรายการตรวจวัดใหม่ได้เอง" />
+      <ChemHero tag="CHEMICAL CONTROL · ED PAINT LINE" title={["Parameter", "Setup"]} sub="ตั้งค่าพารามิเตอร์ควบคุม · ขีดจำกัดข้อกำหนด / ขีดจำกัดควบคุม / เวลาตรวจวัด · เพิ่มรายการตรวจวัดใหม่ได้เอง" />
       {!d ? (
         <Loading />
       ) : (
         <>
           {(can?.add || row) && (
-            <motion.div ref={formRef} className="scroll-mt-4" variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show">
+            <motion.div ref={formRef} className="scroll-mt-4" data-reveal="" style={{ "--i": 1 } as React.CSSProperties}>
               <Card title={row ? `✏️ แก้ไข ${row.code}` : "＋ เพิ่มพารามิเตอร์ควบคุมใหม่"} bodyClass="p-4 md:p-5">
                 <div className="ch-setup">
                   <div className="ch-setup-form">
@@ -237,7 +237,7 @@ export default function ChemSetup() {
                     ))}
                     <div className="is-wide">
                       <span className={lab}>กะที่ตรวจวัด</span>
-                      <Seg id="ch-sh" value={f.shifts} onChange={(v) => editable && set({ shifts: v })} options={[{ v: "DN", l: "กลางวัน + กลางคืน" }, { v: "D", l: "กลางวันเท่านั้น" }]} />
+                      <PkSeg id="ch-sh" value={f.shifts} onChange={(v) => editable && set({ shifts: v })} options={[{ v: "DN", l: "กลางวัน + กลางคืน" }, { v: "D", l: "กลางวันเท่านั้น" }]} />
                     </div>
                     <div className="is-wide">
                       {timeList("day", "เวลาตรวจวัด · กะกลางวัน")}
@@ -284,11 +284,11 @@ export default function ChemSetup() {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line/60 pt-4">
                   {row && <span className="mr-auto text-xs font-bold text-ink-soft">UPDATE {stamp(row.updatedAt)} {row.updatedBy ? `· ${row.updatedBy}` : ""} · ผลการตรวจวัด {row.readings} ค่า</span>}
-                  <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
+                  <button type="button" className="cta-btn is-gray min-w-[120px]" disabled={busy} onClick={reset}>
                     {row ? "✕ CANCEL" : "↺ RESET"}
                   </button>
                   {editable && (
-                    <button type="button" className={`btn min-w-[200px] ${row ? "bg-success" : "bg-accent"}`} disabled={busy} onClick={save}>
+                    <button type="button" className={`cta-btn min-w-[200px] ${row ? "is-green" : "is-purple"}`} disabled={busy} onClick={save}>
                       {busy ? "…" : row ? "💾 SAVE CHANGES" : "＋ ADD PARAMETER"}
                     </button>
                   )}
@@ -297,7 +297,7 @@ export default function ChemSetup() {
             </motion.div>
           )}
 
-          <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={1}>
+          <motion.div data-reveal="" style={{ "--i": 2 } as React.CSSProperties}>
             <Card title={`CONTROL PARAMETERS • ${rows.length}`} actions={<SearchBox value={q} onChange={setQ} placeholder="ค้นหารหัส / ชื่อ / บ่อ" className="w-[280px] max-w-full" />}>
               {rows.length === 0 ? (
                 <Empty>ไม่พบรายการ</Empty>

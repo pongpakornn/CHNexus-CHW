@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { Card, Empty, Loading, PageBody, PageHeader } from "@/components/layout/Page";
+import { Card, Empty, Loading, PageBody } from "@/components/layout/Page";
 import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { Modal } from "@/components/modals/Modal";
 import { useDialogs } from "@/components/modals/Dialogs";
@@ -11,11 +11,11 @@ import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { api, download } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { EASE, fadeOnly, panelIn } from "@/lib/motion";
+import { EASE } from "@/lib/motion";
 import { catOf, fmt, slotsOf, specText, stats, statusOf, thisMonth, type ChemAction, type ChemCan, type ChemParam, type ChemReading } from "@/lib/chem";
-import { MonthPicker } from "../../pp/shared";
-import { Seg } from "../../pp/Seg";
 import { ControlChart, type ChartPoint } from "../ControlChart";
+import { ChemHero, FlowMap, MonthStep, PkSeg, SpecBar } from "../ui";
+import { DateField } from "@/components/forms/DateField";
 import "../chem.css";
 
 // 📈 CHEMICAL CONTROL › CONTROL CHART (แผนภูมิควบคุมรายเดือน + ใบบันทึก + อนุมัติ)
@@ -171,34 +171,22 @@ export default function ChemChart() {
   }
 
   const header = (
-    <PageHeader
-      icon="/icons/DashboardChart.png"
-      title="CHEMICAL CONTROL • CONTROL CHART"
-      subtitle="แผนภูมิควบคุม · ใบบันทึกผลการตรวจวัดประจำเดือน · บันทึกการแก้ไข · การอนุมัติ"
-      actions={
-        <>
-          <MonthPicker value={month} onChange={(m) => go(pid, m)} />
-          <button type="button" className="btn-ghost" disabled={!d || pdf} onClick={exportPdf}>
-            {pdf ? "…" : "⤓ PDF"}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={!d}
-            onClick={() => download("/chem/export/excel", { paramId: pid, month }).catch((e: Error) => toast.show("ERROR", e.message, "error"))}
-          >
-            ⤓ EXCEL
-          </button>
-        </>
-      }
-    />
+    <ChemHero tag="CHEMICAL CONTROL · ED PAINT LINE" title={["Control Chart", "& Approval"]} sub="แผนภูมิควบคุมรายเดือน · สถิติกระบวนการ · บันทึกการแก้ไข · อนุมัติตาม Flow">
+      <MonthStep value={month} onChange={(m) => go(pid, m)} />
+      <button type="button" className="cta-btn is-red" disabled={!d || pdf} onClick={exportPdf}>
+        {pdf ? "…" : "⤓ EXPORT PDF"}
+      </button>
+      <button type="button" className="cta-btn is-green" disabled={!d} onClick={() => download("/chem/export/excel", { paramId: pid, month }).catch((e: Error) => toast.show("ERROR", e.message, "error"))}>
+        ⤓ EXPORT EXCEL
+      </button>
+    </ChemHero>
   );
   if (!meta) return <PageBody className="ch-page">{header}<Loading /></PageBody>;
 
   return (
     <PageBody className="ch-page">
       {header}
-      <Card clip={false} bodyClass="p-3 md:p-4">
+      <Card clip={false} bodyClass="p-3 md:p-4" className="ch-reveal">
         <div className="ch-pick">
           <label>
             <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">CONTROL PARAMETER</span>
@@ -211,6 +199,9 @@ export default function ChemChart() {
           </label>
           {p && (
             <div className="ch-specs">
+              <div className="ch-specs-gauge">
+                <SpecBar p={p} v={rs.length ? rs[rs.length - 1].value : null} />
+              </div>
               <span style={{ "--c": catOf(p.category).color } as React.CSSProperties} className="is-cat">
                 {catOf(p.category).label}
               </span>
@@ -235,7 +226,7 @@ export default function ChemChart() {
         <Loading />
       ) : (
         <>
-          <div className="ch-stats">
+          <div className="ch-stats" data-reveal="" style={{ "--i": 2 } as React.CSSProperties}>
             {[
               ["n", String(st.n), "ครั้งที่ตรวจวัด"],
               ["MEAN", fmt(p, st.n ? st.mean : null), p.unit ?? ""],
@@ -260,11 +251,11 @@ export default function ChemChart() {
             ))}
           </div>
 
-          <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={1}>
+          <motion.div data-reveal="" style={{ "--i": 2 } as React.CSSProperties}>
             <Card
               clip={false}
               title={`${p.code} • ${p.name}`}
-              actions={<Seg id="ch-view" value={view} onChange={setView} options={[{ v: "ALL", l: "ALL" }, { v: "D", l: "DAY" }, ...(p.shifts === "DN" ? [{ v: "N" as const, l: "NIGHT" }] : [])]} />}
+              actions={<PkSeg id="ch-view" value={view} onChange={setView} options={[{ v: "ALL", l: "ALL" }, { v: "D", l: "DAY" }, ...(p.shifts === "DN" ? [{ v: "N" as const, l: "NIGHT" }] : [])]} />}
               bodyClass="px-2 pb-3 pt-3 md:px-4"
             >
               <ControlChart key={p.id + view + month} p={p} points={points} ariaLabel={`${p.code} control chart`} />
@@ -281,7 +272,7 @@ export default function ChemChart() {
           </motion.div>
 
           <div className="ch-two">
-            <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.05 }} custom={0}>
+            <motion.div data-reveal="" style={{ "--i": 3 } as React.CSSProperties}>
               <Card title={`ผลการตรวจวัดรายวัน • ${month}`}>
                 <div className="ch-scroll ch-daywrap">
                   <table className="ch-table">
@@ -324,17 +315,17 @@ export default function ChemChart() {
             </motion.div>
 
             <div className="flex min-w-0 flex-col gap-4">
-              <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.05 }} custom={1}>
+              <motion.div data-reveal="" style={{ "--i": 4 } as React.CSSProperties}>
                 <Approval d={d} busy={busy} onSubmit={() => act("/chem/sheets/submit", "SUBMITTED", { paramId: p.id, month })} onSign={(id) => act(`/chem/sheets/${id}/sign`, "SIGNED")} onReturn={async (id) => (await dlg.confirm({ title: "RETURN", message: "ตีกลับใบบันทึกเป็นฉบับร่าง (ล้างลายเซ็นทั้งหมด) ?", ok: "RETURN", danger: true })) && act(`/chem/sheets/${id}/return`, "RETURNED")} />
               </motion.div>
 
-              <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.05 }} custom={2}>
+              <motion.div data-reveal="" style={{ "--i": 5 } as React.CSSProperties}>
                 <Card
                   title={`บันทึกการแก้ไขและปรับค่าน้ำยา • ${d.actions.length}`}
                   actions={
                     d.can.record &&
                     !locked && (
-                      <button type="button" className="btn bg-accent" onClick={() => setForm({ id: 0, date: `${month}-${String(Math.min(new Date().getDate(), nd)).padStart(2, "0")}`, checkTime: "", problem: "", before: "", after: "", correction: "", adjustTime: "", responsible: "" })}>
+                      <button type="button" className="cta-btn is-purple" onClick={() => setForm({ id: 0, date: `${month}-${String(Math.min(new Date().getDate(), nd)).padStart(2, "0")}`, checkTime: "", problem: "", before: "", after: "", correction: "", adjustTime: "", responsible: "" })}>
                         ＋ CORRECTIVE ACTION
                       </button>
                     )
@@ -391,10 +382,10 @@ export default function ChemChart() {
         onClose={() => setForm(null)}
         footer={
           <>
-            <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
+            <button type="button" className="cta-btn is-gray" onClick={() => setForm(null)}>
               CANCEL
             </button>
-            <button type="button" className="btn bg-success" disabled={busy} onClick={saveForm}>
+            <button type="button" className="cta-btn is-green" disabled={busy} onClick={saveForm}>
               💾 SAVE
             </button>
           </>
@@ -404,7 +395,7 @@ export default function ChemChart() {
           <div className="ch-form">
             <label>
               <span>วันที่</span>
-              <input type="date" className="field" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <DateField label="DATE" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
             </label>
             <label>
               <span>เวลาที่ตรวจพบ</span>
@@ -444,66 +435,47 @@ export default function ChemChart() {
   );
 }
 
-// ✍ การอนุมัติ: ลำดับขั้น Prepared → Checked → Reviewed → Approved (แสดงลายเซ็นที่ลงแล้ว)
+// ✍ การอนุมัติ: แผนผัง Start → Prepared → Checked → Reviewed → Approved → Finish (ชื่อผู้อนุมัติ + ลายเซ็นที่ลงแล้ว) + ปุ่มของขั้นที่รอฉัน
 function Approval({ d, busy, onSubmit, onSign, onReturn }: { d: Data; busy: boolean; onSubmit: () => void; onSign: (id: number) => void; onReturn: (id: number) => void }) {
-  const reduce = useReducedMotion();
   const steps = d.flow.filter((f) => f.active);
   const s = d.sheet;
   const st = s?.status ?? "DRAFT";
   const wait = steps.find((f) => f.waiting);
   return (
-    <Card title="การอนุมัติใบบันทึก (SIGN FLOW)" actions={<span className={`ch-sheet-st is-${st.toLowerCase()}`}>{st === "APPROVED" ? "✓ APPROVED" : st === "SIGNING" ? "✍ SIGNING" : "DRAFT"}</span>}>
+    <Card title="ขั้นตอนการอนุมัติ (APPROVAL FLOW)" actions={<span className={`ch-sheet-st is-${st.toLowerCase()}`}>{st === "APPROVED" ? "✓ APPROVED" : st === "SIGNING" ? "✍ อยู่ระหว่างอนุมัติ" : "DRAFT · ฉบับร่าง"}</span>}>
       <div className="ch-flow">
         {steps.length === 0 ? (
-          <p className="ch-flow-none">ยังไม่ได้ตั้ง FLOW ลายเซ็น · Admin ตั้งได้ที่ User Management › SETUP › SIGN FLOW › CHEMICAL CONTROL</p>
+          <p className="ch-flow-none">ยังไม่ได้ตั้ง Flow การอนุมัติ · Admin ตั้งได้ที่ User Management › SETUP › SIGN FLOW › CHEMICAL CONTROL</p>
         ) : (
-          <div className="ch-steps">
-            {steps.map((f, i) => (
-              <motion.div
-                key={f.slot}
-                className={`ch-step ${f.signed ? "is-done" : f.waiting ? "is-wait" : ""}`}
-                initial={reduce ? false : { opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: EASE, delay: i * 0.08 }}
-              >
-                <span className="dot">{f.signed ? "✓" : i + 1}</span>
-                <b>{f.name}</b>
-                {f.signed ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/signature/${encodeURIComponent(f.signed.userId)}/image`} alt={f.signed.name} />
-                    <small>
-                      {f.signed.name}
-                      <br />
-                      {new Date(f.signed.at).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </small>
-                  </>
-                ) : (
-                  <small>{f.mode === "ONE" ? f.users[0]?.name : `${f.users.length} คน (คนใดคนหนึ่ง)`}</small>
-                )}
-              </motion.div>
-            ))}
+          <div className="ch-scroll">
+            <FlowMap
+              started={st !== "DRAFT"}
+              finished={st === "APPROVED"}
+              submittedBy={s?.submittedBy}
+              nodes={steps.map((f) => ({ slot: f.slot, name: f.name, th: f.name, mode: f.mode, users: f.users.map((u) => u.name || u.userId), waiting: f.waiting, done: f.signed }))}
+            />
           </div>
         )}
         <div className="ch-flow-act">
+          {st === "DRAFT" && <span className="ch-hint">ตรวจสอบข้อมูลครบแล้วกดส่งเพื่อเริ่มขั้นตอนการอนุมัติ</span>}
           {st === "DRAFT" && d.can.record && (
-            <button type="button" className="btn bg-accent" disabled={busy || steps.length === 0} onClick={onSubmit}>
+            <button type="button" className="cta-btn is-purple" disabled={busy || steps.length === 0} onClick={onSubmit}>
               ➤ SUBMIT FOR APPROVAL
             </button>
           )}
+          {st === "SIGNING" && !wait?.mine && <span className="ch-hint">รอ {wait?.name} ({wait?.users.map((u) => u.name).join(" / ")}) ลงลายเซ็น</span>}
+          {st === "SIGNING" && wait?.mine && !d.mySign && <span className="ch-hint is-warn">ยังไม่มีลายเซ็นของคุณ · บันทึกที่ โปรไฟล์ › ลายเซ็นของฉัน</span>}
           {st === "SIGNING" && wait?.mine && (
             <>
-              <button type="button" className="btn-ghost" disabled={busy} onClick={() => onReturn(s!.id)}>
+              <button type="button" className="cta-btn is-gray" disabled={busy} onClick={() => onReturn(s!.id)}>
                 ↩ RETURN
               </button>
-              <button type="button" className="btn bg-success" disabled={busy || !d.mySign} onClick={() => onSign(s!.id)} title={d.mySign ? undefined : "บันทึกลายเซ็นที่ โปรไฟล์ › ลายเซ็นของฉัน ก่อน"}>
+              <button type="button" className="cta-btn is-green" disabled={busy || !d.mySign} onClick={() => onSign(s!.id)}>
                 ✍ SIGN AS {wait.name.toUpperCase()}
               </button>
             </>
           )}
-          {st === "SIGNING" && !wait?.mine && <span className="ch-hint">รอ {wait?.name} ลงลายเซ็น</span>}
-          {st === "SIGNING" && wait?.mine && !d.mySign && <span className="ch-hint is-warn">ยังไม่มีลายเซ็นของคุณ · บันทึกที่ โปรไฟล์ › ลายเซ็นของฉัน</span>}
-          {st !== "DRAFT" && <span className="ch-hint">ส่งโดย {s?.submittedBy ?? "–"} {s?.submittedAt ? `· ${new Date(s.submittedAt).toLocaleDateString("th-TH")}` : ""} · แก้ไขข้อมูลเดือนนี้ไม่ได้ระหว่างอนุมัติ</span>}
+          {st === "APPROVED" && <span className="ch-hint is-ok">✓ อนุมัติครบทุกขั้นตอนแล้ว {s?.doneAt ? new Date(s.doneAt).toLocaleString("th-TH") : ""}</span>}
         </div>
       </div>
     </Card>

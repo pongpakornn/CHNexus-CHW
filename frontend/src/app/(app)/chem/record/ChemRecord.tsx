@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
+import { Loading, PageBody, SearchBox } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
@@ -11,7 +11,8 @@ import { useLive } from "@/lib/live";
 import { EASE } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { catOf, currentShift, fmt, isoDate, slotsOf, specText, STATUS_TEXT, statusOf, type ChemCan, type ChemParam, type ChemReading } from "@/lib/chem";
-import { Seg } from "../../pp/Seg";
+import { ChemHero, PkSeg, SpecBar } from "../ui";
+import { DateField } from "@/components/forms/DateField";
 import "../chem.css";
 
 // 📝 CHEMICAL CONTROL › INSPECTION RECORD (บันทึกผลการตรวจวัด)
@@ -128,28 +129,23 @@ export default function ChemRecord() {
 
   return (
     <PageBody className="ch-page">
-      <PageHeader
-        icon="/icons/registration.png"
-        title="CHEMICAL CONTROL • INSPECTION RECORD"
-        subtitle="บันทึกผลการตรวจวัดค่าน้ำยาเคมีประจำกะ · สถานะเปลี่ยนสีทันทีเมื่อกรอกค่า"
-        actions={
-          <button type="button" className="btn-ghost" onClick={() => change(() => (setDate(start.date), setShift(start.shift)))}>
-            ⟲ กะปัจจุบัน
-          </button>
-        }
-      />
+      <ChemHero tag="CHEMICAL CONTROL · ED PAINT LINE" title={["Inspection", "Record"]} sub="บันทึกผลการตรวจวัดค่าน้ำยาเคมีประจำกะ · สีสถานะเปลี่ยนทันทีเมื่อกรอกค่า">
+        <button type="button" className="cta-btn is-purple" onClick={() => change(() => (setDate(start.date), setShift(start.shift)))}>
+          ⟲ กะปัจจุบัน
+        </button>
+      </ChemHero>
 
-      <div className="ch-toolbar">
+      <div className="ch-toolbar" data-reveal="" style={{ "--i": 1 } as React.CSSProperties}>
         <div className="ch-date">
-          <button type="button" aria-label="Previous day" onClick={() => shiftDay(-1)}>
+          <button type="button" className="pk-step" aria-label="Previous day" onClick={() => shiftDay(-1)}>
             ‹
           </button>
-          <input type="date" className="field" value={date} max={isoDate(new Date())} onChange={(e) => e.target.value && change(() => setDate(e.target.value))} aria-label="Date" />
-          <button type="button" aria-label="Next day" onClick={() => shiftDay(1)} disabled={date >= isoDate(new Date())}>
+          <DateField label="DATE" value={date} onChange={(v) => v && v <= isoDate(new Date()) && change(() => setDate(v))} className="w-[190px]" />
+          <button type="button" className="pk-step" aria-label="Next day" onClick={() => shiftDay(1)} disabled={date >= isoDate(new Date())}>
             ›
           </button>
         </div>
-        <Seg id="ch-shift" value={shift} onChange={(v) => change(() => setShift(v))} options={[{ v: "D", l: "☀ DAY SHIFT" }, { v: "N", l: "☾ NIGHT SHIFT" }]} />
+        <PkSeg id="ch-shift" value={shift} onChange={(v) => change(() => setShift(v))} options={[{ v: "D", l: "☀ DAY SHIFT" }, { v: "N", l: "☾ NIGHT SHIFT" }]} />
         <div className="ch-progress" title={`${filled} / ${total}`}>
           <span>
             <b>{filled}</b> / {total} ค่า
@@ -158,13 +154,13 @@ export default function ChemRecord() {
             <motion.em initial={false} animate={{ scaleX: total ? filled / total : 0 }} transition={{ duration: 0.6, ease: EASE }} />
           </i>
         </div>
-        <SearchBox value={q} onChange={setQ} placeholder="ค้นหารหัส / ชื่อ / บ่อ" className="ch-search" />
+        <SearchBox fancy value={q} onChange={setQ} placeholder="ค้นหารหัส / ชื่อ / บ่อ" className="ch-search" />
       </div>
 
       {!d ? (
         <Loading />
       ) : (
-        <div className="ch-groups">
+        <div className="ch-groups" data-reveal="" style={{ "--i": 2 } as React.CSSProperties}>
           {groups.map((g, gi) => (
             <motion.section
               key={g.name}
@@ -183,6 +179,10 @@ export default function ChemRecord() {
                     <div className="info">
                       <b>{p.code}</b>
                       <span>{p.name}</span>
+                      <SpecBar p={p} v={(() => {
+                        const vs = slots.map((_, i) => val(p.id, i + 1)).filter((x) => x !== "");
+                        return vs.length ? Number(vs[vs.length - 1]) : null;
+                      })()} />
                       <small>
                         SPEC {specText(p)} {p.unit}
                         {p.ucl != null || p.lcl != null ? ` · CL ${p.lcl != null ? fmt(p, p.lcl) : "–"} / ${p.ucl != null ? fmt(p, p.ucl) : "–"}` : ""}
@@ -242,13 +242,13 @@ export default function ChemRecord() {
             </span>
             <button
               type="button"
-              className="btn-ghost"
+              className="cta-btn is-gray"
               disabled={busy}
               onClick={async () => (await dlg.confirm({ title: "CANCEL", message: `ยกเลิกการแก้ไข ${dirty} ค่า ?`, ok: "YES, CANCEL", danger: true })) && setDraft({})}
             >
               ✕ CANCEL
             </button>
-            <button type="button" className="btn bg-success" disabled={busy} onClick={save}>
+            <button type="button" className="cta-btn is-green" disabled={busy} onClick={save}>
               {busy ? "…" : "💾 SAVE"}
             </button>
           </motion.div>
