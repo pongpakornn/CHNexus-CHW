@@ -353,3 +353,15 @@ export const dowOf = (month: string, day: number) => {
   const [y, mo] = month.split("-").map(Number);
   return new Date(y, mo - 1, day).getDay();
 };
+
+// 🏭 หน่วยงานของ Production Plan (code = ProductionPlan.Machines.Dept · slug = URL /pp/capacity/<slug>)
+export const DEPTS = [
+  { code: "PRESS1", slug: "press1", name: "PRESS 1", th: "ปั๊ม 1" },
+  { code: "PRESS2", slug: "press2", name: "PRESS 2", th: "ปั๊ม 2" },
+  { code: "ASSEMBLY", slug: "assembly", name: "ASSEMBLY", th: "ประกอบ" },
+  { code: "PIPEPART", slug: "pipepart", name: "PIPE PART", th: "ชิ้นส่วนท่อ" },
+  { code: "PIPEASSY", slug: "pipeassy", name: "PIPE ASSY", th: "ประกอบท่อ" },
+  { code: "PAINTPART", slug: "paintpart", name: "PAINT PART", th: "ชิ้นส่วนสี" },
+] as const;
+export type Dept = (typeof DEPTS)[number];
+export const deptOf = (v: string | null | undefined): Dept => DEPTS.find((d) => d.code === (v ?? "").toUpperCase() || d.slug === (v ?? "").toLowerCase()) ?? DEPTS[0];

@@ -1919,3 +1919,161 @@ td.pp-tone-low {
     animation: none !important;
   }
 }
+
+/* ================================================================ v3
+   ตาราง Product ยืดเต็มพื้นที่ · หัวคอลัมน์สีเทาเข้ม (DarkGray) ตัวขาว · ตัวอักษรในตารางหนาขึ้น */
+.pp-two.is-cp {
+  align-items: stretch;
+}
+.pp-two.is-cp > * {
+  display: flex;
+  flex-direction: column;
+}
+.pp-fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.pp-fill > div:last-child {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pp-prod-box {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+}
+.pp-prod-box > .pp-prod {
+  position: absolute;
+  inset: 0;
+  max-height: none;
+}
+@media (max-width: 1280px) {
+  .pp-prod-box {
+    flex: none;
+    height: 70vh;
+  }
+}
+
+.pp-matrix thead th,
+.pp-cp thead th,
+.pp-daily thead th,
+.pp-table thead th,
+thead .pp-stick {
+  background: #3f3f46;
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  border-bottom: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.pp-matrix thead th span,
+.pp-daily thead th span {
+  color: rgb(255 255 255 / 0.75);
+  opacity: 1;
+}
+.pp-matrix th a {
+  color: #c7d2fe;
+}
+.pp-matrix th.is-group {
+  background: #4c1d95;
+  color: #fff;
+}
+.pp-matrix th.is-total {
+  background: #312e81;
+  color: #fff;
+}
+.pp-daily th.off {
+  background: #9a3412;
+  color: #fff;
+}
+.pp-daily th.tot {
+  background: #27272a;
+}
+.pp-matrix tbody td,
+.pp-cp tbody td,
+.pp-daily tbody td,
+.pp-table tbody td {
+  font-weight: 600;
+  color: var(--ink);
+}
+.pp-cp td.lab,
+.pp-matrix td.pp-stick,
+.pp-daily td.pp-stick {
+  font-weight: 700;
+}
+.pp-cp td.val,
+.pp-table td b,
+.pp-daily td.tot {
+  font-weight: 800;
+}
+.pp-table td.code {
+  font-weight: 800;
+}
+.pp-table td.t {
+  font-weight: 700;
+}
+.pp-cp td.fx {
+  font-weight: 600;
+}
+.pp-table tfoot td {
+  background: #f4f4f5;
+  font-weight: 800;
+}
+.pp-table tr.is-zero td {
+  color: #8b8b94;
+}
+
+/* ชิปเลือกหน่วยงาน */
+.pp-depts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  width: fit-content;
+  max-width: 100%;
+}
+.pp-depts button {
+  position: relative;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  transition: color 0.25s var(--pp-ease), background-color 0.2s;
+  white-space: nowrap;
+}
+.pp-depts button:hover:not(.is-on) {
+  background: #f4f4f5;
+  color: var(--ink);
+}
+.pp-depts button.is-on {
+  color: #fff;
+}
+.pp-depts button:active {
+  transform: scale(0.96);
+}
+.pp-dept-on {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3f3f46, #27272a);
+  box-shadow: 0 6px 14px -6px rgb(0 0 0 / 0.5);
+}
+@media (max-width: 767px) {
+  .pp-depts {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}

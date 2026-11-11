@@ -12,7 +12,9 @@ import { stamp } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
-import type { PpShift } from "@/lib/pp";
+import { deptOf, type PpShift } from "@/lib/pp";
+import { useRouter, useSearchParams } from "next/navigation";
+import { DeptPicker } from "../../pp/shared";
 import "../../pp/pp.css";
 
 // 📈 MASTER DATA › PRODUCTION PLAN › MACHINE STD
@@ -22,9 +24,11 @@ type Machine = { id: number; dept: string; code: string; group: string; subGroup
 type Data = { machines: Machine[]; shifts: PpShift[]; settings: Record<string, number>; can: { add: boolean; edit: boolean; delete: boolean } };
 type Form = { code: string; group: string; subGroup: string; sort: string; qty: string; eff: string; man: string; sph: string; byPcs: boolean; active: boolean };
 const EMPTY: Form = { code: "", group: "", subGroup: "", sort: "", qty: "1", eff: "85", man: "1", sph: "", byPcs: false, active: true };
-const DEPT = "PRESS1";
 
 export default function MachineStd() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [DEPT, setDeptState] = useState(() => deptOf(params.get("dept")).code as string);
   const toast = useToast();
   const dlg = useDialogs();
   const reduce = useReducedMotion();
@@ -62,7 +66,7 @@ export default function MachineStd() {
         setData((d) => d ?? { machines: [], shifts: [], settings: {}, can: { add: false, edit: false, delete: false } });
       }
     },
-    [toast],
+    [toast, DEPT],
   );
   useEffect(() => {
     const t = setTimeout(load, 0);
@@ -157,12 +161,22 @@ export default function MachineStd() {
       <PageHeader
         icon="/icons/64engine_motorFF.png"
         title="PRODUCTION PLAN • MACHINE STD"
-        subtitle="MASTER DATA · เครื่องจักร PRESS 1 + Target Eff · Plan SPH · ค่าที่ใช้คำนวณ Capacity"
+        subtitle={`MASTER DATA · เครื่องจักร ${deptOf(DEPT).name} + Target Eff · Plan SPH · ค่าที่ใช้คำนวณ Capacity`}
         actions={
-          <Link href="/master/production-plan/products" className="btn-ghost">
+          <Link href={`/master/production-plan/products?dept=${DEPT}`} className="btn-ghost">
             📋 MACHINE PRODUCTS
           </Link>
         }
+      />
+      <DeptPicker
+        id="std"
+        value={DEPT}
+        onChange={(c) => {
+          setDeptState(c);
+          setData(null);
+          reset();
+          router.replace(`?dept=${c}`, { scroll: false });
+        }}
       />
       {!data ? (
         <Loading />
@@ -254,7 +268,7 @@ export default function MachineStd() {
           )}
 
           <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={1}>
-            <Card title={`MACHINES • ${DEPT === "PRESS1" ? "PRESS 1" : DEPT} • ${rows.length}`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหาเครื่อง / GROUP" className="w-[280px] max-w-full" />}>
+            <Card title={`MACHINES • ${deptOf(DEPT).name} • ${rows.length}`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหาเครื่อง / GROUP" className="w-[280px] max-w-full" />}>
               {rows.length === 0 ? (
                 <Empty>{data.machines.length ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มีเครื่องจักร"}</Empty>
               ) : (
@@ -298,7 +312,7 @@ export default function MachineStd() {
                             {m.byPcs && <span className="block text-[10px] font-bold text-ink-soft">STROKE = PCS</span>}
                           </td>
                           <td>
-                            <Link className="pp-link" href={`/master/production-plan/products?m=${m.id}`}>
+                            <Link className="pp-link" href={`/master/production-plan/products?dept=${DEPT}&m=${m.id}`}>
                               {m.parts}
                             </Link>
                           </td>

@@ -13,8 +13,8 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
-import { f0, f1, f2, mcHrOf, sphOf, strokeOf, thisMonth, type PpPart } from "@/lib/pp";
-import { MonthPicker, ProcessChips } from "../../../pp/shared";
+import { deptOf, f0, f1, f2, mcHrOf, sphOf, strokeOf, thisMonth, type PpPart } from "@/lib/pp";
+import { DeptPicker, MonthPicker, ProcessChips } from "../../../pp/shared";
 import "../../../pp/pp.css";
 
 // 📋 MASTER DATA › PRODUCTION PLAN › MACHINE PRODUCTS (ตาราง Product ของเครื่อง = ตารางล่างของชีทเครื่องใน Excel)
@@ -35,6 +35,7 @@ export default function MachineProducts() {
   const router = useRouter();
   const params = useSearchParams();
   const [setup, setSetup] = useState<Setup | null>(null);
+  const [dept, setDept] = useState(() => deptOf(params.get("dept")).code as string);
   const [mid, setMid] = useState(() => Number(params.get("m")) || 0);
   const [month, setMonth] = useState(() => params.get("month") || thisMonth());
   const [rows, setRows] = useState<PpPart[] | null>(null);
@@ -47,14 +48,14 @@ export default function MachineProducts() {
 
   const loadSetup = useCallback(async () => {
     try {
-      const r = await api<Setup>("/pp/setup", { query: { dept: "PRESS1" } });
+      const r = await api<Setup>("/pp/setup", { query: { dept } });
       setSetup(r);
       setMid((m) => (m && r.machines.some((x) => x.id === m) ? m : (r.machines.find((x) => x.active) ?? r.machines[0])?.id ?? 0));
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
       setSetup((s) => s ?? { machines: [], can: { add: false, edit: false, delete: false } });
     }
-  }, [toast]);
+  }, [toast, dept]);
   const loadRows = useCallback(
     async (quiet = false) => {
       if (!mid) return;
@@ -90,6 +91,7 @@ export default function MachineProducts() {
     setRows(null);
     reset();
     const p = new URLSearchParams(params.toString());
+    p.set("dept", dept);
     p.set("m", String(id));
     router.replace(`?${p.toString()}`, { scroll: false });
   }
@@ -154,11 +156,23 @@ export default function MachineProducts() {
         actions={
           <>
             <MonthPicker value={month} onChange={setMonth} />
-            <Link href="/master/production-plan" className="btn-ghost">
+            <Link href={`/master/production-plan?dept=${dept}`} className="btn-ghost">
               ⚙ MACHINE STD
             </Link>
           </>
         }
+      />
+      <DeptPicker
+        id="prod"
+        value={dept}
+        onChange={(c) => {
+          setDept(c);
+          setSetup(null);
+          setRows(null);
+          setMid(0);
+          reset();
+          router.replace(`?dept=${c}`, { scroll: false });
+        }}
       />
       {!setup ? (
         <Loading />

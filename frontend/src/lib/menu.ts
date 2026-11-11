@@ -126,12 +126,22 @@ export const EDP: SystemDef = {
   ],
 };
 
-// 📈 PRODUCTION PLAN: Capacity Planning ต่อหน่วยงาน (เริ่ม PRESS 1) · ค่า STD อยู่ที่ MASTER DATA › Production Plan
+// 📈 PRODUCTION PLAN: Capacity Planning ต่อหน่วยงาน (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · ค่า STD อยู่ที่ MASTER DATA › Production Plan
+// หน่วยงาน (ชุดเดียวกับ lib/pp.ts › DEPTS)
+const PP_DEPTS = [
+  { slug: "press1", name: "PRESS 1" },
+  { slug: "press2", name: "PRESS 2" },
+  { slug: "assembly", name: "ASSEMBLY" },
+  { slug: "pipepart", name: "PIPE PART" },
+  { slug: "pipeassy", name: "PIPE ASSY" },
+  { slug: "paintpart", name: "PAINT PART" },
+];
+
 export const PP: SystemDef = {
   key: "pp",
   label: "PRODUCTION PLAN",
   name: "Production Plan",
-  sub: "Capacity Planning · PRESS 1",
+  sub: "Capacity Planning · 6 Departments",
   art: "/images/systems/production-plan.webp",
   title: "PRODUCTION PLAN • CAPACITY",
   desc: "Capacity Planning: แผนเครื่องจักรจาก Forecast / Order · บันทึก M/C Actual · %EFF รายวัน",
@@ -143,8 +153,8 @@ export const PP: SystemDef = {
       href: "/pp/capacity",
       label: "Capacity",
       title: "PRODUCTION PLAN • CAPACITY",
-      icon: "/icons/DashboardChart.png",
-      children: [{ href: "/pp/capacity/press1", label: "PRESS 1", title: "CAPACITY • PRESS 1", icon: "/icons/64engine_motorFF.png", can: "ppCapacity" }],
+      icon: "/icons/Capacity.png",
+      children: PP_DEPTS.map((d) => ({ href: `/pp/capacity/${d.slug}`, label: d.name, title: `CAPACITY • ${d.name}`, icon: "/icons/Capacity.png", can: "ppCapacity" })),
     },
   ],
 };

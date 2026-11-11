@@ -10,13 +10,13 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
 import { EASE, fadeOnly, panelIn, springSoft } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
-import { DOW, calcMachine, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine } from "@/lib/pp";
+import { DOW, calcMachine, deptOf, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine } from "@/lib/pp";
 import { PpChart, Ring, type Series } from "../../PpChart";
 import { conditionRows, EffPill, Kpi, MonthPicker, PpIcon, ProcessChips, usePpMonth } from "../../shared";
 import { Seg } from "../../Seg";
 import "../../pp.css";
 
-// 🏭 PRODUCTION PLAN › CAPACITY › PRESS 1 (1 เครื่อง = 1 ชีทของ Excel)
+// 🏭 PRODUCTION PLAN › CAPACITY › <หน่วยงาน> (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · 1 เครื่อง = 1 ชีทของ Excel
 //   เลือกเครื่อง (ชิป) + เดือน · Condition / Plan / Actual · ตาราง Product (คำนวณเอง: PCS จาก Forecast / Order · SPH · Stroke · MC Hr)
 //   M/C Plan รายวัน = อัตโนมัติจากวันทำงาน · M/C Actual = หน้างานกรอก Working hour / Stroke / Man -> %EFF คำนวณทันที -> SAVE
 //   จอใหญ่ = ตารางรายวัน (คอลัมน์แรกติดซ้าย) · มือถือ = การ์ดรายวันกรอกง่าย · เครื่องอื่นบันทึก = อัพเดทเอง (ไม่ทับค่าที่กำลังพิมพ์)
@@ -128,8 +128,8 @@ export default function Capacity({ dept }: { dept: string }) {
 
   const header = (
     <PageHeader
-      icon="/icons/64engine_motorFF.png"
-      title={`CAPACITY • ${D === "PRESS1" ? "PRESS 1" : D}`}
+      icon="/icons/Capacity.png"
+      title={`CAPACITY • ${deptOf(D).name}`}
       subtitle={machine ? `${machine.code} · ${machine.subGroup ?? machine.group} · ${monthLabel(month).toUpperCase()}` : "CAPACITY PLANNING"}
       actions={<MonthPicker value={month} onChange={changeMonth} />}
     />
@@ -140,7 +140,7 @@ export default function Capacity({ dept }: { dept: string }) {
       <PageBody className="pp-page">
         {header}
         <Card>
-          <Empty>ยังไม่มีเครื่องจักรของ {D} · เพิ่มได้ที่ MASTER DATA › Production Plan › Machine STD</Empty>
+          <Empty>ยังไม่มีเครื่องจักรของ {deptOf(D).name} · เพิ่มได้ที่ MASTER DATA › Production Plan › Machine STD</Empty>
         </Card>
       </PageBody>
     );
@@ -202,7 +202,7 @@ export default function Capacity({ dept }: { dept: string }) {
         </div>
       )}
 
-      <MachineBanner key={machine.id} code={machine.code} group={machine.subGroup ?? machine.group} month={month} c={c} parts={machine.parts.length} withPcs={machine.parts.filter((p) => p.pcs > 0).length} byPcs={machine.byPcs} />
+      <MachineBanner key={machine.id} deptName={deptOf(D).name} code={machine.code} group={machine.subGroup ?? machine.group} month={month} c={c} parts={machine.parts.length} withPcs={machine.parts.filter((p) => p.pcs > 0).length} byPcs={machine.byPcs} />
 
       <div className="pp-hero">
         <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={0} className="pp-cal">
@@ -351,7 +351,7 @@ export default function Capacity({ dept }: { dept: string }) {
             </div>
             {res?.can.setup && (
               <div className="pp-cardfoot">
-                <Link href="/master/production-plan" className="btn-ghost">
+                <Link href={`/master/production-plan?dept=${D}`} className="btn-ghost">
                   ⚙ MACHINE STD
                 </Link>
               </div>
@@ -555,6 +555,8 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
   const t = machine.parts.reduce((a, p) => ({ pcs: a.pcs + p.pcs, st: a.st + strokeOf(p, bp), hr: a.hr + mcHrOf(p, bp) }), { pcs: 0, st: 0, hr: 0 });
   return (
     <Card
+      className="pp-fill"
+      bodyClass="pp-fill-body"
       title={`PRODUCT • ${monthLabel(month).toUpperCase()} • ${machine.parts.length}`}
       actions={
         <>
@@ -567,6 +569,8 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
         </>
       }
     >
+      {/* ตาราง Product ยืดเต็มความสูงของแถว (เท่าการ์ด CONDITION ด้านซ้าย) · เลื่อนภายในตาราง */}
+      <div className="pp-prod-box">
       <div className="pp-scroll pp-prod">
         <table className="pp-table">
           <thead>
@@ -627,6 +631,7 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
           </tfoot>
         </table>
       </div>
+      </div>
       <p className="pp-hint px-4 pb-3">
         PCS = ยอด <em className="pp-src is-order">O</em> Order ของเดือน · ไม่มี Order = <em className="pp-src is-forecast">F</em> Forecast · SPH = 3600 ÷ MC CT · Stroke = {bp ? "PCS ÷ Pcs./Stroke (เครื่อง Transfer)" : "PCS × Total Process ÷ Pcs./Stroke"} · MC Hr = Stroke ÷ SPH
       </p>
@@ -639,7 +644,7 @@ const toneOf = (c?: { A2: number; A4: number; C4: number }) => (!c || !c.A2 ? "n
 const SHIFT_SHORT = ["1 SHIFT", "1 SHIFT + OT", "2 SHIFT", "2 SHIFT + OT", "2 SHIFT + OT 6"];
 
 // 🎛 แถบหัวเครื่อง: พื้นไล่สี + วงกลมลอย · ชื่อเครื่อง · กลุ่ม · ตัวเลขย่อ · วงแหวน Actual ÷ Plan ของเดือน
-function MachineBanner({ code, group, month, c, parts, withPcs, byPcs }: { code: string; group: string; month: string; c: Calc; parts: number; withPcs: number; byPcs: boolean }) {
+function MachineBanner({ deptName, code, group, month, c, parts, withPcs, byPcs }: { deptName: string; code: string; group: string; month: string; c: Calc; parts: number; withPcs: number; byPcs: boolean }) {
   const reduce = useReducedMotion();
   const done = c.actStroke.filter((v) => (v ?? 0) > 0).length;
   const need = c.sh.findIndex((v) => v != null && v >= c.P1);
@@ -658,7 +663,7 @@ function MachineBanner({ code, group, month, c, parts, withPcs, byPcs }: { code:
       <span className="blob b3" aria-hidden />
       <div className="tx">
         <motion.small initial={reduce ? false : { opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}>
-          PRESS 1 · {group} · {monthLabel(month).toUpperCase()}
+          {deptName} · {group} · {monthLabel(month).toUpperCase()}
           {byPcs && <em>TRANSFER · STROKE = PCS</em>}
         </motion.small>
         <motion.h2 initial={reduce ? false : { opacity: 0, y: 12, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.6, ease: EASE, delay: 0.15 }}>

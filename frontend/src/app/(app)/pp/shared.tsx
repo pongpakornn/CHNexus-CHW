@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { EASE, staggerDelay } from "@/lib/motion";
-import { calcMachine, conditionCols, f0, f1, f2, monthLabel, pc, type Calc, type Col, type PpMonth, type Sum } from "@/lib/pp";
+import { DEPTS, calcMachine, conditionCols, f0, f1, f2, monthLabel, pc, type Calc, type Col, type PpMonth, type Sum } from "@/lib/pp";
 import { useToast } from "@/components/notifications/Toasts";
 import { Ring, Spark, useCount } from "./PpChart";
 
@@ -280,5 +280,19 @@ export function ProcessChips({ code }: { code: string | null }) {
       {steps.length > 5 && <b>+{steps.length - 5}</b>}
       {ratio && <small>{ratio}</small>}
     </span>
+  );
+}
+
+// 🏭 เลือกหน่วยงาน: ชิป 6 หน่วยงาน · พื้นไล่สีเลื่อนไหลไปหาตัวที่เลือก
+export function DeptPicker({ value, onChange, id = "dept" }: { value: string; onChange: (code: string) => void; id?: string }) {
+  return (
+    <div className="pp-depts" role="tablist" aria-label="Department">
+      {DEPTS.map((d) => (
+        <button key={d.code} type="button" role="tab" aria-selected={value === d.code} className={value === d.code ? "is-on" : ""} onClick={() => onChange(d.code)} title={d.th}>
+          {value === d.code && <motion.span layoutId={"pp-dept-" + id} className="pp-dept-on" transition={{ type: "spring", stiffness: 380, damping: 32 }} />}
+          <span className="relative">{d.name}</span>
+        </button>
+      ))}
+    </div>
   );
 }

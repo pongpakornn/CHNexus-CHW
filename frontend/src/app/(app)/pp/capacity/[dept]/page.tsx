@@ -7,7 +7,7 @@ export default async function Page({ params }: { params: Promise<{ dept: string 
   const d = /^[a-z0-9_-]{1,20}$/i.test(dept) ? dept : "press1";
   return (
     <Suspense>
-      <Capacity dept={d} />
+      <Capacity key={d} dept={d} />
     </Suspense>
   );
 }

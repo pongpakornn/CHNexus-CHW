@@ -1,27 +1,35 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { EASE, panelIn, fadeOnly } from "@/lib/motion";
-import { DOW, dowOf, f0, f1, monthLabel, pc, thisMonth, type Calc } from "@/lib/pp";
+import { DOW, deptOf, dowOf, f0, f1, monthLabel, pc, thisMonth, type Calc } from "@/lib/pp";
 import { PpChart, type Series } from "../PpChart";
-import { ConditionMatrix, EffPill, Kpi, MonthPicker, PpIcon, usePpMonth } from "../shared";
+import { ConditionMatrix, DeptPicker, EffPill, Kpi, MonthPicker, PpIcon, usePpMonth } from "../shared";
 import { Seg } from "../Seg";
 import "../pp.css";
 
-// 📈 PRODUCTION PLAN › DASHBOARD (PRESS 1): ภาพรวมทุกเครื่องของเดือน
+// 📈 PRODUCTION PLAN › DASHBOARD: เลือกหน่วยงาน (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · ภาพรวมทุกเครื่องของเดือน
 //   KPI (วันทำงาน · Plan / Actual Stroke · Plan / Actual Hr · เครื่องที่ถึงเป้า Eff) · กราฟ Plan vs Actual (รายเครื่อง / รายวัน / สะสม)
 //   %EFF รายเครื่องเทียบเป้า · ตาราง Condition M/C ทุกเครื่อง + รวมกลุ่ม + TOTAL (เหมือนชีท Press 1 table) · อัพเดทเองเมื่อหน้างานบันทึก Actual
-const DEPT = "PRESS1";
 const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", target: "#d97706" };
 
 export default function PpDashboard() {
   const router = useRouter();
+  const params = useSearchParams();
   const reduce = useReducedMotion();
   const [month, setMonth] = useState(thisMonth);
-  const { data, calcs } = usePpMonth(DEPT, month);
+  const [dept, setDeptState] = useState(() => deptOf(params.get("dept")).code as string);
+  const D = deptOf(dept);
+  const setDept = (c: string) => {
+    setDeptState(c);
+    const p = new URLSearchParams(params.toString());
+    p.set("dept", c);
+    router.replace(`?${p.toString()}`, { scroll: false });
+  };
+  const { data, calcs } = usePpMonth(dept, month);
   const [view, setView] = useState<"machine" | "daily">("machine");
   const [metric, setMetric] = useState<"stroke" | "hr">("stroke");
   const [acc, setAcc] = useState(false);
@@ -109,7 +117,8 @@ export default function PpDashboard() {
   if (!data || !daily)
     return (
       <PageBody className="pp-page">
-        <PageHeader icon="/icons/Dashboard.png" title="PRODUCTION PLAN • DASHBOARD" subtitle="PRESS 1 · CAPACITY PLANNING" actions={<MonthPicker value={month} onChange={setMonth} />} />
+        <PageHeader icon="/icons/Dashboard.png" title="PRODUCTION PLAN • DASHBOARD" subtitle={`${D.name} · CAPACITY PLANNING`} actions={<MonthPicker value={month} onChange={setMonth} />} />
+        <DeptPicker value={dept} onChange={setDept} />
         <Loading />
       </PageBody>
     );
@@ -122,9 +131,10 @@ export default function PpDashboard() {
       <PageHeader
         icon="/icons/Dashboard.png"
         title="PRODUCTION PLAN • DASHBOARD"
-        subtitle={`PRESS 1 · CAPACITY PLANNING · ${monthLabel(month).toUpperCase()} · ${list.length} M/C`}
+        subtitle={`${D.name} (${D.th}) · CAPACITY PLANNING · ${monthLabel(month).toUpperCase()} · ${list.length} M/C`}
         actions={<MonthPicker value={month} onChange={setMonth} />}
       />
+      <DeptPicker value={dept} onChange={setDept} />
       {data.workdaySource === "DEFAULT" && (
         <div className="pp-note">
           ⚠ ยังไม่ได้ตั้ง <b>Company Workdays</b> ของเดือนนี้ · ใช้ จันทร์–เสาร์ ({data.workdays.length} วัน) ไปก่อน · ตั้งได้ที่ MASTER DATA › Company Workdays
@@ -188,7 +198,7 @@ export default function PpDashboard() {
                   </div>
                 ) : null
               }
-              onPick={view === "machine" ? (i) => router.push(`/pp/capacity/press1?m=${list[i].m.id}&month=${month}`) : undefined}
+              onPick={view === "machine" ? (i) => router.push(`/pp/capacity/${D.slug}?m=${list[i].m.id}&month=${month}`) : undefined}
             />
           )}
         </Card>
@@ -201,7 +211,7 @@ export default function PpDashboard() {
               {effList.map(({ m, c }: { m: { id: number; code: string; group: string }; c: Calc }, i) => {
                 const tone = c.A2 ? (c.A4 >= c.C4 ? "ok" : c.A4 >= c.C4 * 0.85 ? "mid" : "low") : "none";
                 return (
-                  <button key={m.id} type="button" className={`pp-eff-row is-${tone}`} onClick={() => router.push(`/pp/capacity/press1?m=${m.id}&month=${month}`)} title="ดูรายละเอียด / บันทึก Actual">
+                  <button key={m.id} type="button" className={`pp-eff-row is-${tone}`} onClick={() => router.push(`/pp/capacity/${D.slug}?m=${m.id}&month=${month}`)} title="ดูรายละเอียด / บันทึก Actual">
                     <span className="n">
                       <b>{m.code}</b>
                       <small>{m.group}</small>
@@ -226,8 +236,8 @@ export default function PpDashboard() {
       </div>
 
       <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
-        <Card title={`CONDITION M/C • ${DEPT === "PRESS1" ? "PRESS 1" : DEPT} TABLE`} actions={<span className="pp-hint m-0">กดชื่อเครื่อง = ดูรายละเอียด / บันทึก Actual</span>}>
-          <ConditionMatrix data={data} calcs={calcs} dept="press1" />
+        <Card title={`CONDITION M/C • ${D.name} TABLE`} actions={<span className="pp-hint m-0">กดชื่อเครื่อง = ดูรายละเอียด / บันทึก Actual</span>}>
+          <ConditionMatrix data={data} calcs={calcs} dept={D.slug} />
         </Card>
       </motion.div>
     </PageBody>

@@ -227,9 +227,11 @@ public sealed class ProductionPlanService
         if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Parts WHERE PartID = @PartAId", f) == 0) throw new InvalidOperationException("ไม่พบ PART A");
         if (f.PartBId is > 0 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Parts WHERE PartID = @PartBId", f) == 0) throw new InvalidOperationException("ไม่พบ PART B");
         if (c.ExecuteScalar<int>(@"SELECT COUNT(*) FROM ProductionPlan.MachineParts WHERE MachineID = @MachineId AND PartAID = @PartAId
-                                   AND ISNULL(PartBID, 0) = ISNULL(@PartBId, 0) AND ItemID <> @Id", f) > 0)
-            throw new InvalidOperationException("เครื่องนี้มี PART A + PART B คู่นี้อยู่แล้ว");
-        var p = new { f.Id, f.MachineId, f.PartAId, PartBId = f.PartBId is > 0 ? f.PartBId : null, Process = string.IsNullOrWhiteSpace(f.Process) ? null : string.Join(' ', f.Process.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)),
+                                   AND ISNULL(PartBID, 0) = ISNULL(@PartBId, 0) AND ItemID <> @Id
+                                   AND ISNULL(ProcessCode, '') = ISNULL(@Proc, '')", new { f.MachineId, f.PartAId, f.PartBId, f.Id, Proc = Norm(f.Process) ?? "" }) > 0)
+            // PART A + PART B เดียวกันมีหลายแถวได้เมื่อเป็นคนละ Process (เช่น PIPE PART ขั้น 1 / 1.1)
+            throw new InvalidOperationException("เครื่องนี้มี PART A + PART B + PROCESS ชุดนี้อยู่แล้ว");
+        var p = new { f.Id, f.MachineId, f.PartAId, PartBId = f.PartBId is > 0 ? f.PartBId : null, Process = Norm(f.Process),
                       f.Tp, f.Col, f.Ct, f.Man, f.Active, f.Sort, uid };
         return f.Id > 0
             ? c.ExecuteScalar<int>(@"UPDATE ProductionPlan.MachineParts SET MachineID = @MachineId, PartAID = @PartAId, PartBID = @PartBId, ProcessCode = @Process, TotalProcess = @Tp,
@@ -238,6 +240,8 @@ public sealed class ProductionPlanService
                                      VALUES (@MachineId, CASE WHEN @Sort > 0 THEN @Sort ELSE (SELECT ISNULL(MAX(SortNo), 0) + 1 FROM ProductionPlan.MachineParts WHERE MachineID = @MachineId) END,
                                              @PartAId, @PartBId, @Process, @Tp, @Col, @Ct, @Man, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p);
     }
+
+    private static string Norm(string s) => string.IsNullOrWhiteSpace(s) ? null : string.Join(' ', s.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
 
     public string DeletePart(int id)
     {
