@@ -15,7 +15,7 @@ export type MenuItem = {
   stockType?: string; // เมนูย่อยเป็นรายชื่อคลังประเภทนี้ (โหลดจาก /master/menu)
 };
 
-export type SystemKey = "root" | "cims" | "edp" | "pp";
+export type SystemKey = "root" | "cims" | "edp" | "pp" | "chem";
 
 // การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · art = ภาพประกอบการ์ด · color = สีแถบ/เงาการ์ด · desc = tooltip
 export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
@@ -135,13 +135,14 @@ const PP_DEPTS = [
   { slug: "pipepart", name: "PIPE PART" },
   { slug: "pipeassy", name: "PIPE ASSY" },
   { slug: "paintpart", name: "PAINT PART" },
+  { slug: "qc", name: "QC" },
 ];
 
 export const PP: SystemDef = {
   key: "pp",
   label: "PRODUCTION PLAN",
   name: "Production Plan",
-  sub: "Capacity Planning · 6 Departments",
+  sub: "Capacity Planning · 7 Departments",
   art: "/images/systems/production-plan.webp",
   title: "PRODUCTION PLAN • CAPACITY",
   desc: "Capacity Planning: แผนเครื่องจักรจาก Forecast / Order · บันทึก M/C Actual · %EFF รายวัน",
@@ -159,8 +160,27 @@ export const PP: SystemDef = {
   ],
 };
 
+// 🧪 CHEMICAL CONTROL: ควบคุมคุณภาพน้ำยาเคมี (สาย ED Paint) · ตั้งค่าพารามิเตอร์ควบคุมเองได้ · อนุมัติตาม SIGN FLOW (User Management › SETUP)
+export const CHEM: SystemDef = {
+  key: "chem",
+  label: "CHEMICAL CONTROL",
+  name: "Chemical Control",
+  sub: "Chemical Bath Monitoring · SPC",
+  art: "/images/systems/chemical-control.webp",
+  title: "CHEMICAL CONTROL • ED PAINT LINE",
+  desc: "ควบคุมคุณภาพน้ำยาเคมี: บันทึกผลการตรวจวัด · แผนภูมิควบคุม (UCL / LCL) · บันทึกการแก้ไข · อนุมัติตาม FLOW ลายเซ็น · Export PDF / Excel",
+  icon: "/icons/DashboardChart.png",
+  color: "#2563eb",
+  menu: [
+    { href: "/chem/dashboard", label: "Dashboard", title: "CHEMICAL CONTROL • DASHBOARD", icon: "/icons/Dashboard.png", can: "chemRecord" },
+    { href: "/chem/record", label: "Inspection Record", title: "CHEMICAL CONTROL • INSPECTION RECORD", icon: "/icons/registration.png", can: "chemRecord" },
+    { href: "/chem/chart", label: "Control Chart", title: "CHEMICAL CONTROL • CONTROL CHART", icon: "/icons/DashboardChart.png", can: "chemRecord" },
+    { href: "/chem/setup", label: "Parameter Setup", title: "CHEMICAL CONTROL • PARAMETER SETUP", icon: "/icons/ProductControl.png", can: "chemSetup" },
+  ],
+};
+
 // การ์ดหน้าเลือกระบบ (ลำดับที่แสดง)
-export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, MASTER, ADMIN];
+export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, CHEM, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 // USER MANAGEMENT ใต้ MASTER DATA (เห็นเฉพาะผู้มีสิทธิ์ userMgmt) + เข้าได้จาก SELECT SYSTEM เหมือนเดิม
@@ -168,8 +188,9 @@ export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
 export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
 export const PP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...PP.menu];
+export const CHEM_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CHEM.menu];
 // Sidebar ของแต่ละระบบ
-export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : ROOT_MENU);
+export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : sys === "chem" ? CHEM_MENU : ROOT_MENU);
 
 // เห็นเมนูไหนบ้างตามสิทธิ์ (กลุ่มที่ไม่มีเมนูย่อยเหลือ = ซ่อนทั้งกลุ่ม)
 export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuItem[] {
@@ -185,11 +206,11 @@ export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) =
 
 // ระบบของหน้าปัจจุบัน: /cims = CIMS · /admin = คงระบบที่มา (ไม่ระบุ) · อื่น ๆ = ROOT
 export const systemOf = (path: string): SystemKey | null =>
-  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/admin") || path.startsWith("/master") ? null : "root";
+  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/admin") || path.startsWith("/master") ? null : "root";
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
-  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
+  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
   const type = new URLSearchParams(search).get("type");
   // ตรงที่สุดก่อน: path ตรงเป๊ะ > path ยาวกว่า (เช่น /master/workdays/company ไม่ไปไฮไลต์ /master/workdays)
   let best: MenuItem | undefined;

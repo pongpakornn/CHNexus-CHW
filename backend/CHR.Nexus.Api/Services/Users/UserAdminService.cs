@@ -89,6 +89,8 @@ namespace Nexus.Services
             ("PpDashboard",    "Production Plan › Dashboard", "VIEW = open the page"),
             ("PpCapacity",     "Production Plan › Capacity",  "VIEW = open  •  EDIT = record M/C Actual (working hour / stroke / man)"),
             ("PpSetup",        "Master Data › Production Plan STD", "VIEW = open  •  ADD = add machine / product  •  EDIT = edit STD / Plan SPH / product  •  DEL = delete"),
+            ("ChemRecord",     "Chemical Control › Inspection Record", "VIEW = dashboard / control chart / export  •  ADD = record readings / corrective action / submit  •  EDIT = edit or delete others' readings / actions"),
+            ("ChemSetup",      "Chemical Control › Parameter Setup", "VIEW = open  •  ADD = new parameter  •  EDIT = spec / control limits / check times  •  DEL = delete"),
             ("PackingCard", "Pick List",                  "VIEW = open the page"),
             ("MAXMINCALC",  "Max-Min Calculator",         "VIEW = open  •  EDIT = edit / import / calculate"),
             ("ForecastOrder", "Forecast / Order / Delivery", "VIEW = open + export  •  ADD = import forecast / order / delivery"),

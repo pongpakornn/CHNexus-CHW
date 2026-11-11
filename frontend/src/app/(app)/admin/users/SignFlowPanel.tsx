@@ -20,7 +20,39 @@ const MODES: [Mode, string, string][] = [
   ["ONE", "รายบุคคล", "เลือกได้ 1 คน"],
 ];
 
+// เอกสารที่ใช้ FLOW ลายเซ็น: MIN REPORT (ต่อคลัง) · CHEMICAL CONTROL (ต่อพารามิเตอร์ · ALL = ค่าเริ่มต้น)
+type Src = "min" | "chem";
+const SRC: Record<Src, { base: string; label: string; noun: string; doc: string }> = {
+  min: { base: "/minreport/settings", label: "MIN REPORT", noun: "คลัง", doc: "เอกสาร MIN REPORT (FM-EN-04-22) ต่อคลัง · ส่ง REPORT แล้วระบบส่งเอกสารให้ช่องแรกที่ใช้ → เซ็นแล้วส่งต่อช่องถัดไปจนครบ (แจ้ง Toast + กระดิ่ง + แชท)" },
+  chem: { base: "/chem/settings", label: "CHEMICAL CONTROL", noun: "รายการ", doc: "ใบบันทึกผลการตรวจวัดค่าน้ำยาเคมีประจำเดือน (FM-PD-04-03/1) ต่อพารามิเตอร์ · ALL (DEFAULT) = ใช้กับทุกรายการที่ไม่ได้ตั้งเฉพาะ · กด SUBMIT แล้วส่งตามลำดับจนอนุมัติ" },
+};
+
 export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
+  const [src, setSrc] = useState<Src>("min");
+  const [dirtyNow, setDirtyNow] = useState(false);
+  return (
+    <div className="grid gap-4">
+      <div className="sf-src" role="tablist" aria-label="Document">
+        {(Object.keys(SRC) as Src[]).map((k) => (
+          <button key={k} type="button" role="tab" aria-selected={src === k} className={src === k ? "is-on" : ""} disabled={dirtyNow && src !== k} title={dirtyNow && src !== k ? "กด SAVE ก่อนเปลี่ยนเอกสาร" : undefined} onClick={() => setSrc(k)}>
+            {SRC[k].label}
+          </button>
+        ))}
+      </div>
+      <FlowEditor
+        key={src}
+        src={src}
+        onDirty={(v) => {
+          setDirtyNow(v);
+          onDirty(v);
+        }}
+      />
+    </div>
+  );
+}
+
+function FlowEditor({ src, onDirty }: { src: Src; onDirty: (v: boolean) => void }) {
+  const S = SRC[src];
   const toast = useToast();
   const [stocks, setStocks] = useState<St[] | null>(null);
   const [stk, setStk] = useState(0);
@@ -31,25 +63,25 @@ export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<{ stocks: St[] }>("/minreport/settings")
+    api<{ stocks: St[] }>(S.base)
       .then((r) => {
         setStocks(r.stocks);
-        setStk((cur) => cur || r.stocks.find((s) => s.on)?.stkId || r.stocks[0]?.stkId || 0);
+        if (src === "min") setStk((cur) => cur || r.stocks.find((s) => s.on)?.stkId || r.stocks[0]?.stkId || 0);
       })
       .catch((e: Error) => toast.show("ERROR", e.message, "error"));
-  }, [toast]);
+  }, [toast, S.base, src]);
 
   const load = useCallback(async () => {
-    if (!stk) return;
+    if (!stk && src === "min") return;
     try {
-      const d = await api<Data>(`/minreport/settings/flow/${stk}`);
+      const d = await api<Data>(`${S.base}/flow/${stk}`);
       setData(d);
       setSlots(d.slots);
       setPick(0);
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     }
-  }, [stk, toast]);
+  }, [stk, toast, S.base, src]);
   useEffect(() => {
     const t = setTimeout(load, 0);
     return () => clearTimeout(t);
@@ -81,7 +113,7 @@ export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
   async function save() {
     setBusy(true);
     try {
-      const r = await api<{ message: string }>(`/minreport/settings/flow/${stk}`, { method: "POST", body: { slots: slots.map((s) => ({ slot: s.slot, mode: s.mode, users: s.users })) } });
+      const r = await api<{ message: string }>(`${S.base}/flow/${stk}`, { method: "POST", body: { slots: slots.map((s) => ({ slot: s.slot, mode: s.mode, users: s.users })) } });
       toast.show("Saved", r.message, "ok");
       await load();
     } catch (e) {
@@ -93,17 +125,15 @@ export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
 
   return (
     <div className="grid gap-4">
-      <p className="text-xs font-bold text-ink-soft">
-        FLOW ลายเซ็นของเอกสาร MIN REPORT (FM-EN-04-22) ต่อคลัง · ส่ง REPORT แล้วระบบส่งเอกสารให้ช่องแรกที่ใช้ → เซ็นแล้วส่งต่อช่องถัดไปจนครบ (แจ้ง Toast + กระดิ่ง + แชท) · ผู้ลงลายเซ็นต้องบันทึกลายเซ็นก่อนที่ โปรไฟล์ › ลายเซ็นของฉัน
-      </p>
+      <p className="text-xs font-bold text-ink-soft">FLOW ลายเซ็นของ{S.doc} · ผู้ลงลายเซ็นต้องบันทึกลายเซ็นก่อนที่ โปรไฟล์ › ลายเซ็นของฉัน</p>
 
       {/* เลือกคลัง */}
       <div className="sf-stocks">
         {stocks.map((s, i) => {
-          const [ic, col] = stockIcon(s.code, i, s.stockType);
+          const [ic, col] = src === "chem" ? ["/icons/DashboardChart.png", s.stkId === 0 ? "#6750a4" : "#2563eb"] : stockIcon(s.code, i, s.stockType);
           const conf = data?.configured.find((c) => c.stkId === s.stkId)?.on;
           return (
-            <button key={s.stkId} type="button" className={`sf-stk ${stk === s.stkId ? "is-on" : ""}`} style={{ "--c": col } as React.CSSProperties} onClick={() => !dirty && setStk(s.stkId)} disabled={dirty && stk !== s.stkId} title={dirty && stk !== s.stkId ? "กด SAVE ก่อนเปลี่ยนคลัง" : undefined}>
+            <button key={s.stkId} type="button" className={`sf-stk ${stk === s.stkId ? "is-on" : ""}`} style={{ "--c": col } as React.CSSProperties} onClick={() => !dirty && setStk(s.stkId)} disabled={dirty && stk !== s.stkId} title={dirty && stk !== s.stkId ? `กด SAVE ก่อนเปลี่ยน${S.noun}` : s.name}>
               <span className="grid size-8 shrink-0 place-items-center rounded-[10px]" style={tileStyle(col)}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={ic} alt="" className="size-[18px] object-contain" draggable={false} />
@@ -166,7 +196,7 @@ export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           <div className="sf-route">
             <small>ลำดับการส่งเอกสาร</small>
             {active.length === 0 ? (
-              <span>ยังไม่ได้ตั้ง (รายงานของคลังนี้จะไม่มีขั้นตอนลงลายเซ็น)</span>
+              <span>{src === "chem" ? (stk === 0 ? "ยังไม่ได้ตั้ง (รายการที่ไม่มี FLOW เฉพาะจะส่งอนุมัติไม่ได้)" : "ไม่ได้ตั้งเฉพาะรายการนี้ = ใช้ FLOW ค่าเริ่มต้น (ALL)") : "ยังไม่ได้ตั้ง (รายงานของคลังนี้จะไม่มีขั้นตอนลงลายเซ็น)"}</span>
             ) : (
               active.map((s, i) => (
                 <span key={s.slot} className="sf-route-step">

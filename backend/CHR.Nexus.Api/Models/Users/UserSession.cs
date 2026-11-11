@@ -89,6 +89,19 @@ namespace Nexus.Models
         public bool CanDeletePpSetup => CanViewPpSetup && P("PpSetup", p => p.CanDelete);
         public bool CanViewPpAny => CanViewPpDashboard || CanViewPpCapacity || CanViewPpSetup;
 
+        // 🧪 CHEMICAL CONTROL (schema ChemControl · ควบคุมคุณภาพน้ำยาเคมี)
+        //    ChemRecord : VIEW = Dashboard / แผนภูมิควบคุม / Export · ADD = บันทึกผลการตรวจวัด + บันทึกการแก้ไข + ส่งอนุมัติ
+        //                 EDIT = แก้ / ลบผลการตรวจวัดของผู้อื่น + แก้ / ลบบันทึกการแก้ไข
+        //    ChemSetup  : VIEW = ดูพารามิเตอร์ควบคุม · ADD = เพิ่มรายการตรวจวัดใหม่ · EDIT = แก้ค่ามาตรฐาน / ขีดจำกัด / เวลา · DEL = ลบ
+        //    ลงลายเซ็น = ตาม FLOW (User Management › SETUP › SIGN FLOW › CHEMICAL CONTROL)
+        public bool CanViewChemRecord => P("ChemRecord", p => p.CanView);
+        public bool CanAddChemRecord => CanViewChemRecord && P("ChemRecord", p => p.CanAdd);
+        public bool CanEditChemRecord => CanViewChemRecord && P("ChemRecord", p => p.CanEdit);
+        public bool CanViewChemSetup => P("ChemSetup", p => p.CanView);
+        public bool CanAddChemSetup => CanViewChemSetup && P("ChemSetup", p => p.CanAdd);
+        public bool CanEditChemSetup => CanViewChemSetup && P("ChemSetup", p => p.CanEdit);
+        public bool CanDeleteChemSetup => CanViewChemSetup && P("ChemSetup", p => p.CanDelete);
+
         // 📍 LAYOUT SETUP (ตำแหน่งจัดเก็บ) อยู่ที่ User Management › SETUP = Admin Level 1 (P() ให้ Level 1 ผ่านเสมอ · ไม่มีแถวสิทธิ์แยก)
         public bool CanViewLayout => P("LayoutSetup", p => p.CanView);
         public bool CanAddLayout => CanViewLayout && P("LayoutSetup", p => p.CanAdd);

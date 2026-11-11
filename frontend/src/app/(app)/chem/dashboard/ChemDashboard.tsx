@@ -1,0 +1,206 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
+import { useToast } from "@/components/notifications/Toasts";
+import { api } from "@/lib/api";
+import { useLive } from "@/lib/live";
+import { EASE, fadeOnly, panelIn, springSoft } from "@/lib/motion";
+import { catOf, currentShift, fmt, slotsOf, specText, STATUS_TEXT, STATUS_TH, statusOf, type ChemCan, type ChemParam, type ChemReading, type Status } from "@/lib/chem";
+import { Ring } from "../../pp/PpChart";
+import { ControlChart } from "../ControlChart";
+import "../chem.css";
+
+// 🧪 CHEMICAL CONTROL › DASHBOARD
+//   แถบสรุปกะปัจจุบัน (ตรวจวัดแล้วกี่ค่า / ต้องตรวจทั้งหมด) · จำนวน IN CONTROL / WARNING / OUT OF SPEC จากผลล่าสุดของแต่ละรายการ
+//   ใบบันทึกที่รอฉันลงลายเซ็น · การ์ดพารามิเตอร์ทุกรายการ (ค่าล่าสุด · สถานะ · แผนภูมิย่อ 14 วัน · สถานะใบบันทึกเดือนนี้)
+//   กรองตามหมวด · กดการ์ด = แผนภูมิควบคุม · อัพเดทเองเมื่อมีคนบันทึก
+type Sheet = { id: number; paramId: number; status: string; nextSlot: number | null };
+type Inbox = { id: number; paramId: number; year: number; month: number; slotName: string; submittedAt: string };
+type Data = { parameters: ChemParam[]; readings: ChemReading[]; sheets: Sheet[]; inbox: Inbox[]; can: ChemCan; today: string };
+const CATS = ["ALL", "CHEMICAL", "WATER", "PAINT", "TEMPERATURE"];
+
+export default function ChemDashboard() {
+  const toast = useToast();
+  const reduce = useReducedMotion();
+  const [d, setD] = useState<Data | null>(null);
+  const [cat, setCat] = useState("ALL");
+  const load = useCallback(
+    async (quiet = false) => {
+      try {
+        setD(await api<Data>("/chem/dashboard", { query: { days: 14 } }));
+      } catch (e) {
+        if (!quiet) toast.show("ERROR", (e as Error).message, "error");
+      }
+    },
+    [toast],
+  );
+  useEffect(() => {
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+  useLive(["chem"], () => load(true), 60_000);
+
+  const cur = currentShift();
+  const view = useMemo(() => {
+    if (!d) return null;
+    const byP = new Map<number, ChemReading[]>();
+    for (const r of d.readings) {
+      const l = byP.get(r.paramId) ?? [];
+      l.push(r);
+      byP.set(r.paramId, l);
+    }
+    const order = (r: ChemReading) => `${r.date.slice(0, 10)}${r.shift === "D" ? 0 : 1}${r.slot}`;
+    const items = d.parameters.map((p) => {
+      const rs = (byP.get(p.id) ?? []).sort((a, b) => order(a).localeCompare(order(b)));
+      const last = rs[rs.length - 1];
+      const need = slotsOf(p, cur.shift).length;
+      const done = rs.filter((r) => r.date.slice(0, 10) === cur.date && r.shift === cur.shift).length;
+      return { p, rs, last, st: (last ? statusOf(p, last.value) : "NONE") as Status, need, done, sheet: d.sheets.find((s) => s.paramId === p.id) };
+    });
+    const cnt = { OK: 0, WARN: 0, OUT: 0, NONE: 0 } as Record<Status, number>;
+    items.forEach((x) => cnt[x.st]++);
+    const need = items.reduce((a, x) => a + x.need, 0);
+    const done = items.reduce((a, x) => a + Math.min(x.done, x.need), 0);
+    return { items, cnt, need, done };
+  }, [d, cur.date, cur.shift]);
+
+  if (!d || !view)
+    return (
+      <PageBody className="ch-page">
+        <PageHeader icon="/icons/DashboardChart.png" title="CHEMICAL CONTROL • DASHBOARD" subtitle="ED PAINT LINE · ระบบควบคุมคุณภาพน้ำยาเคมี" />
+        <Loading />
+      </PageBody>
+    );
+  const shown = view.items.filter((x) => cat === "ALL" || x.p.category === cat);
+
+  return (
+    <PageBody className="ch-page">
+      <PageHeader
+        icon="/icons/DashboardChart.png"
+        title="CHEMICAL CONTROL • DASHBOARD"
+        subtitle={`ED PAINT LINE · ระบบควบคุมคุณภาพน้ำยาเคมี · ${d.parameters.length} พารามิเตอร์ควบคุม`}
+        actions={
+          d.can.record && (
+            <Link href="/chem/record" className="btn bg-accent">
+              ＋ บันทึกผลการตรวจวัด
+            </Link>
+          )
+        }
+      />
+
+      {/* แถบสรุปกะปัจจุบัน */}
+      <motion.div className="ch-banner" initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
+        <span className="blob b1" aria-hidden />
+        <span className="blob b2" aria-hidden />
+        <div className="tx">
+          <small>CURRENT SHIFT · {cur.shift === "D" ? "DAY (กะกลางวัน)" : "NIGHT (กะกลางคืน)"} · {new Date(cur.date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</small>
+          <h2>{view.done === view.need ? "ตรวจวัดครบทุกรายการแล้ว" : `ตรวจวัดแล้ว ${view.done} / ${view.need} ค่า`}</h2>
+          <div className="stats">
+            {(["OK", "WARN", "OUT", "NONE"] as Status[]).map((s, i) => (
+              <motion.span key={s} className={`is-${s.toLowerCase()}`} initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: EASE, delay: 0.2 + i * 0.06 }}>
+                <small>{STATUS_TEXT[s]}</small>
+                <b>{view.cnt[s]}</b>
+              </motion.span>
+            ))}
+          </div>
+        </div>
+        <Ring
+          frac={view.need ? view.done / view.need : 0}
+          color="#ffffff"
+          color2="#a5f3fc"
+          size={116}
+          stroke={10}
+          label={
+            <>
+              <b>{view.need ? Math.round((view.done / view.need) * 100) : 0}%</b>
+              <small>SHIFT DONE</small>
+            </>
+          }
+        />
+      </motion.div>
+
+      {/* ใบบันทึกที่รอฉันลงลายเซ็น */}
+      <AnimatePresence>
+        {d.inbox.length > 0 && (
+          <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" exit={{ opacity: 0 }}>
+            <Card title={`✍ รอคุณลงลายเซ็น • ${d.inbox.length}`}>
+              <div className="ch-inbox">
+                {d.inbox.map((s) => {
+                  const p = d.parameters.find((x) => x.id === s.paramId);
+                  return (
+                    <Link key={s.id} href={`/chem/chart?p=${s.paramId}&month=${s.year}-${String(s.month).padStart(2, "0")}`} className="ch-inbox-row">
+                      <b>{p?.code}</b>
+                      <span>{p?.name}</span>
+                      <em>
+                        {String(s.month).padStart(2, "0")}/{s.year} · รอ {s.slotName}
+                      </em>
+                      <i>›</i>
+                    </Link>
+                  );
+                })}
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="ch-cats" role="tablist" aria-label="Category">
+        {CATS.map((c) => (
+          <button key={c} type="button" role="tab" aria-selected={cat === c} className={cat === c ? "is-on" : ""} onClick={() => setCat(c)}>
+            {cat === c && <motion.span layoutId="ch-cat-on" className="ch-cat-on" transition={springSoft} />}
+            <span className="relative">
+              {c === "ALL" ? "ALL" : catOf(c).label}
+              <b>{c === "ALL" ? view.items.length : view.items.filter((x) => x.p.category === c).length}</b>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <motion.div className="ch-grid" layout>
+        <AnimatePresence mode="popLayout">
+          {shown.map((x, i) => (
+            <motion.div
+              key={x.p.id}
+              layout
+              initial={reduce ? false : { opacity: 0, y: 18, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
+              transition={{ duration: 0.45, ease: EASE, delay: reduce ? 0 : Math.min(i * 0.035, 0.5) }}
+            >
+              <Link href={`/chem/chart?p=${x.p.id}`} className={`ch-pcard is-${x.st.toLowerCase()}`} style={{ "--c": catOf(x.p.category).color } as React.CSSProperties}>
+                <div className="h">
+                  <span className="cat">{catOf(x.p.category).label}</span>
+                  <b>{x.p.code}</b>
+                  <em className={`ch-st is-${x.st.toLowerCase()}`}>{STATUS_TEXT[x.st]}</em>
+                </div>
+                <div className="n" title={x.p.nameTh ?? ""}>
+                  {x.p.name}
+                </div>
+                <div className="v">
+                  <strong>{x.last ? fmt(x.p, x.last.value) : "–"}</strong>
+                  <small>{x.p.unit}</small>
+                  <span className="spec">
+                    SPEC {specText(x.p)} {x.p.unit}
+                  </span>
+                </div>
+                <ControlChart compact p={x.p} ariaLabel={`${x.p.code} trend`} points={x.rs.map((r) => ({ key: String(r.id), label: "", value: r.value, status: statusOf(x.p, r.value), tip: null }))} />
+                <div className="f">
+                  <span>
+                    {x.last ? `ล่าสุด ${new Date(x.last.date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })} ${x.last.shift === "D" ? "กลางวัน" : "กลางคืน"} ${x.last.time ?? ""}` : STATUS_TH.NONE}
+                  </span>
+                  <span className={`shift ${x.done >= x.need && x.need ? "is-done" : ""}`}>
+                    กะนี้ {Math.min(x.done, x.need)}/{x.need}
+                  </span>
+                  {x.sheet && <span className={`sheet is-${x.sheet.status.toLowerCase()}`}>{x.sheet.status === "APPROVED" ? "✓ APPROVED" : x.sheet.status === "SIGNING" ? "✍ SIGNING" : "DRAFT"}</span>}
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
+    </PageBody>
+  );
+}

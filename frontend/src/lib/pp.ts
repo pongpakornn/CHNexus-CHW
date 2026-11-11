@@ -362,6 +362,7 @@ export const DEPTS = [
   { code: "PIPEPART", slug: "pipepart", name: "PIPE PART", th: "ชิ้นส่วนท่อ" },
   { code: "PIPEASSY", slug: "pipeassy", name: "PIPE ASSY", th: "ประกอบท่อ" },
   { code: "PAINTPART", slug: "paintpart", name: "PAINT PART", th: "ชิ้นส่วนสี" },
+  { code: "QC", slug: "qc", name: "QC", th: "ตรวจสอบคุณภาพ" },
 ] as const;
 export type Dept = (typeof DEPTS)[number];
 export const deptOf = (v: string | null | undefined): Dept => DEPTS.find((d) => d.code === (v ?? "").toUpperCase() || d.slug === (v ?? "").toLowerCase()) ?? DEPTS[0];

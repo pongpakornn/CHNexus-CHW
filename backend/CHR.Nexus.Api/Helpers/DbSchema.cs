@@ -217,6 +217,11 @@ namespace Nexus.Helpers
                                                              && TableExists("ProductionPlan.DailyActuals") == true && TableExists("ProductionPlan.ShiftHours") == true
                                                              && ColumnIn("ProductionPlan.Machines", "StrokeByPcs") == true);
 
+        // 🧪 CHEMICAL CONTROL (37_Chemical_Control.sql): ChemControl.Parameters / Readings / Sheets / SignFlow
+        private static bool _chem;
+        public static bool HasChemControl => _chem || (_chem = TableExists("ChemControl.Parameters") == true && TableExists("ChemControl.Readings") == true
+                                                                && TableExists("ChemControl.Sheets") == true && TableExists("ChemControl.SignFlow") == true && TableExists("ChemControl.Signs") == true);
+
         // ⏰ EDP ALERT (29_EDP_Alert.sql): EDP.AlertSettings (แจ้งเตือนการ์ดเลยเวลา)
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);
