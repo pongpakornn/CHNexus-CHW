@@ -22,7 +22,8 @@ export type PpPart = {
   man: number | null;
   active: boolean;
   pcs: number;
-  pcsFrom: "ORDER" | "FORECAST" | "";
+  pcsFrom: "ORDER" | "FORECAST" | "MANUAL" | "";
+  pcsAuto?: number | null; // ยอด Order / Forecast เมื่อกำหนด PCS เองของเดือน (MANUAL)
 };
 export type PpActual = { day: number; hr: number | null; stroke: number | null; man: number | null };
 export type PpMachine = { id: number; code: string; group: string; subGroup: string | null; sort: number; qty: number; eff: number; man: number; sph: number | null; byPcs: boolean; parts: PpPart[]; actual: PpActual[] };

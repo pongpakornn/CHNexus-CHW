@@ -221,6 +221,11 @@ namespace Nexus.Helpers
         private static bool _ppWl;
         public static bool HasPpWorkload => _ppWl || (_ppWl = HasProductionPlan && TableExists("ProductionPlan.WorkloadHeads") == true);
 
+        // 📈 PRODUCTION PLAN › PCS ที่กำหนดเองรายเดือน + 📊 FORECAST SUMMARY DIFF (2) / (3) (39_Production_Plan_Pcs_Override_Forecast_Summary.sql)
+        private static bool _ppOv, _fcSum;
+        public static bool HasPpPcsOverride => _ppOv || (_ppOv = HasProductionPlan && TableExists("ProductionPlan.PcsOverrides") == true);
+        public static bool HasForecastSummary => _fcSum || (_fcSum = TableExists("Nexus.ForecastSummary") == true);
+
         // 🧪 CHEMICAL CONTROL (37_Chemical_Control.sql): ChemControl.Parameters / Readings / Sheets / SignFlow
         private static bool _chem;
         public static bool HasChemControl => _chem || (_chem = TableExists("ChemControl.Parameters") == true && TableExists("ChemControl.Readings") == true

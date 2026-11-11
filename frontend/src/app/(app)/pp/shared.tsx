@@ -12,7 +12,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { Ring, Spark, useCount } from "./PpChart";
 
 // 📈 PRODUCTION PLAN: ข้อมูลทั้งเดือนของหน่วยงาน (โหลดครั้งเดียว คำนวณที่หน้าเว็บ) + อัพเดทเองเมื่อมีคนบันทึก (หัวข้อ "pp")
-export type MonthRes = { data: PpMonth; can: { actual: boolean; setup: boolean } };
+export type MonthRes = { data: PpMonth; can: { actual: boolean; setup: boolean; pcs?: boolean } };
 
 export function usePpMonth(dept: string, month: string, paused = false) {
   const toast = useToast();
@@ -257,10 +257,13 @@ export function ProcessChips({ code }: { code: string | null }) {
 }
 
 // 🏭 เลือกหน่วยงาน: ชิป 6 หน่วยงาน · พื้นไล่สีเลื่อนไหลไปหาตัวที่เลือก
-export function DeptPicker({ value, onChange, id = "dept" }: { value: string; onChange: (code: string) => void; id?: string }) {
+// แถบเลือกหน่วยงาน · extra = แท็บเพิ่มต่อท้าย (เช่น WORKLOAD ต่อจาก QC ที่ DASHBOARD)
+export type DeptTab = { code: string; name: string; th: string };
+export function DeptPicker({ value, onChange, id = "dept", extra = [] }: { value: string; onChange: (code: string) => void; id?: string; extra?: DeptTab[] }) {
+  const tabs: DeptTab[] = [...DEPTS, ...extra];
   return (
     <div className="pp-depts" role="tablist" aria-label="Department">
-      {DEPTS.map((d) => (
+      {tabs.map((d) => (
         <button key={d.code} type="button" role="tab" aria-selected={value === d.code} className={value === d.code ? "is-on" : ""} onClick={() => onChange(d.code)} title={d.th}>
           {value === d.code && <motion.span layoutId={"pp-dept-" + id} className="pp-dept-on" transition={{ type: "spring", stiffness: 380, damping: 32 }} />}
           <span className="relative">{d.name}</span>

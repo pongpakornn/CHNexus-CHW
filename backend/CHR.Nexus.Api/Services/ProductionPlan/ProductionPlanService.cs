@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Nexus.Core;
+using Nexus.Helpers;
 
 namespace Nexus.Services;
 
@@ -47,7 +48,8 @@ public sealed class PpPart
     public decimal? Man { get; set; }
     public bool Active { get; set; }
     public decimal Pcs { get; set; }
-    public string PcsFrom { get; set; }      // ORDER / FORECAST / ""
+    public string PcsFrom { get; set; }      // ORDER / FORECAST / MANUAL / ""
+    public decimal? PcsAuto { get; set; }    // PCS จาก Order / Forecast (เมื่อกำหนดเองที่เดือนนั้น = MANUAL)
 }
 
 public sealed class PpActual
@@ -190,7 +192,16 @@ public sealed class ProductionPlanService
             .ToDictionary(g => g.Key, g => (g.Sum(x => x.F), g.Sum(x => x.O)), StringComparer.OrdinalIgnoreCase);
     }
 
-    private static void FillPcs(IEnumerable<PpPart> parts, Dictionary<string, (decimal F, decimal O)> dm)
+    // PCS ที่กำหนดเองของเดือน (ItemID -> PCS) เช่น Excel พิมพ์ 0 ให้แถวที่ผลิตที่เครื่องอื่นแล้ว
+    private static Dictionary<int, decimal> Overrides(SqlConnection c, DateTime month)
+    {
+        if (!DbSchema.HasPpPcsOverride) return new();
+        var m = new DateTime(month.Year, month.Month, 1);
+        return c.Query<(int I, decimal P)>("SELECT ItemID AS I, Pcs AS P FROM ProductionPlan.PcsOverrides WHERE MonthStart = @m", new { m })
+                .ToDictionary(x => x.I, x => x.P);
+    }
+
+    private static void FillPcs(IEnumerable<PpPart> parts, Dictionary<string, (decimal F, decimal O)> dm, Dictionary<int, decimal> ov = null)
     {
         foreach (var p in parts)
         {
@@ -201,14 +212,32 @@ public sealed class ProductionPlanService
                 else p.PcsFrom = "";
             }
             else p.PcsFrom = "";
+            if (ov != null && ov.TryGetValue(p.Id, out var set)) { p.PcsAuto = p.Pcs; p.Pcs = set; p.PcsFrom = "MANUAL"; }
         }
+    }
+
+    // ✏ PCS ของแถว Product เฉพาะเดือน · null = กลับไปใช้ Order / Forecast
+    public string SetPcs(DateTime month, int itemId, decimal? pcs, string uid)
+    {
+        if (pcs is < 0 or > 99_999_999) throw new InvalidOperationException("PCS ต้องอยู่ระหว่าง 0 - 99,999,999");
+        var m = new DateTime(month.Year, month.Month, 1);
+        using var c = Conn();
+        var label = c.QueryFirstOrDefault<string>(@"SELECT m.MachineCode + ' | ' + ISNULL(a.PartA, a.PartCode) FROM ProductionPlan.MachineParts x
+                                                    JOIN ProductionPlan.Machines m ON m.MachineID = x.MachineID JOIN Nexus.Parts a ON a.PartID = x.PartAID WHERE x.ItemID = @itemId", new { itemId })
+                    ?? throw new InvalidOperationException("ไม่พบรายการ");
+        if (pcs == null)
+            c.Execute("DELETE FROM ProductionPlan.PcsOverrides WHERE MonthStart = @m AND ItemID = @itemId", new { m, itemId });
+        else
+            c.Execute(@"UPDATE ProductionPlan.PcsOverrides SET Pcs = @pcs, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE MonthStart = @m AND ItemID = @itemId;
+                        IF @@ROWCOUNT = 0 INSERT INTO ProductionPlan.PcsOverrides (MonthStart, ItemID, Pcs, UpdatedBy) VALUES (@m, @itemId, @pcs, @uid);", new { m, itemId, pcs, uid });
+        return label;
     }
 
     public List<PpPart> Parts(int machineId, DateTime month)
     {
         using var c = Conn();
         var list = c.Query<PpPart>(PartSql + " WHERE x.MachineID = @machineId ORDER BY x.SortNo, x.ItemID", new { machineId }).ToList();
-        FillPcs(list, Demand(c, month));
+        FillPcs(list, Demand(c, month), Overrides(c, month));
         return list;
     }
 
@@ -284,7 +313,7 @@ public sealed class ProductionPlanService
         var ids = machines.Select(x => x.Id).ToArray();
         var parts = ids.Length == 0 ? new List<PpPart>()
             : c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).ToList();
-        FillPcs(parts, Demand(c, m));
+        FillPcs(parts, Demand(c, m), Overrides(c, m));
         var actual = ids.Length == 0 ? new List<PpActual>()
             : c.Query<PpActual>(@"SELECT MachineID AS MachineId, DAY(WorkDate) AS Day, WorkHours AS Hr, Stroke, Man FROM ProductionPlan.DailyActuals
                                   WHERE MachineID IN @ids AND WorkDate >= @m AND WorkDate < DATEADD(MONTH, 1, @m)", new { ids, m }).ToList();
@@ -355,7 +384,7 @@ public sealed class ProductionPlanService
             // PCS ของเดือนนั้น: คัดลอก Product แล้วเติม PCS (ไม่แก้รายการต้นฉบับ)
             var mp = parts.Select(p => new PpPart { Id = p.Id, MachineId = p.MachineId, Sort = p.Sort, PartAId = p.PartAId, PartA = p.PartA, PdCode = p.PdCode, Customer = p.Customer,
                                                     PartBId = p.PartBId, PartB = p.PartB, Name = p.Name, Process = p.Process, Tp = p.Tp, Col = p.Col, Ct = p.Ct, Man = p.Man, Active = p.Active }).ToList();
-            FillPcs(mp, Demand(c, m));
+            FillPcs(mp, Demand(c, m), Overrides(c, m));
             var byM = mp.GroupBy(p => p.MachineId).ToDictionary(g => g.Key, g => g.ToList());
             var wd = c.Query<DateTime>("SELECT WorkDate FROM Nexus.CustomerWorkdays WHERE CustomerCode = '#COMPANY' AND WorkDate >= @m AND WorkDate < DATEADD(MONTH, 1, @m)", new { m })
                       .Select(d => d.Day).Distinct().OrderBy(d => d).ToList();

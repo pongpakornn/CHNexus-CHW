@@ -10,7 +10,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
 import { EASE, fadeOnly, panelIn, springSoft } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
-import { DOW, calcMachine, deptOf, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine } from "@/lib/pp";
+import { DOW, calcMachine, deptOf, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine, type PpPart } from "@/lib/pp";
 import { PpChart, Ring, type Series } from "../../PpChart";
 import { conditionRows, EffPill, Kpi, MonthPicker, PpIcon, ProcessChips, usePpMonth } from "../../shared";
 import { Seg } from "../../Seg";
@@ -373,7 +373,7 @@ export default function Capacity({ dept }: { dept: string }) {
           </Card>
         </motion.div>
         <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={1}>
-          <ProductTable machine={machine} month={month} canSetup={!!res?.can.setup} />
+          <ProductTable machine={machine} month={month} canSetup={!!res?.can.setup} canPcs={!!res?.can.pcs} onSaved={() => reload(true)} />
         </motion.div>
       </div>
 
@@ -548,8 +548,30 @@ function InRow({
 }
 
 // 📋 ตาราง Product ของเครื่อง (อ่านอย่างเดียว · แก้ที่ MASTER DATA › Machine Products): PCS จาก Order / Forecast ของเดือน
-function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month: string; canSetup: boolean }) {
+function ProductTable({ machine, month, canSetup, canPcs, onSaved }: { machine: PpMachine; month: string; canSetup: boolean; canPcs: boolean; onSaved: () => void }) {
   const [q, setQ] = useState("");
+  const toast = useToast();
+  const [edit, setEdit] = useState<{ id: number; v: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  // ✏ PCS ของเดือนนี้ (แทน Order / Forecast) · ว่าง = กลับไปใช้ยอดอัตโนมัติ · เหมือน Excel ที่พิมพ์ PCS เอง
+  async function savePcs(p: PpPart, text: string) {
+    const t = text.replace(/,/g, "").trim();
+    const v = t === "" ? null : Number(t);
+    setEdit(null);
+    if (v != null && (!isFinite(v) || v < 0)) return toast.show("WARNING", "PCS ต้องเป็นตัวเลข 0 ขึ้นไป", "warn");
+    if (v === (p.pcsFrom === "MANUAL" ? p.pcs : null)) return;
+    if (v == null && p.pcsFrom !== "MANUAL") return;
+    setBusy(true);
+    try {
+      const r = await api<{ message: string }>("/pp/pcs", { method: "POST", body: { month, itemId: p.id, pcs: v } });
+      toast.show("SAVED", r.message, "ok");
+      onSaved();
+    } catch (e) {
+      toast.show("ERROR", "บันทึก PCS ไม่สำเร็จ\n" + (e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
   const k = useDebounced(q, 150).trim().toUpperCase();
   const rows = machine.parts.filter((p) => !k || [p.partA, p.partB, p.pdCode, p.name, p.process].some((x) => (x ?? "").toUpperCase().includes(k)));
   const bp = machine.byPcs;
@@ -606,9 +628,38 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
                 <td>{f0(p.col)}</td>
                 <td>{p.ct}</td>
                 <td>{f0(sphOf(p))}</td>
-                <td title={p.pcsFrom === "ORDER" ? "ยอด Order" : p.pcsFrom === "FORECAST" ? "ยอด Forecast (ยังไม่มี Order)" : "ไม่มียอด"}>
-                  <b>{p.pcs ? f0(p.pcs) : "0"}</b>
-                  {p.pcsFrom && <em className={`pp-src is-${p.pcsFrom.toLowerCase()}`}>{p.pcsFrom === "ORDER" ? "O" : "F"}</em>}
+                <td
+                  className={canPcs ? "pp-pcs-cell" : undefined}
+                  title={
+                    p.pcsFrom === "MANUAL"
+                      ? `กำหนดเองเดือนนี้ · ยอด Order / Forecast = ${f0(p.pcsAuto ?? 0)}${canPcs ? " · กดเพื่อแก้ / ลบค่าให้ว่าง = กลับไปใช้ยอดอัตโนมัติ" : ""}`
+                      : (p.pcsFrom === "ORDER" ? "ยอด Order" : p.pcsFrom === "FORECAST" ? "ยอด Forecast (ยังไม่มี Order)" : "ไม่มียอด") + (canPcs ? " · กดเพื่อกำหนด PCS เองเดือนนี้" : "")
+                  }
+                >
+                  {edit?.id === p.id ? (
+                    <input
+                      autoFocus
+                      className="pp-in pp-pcs-in"
+                      inputMode="decimal"
+                      aria-label={`PCS ${p.partA}`}
+                      value={edit.v}
+                      placeholder={f0(p.pcsAuto ?? p.pcs)}
+                      onChange={(e) => setEdit({ id: p.id, v: e.target.value.replace(/[^\d.,]/g, "") })}
+                      onFocus={(e) => e.target.select()}
+                      onBlur={(e) => savePcs(p, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") setEdit(null);
+                      }}
+                    />
+                  ) : canPcs ? (
+                    <button type="button" className="pp-pcs-btn" disabled={busy} onClick={() => setEdit({ id: p.id, v: p.pcsFrom === "MANUAL" ? String(p.pcs) : "" })}>
+                      <b>{p.pcs ? f0(p.pcs) : "0"}</b>
+                    </button>
+                  ) : (
+                    <b>{p.pcs ? f0(p.pcs) : "0"}</b>
+                  )}
+                  {p.pcsFrom && <em className={`pp-src is-${p.pcsFrom.toLowerCase()}`}>{p.pcsFrom === "ORDER" ? "O" : p.pcsFrom === "MANUAL" ? "M" : "F"}</em>}
                 </td>
                 <td className="st">{f0(strokeOf(p, bp))}</td>
                 <td className="hr">{f2(mcHrOf(p, bp))}</td>
@@ -634,7 +685,7 @@ function ProductTable({ machine, month, canSetup }: { machine: PpMachine; month:
       </div>
       </div>
       <p className="pp-hint px-4 pb-3">
-        PCS = ยอด <em className="pp-src is-order">O</em> Order ของเดือน · ไม่มี Order = <em className="pp-src is-forecast">F</em> Forecast · SPH = 3600 ÷ MC CT · Stroke = {bp ? "PCS ÷ Pcs./Stroke (เครื่อง Transfer)" : "PCS × Total Process ÷ Pcs./Stroke"} · MC Hr = Stroke ÷ SPH
+        PCS = ยอด <em className="pp-src is-order">O</em> Order ของเดือน · ไม่มี Order = <em className="pp-src is-forecast">F</em> Forecast · <em className="pp-src is-manual">M</em> กำหนดเองเดือนนี้{canPcs ? " (กดที่ตัวเลข PCS เพื่อแก้)" : ""} · SPH = 3600 ÷ MC CT · Stroke = {bp ? "PCS ÷ Pcs./Stroke (เครื่อง Transfer)" : "PCS × Total Process ÷ Pcs./Stroke"} · MC Hr = Stroke ÷ SPH
       </p>
     </Card>
   );

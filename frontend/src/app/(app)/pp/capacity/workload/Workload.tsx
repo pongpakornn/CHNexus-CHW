@@ -1,74 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
-import { useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
-import { calcMachine, conditionCols, f0, f1, thisMonth, type Calc, type PpMachine, type PpShift } from "@/lib/pp";
+import { f0, f1, thisMonth } from "@/lib/pp";
 import { Kpi, MonthPicker, PpIcon } from "../../shared";
+import { EN, WL_FIELDS, WL_GROUPS, buildTable, deptTotals, savedHeads, signed, updOf, useWorkload, type WlField, type WlPlan } from "./wl";
 import "../../pp.css";
 
 // 👥 PRODUCTION PLAN › CAPACITY › WORKLOAD : สรุปอัตรากำลังคน แผน, ผล ประจำเดือน (Monthly man-power Plan & Actual) · แทนชีท "9. ManPower" ของ Excel Work load
-//   PDT    = Total P1 (Plan Stroke) ของ Capacity หน่วยงานนั้น · Direct = Total P9 (Required Man) · Production (N-1) = Total A1
-//   Ind1 / Ind2 ของแผน = คนที่มีจริง (Current) · Total = Direct + Ind1 + Ind2 · Actual = Current Direct − Plan Direct (ติดลบ = คนขาด)
+//   สูตร / ข้อมูลอยู่ที่ ./wl.ts (ใช้ร่วมกับ DASHBOARD › WORKLOAD)
 //   คนที่มีจริง (Current ของเดือน N · Actual ของเดือน N-1) = กรอกที่หน้านี้ แล้วกด SAVE · Capacity / Forecast / วันทำงานเปลี่ยน = อัพเดทเอง
-type Row = { key: string; grp: string; name: string; dept?: string; direct?: boolean };
-const ROWS: Row[] = [
-  { key: "TPS", grp: "แผนกบริหารการผลิตและโลจิสติกส์", name: "วางแผนการผลิตและTPS" },
-  { key: "DELIVERY", grp: "แผนกบริหารการผลิตและโลจิสติกส์", name: "จัดส่งและส่งมอบ" },
-  { key: "QA", grp: "แผนกบริหารคุณภาพ", name: "ประกันคุณภาพและมาตรฐาน" },
-  { key: "QC", grp: "แผนกบริหารคุณภาพ", name: "ควบคุมคุณภาพ", dept: "QC", direct: false }, // Excel: QC ดึงเฉพาะ PDT (Direct = 0)
-  { key: "PRESS1", grp: "แผนกผลิต 1", name: "ปั๊ม 1", dept: "PRESS1" },
-  { key: "PRESS2", grp: "แผนกผลิต 1", name: "ปั๊ม 2", dept: "PRESS2" },
-  { key: "ASSEMBLY", grp: "แผนกผลิต 1", name: "ประกอบ", dept: "ASSEMBLY" },
-  { key: "DIE", grp: "แผนกผลิต 1", name: "บำรุงรักษาแม่พิมพ์" },
-  { key: "PIPEPART", grp: "แผนกผลิต 2", name: "ชิ้นส่วนท่อ", dept: "PIPEPART" },
-  { key: "PIPEASSY", grp: "แผนกผลิต 2", name: "ประกอบท่อ", dept: "PIPEASSY" },
-  { key: "PAINTPART", grp: "แผนกผลิต 2", name: "ชิ้นส่วนสี", dept: "PAINTPART" },
-];
-const GROUPS = ROWS.reduce<{ grp: string; n: number }[]>((a, r) => {
-  const g = a.find((x) => x.grp === r.grp);
-  if (g) g.n++;
-  else a.push({ grp: r.grp, n: 1 });
-  return a;
-}, []);
-
-type WlMonth = { month: string; days: number; workdays: number[]; workdaySource: "COMPANY" | "DEFAULT"; depts: Record<string, PpMachine[]> };
-type Head = { month: string; row: string; direct: number | null; ind1: number | null; ind2: number | null; updatedBy: string | null; updatedAt: string };
-type Res = { data: { month: string; shifts: PpShift[]; settings: Record<string, number>; months: WlMonth[]; heads: Head[] }; can: { edit: boolean } };
-type Tot = { p1: number; p9: number; a1: number };
-type Field = "direct" | "ind1" | "ind2";
 type Draft = Record<string, string>; // `${month}|${row}|${field}` -> ข้อความที่พิมพ์
 
-const FIELDS: Field[] = ["direct", "ind1", "ind2"];
-const EN = (m: string) => {
-  const [y, mo] = m.split("-").map(Number);
-  return new Date(y, mo - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-};
 const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(/,/g, "")));
 const str = (v: number | null | undefined) => (v == null ? "" : String(+v.toFixed(2)));
-const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
-const dl = (v: number) => {
-  const r = Math.round(v);
-  return r === 0 ? "0" : r > 0 ? `+${r}` : String(r);
-};
-
-// Total ของหน่วยงาน (คอลัมน์ TOTAL ของ Condition M/C) ด้วยสูตรเดียวกับหน้า Capacity
-function deptTotals(m: WlMonth, shifts: PpShift[], settings: Record<string, number>): Record<string, Tot> {
-  const out: Record<string, Tot> = {};
-  for (const [dept, machines] of Object.entries(m.depts)) {
-    const d = { dept, month: m.month, days: m.days, workdays: m.workdays, workdaySource: m.workdaySource, shifts, settings, machines };
-    const calcs = new Map<number, Calc>(machines.map((x) => [x.id, calcMachine(x, d)]));
-    const t = conditionCols(d, calcs).find((c) => c.kind === "total")?.c;
-    out[dept] = { p1: t?.P1 ?? 0, p9: t?.P9 ?? 0, a1: t?.A1 ?? 0 };
-  }
-  return out;
-}
 
 export default function Workload() {
   const router = useRouter();
@@ -77,43 +28,11 @@ export default function Workload() {
   const dlg = useDialogs();
   const reduce = useReducedMotion();
   const [month, setMonth] = useState(() => params.get("month") || thisMonth());
-  const [res, setRes] = useState<Res | null>(null);
-  const [err, setErr] = useState("");
   const [draft, setDraft] = useState<Draft>({});
   const [saving, setSaving] = useState(false);
   const dirty = Object.keys(draft).length;
-  const dirtyRef = useRef(0);
-  const seq = useRef(0);
-  const last = useRef("");
-  useEffect(() => {
-    dirtyRef.current = dirty;
-  }, [dirty]);
+  const { res, err, load } = useWorkload(month, dirty > 0);
 
-  const load = useCallback(
-    async (quiet = false) => {
-      const my = ++seq.current;
-      try {
-        const r = await api<Res>("/pp/workload", { query: { month } });
-        if (my !== seq.current) return;
-        const sig = JSON.stringify(r);
-        if (quiet && sig === last.current) return; // เรียลไทม์แต่ข้อมูลเดิม = ไม่วาดใหม่
-        last.current = sig;
-        setRes(r);
-        setErr("");
-      } catch (e) {
-        if (my !== seq.current) return;
-        setErr((e as Error).message);
-        if (!quiet) toast.show("ERROR", "โหลด Workload ไม่สำเร็จ\n" + (e as Error).message, "error");
-      }
-    },
-    [month, toast],
-  );
-  useEffect(() => {
-    const t = setTimeout(() => load(), 0);
-    return () => clearTimeout(t);
-  }, [load]);
-  // ⚡ Capacity / Actual / STD ("pp") · Forecast / Order ("forecast") · วันทำงานบริษัท ("maxmin") เปลี่ยน = โหลดเงียบ ๆ (กำลังแก้อยู่ = ไม่ทับ)
-  useLive(["pp", "forecast", "maxmin"], () => (dirtyRef.current ? undefined : load(true)), 60_000);
   // ออกจากหน้าโดยยังไม่ SAVE = เตือน
   useEffect(() => {
     if (!dirty) return;
@@ -137,16 +56,12 @@ export default function Workload() {
   const curM = ms[1]?.month ?? "";
 
   const totals = useMemo(() => (data ? data.months.map((m) => deptTotals(m, data.shifts, data.settings)) : []), [data]);
-  const saved = useMemo(() => {
-    const map = new Map<string, Head>();
-    for (const h of data?.heads ?? []) map.set(`${h.month}|${h.row}`, h);
-    return map;
-  }, [data]);
+  const saved = useMemo(() => savedHeads(data?.heads ?? []), [data]);
   // ค่าที่แสดง = ที่กำลังพิมพ์ (ถ้ามี) > ที่บันทึกไว้
   const headOf = useCallback(
     (m: string, row: string) => {
       const h = saved.get(`${m}|${row}`);
-      const v = (f: Field) => {
+      const v = (f: WlField) => {
         const k = `${m}|${row}|${f}`;
         return k in draft ? (num(draft[k]) ?? 0) : (h?.[f] ?? 0);
       };
@@ -154,51 +69,10 @@ export default function Workload() {
     },
     [saved, draft],
   );
+  const table = useMemo(() => (data ? buildTable(data, totals, headOf) : null), [data, totals, headOf]);
+  const upd = useMemo(() => updOf(data?.heads ?? [], curM), [data, curM]);
 
-  // ตารางทั้งหมด (ต่อแถว) : N-1 Plan · N-1 Actual · Current · N…N+3 Plan
-  const table = useMemo(() => {
-    if (!data || ms.length < 5) return null;
-    const rows = ROWS.map((r) => {
-      const prev = headOf(prevM, r.key);
-      const cur = headOf(curM, r.key);
-      const plan = (i: number, ind: { ind1: number; ind2: number }, have: number) => {
-        const t = r.dept ? totals[i][r.dept] : undefined;
-        const pdt = t?.p1 ?? 0;
-        const direct = r.direct === false ? 0 : (t?.p9 ?? 0);
-        const total = direct + ind.ind1 + ind.ind2;
-        return { pdt, direct, ind1: ind.ind1, ind2: ind.ind2, total, diff: have - direct };
-      };
-      return {
-        r,
-        prevPlan: plan(0, prev, prev.direct),
-        prevAct: { prod: r.dept ? (totals[0][r.dept]?.a1 ?? 0) : 0, ...prev, total: prev.direct + prev.ind1 + prev.ind2 },
-        cur: { ...cur, total: cur.direct + cur.ind1 + cur.ind2 },
-        plans: [1, 2, 3, 4].map((i) => plan(i, cur, cur.direct)),
-      };
-    });
-    const S = <T,>(f: (x: (typeof rows)[number]) => T & number) => sum(rows.map(f));
-    const tot = {
-      prevPlan: { pdt: S((x) => x.prevPlan.pdt), direct: S((x) => x.prevPlan.direct), ind1: S((x) => x.prevPlan.ind1), ind2: S((x) => x.prevPlan.ind2), total: S((x) => x.prevPlan.total), diff: S((x) => x.prevPlan.diff) },
-      prevAct: { prod: S((x) => x.prevAct.prod), direct: S((x) => x.prevAct.direct), ind1: S((x) => x.prevAct.ind1), ind2: S((x) => x.prevAct.ind2), total: S((x) => x.prevAct.total) },
-      cur: { direct: S((x) => x.cur.direct), ind1: S((x) => x.cur.ind1), ind2: S((x) => x.cur.ind2), total: S((x) => x.cur.total) },
-      plans: [0, 1, 2, 3].map((i) => ({
-        pdt: S((x) => x.plans[i].pdt),
-        direct: S((x) => x.plans[i].direct),
-        ind1: S((x) => x.plans[i].ind1),
-        ind2: S((x) => x.plans[i].ind2),
-        total: S((x) => x.plans[i].total),
-        diff: S((x) => x.plans[i].diff),
-      })),
-    };
-    return { rows, tot };
-  }, [data, ms.length, totals, headOf, prevM, curM]);
-
-  const upd = useMemo(() => {
-    const t = (data?.heads ?? []).filter((h) => h.month === curM).map((h) => h.updatedAt).sort().pop();
-    return t ? new Date(t).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "–";
-  }, [data, curM]);
-
-  const setCell = (m: string, row: string, f: Field, v: string) => {
+  const setCell = (m: string, row: string, f: WlField, v: string) => {
     const k = `${m}|${row}|${f}`;
     const orig = str(saved.get(`${m}|${row}`)?.[f]);
     setDraft((d) => {
@@ -208,7 +82,7 @@ export default function Workload() {
       return n;
     });
   };
-  const cellVal = (m: string, row: string, f: Field) => {
+  const cellVal = (m: string, row: string, f: WlField) => {
     const k = `${m}|${row}|${f}`;
     return k in draft ? draft[k] : str(saved.get(`${m}|${row}`)?.[f]);
   };
@@ -231,7 +105,7 @@ export default function Workload() {
       const msgs: string[] = [];
       for (const [m, rows] of byMonth) {
         const cells = [...rows].map((row) => {
-          const g = (f: Field) => {
+          const g = (f: WlField) => {
             const k = `${m}|${row}|${f}`;
             return k in draft ? num(draft[k]) : (saved.get(`${m}|${row}`)?.[f] ?? null);
           };
@@ -273,7 +147,7 @@ export default function Workload() {
   const N = table.tot.plans[0];
   const C = table.tot.cur;
   const gap = C.direct - N.direct;
-  const edit = (m: string, row: string, f: Field, label: string) =>
+  const edit = (m: string, row: string, f: WlField, label: string) =>
     canEdit ? (
       <input
         className={`pp-in wl-in ${`${m}|${row}|${f}` in draft ? "is-dirty" : ""}`}
@@ -293,7 +167,7 @@ export default function Workload() {
         data-col={`${m}-${f}`}
       />
     ) : (
-      f1(headOf(m, row)[f])
+      f0(headOf(m, row)[f])
     );
 
   return (
@@ -314,7 +188,7 @@ export default function Workload() {
           icon={<PpIcon k="eff" />}
           label="DIRECT • CURRENT − PLAN"
           value={gap}
-          fmt={dl}
+          fmt={signed}
           unit=" คน"
           sub={Math.round(gap) >= 0 ? "คน Direct พอตามแผนเดือนนี้" : `คน Direct ขาด ${Math.abs(Math.round(gap))} คน ตามแผนเดือนนี้`}
         />
@@ -328,46 +202,51 @@ export default function Workload() {
           bodyClass="p-0"
         >
           <div className="pp-scroll wl-scroll">
-            <table className="pp-matrix wl-table">
+            <table className="wl-table">
               <thead>
                 <tr className="wl-h1">
-                  <th className="pp-stick wl-year" rowSpan={3} colSpan={2}>
+                  <th className="wl-stick wl-year" rowSpan={3} colSpan={2}>
+                    <span>YEAR</span>
                     {curM.slice(0, 4)}
                   </th>
-                  <th colSpan={11} className="wl-mon">
-                    {EN(prevM)} <span>(N-1)</span>
+                  <th colSpan={11} className="wl-mon is-prev">
+                    {EN(prevM)} <span>N-1</span>
                   </th>
                   <th rowSpan={2} colSpan={4} className="wl-mon is-cur">
                     Current ({EN(curM).slice(0, 3)})<span>Update {upd}</span>
                   </th>
                   {ms.slice(1).map((m, i) => (
-                    <th key={m.month} colSpan={6} className="wl-mon">
-                      {EN(m.month)} <span>(N{i ? `+${i}` : ""})</span>
+                    <th key={m.month} colSpan={6} className={`wl-mon ${i === 0 ? "is-n" : ""}`}>
+                      {EN(m.month)} <span>N{i ? `+${i}` : ""}</span>
                     </th>
                   ))}
                 </tr>
                 <tr className="wl-h2">
-                  <th colSpan={4}>Plan</th>
+                  <th colSpan={4} className="wl-blk">
+                    Plan
+                  </th>
                   <th className="is-day">{ms[0].workdays.length} Day</th>
                   <th>Actual</th>
-                  <th colSpan={5}>Actual</th>
+                  <th colSpan={5} className="wl-blk">
+                    Actual
+                  </th>
                   {ms.slice(1).map((m) => (
                     <FragmentHead key={m.month} days={m.workdays.length} />
                   ))}
                 </tr>
                 <tr className="wl-h3">
-                  <th>PDT</th>
+                  <th className="wl-blk">PDT</th>
                   <th>Direct</th>
                   <th>Ind1</th>
                   <th>Ind2</th>
                   <th className="is-day">Total</th>
                   <th>Total</th>
-                  <th>Production</th>
+                  <th className="wl-blk">Production</th>
                   <th>Direct</th>
                   <th>Ind1</th>
                   <th>Ind2</th>
                   <th className="is-cur">Total</th>
-                  <th>Direct</th>
+                  <th className="wl-blk">Direct</th>
                   <th>Ind1</th>
                   <th>Ind2</th>
                   <th className="is-cur">Total</th>
@@ -378,29 +257,29 @@ export default function Workload() {
               </thead>
               <tbody>
                 {table.rows.map((x, i) => {
-                  const g = GROUPS.find((g) => g.grp === x.r.grp)!;
+                  const g = WL_GROUPS.find((g) => g.grp === x.r.grp)!;
                   const first = i === 0 || table.rows[i - 1].r.grp !== x.r.grp;
                   return (
                     <tr key={x.r.key} className={`wl-row ${first ? "is-first" : ""}`} style={{ "--i": Math.min(i, 12) } as React.CSSProperties}>
                       {first && (
-                        <td rowSpan={g.n} className="pp-stick wl-grp">
+                        <td rowSpan={g.n} className="wl-stick wl-grp">
                           {x.r.grp}
                         </td>
                       )}
-                      <td className="wl-name">
-                        {x.r.name}
+                      <td className="wl-stick wl-name">
+                        <span>{x.r.name}</span>
                         {x.r.dept && <i title="ดึง PDT / Direct จาก Capacity">CAP</i>}
                       </td>
                       <PlanCells p={x.prevPlan} />
-                      <td>{f0(x.prevAct.prod)}</td>
-                      {FIELDS.map((f) => (
+                      <td className="wl-blk">{f0(x.prevAct.prod)}</td>
+                      {WL_FIELDS.map((f) => (
                         <td key={f} className="wl-edit">
                           {edit(prevM, x.r.key, f, `${x.r.name} ${f} ${EN(prevM)}`)}
                         </td>
                       ))}
                       <td className="is-cur">{f0(x.prevAct.total)}</td>
-                      {FIELDS.map((f) => (
-                        <td key={f} className="wl-edit">
+                      {WL_FIELDS.map((f, j) => (
+                        <td key={f} className={`wl-edit ${j === 0 ? "wl-blk" : ""}`}>
                           {edit(curM, x.r.key, f, `${x.r.name} ${f} current`)}
                         </td>
                       ))}
@@ -414,16 +293,16 @@ export default function Workload() {
               </tbody>
               <tfoot>
                 <tr className="wl-tot">
-                  <td className="pp-stick" colSpan={2}>
-                    Total
+                  <td className="wl-stick wl-totlab" colSpan={2}>
+                    TOTAL
                   </td>
                   <PlanCells p={table.tot.prevPlan} total />
-                  <td>{f0(table.tot.prevAct.prod)}</td>
+                  <td className="wl-blk">{f0(table.tot.prevAct.prod)}</td>
                   <td>{f0(table.tot.prevAct.direct)}</td>
                   <td>{f0(table.tot.prevAct.ind1)}</td>
                   <td>{f0(table.tot.prevAct.ind2)}</td>
                   <td className="is-sum">{f1(table.tot.prevAct.total)}</td>
-                  <td>{f0(C.direct)}</td>
+                  <td className="wl-blk">{f0(C.direct)}</td>
                   <td>{f0(C.ind1)}</td>
                   <td>{f0(C.ind2)}</td>
                   <td className="is-sum">{f1(C.total)}</td>
@@ -472,7 +351,9 @@ export default function Workload() {
 function FragmentHead({ days }: { days: number }) {
   return (
     <>
-      <th colSpan={4}>Plan</th>
+      <th colSpan={4} className="wl-blk">
+        Plan
+      </th>
       <th className="is-day">{days} Day</th>
       <th>Actual</th>
     </>
@@ -481,7 +362,7 @@ function FragmentHead({ days }: { days: number }) {
 function SubHead() {
   return (
     <>
-      <th>PDT</th>
+      <th className="wl-blk">PDT</th>
       <th>Direct</th>
       <th>Ind1</th>
       <th>Ind2</th>
@@ -490,16 +371,16 @@ function SubHead() {
     </>
   );
 }
-function PlanCells({ p, total }: { p: { pdt: number; direct: number; ind1: number; ind2: number; total: number; diff: number }; total?: boolean }) {
+function PlanCells({ p, total }: { p: WlPlan; total?: boolean }) {
   const d = Math.round(p.diff);
   return (
     <>
-      <td className="wl-sep">{f0(p.pdt)}</td>
+      <td className="wl-blk">{f0(p.pdt)}</td>
       <td>{f1(p.direct)}</td>
       <td>{total ? f0(p.ind1) : f1(p.ind1)}</td>
       <td>{total ? f0(p.ind2) : f1(p.ind2)}</td>
       <td className={total ? "is-sum" : "is-day"}>{f1(p.total)}</td>
-      <td className={total ? "" : d > 0 ? "wl-pos" : d < 0 ? "wl-neg" : ""}>{total ? "" : d}</td>
+      <td className={total ? "" : d > 0 ? "wl-pos" : d < 0 ? "wl-neg" : "wl-zero"}>{total ? "" : signed(d)}</td>
     </>
   );
 }

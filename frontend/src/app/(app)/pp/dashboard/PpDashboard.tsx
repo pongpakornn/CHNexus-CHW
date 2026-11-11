@@ -7,7 +7,8 @@ import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { EASE, panelIn, fadeOnly } from "@/lib/motion";
 import { DOW, deptOf, dowOf, f0, f1, monthLabel, pc, thisMonth, type Calc } from "@/lib/pp";
 import { PpChart, type Series } from "../PpChart";
-import { ConditionMatrix, DeptPicker, EffPill, Kpi, MonthPicker, PpIcon, usePpMonth } from "../shared";
+import { ConditionMatrix, DeptPicker, EffPill, Kpi, MonthPicker, PpIcon, usePpMonth, type DeptTab } from "../shared";
+import { WorkloadDash } from "./WorkloadDash";
 import { Seg } from "../Seg";
 import "../pp.css";
 
@@ -16,19 +17,28 @@ import "../pp.css";
 //   %EFF รายเครื่องเทียบเป้า · ตาราง Condition M/C ทุกเครื่อง + รวมกลุ่ม + TOTAL (เหมือนชีท Press 1 table) · อัพเดทเองเมื่อหน้างานบันทึก Actual
 const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", target: "#d97706" };
 
+// แท็บ WORKLOAD ต่อจาก QC (สรุปอัตรากำลังคน · ข้อมูลเดียวกับ CAPACITY › WORKLOAD)
+const WL_TAB: DeptTab = { code: "WORKLOAD", name: "WORKLOAD", th: "อัตรากำลังคน (Man-power)" };
+
 export default function PpDashboard() {
   const router = useRouter();
   const params = useSearchParams();
-  const reduce = useReducedMotion();
   const [month, setMonth] = useState(thisMonth);
-  const [dept, setDeptState] = useState(() => deptOf(params.get("dept")).code as string);
-  const D = deptOf(dept);
+  const [dept, setDeptState] = useState(() => (params.get("dept")?.toUpperCase() === WL_TAB.code ? WL_TAB.code : (deptOf(params.get("dept")).code as string)));
   const setDept = (c: string) => {
     setDeptState(c);
     const p = new URLSearchParams(params.toString());
     p.set("dept", c);
     router.replace(`?${p.toString()}`, { scroll: false });
   };
+  const picker = <DeptPicker value={dept} onChange={setDept} extra={[WL_TAB]} />;
+  return dept === WL_TAB.code ? <WorkloadDash month={month} setMonth={setMonth} picker={picker} /> : <DeptDash dept={dept} month={month} setMonth={setMonth} picker={picker} />;
+}
+
+function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: string; setMonth: (m: string) => void; picker: React.ReactNode }) {
+  const router = useRouter();
+  const reduce = useReducedMotion();
+  const D = deptOf(dept);
   const { data, calcs } = usePpMonth(dept, month);
   const [view, setView] = useState<"machine" | "daily">("machine");
   const [metric, setMetric] = useState<"stroke" | "hr">("stroke");
@@ -118,7 +128,7 @@ export default function PpDashboard() {
     return (
       <PageBody className="pp-page">
         <PageHeader icon="/icons/Dashboard.png" title="PRODUCTION PLAN • DASHBOARD" subtitle={`${D.name} · CAPACITY PLANNING`} actions={<MonthPicker value={month} onChange={setMonth} />} />
-        <DeptPicker value={dept} onChange={setDept} />
+        {picker}
         <Loading />
       </PageBody>
     );
@@ -134,7 +144,7 @@ export default function PpDashboard() {
         subtitle={`${D.name} (${D.th}) · CAPACITY PLANNING · ${monthLabel(month).toUpperCase()} · ${list.length} M/C`}
         actions={<MonthPicker value={month} onChange={setMonth} />}
       />
-      <DeptPicker value={dept} onChange={setDept} />
+      {picker}
       {data.workdaySource === "DEFAULT" && (
         <div className="pp-note">
           ⚠ ยังไม่ได้ตั้ง <b>Company Workdays</b> ของเดือนนี้ · ใช้ จันทร์–เสาร์ ({data.workdays.length} วัน) ไปก่อน · ตั้งได้ที่ MASTER DATA › Company Workdays

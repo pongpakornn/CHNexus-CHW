@@ -1,6 +1,7 @@
 using System.Globalization;
 using CHR.Nexus.Api.Web;
 using Nexus.Core;
+using Nexus.Helpers;
 using Nexus.Models;
 using Nexus.Services;
 using Dapper;
@@ -62,6 +63,58 @@ public sealed class ForecastController : AppController
             }),
             top = top.Select(t => new { t.Rank, t.Title, t.Sub, t.Order, t.Forecast, t.Percent, t.ShareOfMonth }).ToList()
         };
+    }
+
+    // ---------------------------------------------------------------- 📊 SUMMARY DIFF (2) / DIFF (3): กราฟเปรียบเทียบ (ลูกค้าทั้งหมด vs ที่ใช้ในระบบ)
+    [HttpGet("summary")]
+    public IActionResult Summary([FromQuery] int? year)
+    {
+        if (Me?.CanViewForecastOrder != true) return Deny();
+        if (!DbSchema.HasForecastSummary) return Ok(new { ready = false });
+        var svc = new ForecastSummaryService();
+        var years = svc.Years();
+        int y = year ?? (years.Count > 0 ? years[0] : DateTime.Today.Year);
+        return Ok(new { ready = true, years, data = svc.Year(y) });
+    }
+
+    [HttpPost("summary/import")]
+    [RequestSizeLimit(40_000_000)]
+    public async Task<IActionResult> SummaryPreview(IFormFile file, [FromForm] int year)
+    {
+        if (Me?.CanImportForecastOrder != true) return Deny();
+        if (!DbSchema.HasForecastSummary) return Fail("ฐานข้อมูลยังไม่มีตาราง Nexus.ForecastSummary (database/nexus/39_Production_Plan_Pcs_Override_Forecast_Summary.sql)");
+        string path;
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try
+        {
+            var p = new ForecastSummaryService().Read(path, year > 2000 ? year : DateTime.Today.Year);
+            TryDelete(path);
+            string Tot(string k) => $"Forecast {p.Cells.Where(c => c.Key == k).Sum(c => c.F):N0} • Order {p.Cells.Where(c => c.Key == k).Sum(c => c.O):N0} • Delivery {p.Cells.Where(c => c.Key == k).Sum(c => c.D):N0}";
+            int Cust(string k) => p.Cells.Where(c => c.Key == k).Select(c => c.Customer.ToUpperInvariant()).Distinct().Count();
+            string summary = $"ไฟล์: {file.FileName}\nปี {p.Year} (แทนที่ยอดสรุปของปีนี้ทั้งหมด)\n\n" +
+                             $"DIFF (3) • {Cust("DIFF3")} ลูกค้า\n{Tot("DIFF3")}\n\nDIFF (2) • {Cust("DIFF2")} ลูกค้า\n{Tot("DIFF2")}\n\n" +
+                             "ℹ ใช้แสดงกราฟเปรียบเทียบเท่านั้น ไม่เปลี่ยนยอด Forecast / Order ราย PART A (Capacity / Max-Min ไม่เปลี่ยน)\n\nยืนยันการนำเข้าหรือไม่?";
+            return Ok(new { id = _uploads.Put("", file.FileName, Uid, "fcsum", p), summary });
+        }
+        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ FORECAST ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("summary/apply")]
+    public IActionResult SummaryApply([FromBody] string id)
+    {
+        if (Me?.CanImportForecastOrder != true) return Deny();
+        var it = _uploads.Get(id, Uid, "fcsum");
+        if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
+        var p = (ForecastSummaryService.Parsed)it.State;
+        try
+        {
+            int n = new ForecastSummaryService().Save(p, Uid);
+            _uploads.Remove(id);
+            LogService.WriteLog(Uid, "FORECAST_SUMMARY_IMPORT", $"File: {it.FileName} | Year: {p.Year} | Rows: {n} | DIFF (3) Order: {p.Cells.Where(c => c.Key == "DIFF3").Sum(c => c.O):N0} | DIFF (2) Order: {p.Cells.Where(c => c.Key == "DIFF2").Sum(c => c.O):N0}", "");
+            LiveBus.Publish("forecast");
+            return Ok(new { message = $"นำเข้ายอดสรุป DIFF (2) / DIFF (3) ปี {p.Year} แล้ว ({n:N0} รายการ)", year = p.Year });
+        }
+        catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ"); }
     }
 
     [HttpGet("rows")]

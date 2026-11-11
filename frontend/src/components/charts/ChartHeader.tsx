@@ -68,3 +68,31 @@ export function ViewFade({ view, className, children }: { view: ChartView; class
     </AnimatePresence>
   );
 }
+
+// 🔀 สวิตช์เม็ดยาแบบเลือกได้หลายค่า (เหมือน ViewSwitch) เช่น DIFF (3) / DIFF (2) ของกราฟ Forecast
+export function PillSwitch<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { v: T; l: string; title?: string }[]; label: string }) {
+  const id = useId();
+  return (
+    <div className="inline-flex flex-wrap rounded-full border border-[#dbe4f5] bg-[#eef3fd] p-[3px]" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          title={o.title}
+          aria-pressed={value === o.v}
+          onClick={() => onChange(o.v)}
+          className={`relative rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-colors duration-300 active:scale-95 ${value === o.v ? "text-white" : "text-[#4b5b8f] hover:text-[#1f2350]"}`}
+        >
+          {value === o.v && (
+            <motion.span
+              layoutId={`ps-${id}`}
+              className="absolute inset-0 rounded-full bg-gradient-to-b from-[#3b82f6] to-[#2563eb] shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]"
+              transition={springSoft}
+            />
+          )}
+          <span className="relative">{o.l}</span>
+        </button>
+      ))}
+    </div>
+  );
+}

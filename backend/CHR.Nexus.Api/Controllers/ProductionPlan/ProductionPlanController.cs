@@ -29,8 +29,22 @@ public sealed class ProductionPlanController : AppController
         Guard(Me?.CanViewPpDashboard == true || Me?.CanViewPpCapacity == true) ?? Run(() => Ok(new
         {
             data = _svc.Month(ProductionPlanService.Dept(dept), Mon(month)),
-            can = new { actual = Me.CanEditPpCapacity, setup = Me.CanViewPpSetup }
+            can = new { actual = Me.CanEditPpCapacity, setup = Me.CanViewPpSetup, pcs = Me.CanEditPpSetup && DbSchema.HasPpPcsOverride }
         }), "โหลด Production Plan ไม่สำเร็จ");
+
+    // ✏ PCS ของแถว Product เฉพาะเดือน (แทน Order / Forecast · ว่าง = กลับไปใช้ยอดอัตโนมัติ) · สิทธิ์แก้ Production Plan STD
+    public sealed record PcsReq(string Month, int ItemId, decimal? Pcs);
+
+    [HttpPost("pcs")]
+    public IActionResult SetPcs([FromBody] PcsReq r) => Guard(Me?.CanEditPpSetup == true) ?? (!DbSchema.HasPpPcsOverride ? Fail("ฐานข้อมูลยังไม่มีตาราง PCS (database/nexus/39_Production_Plan_Pcs_Override_Forecast_Summary.sql)") : null) ?? Run(() =>
+    {
+        if (r == null || r.ItemId <= 0) return Fail("ข้อมูลไม่ถูกต้อง");
+        var m = Mon(r.Month);
+        string label = _svc.SetPcs(m, r.ItemId, r.Pcs, Uid);
+        LogService.WriteLog(Uid, "PP_PCS_SET", $"{m:MM/yyyy} | {label} | PCS {(r.Pcs == null ? "AUTO (Order / Forecast)" : r.Pcs.Value.ToString("#,##0.##"))}", $"PP-PCS-{r.ItemId}");
+        Changed();
+        return Ok(new { message = r.Pcs == null ? $"{label}\nกลับไปใช้ยอด Order / Forecast แล้ว" : $"{label}\nตั้ง PCS {m:MMM yyyy} = {r.Pcs:#,##0.##} แล้ว" });
+    }, "บันทึก PCS ไม่สำเร็จ");
 
     public sealed record ActualReq(int MachineId, string Month, List<ProductionPlanService.ActualCell> Cells);
 
