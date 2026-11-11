@@ -143,7 +143,9 @@ export default function Layout3DPage() {
     const bySlot = new Map<string, ApiCoil[]>();
     const byZone = new Map<string, ApiCoil[]>();
     const outside: ApiCoil[] = [];
+    const kg: Record<number, number> = {};
     for (const c of data?.coils ?? []) {
+      kg[c.coilId] = c.weightKg;
       const p = locate(c.typeName, c.locName, c.layout);
       if (!p) outside.push(c);
       else if ("slotId" in p) push(bySlot, p.slotId, c);
@@ -155,7 +157,7 @@ export default function Layout3DPage() {
       const p = locate(l.typeName, l.locName);
       if (p) known.add("slotId" in p ? p.slotId : p.zoneId);
     }
-    return { bySlot, byZone, outside, known };
+    return { bySlot, byZone, outside, known, kg };
   }, [data]);
 
   const countOf = useCallback(
@@ -209,7 +211,7 @@ export default function Layout3DPage() {
   }, []);
 
   useEffect(() => {
-    const d: EngineData = { slots: {}, floors: {}, labels: {} };
+    const d: EngineData = { slots: {}, floors: {}, labels: {}, kg: model.kg };
     for (const [id, list] of model.bySlot) d.slots[id] = list[0].coilId;
     for (const [id, list] of model.byZone) d.floors[id] = list.map((c) => c.coilId);
     for (const z of STOCK_ZONES) d.labels[z.id] = countOf(z);

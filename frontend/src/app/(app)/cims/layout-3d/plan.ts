@@ -2,6 +2,8 @@
 //   แก้ผัง = แก้ที่ไฟล์นี้ไฟล์เดียว: ย้าย / ขยายโซน = px · เพิ่ม Rack = racks · ชื่อโซนพื้นใน LAYOUT SETUP = match
 //   โครง Rack 3 แถว (ตามที่หน้างานยืนยัน): แถวหลังวางพื้น · แถวกลางยกเป็นชั้น 2 (ใต้ชั้น 2 เว้นว่าง ไม่มีตำแหน่ง) · แถวหน้าวางพื้น
 //   1 ตำแหน่ง Rack = 1 ม้วน · โซนพื้น (Incoming Area / พื้นที่วาง RACK) = ทั้งโซนนับเป็น 1 ตำแหน่ง
+//   ทิศของม้วน: บน Rack แกนม้วนขนานแนวยาว Rack (หน้าม้วนหันไปทางหัว-ท้าย Rack ตามรูปหน้างาน) · โซนพื้น หน้าม้วนหันออกทางถนน
+//   โซนพื้นไม่มีคาน Rack ใช้ไม้หมอน + ไม้คั่น: พื้นที่วาง RACK = 2 แถวติดกัน · Incoming = 2 แถวคู่กัน เว้นว่าง แล้วแถวที่ 3 ข้างเครื่องตัดเหล็ก
 
 export const PLAN_W = 1016;
 export const PLAN_H = 484;
@@ -11,9 +13,13 @@ const Z = (py: number) => (py - 250) * S;
 
 export const LVH = 1.75; // ความสูง 1 ชั้น
 export const SD = 1.35; // ความลึกของ 1 แถว
-export const RO = 0.68; // รัศมีนอกของ Coil
+export const RO = 0.62; // รัศมีนอกของ Coil (ม้วนใหญ่สุด)
 export const RI = 0.27; // รัศมีรู
 export const CW = 1.0; // ความกว้างม้วน
+export const SADDLE = 0.36; // Rack: ครึ่งระยะห่างของรางรองม้วน 2 เส้น (ม้วนนั่งคร่อมราง)
+export const RAIL_TOP = 0.15; // Rack: ความสูงหลังรางรองม้วนจากพื้นของชั้น
+export const SKID = 0.12; // โซนพื้น: ความสูงไม้หมอนรองม้วน
+export const FLOOR_PITCH = 1.75; // โซนพื้น: ระยะห่างม้วนในแถวเดียวกัน
 
 export type ZoneKind = "rack" | "floor" | "scenery";
 export type RackRow = { lv: string; y: number; dz: number; out: 1 | -1; name: string };
@@ -37,18 +43,19 @@ export type Zone = {
   racks: Rack[];
   slots: Slot[];
   cols: number; // โซนพื้น: จำนวนม้วนต่อแถวที่วาดได้
+  rowZ: number[]; // โซนพื้น: ตำแหน่งของแต่ละแถว (ระยะจากกึ่งกลางโซน · ลบ = ฝั่งถนน)
   cap: number; // โซนพื้น: จำนวนม้วนสูงสุดที่วาด (เกินนี้แสดงเป็นตัวเลข)
   match: string[]; // โซนพื้น: คำในชื่อประเภท / ตำแหน่งของ LAYOUT SETUP ที่ถือว่าเป็นโซนนี้ (ตัวพิมพ์ใหญ่ ไม่มีเว้นวรรค / ขีด)
 };
 
 type RackDef = { x: [number, number]; z: number; levels: string[]; bays: string };
-type ZoneDef = Pick<Zone, "id" | "name" | "short" | "kind" | "color" | "px"> & { no?: number; tag3d?: string; labelY?: number; racks?: RackDef[]; match?: string[] };
+type ZoneDef = Pick<Zone, "id" | "name" | "short" | "kind" | "color" | "px"> & { no?: number; tag3d?: string; labelY?: number; racks?: RackDef[]; match?: string[]; floorRows?: number[] };
 
 const DEFS: ZoneDef[] = [
-  { id: "RACKAREA", no: 20, name: "พื้นที่วาง RACK", short: "20", kind: "floor", color: 0xb7cf86, px: [25, 60, 225, 145], match: ["RACKAREA", "AREARACK"] },
-  { id: "INCOMING", no: 18, name: "Incoming Area", short: "18", kind: "floor", color: 0xc3d8ee, px: [18, 155, 220, 270], match: ["INCOMING"] },
+  { id: "RACKAREA", no: 20, name: "พื้นที่วาง RACK", short: "20", kind: "floor", color: 0xb7cf86, px: [25, 60, 225, 145], match: ["RACKAREA", "AREARACK"], floorRows: [-0.7, 0.7] },
+  { id: "INCOMING", no: 18, name: "Incoming Area", short: "18", kind: "floor", color: 0xc3d8ee, px: [18, 155, 220, 270], match: ["INCOMING"], floorRows: [-1.95, -0.55, 1.95] },
   { id: "CUT", no: 17, name: "เครื่องตัดเหล็ก", short: "17", kind: "scenery", color: 0x55b8d4, px: [20, 285, 190, 405], labelY: 3.3 },
-  { id: "TABLE", no: 16, name: "โต๊ะวางงาน", short: "16", kind: "scenery", color: 0x7ccbe0, px: [92, 415, 187, 468], labelY: 1.5 },
+  { id: "TABLE", no: 16, name: "โต๊ะวางงาน", short: "16", kind: "scenery", color: 0x7ccbe0, px: [92, 415, 187, 468], labelY: 1.9 },
   {
     id: "STORE", no: 21, name: "STORE MATERIAL", short: "21", kind: "rack", color: 0xf0a23c, px: [310, 62, 780, 162],
     racks: [
@@ -70,7 +77,7 @@ function build() {
     const z: Zone = {
       id: def.id, no: def.no, name: def.name, tag3d: def.tag3d, short: def.short, kind: def.kind, color: def.color, px: def.px,
       cx: X((def.px[0] + def.px[2]) / 2), cz: Z((def.px[1] + def.px[3]) / 2), w: (def.px[2] - def.px[0]) * S, d: (def.px[3] - def.px[1]) * S,
-      height: 2, labelY: def.labelY ?? 2.2, racks: [], slots: [], cols: 1, cap: 0, match: def.match ?? [],
+      height: 2, labelY: def.labelY ?? 2.2, racks: [], slots: [], cols: 1, rowZ: def.floorRows ?? [0], cap: 0, match: def.match ?? [],
     };
     if (z.kind === "rack") {
       let top = 0;
@@ -102,8 +109,8 @@ function build() {
       }
       z.height = top + 0.3;
     } else if (z.kind === "floor") {
-      z.cols = Math.max(1, Math.floor((z.w - 1) / 1.75));
-      z.cap = z.cols * Math.max(1, Math.floor((z.d - 0.8) / 1.5));
+      z.cols = Math.max(1, Math.floor((z.w - 1) / FLOOR_PITCH));
+      z.cap = z.cols * z.rowZ.length;
     }
     zones.push(z);
   }
@@ -116,12 +123,11 @@ export const SLOTS = built.slots;
 export const ZONE_BY_ID = new Map(ZONES.map((z) => [z.id, z]));
 export const SLOT_BY_ID = new Map(SLOTS.map((s) => [s.id, s]));
 
-// ตำแหน่งม้วนที่ i ของโซนพื้น (เรียงซ้ายไปขวา หลังมาหน้า)
+// ตำแหน่งม้วนที่ i ของโซนพื้น (เรียงซ้ายไปขวา แถวฝั่งถนนก่อน) -> [x, ความสูงหลังไม้หมอน, z]
 export function floorPos(z: Zone, i: number): [number, number, number] {
-  const rows = Math.max(1, z.cap / z.cols);
   const c = i % z.cols;
-  const r = Math.floor(i / z.cols) % rows;
-  return [z.cx - ((z.cols - 1) / 2) * 1.75 + c * 1.75, 0.07 + RO, z.cz - ((rows - 1) / 2) * 1.5 + r * 1.5];
+  const r = Math.floor(i / z.cols) % z.rowZ.length;
+  return [z.cx - ((z.cols - 1) / 2) * FLOOR_PITCH + c * FLOOR_PITCH, SKID, z.cz + z.rowZ[r]];
 }
 
 const norm = (s: string | null | undefined) => (s ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");

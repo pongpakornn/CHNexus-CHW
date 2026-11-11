@@ -3,7 +3,7 @@
 //   วาดเฉพาะตอนมีการขยับ (กล้อง / แอนิเมชันสแกนเข้า-ออก) ภาพนิ่ง = หยุดวาด · เครื่องช้า = ลดความละเอียดเอง
 //   สีใช้ค่าตรง ๆ (ปิด ColorManagement) ให้ได้โทนการ์ตูนตามที่อนุมัติใน Preview
 import * as THREE from "three";
-import { CW, LVH, RI, RO, SD, SLOTS, SLOT_BY_ID, ZONES, ZONE_BY_ID, floorPos, type Slot, type Zone } from "./plan";
+import { CW, FLOOR_PITCH, LVH, RAIL_TOP, RI, RO, SADDLE, SD, SKID, SLOTS, SLOT_BY_ID, ZONES, ZONE_BY_ID, floorPos, type Slot, type Zone } from "./plan";
 
 export type Sel = { kind: "slot"; slotId: string } | { kind: "floor"; zoneId: string; coilId: number } | null;
 export type Hit = { kind: "slot"; slotId: string; zoneId: string } | { kind: "floor"; zoneId: string; coilId: number } | { kind: "zone"; zoneId: string };
@@ -11,6 +11,7 @@ export type EngineData = {
   slots: Record<string, number>; // รหัสช่อง -> CoilID ที่แสดง (ไม่มี = ว่าง)
   floors: Record<string, number[]>; // โซนพื้น -> CoilID เรียงตามลำดับที่วาง
   labels: Record<string, string>; // โซน -> ข้อความจำนวนบนป้าย (เช่น 17/24)
+  kg: Record<number, number>; // CoilID -> น้ำหนัก (ม้วนหนัก = วาดเส้นผ่านศูนย์กลางใหญ่ขึ้น)
 };
 export type Handlers = {
   onPick: (hit: Hit) => void;
@@ -27,16 +28,23 @@ export type Engine = {
 };
 
 type BoxItem = [number, number, number, number, number, number, number];
-type CoilState = { id: number; t0: number; tone: number };
-type Leaving = { pos: [number, number, number]; zoneId: string; tone: number; t0: number };
+type Look = { tone: number; sr: number; sw: number }; // โทนสี / สัดส่วนเส้นผ่านศูนย์กลาง / สัดส่วนความกว้าง
+type CoilState = Look & { id: number; t0: number };
+type Leaving = Look & { x: number; base: number; z: number; onRack: boolean; zoneId: string; t0: number };
 type FloorPick = { zoneId: string; coilId: number; box: THREE.Box3 };
 
 const FLOOR = 0x143f86;
 const GREEN = 0x2e9f6b;
 const GREEN_D = 0x237f55;
 const YELLOW = 0xf6b02c;
+const YELLOW_D = 0xd9951f;
+const WOOD = 0xcfa567;
+const WOOD_D = 0xa97f45;
 const FOV = 32;
 const TANV = Math.tan((FOV * Math.PI) / 360);
+const CRANE_Y = 7.0; // ความสูงรางเครน
+const CRANE_Z = 1.5; // ตำแหน่งรอกบนคานสะพาน
+const HOOK_Y = 4.6; // ความสูงตะขอ (สูงกว่ายอด Rack)
 const ACOLS = 8;
 const CELL_W = 128;
 const CELL_H = 64;
@@ -51,8 +59,14 @@ function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const toneOf = (id: number) => 0.9 + ((Math.imul(id, 2654435761) >>> 0) % 100) / 1000;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const hash01 = (id: number, k: number) => ((Math.imul(id ^ k, 2654435761) >>> 0) % 1000) / 1000;
+// หน้าตาของม้วน: เส้นผ่านศูนย์กลางตามน้ำหนักจริง (1.5 - 8 ตัน) · ความกว้างกับโทนสีสุ่มคงที่ต่อม้วน (ระบบไม่มีข้อมูลหน้ากว้าง)
+const lookOf = (id: number, kg: number | undefined): Look => ({
+  tone: 0.9 + hash01(id, 0) * 0.1,
+  sr: kg && kg > 0 ? 0.8 + 0.2 * clamp((kg - 1500) / 6500, 0, 1) : 0.9,
+  sw: 0.78 + hash01(id, 0x9e37) * 0.34,
+});
 const easeOutBack = (p: number) => 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2);
 
 function mergeGeos(list: THREE.BufferGeometry[]) {
@@ -178,35 +192,49 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
       const w = r.x1 - r.x0;
       const xm = (r.x0 + r.x1) / 2;
       const rail = (y: number, dz: number) => items.push([xm, y, r.zc + dz, w + 0.13, 0.13, 0.1, GREEN]);
+      // ด้านบนเป็นเสาตั้งอย่างเดียว ไม่มีคานบน (ตามหน้างาน) · คานมีแค่ระดับพื้น กับคานรับชั้น 2
       if (r.rows.length === 1) {
-        // แถวเดียววางพื้น: เสาเตี้ย + ราวกัน
+        // แถวเดียววางพื้น: เสาเตี้ย
         for (let b = 0; b <= n; b++) for (const sd of [-1, 1]) items.push([r.x0 + b * r.bw, 0.55, r.zc + (sd * SD) / 2, 0.13, 1.1, 0.13, GREEN]);
+        for (const sd of [-1, 1]) rail(0.07, (sd * SD) / 2);
+      } else {
+        // 3 แถวตามผัง: หลัง (พื้น) / กลาง (ชั้น 2 ใต้ชั้นเว้นว่าง) / หน้า (พื้น)
+        const deck = LVH + 0.07;
+        const top = 2 * LVH + 0.2;
+        for (let b = 0; b <= n; b++) {
+          const x = r.x0 + b * r.bw;
+          for (const sd of [-1, 1]) {
+            items.push([x, top / 2, r.zc + (sd * SD) / 2, 0.13, top, 0.13, GREEN]); // เสากลาง: จากพื้นขึ้นไป รับชั้น 2
+            items.push([x, 0.55, r.zc + sd * SD * 1.5, 0.13, 1.1, 0.13, GREEN]); // เสาเตี้ยริมนอกของแถวพื้น
+          }
+          items.push([x, deck, r.zc, 0.11, 0.13, SD + 0.13, GREEN]); // คานขวางรับชั้น 2
+        }
         for (const sd of [-1, 1]) {
           rail(0.07, (sd * SD) / 2);
-          rail(1.03, (sd * SD) / 2);
+          rail(deck, (sd * SD) / 2);
+          rail(0.07, sd * SD * 1.5);
         }
-        continue;
       }
-      // 3 แถวตามผัง: หลัง (พื้น) / กลาง (ชั้น 2 ใต้ชั้นเว้นว่าง) / หน้า (พื้น)
-      const deck = LVH + 0.07;
-      const top = 2 * LVH + 0.2;
-      for (let b = 0; b <= n; b++) {
-        const x = r.x0 + b * r.bw;
-        for (const sd of [-1, 1]) {
-          items.push([x, top / 2, r.zc + (sd * SD) / 2, 0.13, top, 0.13, GREEN]); // เสากลาง: พื้นถึงราวบน รับชั้น 2
-          items.push([x, 0.55, r.zc + sd * SD * 1.5, 0.13, 1.1, 0.13, GREEN]); // เสาเตี้ยริมนอกของแถวพื้น
-        }
-        items.push([x, deck, r.zc, 0.11, 0.13, SD + 0.13, GREEN]); // คานขวางรับชั้น 2
-      }
-      for (const sd of [-1, 1]) {
-        rail(0.07, (sd * SD) / 2);
-        rail(deck, (sd * SD) / 2);
-        rail(top, (sd * SD) / 2);
-        rail(0.07, sd * SD * 1.5);
-        rail(1.03, sd * SD * 1.5);
+      // ม้วนวางแกนขนานแนวยาว Rack: รางรองม้วน 2 เส้นต่อแถว (ม้วนนั่งคร่อมราง) + ไม้คั่นระหว่างช่อง
+      for (const row of r.rows) {
+        for (const sd of [-1, 1]) items.push([xm, row.y + RAIL_TOP - 0.065, r.zc + row.dz + sd * SADDLE, w, 0.13, 0.1, GREEN_D]);
+        for (let b = 1; b < n; b++) items.push([r.x0 + b * r.bw, row.y + RAIL_TOP + 0.08, r.zc + row.dz, 0.14, 0.16, 0.86, WOOD]);
       }
     }
-    for (const s of z.slots) for (const dx of [-0.4, 0.4]) items.push([s.x + dx, s.y0 + 0.1, s.z, 0.1, 0.1, SD - 0.12, GREEN_D]); // ไม้รองม้วน
+    rackMesh.set(z.id, buildBatch(items, litMat));
+  }
+  // โซนพื้น (ไม่มีคาน Rack): ไม้หมอนรองใต้ม้วน 2 เส้นต่อแถว + ไม้คั่นกันกลิ้ง 2 ข้างของแต่ละตำแหน่ง
+  for (const z of ZONES) {
+    if (z.kind !== "floor") continue;
+    const items: BoxItem[] = [];
+    const span = (z.cols - 1) * FLOOR_PITCH + 1.7;
+    z.rowZ.forEach((rz, r) => {
+      for (const sd of [-1, 1]) items.push([z.cx, SKID / 2, z.cz + rz + sd * 0.3, span, SKID, 0.14, WOOD_D]);
+      for (let c = 0; c < z.cols; c++) {
+        const [x, base, zz] = floorPos(z, r * z.cols + c);
+        for (const sd of [-1, 1]) items.push([x + sd * 0.52, base + 0.08, zz, 0.16, 0.16, 0.8, WOOD]);
+      }
+    });
     rackMesh.set(z.id, buildBatch(items, litMat));
   }
 
@@ -214,24 +242,65 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   const lit: BoxItem[] = [];
   const pipeItems: BoxItem[] = [];
   {
+    // เครื่องตัดเหล็ก: ไลน์วางแนวนอน (ซ้ายไปขวา) แท่นคลายม้วน -> ตัวเครื่องตัด -> โต๊ะลูกกลิ้งรับแผ่น · หน้าเครื่อง + ตู้ควบคุมหันออกด้านหน้า
     let z = ZONE_BY_ID.get("CUT")!;
-    lit.push([z.cx - 0.4, 0.45, z.cz, 6.2, 0.9, 2.6, 0x2f8fb0], [z.cx - 1.6, 1.55, z.cz, 2.6, 1.3, 2.2, 0x49b5d6], [z.cx - 1.6, 2.4, z.cz, 2.0, 0.4, 1.6, 0x2f8fb0]);
-    lit.push([z.cx + 1.5, 1.0, z.cz, 2.4, 0.2, 2.0, 0xa7b6c8], [z.cx - 3.2, 0.9, z.cz + 2.0, 0.6, 1.8, 0.5, YELLOW], [z.cx + 3.3, 0.25, z.cz - 1.4, 1.6, 0.5, 2.0, 0xb9c4d2]);
+    {
+      const cx = z.cx;
+      const mz = z.cz - 0.4;
+      lit.push([cx - 3.1, 0.2, mz, 1.6, 0.4, 2.0, 0x2f66ad], [cx - 3.1, 0.85, mz - 0.85, 0.6, 1.3, 0.36, 0x3d7fd0], [cx - 3.1, 1.2, mz - 0.25, 0.2, 0.2, 1.5, 0x7a8aa6]); // แท่นคลายม้วน (ตัวม้วนวาดแยกด้านล่าง)
+      lit.push([cx - 1.95, 1.0, mz, 1.1, 0.05, 0.9, 0xc1cbd8]); // แผ่นเหล็กที่ป้อนเข้าเครื่อง
+      lit.push([cx - 0.6, 0.55, mz, 2.6, 1.1, 2.4, 0x2f8fb0], [cx - 0.6, 1.6, mz, 2.2, 1.0, 2.0, 0x49b5d6], [cx - 0.6, 2.22, mz, 1.6, 0.24, 1.4, 0x2f8fb0]); // ตัวเครื่องตัด
+      lit.push([cx - 0.6, 1.17, mz + 1.02, 2.2, 0.14, 0.06, YELLOW], [cx - 0.6, 1.68, mz + 1.01, 1.2, 0.5, 0.05, 0x12305c]); // แถบเตือน + ช่องมอง
+      lit.push([cx + 2.4, 0.85, mz, 3.2, 0.12, 1.5, 0x7a8aa6], [cx + 2.6, 1.03, mz, 2.0, 0.05, 1.1, 0xd6dee9]); // โต๊ะลูกกลิ้ง + แผ่นที่ตัดแล้ว
+      for (const dx of [0.95, 3.85]) for (const dz of [-0.65, 0.65]) lit.push([cx + dx, 0.4, mz + dz, 0.12, 0.8, 0.12, 0x56698f]);
+      for (let i = 0; i < 5; i++) lit.push([cx + 1.1 + i * 0.65, 0.95, mz, 0.12, 0.1, 1.4, 0xc1cbd8]);
+      lit.push([cx + 0.95, 0.7, mz + 1.95, 0.7, 1.4, 0.4, YELLOW], [cx + 0.95, 1.12, mz + 2.16, 0.5, 0.3, 0.03, 0x12305c]); // ตู้ควบคุมด้านหน้า
+    }
 
+    // โต๊ะทำงานออฟฟิศ วางแนวนอน หันออกด้านหน้า: โต๊ะ + ตู้ลิ้นชัก + จอ + เก้าอี้
     z = ZONE_BY_ID.get("TABLE")!;
-    lit.push([z.cx, 0.9, z.cz, 3.6, 0.14, 1.8, 0xd9b382]);
-    for (const [dx, dz] of [[-1.6, -0.75], [1.6, -0.75], [-1.6, 0.75], [1.6, 0.75]]) lit.push([z.cx + dx, 0.42, z.cz + dz, 0.14, 0.84, 0.14, 0x7a8aa6]);
+    {
+      const cx = z.cx;
+      const dz = z.cz - 0.25;
+      lit.push([cx, 0.76, dz, 2.8, 0.08, 1.2, 0xe8dcc6], [cx - 1.05, 0.36, dz, 0.6, 0.72, 1.1, 0x9aa9c4], [cx + 1.35, 0.36, dz, 0.06, 0.72, 1.1, 0x9aa9c4], [cx + 0.15, 0.45, dz - 0.56, 2.3, 0.5, 0.05, 0x9aa9c4]);
+      lit.push([cx - 1.05, 0.52, dz + 0.56, 0.5, 0.03, 0.02, 0x56698f], [cx - 1.05, 0.28, dz + 0.56, 0.5, 0.03, 0.02, 0x56698f]); // มือจับลิ้นชัก
+      lit.push([cx + 0.2, 0.83, dz - 0.3, 0.3, 0.06, 0.2, 0x34415a], [cx + 0.2, 0.95, dz - 0.32, 0.06, 0.2, 0.06, 0x34415a], [cx + 0.2, 1.24, dz - 0.3, 0.9, 0.5, 0.05, 0x1b2b4d], [cx + 0.2, 1.24, dz - 0.27, 0.8, 0.4, 0.02, 0x7fd0f0]); // จอ
+      lit.push([cx + 0.2, 0.815, dz + 0.2, 0.6, 0.03, 0.2, 0x34415a], [cx - 0.75, 0.815, dz + 0.05, 0.4, 0.03, 0.5, 0xffffff]); // คีย์บอร์ด + เอกสาร
+      lit.push([cx + 0.2, 0.05, dz + 1.1, 0.6, 0.06, 0.6, 0x34415a], [cx + 0.2, 0.26, dz + 1.1, 0.08, 0.4, 0.08, 0x34415a], [cx + 0.2, 0.5, dz + 1.1, 0.6, 0.1, 0.6, 0x2f66ad], [cx + 0.2, 0.92, dz + 1.38, 0.6, 0.72, 0.08, 0x2f66ad]); // เก้าอี้
+    }
 
+    // เหล็กแพ็ค: ฐานสี่เหลี่ยมกั้นด้านล่าง (โครง 4 ด้าน) + เหล็กแผ่นวางซ้อนเป็นตั้ง ๆ มีสายรัด
     z = ZONE_BY_ID.get("PACK")!;
     const r2 = mulberry32(19);
     for (let i = 0; i < 3; i++)
       for (let j = 0; j < 3; j++) {
         const px = z.cx + (i - 1) * 1.9;
         const pz = z.cz + (j - 1) * 1.62;
-        const layers = 1 + Math.floor(r2() * 4);
-        lit.push([px, 0.13, pz, 1.6, 0.12, 1.3, 0xc49a5a]);
-        for (let k = 0; k < layers; k++) lit.push([px, 0.31 + k * 0.24, pz, 1.5, 0.22, 1.22, k % 2 ? 0xa3afc0 : 0xc1cbd8]);
+        lit.push([px, 0.09, pz - 0.62, 1.62, 0.18, 0.1, 0x4f6d9a], [px, 0.09, pz + 0.62, 1.62, 0.18, 0.1, 0x4f6d9a], [px - 0.76, 0.09, pz, 0.1, 0.18, 1.34, 0x4f6d9a], [px + 0.76, 0.09, pz, 0.1, 0.18, 1.34, 0x4f6d9a]);
+        const hgt = 0.35 + r2() * 0.9;
+        if (r2() < 0.12) continue; // ฐานว่าง
+        lit.push([px, 0.2 + hgt / 2, pz, 1.36, hgt, 1.06, 0xc1cbd8]);
+        for (let y = 0.36; y < 0.2 + hgt - 0.05; y += 0.16) lit.push([px, y, pz, 1.38, 0.025, 1.08, 0x8a98ae]); // เส้นแบ่งแผ่น
+        for (const dx of [-0.36, 0.36]) lit.push([px + dx, 0.2 + hgt / 2 + 0.01, pz, 0.07, hgt + 0.02, 1.09, 0x4d5a72]); // สายรัด
       }
+
+    // เครนเหนือศีรษะ (ใช้ยกเหล็กเข้าตำแหน่ง): รางวิ่ง 2 เส้นตามแนวยาวอาคาร + คานสะพานจอดที่ขอบ STORE ท่อ + รอกห้อยตะขอ
+    {
+      const pipe = ZONE_BY_ID.get("PIPE")!;
+      const bx = pipe.cx - pipe.w / 2 - 0.1;
+      const zA = -9.82;
+      const zB = 8.2;
+      const cy = CRANE_Y;
+      for (const zz of [zA, zB]) {
+        lit.push([0, cy, zz, 53.0, 0.18, 0.16, YELLOW]);
+        for (const x of [-26.3, -13, 0, 13, 26.3]) lit.push([x, cy / 2, zz, 0.18, cy, 0.18, YELLOW_D]);
+        lit.push([bx, cy + 0.19, zz, 1.3, 0.2, 0.3, YELLOW_D]); // ล้อวิ่งปลายคานสะพาน
+      }
+      for (const dx of [-0.32, 0.32]) lit.push([bx + dx, cy + 0.42, (zA + zB) / 2, 0.2, 0.34, zB - zA + 0.4, YELLOW]); // คานสะพานคู่
+      lit.push([bx, cy + 0.74, CRANE_Z, 1.0, 0.3, 0.9, 0xe2572b], [bx, cy + 0.4, CRANE_Z, 0.4, 0.36, 0.6, 0x34415a]); // รอก
+      for (const dx of [-0.12, 0.12]) lit.push([bx + dx, (cy + 0.3 + HOOK_Y) / 2, CRANE_Z, 0.04, cy + 0.3 - HOOK_Y, 0.04, 0x1b2b4d]); // สลิง
+      lit.push([bx, HOOK_Y, CRANE_Z, 0.5, 0.36, 0.3, YELLOW], [bx, HOOK_Y - 0.32, CRANE_Z, 0.1, 0.3, 0.1, 0x34415a], [bx + 0.1, HOOK_Y - 0.48, CRANE_Z, 0.3, 0.1, 0.1, 0x34415a]); // ตะขอ
+    }
 
     z = ZONE_BY_ID.get("PIPE")!;
     const r3 = mulberry32(23);
@@ -269,7 +338,15 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     (() => {
       const outer = new THREE.CylinderGeometry(RO, RO, CW, 28, 1, true);
       outer.rotateX(Math.PI / 2);
-      fillUV(outer, 0.5, 0.5);
+      {
+        // ผิวโค้งด้านนอกใช้ช่องสี่เหลี่ยมกลาง texture (สายรัด + ป้ายกระดาษขาว): u = ตามความกว้างม้วน, v = รอบม้วน
+        const a = outer.attributes.uv.array as Float32Array;
+        for (let i = 0; i < a.length; i += 2) {
+          const around = a[i];
+          a[i] = 0.5 + (a[i + 1] - 0.5) * 0.2;
+          a[i + 1] = 0.5 + (around - 0.5) * 0.2;
+        }
+      }
       const inner = new THREE.CylinderGeometry(RI, RI, CW, 18, 1, true);
       inner.rotateX(Math.PI / 2);
       fillUV(inner, 0.03, 0.03);
@@ -292,49 +369,59 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   const coilTex = keep(
     (() => {
       const c = document.createElement("canvas");
-      c.width = c.height = 128;
+      c.width = c.height = 256;
       const g = c.getContext("2d")!;
       g.fillStyle = "#56637c"; // ผิวรูด้านใน
-      g.fillRect(0, 0, 128, 128);
+      g.fillRect(0, 0, 256, 256);
       g.fillStyle = "#b7c3d3"; // หน้าม้วน
       g.beginPath();
-      g.arc(64, 64, 64, 0, 7);
+      g.arc(128, 128, 128, 0, 7);
       g.fill();
       g.strokeStyle = "#7f90a9";
-      g.lineWidth = 2;
-      for (let r = 31; r < 60; r += 5) {
+      g.lineWidth = 3.5;
+      for (let r = 62; r < 120; r += 10) {
         g.beginPath();
-        g.arc(64, 64, r, 0, 7);
+        g.arc(128, 128, r, 0, 7);
         g.stroke();
       }
-      g.lineWidth = 4;
+      g.lineWidth = 8;
       g.strokeStyle = "#eef3f9";
       g.beginPath();
-      g.arc(64, 64, 61, 0, 7);
+      g.arc(128, 128, 122, 0, 7);
       g.stroke();
       g.strokeStyle = "#6d7b93";
       g.beginPath();
-      g.arc(64, 64, 27, 0, 7);
+      g.arc(128, 128, 54, 0, 7);
       g.stroke();
       g.save();
-      g.translate(64, 64);
-      g.fillStyle = "#4d5a72"; // สายรัด
+      g.translate(128, 128);
+      g.fillStyle = "#4d5a72"; // สายรัดบนหน้าม้วน
       for (const a of [0.9, 3.5]) {
         g.save();
         g.rotate(a);
-        g.fillRect(24, -2.5, 40, 5);
+        g.fillRect(48, -5, 80, 10);
         g.restore();
       }
       g.restore();
-      g.fillStyle = "#c4cfdc"; // ผิวโค้งด้านนอก (uv จุดกลาง)
+      // ผิวโค้งด้านนอก (ช่องสี่เหลี่ยมกลาง 102-154 px): สีเหล็ก + สายรัด 2 เส้นรอบม้วน + ป้ายกระดาษขาว 2 ใบ
+      g.fillStyle = "#c4cfdc";
       g.beginPath();
-      g.arc(64, 64, 20, 0, 7);
+      g.arc(128, 128, 40, 0, 7);
       g.fill();
+      g.fillStyle = "#b3c0d0";
+      for (let y = 104; y < 154; y += 6) g.fillRect(100, y, 56, 1.2);
+      g.fillStyle = "#55627a";
+      g.fillRect(111, 100, 2.6, 56);
+      g.fillRect(142.4, 100, 2.6, 56);
+      g.fillStyle = "#f6f8fb";
+      g.fillRect(121, 109, 14, 5);
+      g.fillRect(121, 135, 14, 5);
       return new THREE.CanvasTexture(c);
     })(),
   );
   const MAXC = SLOTS.length + ZONES.reduce((a, z) => a + z.cap, 0) + 16;
-  const coilMesh = new THREE.InstancedMesh(coilGeo, keep(new THREE.MeshToonMaterial({ color: 0xffffff, map: coilTex, gradientMap: grad })), MAXC);
+  const coilMat = keep(new THREE.MeshToonMaterial({ color: 0xffffff, map: coilTex, gradientMap: grad }));
+  const coilMesh = new THREE.InstancedMesh(coilGeo, coilMat, MAXC);
   const outGeo = keep(new THREE.CylinderGeometry(RO + 0.045, RO + 0.045, CW + 0.09, 24));
   outGeo.rotateX(Math.PI / 2);
   const outMesh = new THREE.InstancedMesh(outGeo, keep(new THREE.MeshBasicMaterial({ color: 0x0a1630, side: THREE.BackSide })), MAXC);
@@ -346,6 +433,14 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   }
   coilMesh.count = outMesh.count = 0;
   scene.add(outMesh, coilMesh);
+  // ม้วนบนแท่นคลายม้วนของเครื่องตัดเหล็ก (ฉากประกอบ ไม่ใช่สต็อก · หน้าม้วนหันออกด้านหน้า)
+  const decoCoil = new THREE.Mesh(coilGeo, coilMat);
+  {
+    const cut = ZONE_BY_ID.get("CUT")!;
+    decoCoil.position.set(cut.cx - 3.1, 1.2, cut.cz - 0.4);
+    decoCoil.scale.set(0.95, 0.95, 0.9);
+    scene.add(decoCoil);
+  }
 
   /* ---------- ป้ายตำแหน่ง: atlas เดียว + หันเข้ากล้องใน shader (1 draw call ทั้งคลัง) ---------- */
   const slotCoil = new Map<string, CoilState>();
@@ -462,6 +557,10 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   function drawLabels() {
     for (const z of ZONES) drawLabel(z.id, z.tag3d ?? z.name, z.no, z.kind !== "scenery", [z.cx, z.kind === "rack" ? z.height + 0.7 : z.labelY, z.kind === "rack" ? z.racks[0].zc : z.cz]);
     drawLabel("ROAD", "ถนนทางเดิน", undefined, false, [-17, 0.3, -11.8]);
+    {
+      const pipe = ZONE_BY_ID.get("PIPE")!;
+      drawLabel("CRANE", "เครน", undefined, false, [pipe.cx - pipe.w / 2 - 0.1, CRANE_Y + 1.2, CRANE_Z]);
+    }
     sizeLabels();
   }
   function sizeLabels() {
@@ -507,10 +606,14 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   const _p = new THREE.Vector3();
   const _s = new THREE.Vector3();
   const _c = new THREE.Color();
+  // ทิศของม้วน (เรขาคณิตมีแกนตาม z): บน Rack หมุน 90 องศา ให้แกนขนานแนวยาว Rack · โซนพื้นไม่หมุน หน้าม้วนหันออกทางถนน
+  const Q_RACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+  // จุดกึ่งกลางม้วน: บน Rack นั่งคร่อมราง 2 เส้น (จมลงระหว่างราง) · โซนพื้นวางบนไม้หมอน
+  const centerY = (base: number, r: number, onRack: boolean) => base + (onRack ? Math.sqrt(Math.max(0.02, r * r - SADDLE * SADDLE)) : r);
   function syncCoils(t: number) {
     let i = 0;
     let busy = false;
-    const put = (x: number, y: number, z: number, tn: number, t0: number, isSel: boolean, out: number | null) => {
+    const put = (x: number, base: number, z: number, c: Look, t0: number, isSel: boolean, out: number | null, onRack: boolean) => {
       if (i >= MAXC) return;
       const p = reduceMotion ? 1 : Math.min(1, (t - t0) / 480);
       let sc = 1;
@@ -524,33 +627,35 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
         busy = true;
       }
       if (isSel) sc *= 1.04;
-      _p.set(x, y + dy, z);
-      _s.set(sc, sc, sc);
-      _m.compose(_p, _q, _s);
+      _p.set(x, centerY(base, RO * c.sr, onRack) + dy, z);
+      _s.set(c.sr * sc, c.sr * sc, c.sw * sc);
+      _m.compose(_p, onRack ? Q_RACK : _q, _s);
       coilMesh.setMatrixAt(i, _m);
       if (isSel) _c.setRGB(1, 0.8, 0.36);
-      else _c.setRGB(tn, tn, Math.min(1, tn * 1.03));
+      else _c.setRGB(c.tone, c.tone, Math.min(1, c.tone * 1.03));
       coilMesh.setColorAt(i, _c);
       i++;
     };
     for (const s of SLOTS) {
       const c = slotCoil.get(s.id);
-      if (c && (!focus || s.zoneId === focus.id)) put(s.x, s.y0 + 0.14 + RO, s.z, c.tone, c.t0, sel?.kind === "slot" && sel.slotId === s.id, null);
+      if (c && (!focus || s.zoneId === focus.id)) put(s.x, s.y0 + RAIL_TOP, s.z, c, c.t0, sel?.kind === "slot" && sel.slotId === s.id, null, true);
     }
     floorPicks = [];
     for (const z of ZONES) {
       if (z.kind !== "floor" || (focus && z !== focus)) continue;
       (floorCoils.get(z.id) ?? []).forEach((c, k) => {
         if (k >= z.cap) return;
-        const [x, y, zz] = floorPos(z, k);
-        put(x, y, zz, c.tone, c.t0, sel?.kind === "floor" && sel.coilId === c.id, null);
-        floorPicks.push({ zoneId: z.id, coilId: c.id, box: new THREE.Box3(new THREE.Vector3(x - RO, 0, zz - CW / 2), new THREE.Vector3(x + RO, y + RO, zz + CW / 2)) });
+        const [x, base, zz] = floorPos(z, k);
+        put(x, base, zz, c, c.t0, sel?.kind === "floor" && sel.coilId === c.id, null, false);
+        const r = RO * c.sr;
+        const hw = (CW * c.sw) / 2;
+        floorPicks.push({ zoneId: z.id, coilId: c.id, box: new THREE.Box3(new THREE.Vector3(x - r, 0, zz - hw), new THREE.Vector3(x + r, base + 2 * r, zz + hw)) });
       });
     }
     leaving = leaving.filter((l) => {
       const lp = reduceMotion ? 1 : (t - l.t0) / 260;
       if (lp >= 1) return false;
-      if (!focus || l.zoneId === focus.id) put(l.pos[0], l.pos[1], l.pos[2], l.tone, 0, false, lp);
+      if (!focus || l.zoneId === focus.id) put(l.x, l.base, l.z, l, 0, false, lp, l.onRack);
       else busy = true;
       return true;
     });
@@ -566,7 +671,7 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     return floorPicks.find((f) => f.coilId === id)?.box ?? null;
   }
   function applyFocus() {
-    sceneryMesh.visible = pipesMesh.visible = !focus;
+    sceneryMesh.visible = pipesMesh.visible = decoCoil.visible = !focus;
     for (const [id, mesh] of rackMesh) mesh.visible = !focus || focus.id === id;
     showLabels();
     SLOTS.forEach((s, i) => {
@@ -603,7 +708,7 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     goal.t.set(z.cx, rack ? hgt * 0.42 : 0.5, rack ? z.racks[0].zc : z.cz);
     goal.pol = rack ? 1.02 : 0.72;
     goal.dist = Math.max(dh, dv) + z.d / 2 + 1;
-    flyAz(-0.3);
+    flyAz(rack ? -0.55 : -0.3); // Rack: มองเฉียงให้เห็นหน้าม้วน (ม้วนหันหน้าไปทางหัว-ท้าย Rack)
     kSmooth = 4.5;
     userMoved = true;
   }
@@ -901,12 +1006,12 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
         const next = d.slots[s.id];
         if (next === undefined) {
           if (!prev) continue;
-          leaving.push({ pos: [s.x, s.y0 + 0.14 + RO, s.z], zoneId: s.zoneId, tone: prev.tone, t0: performance.now() });
+          leaving.push({ x: s.x, base: s.y0 + RAIL_TOP, z: s.z, onRack: true, zoneId: s.zoneId, tone: prev.tone, sr: prev.sr, sw: prev.sw, t0: performance.now() });
           slotCoil.delete(s.id);
           drawTag(s);
           tagsDirty = true;
         } else if (!prev || prev.id !== next) {
-          slotCoil.set(s.id, { id: next, t0: now, tone: toneOf(next) });
+          slotCoil.set(s.id, { id: next, t0: now, ...lookOf(next, d.kg[next]) });
           if (!prev) {
             drawTag(s);
             tagsDirty = true;
@@ -919,9 +1024,11 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
         const prev = floorCoils.get(z.id) ?? [];
         const ids = d.floors[z.id] ?? [];
         prev.forEach((c, k) => {
-          if (k < z.cap && !ids.includes(c.id)) leaving.push({ pos: floorPos(z, k), zoneId: z.id, tone: c.tone, t0: performance.now() });
+          if (k >= z.cap || ids.includes(c.id)) return;
+          const [x, base, zz] = floorPos(z, k);
+          leaving.push({ x, base, z: zz, onRack: false, zoneId: z.id, tone: c.tone, sr: c.sr, sw: c.sw, t0: performance.now() });
         });
-        floorCoils.set(z.id, ids.map((id) => prev.find((c) => c.id === id) ?? { id, t0: now, tone: toneOf(id) }));
+        floorCoils.set(z.id, ids.map((id) => prev.find((c) => c.id === id) ?? { id, t0: now, ...lookOf(id, d.kg[id]) }));
       }
       let labelsDirty = false;
       for (const z of ZONES) {
