@@ -3,7 +3,7 @@
 //   วาดเฉพาะตอนมีการขยับ (กล้อง / แอนิเมชันสแกนเข้า-ออก) ภาพนิ่ง = หยุดวาด · เครื่องช้า = ลดความละเอียดเอง
 //   สีใช้ค่าตรง ๆ (ปิด ColorManagement) ให้ได้โทนการ์ตูนตามที่อนุมัติใน Preview
 import * as THREE from "three";
-import { CW, FLOOR_PITCH, LVH, RAIL_TOP, RI, RO, SADDLE, SD, SKID, SLOTS, SLOT_BY_ID, ZONES, ZONE_BY_ID, floorPos, type Slot, type Zone } from "./plan";
+import { CW, LVH, RAIL_TOP, RI, RO, SADDLE, SD, SKID, SLOTS, SLOT_BY_ID, ZONES, ZONE_BY_ID, floorPos, type Slot, type Zone } from "./plan";
 
 export type Sel = { kind: "slot"; slotId: string } | { kind: "floor"; zoneId: string; coilId: number } | null;
 export type Hit = { kind: "slot"; slotId: string; zoneId: string } | { kind: "floor"; zoneId: string; coilId: number } | { kind: "zone"; zoneId: string };
@@ -223,18 +223,17 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     }
     rackMesh.set(z.id, buildBatch(items, litMat));
   }
-  // โซนพื้น (ไม่มีคาน Rack): ไม้หมอนรองใต้ม้วน 2 เส้นต่อแถว + ไม้คั่นกันกลิ้ง 2 ข้างของแต่ละตำแหน่ง
+  // โซนพื้น (ไม่มีคาน Rack): ไม้หมอนรองใต้ม้วน 2 ท่อน + ไม้คั่นกันกลิ้ง 2 ข้าง ต่อ 1 ตำแหน่ง · ไม้หันตามทิศของม้วน (แกนม้วนขนานแนวแถว)
   for (const z of ZONES) {
     if (z.kind !== "floor") continue;
     const items: BoxItem[] = [];
-    const span = (z.cols - 1) * FLOOR_PITCH + 1.7;
-    z.rowZ.forEach((rz, r) => {
-      for (const sd of [-1, 1]) items.push([z.cx, SKID / 2, z.cz + rz + sd * 0.3, span, SKID, 0.14, WOOD_D]);
-      for (let c = 0; c < z.cols; c++) {
-        const [x, base, zz] = floorPos(z, r * z.cols + c);
-        for (const sd of [-1, 1]) items.push([x + sd * 0.52, base + 0.08, zz, 0.16, 0.16, 0.8, WOOD]);
+    for (let i = 0; i < z.cap; i++) {
+      const [x, base, zz] = floorPos(z, i);
+      for (const sd of [-1, 1]) {
+        items.push([x + sd * 0.3, SKID / 2, zz, 0.14, SKID, 1.34, WOOD_D]);
+        items.push([x, base + 0.08, zz + sd * 0.52, 0.8, 0.16, 0.16, WOOD]);
       }
-    });
+    }
     rackMesh.set(z.id, buildBatch(items, litMat));
   }
 
@@ -257,16 +256,16 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
       lit.push([cx + 0.95, 0.7, mz + 1.95, 0.7, 1.4, 0.4, YELLOW], [cx + 0.95, 1.12, mz + 2.16, 0.5, 0.3, 0.03, 0x12305c]); // ตู้ควบคุมด้านหน้า
     }
 
-    // โต๊ะทำงานออฟฟิศ วางแนวนอน หันออกด้านหน้า: โต๊ะ + ตู้ลิ้นชัก + จอ + เก้าอี้
+    // โต๊ะทำงานออฟฟิศ: คนนั่งอยู่ฝั่งขวาของโต๊ะ หันหลังเข้าหาที่วางเหล็กแพ็ค (หน้าหันไปทางซ้าย) · โต๊ะ + ตู้ลิ้นชัก + จอ + เก้าอี้
     z = ZONE_BY_ID.get("TABLE")!;
     {
-      const cx = z.cx;
-      const dz = z.cz - 0.25;
-      lit.push([cx, 0.76, dz, 2.8, 0.08, 1.2, 0xe8dcc6], [cx - 1.05, 0.36, dz, 0.6, 0.72, 1.1, 0x9aa9c4], [cx + 1.35, 0.36, dz, 0.06, 0.72, 1.1, 0x9aa9c4], [cx + 0.15, 0.45, dz - 0.56, 2.3, 0.5, 0.05, 0x9aa9c4]);
-      lit.push([cx - 1.05, 0.52, dz + 0.56, 0.5, 0.03, 0.02, 0x56698f], [cx - 1.05, 0.28, dz + 0.56, 0.5, 0.03, 0.02, 0x56698f]); // มือจับลิ้นชัก
-      lit.push([cx + 0.2, 0.83, dz - 0.3, 0.3, 0.06, 0.2, 0x34415a], [cx + 0.2, 0.95, dz - 0.32, 0.06, 0.2, 0.06, 0x34415a], [cx + 0.2, 1.24, dz - 0.3, 0.9, 0.5, 0.05, 0x1b2b4d], [cx + 0.2, 1.24, dz - 0.27, 0.8, 0.4, 0.02, 0x7fd0f0]); // จอ
-      lit.push([cx + 0.2, 0.815, dz + 0.2, 0.6, 0.03, 0.2, 0x34415a], [cx - 0.75, 0.815, dz + 0.05, 0.4, 0.03, 0.5, 0xffffff]); // คีย์บอร์ด + เอกสาร
-      lit.push([cx + 0.2, 0.05, dz + 1.1, 0.6, 0.06, 0.6, 0x34415a], [cx + 0.2, 0.26, dz + 1.1, 0.08, 0.4, 0.08, 0x34415a], [cx + 0.2, 0.5, dz + 1.1, 0.6, 0.1, 0.6, 0x2f66ad], [cx + 0.2, 0.92, dz + 1.38, 0.6, 0.72, 0.08, 0x2f66ad]); // เก้าอี้
+      const x0 = z.cx - 0.5;
+      const cz = z.cz;
+      lit.push([x0, 0.76, cz, 1.2, 0.08, 2.3, 0xe8dcc6], [x0, 0.36, cz - 0.8, 1.1, 0.72, 0.6, 0x9aa9c4], [x0, 0.36, cz + 1.1, 1.1, 0.72, 0.06, 0x9aa9c4], [x0 - 0.56, 0.45, cz + 0.15, 0.05, 0.5, 1.8, 0x9aa9c4]);
+      lit.push([x0 + 0.56, 0.52, cz - 0.8, 0.02, 0.03, 0.5, 0x56698f], [x0 + 0.56, 0.28, cz - 0.8, 0.02, 0.03, 0.5, 0x56698f]); // มือจับลิ้นชัก (ฝั่งคนนั่ง)
+      lit.push([x0 - 0.3, 0.83, cz + 0.2, 0.2, 0.06, 0.3, 0x34415a], [x0 - 0.32, 0.95, cz + 0.2, 0.06, 0.2, 0.06, 0x34415a], [x0 - 0.3, 1.24, cz + 0.2, 0.05, 0.5, 0.9, 0x1b2b4d], [x0 - 0.27, 1.24, cz + 0.2, 0.02, 0.4, 0.8, 0x7fd0f0]); // จอ หันเข้าหาคนนั่ง
+      lit.push([x0 + 0.2, 0.815, cz + 0.2, 0.2, 0.03, 0.6, 0x34415a], [x0 + 0.05, 0.815, cz - 0.75, 0.5, 0.03, 0.4, 0xffffff]); // คีย์บอร์ด + เอกสาร
+      lit.push([x0 + 1.1, 0.05, cz + 0.2, 0.6, 0.06, 0.6, 0x34415a], [x0 + 1.1, 0.26, cz + 0.2, 0.08, 0.4, 0.08, 0x34415a], [x0 + 1.1, 0.5, cz + 0.2, 0.6, 0.1, 0.6, 0x2f66ad], [x0 + 1.38, 0.92, cz + 0.2, 0.08, 0.72, 0.6, 0x2f66ad]); // เก้าอี้ พนักพิงอยู่ฝั่งเหล็กแพ็ค
     }
 
     // เหล็กแพ็ค: ฐานสี่เหลี่ยมกั้นด้านล่าง (โครง 4 ด้าน) + เหล็กแผ่นวางซ้อนเป็นตั้ง ๆ มีสายรัด
@@ -569,10 +568,9 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     for (const lb of labels.values()) lb.sprite.scale.set(sy * lb.ratio, sy, 1);
     showLabels();
   }
-  // เข้าโซน = เหลือป้ายของโซนนั้น · จอแคบ (มือถือ) ในภาพรวม = ซ่อนป้ายฉากประกอบ ไม่ให้ป้ายบังโมเดล
+  // ภาพรวม = แสดงป้ายระบุจุดครบทุกโซน (รวมเครื่องตัดเหล็ก / โต๊ะ / เหล็กแพ็ค ทุกขนาดจอ) · เข้าโซน = เหลือป้ายของโซนนั้น
   function showLabels() {
-    const narrow = stage.clientWidth < 520;
-    for (const [id, lb] of labels) lb.sprite.visible = focus ? focus.id === id : lb.stock || !narrow;
+    for (const [id, lb] of labels) lb.sprite.visible = !focus || focus.id === id;
   }
 
   /* ---------- กรอบเลือก / กรอบชี้ ---------- */
@@ -602,11 +600,10 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   let floorPicks: FloorPick[] = [];
 
   const _m = new THREE.Matrix4();
-  const _q = new THREE.Quaternion();
   const _p = new THREE.Vector3();
   const _s = new THREE.Vector3();
   const _c = new THREE.Color();
-  // ทิศของม้วน (เรขาคณิตมีแกนตาม z): บน Rack หมุน 90 องศา ให้แกนขนานแนวยาว Rack · โซนพื้นไม่หมุน หน้าม้วนหันออกทางถนน
+  // ทิศของม้วน (เรขาคณิตมีแกนตาม z): หมุน 90 องศาทุกม้วน ให้แกนขนานแนวยาว Rack / แนวแถว ทั้งบน Rack และโซนพื้น
   const Q_RACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
   // จุดกึ่งกลางม้วน: บน Rack นั่งคร่อมราง 2 เส้น (จมลงระหว่างราง) · โซนพื้นวางบนไม้หมอน
   const centerY = (base: number, r: number, onRack: boolean) => base + (onRack ? Math.sqrt(Math.max(0.02, r * r - SADDLE * SADDLE)) : r);
@@ -629,7 +626,7 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
       if (isSel) sc *= 1.04;
       _p.set(x, centerY(base, RO * c.sr, onRack) + dy, z);
       _s.set(c.sr * sc, c.sr * sc, c.sw * sc);
-      _m.compose(_p, onRack ? Q_RACK : _q, _s);
+      _m.compose(_p, Q_RACK, _s);
       coilMesh.setMatrixAt(i, _m);
       if (isSel) _c.setRGB(1, 0.8, 0.36);
       else _c.setRGB(c.tone, c.tone, Math.min(1, c.tone * 1.03));
@@ -649,7 +646,7 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
         put(x, base, zz, c, c.t0, sel?.kind === "floor" && sel.coilId === c.id, null, false);
         const r = RO * c.sr;
         const hw = (CW * c.sw) / 2;
-        floorPicks.push({ zoneId: z.id, coilId: c.id, box: new THREE.Box3(new THREE.Vector3(x - r, 0, zz - hw), new THREE.Vector3(x + r, base + 2 * r, zz + hw)) });
+        floorPicks.push({ zoneId: z.id, coilId: c.id, box: new THREE.Box3(new THREE.Vector3(x - hw, 0, zz - r), new THREE.Vector3(x + hw, base + 2 * r, zz + r)) });
       });
     }
     leaving = leaving.filter((l) => {
@@ -708,7 +705,7 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     goal.t.set(z.cx, rack ? hgt * 0.42 : 0.5, rack ? z.racks[0].zc : z.cz);
     goal.pol = rack ? 1.02 : 0.72;
     goal.dist = Math.max(dh, dv) + z.d / 2 + 1;
-    flyAz(rack ? -0.55 : -0.3); // Rack: มองเฉียงให้เห็นหน้าม้วน (ม้วนหันหน้าไปทางหัว-ท้าย Rack)
+    flyAz(-0.55); // มองเฉียงให้เห็นหน้าม้วน (ม้วนหันหน้าไปทางหัว-ท้ายแถว)
     kSmooth = 4.5;
     userMoved = true;
   }

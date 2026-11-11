@@ -6,6 +6,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { qty, stamp } from "@/lib/format";
 import { sameData, useLive } from "@/lib/live";
+import { COIL_ART } from "./coilArt";
 import { createEngine, type Engine, type EngineData, type Hit } from "./engine";
 import { PLAN_H, PLAN_W, SLOTS, SLOT_BY_ID, ZONES, ZONE_BY_ID, locate, type Zone } from "./plan";
 
@@ -58,16 +59,8 @@ function CoilImage({ partId }: { partId: number }) {
   return (
     <div className="grid h-36 place-items-center overflow-hidden rounded-xl border border-line/60 bg-surface-2">
       {bad ? (
-        <svg viewBox="0 0 200 130" className="h-28 w-auto" role="img" aria-label="ภาพ Coil เหล็ก (ไม่มีรูปสินค้า)">
-          <ellipse cx="132" cy="65" rx="30" ry="55" fill="#7c8aa1" />
-          <rect x="70" y="10" width="62" height="110" fill="#b3bfce" />
-          <rect x="96" y="10" width="7" height="110" fill="#7c8aa1" />
-          <ellipse cx="70" cy="65" rx="30" ry="55" fill="#dfe6ef" />
-          {[[24, 44], [18, 33], [13, 24]].map(([rx, ry]) => (
-            <ellipse key={rx} cx="70" cy="65" rx={rx} ry={ry} fill="none" stroke="#7c8aa1" strokeWidth="1.5" />
-          ))}
-          <ellipse cx="70" cy="65" rx="9" ry="17" fill="#34415a" />
-        </svg>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={COIL_ART} alt="ภาพ Coil เหล็ก (ไม่มีรูปสินค้า)" className="h-32 w-auto" />
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={`/api/images/part/${partId}`} alt="รูปสินค้า" className="max-h-full max-w-full object-contain" onError={() => setBad(true)} />
