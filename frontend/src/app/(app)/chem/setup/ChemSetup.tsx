@@ -170,7 +170,7 @@ export default function ChemSetup() {
   );
 
   return (
-    <PageBody className="md-gray ch-page">
+    <PageBody className="md-gray md-color-actions ch-page">
       <ChemHero tag="CHEMICAL CONTROL · ED PAINT LINE" title={["Parameter", "Setup"]} sub="ตั้งค่าพารามิเตอร์ควบคุม · ขีดจำกัดข้อกำหนด / ขีดจำกัดควบคุม / เวลาตรวจวัด · เพิ่มรายการตรวจวัดใหม่ได้เอง" />
       {!d ? (
         <Loading />

@@ -1,6 +1,6 @@
-import ForecastPage from "./ForecastPage";
+import { redirect } from "next/navigation";
 
-// หน้าโหลดข้อมูลฝั่ง Browser หลัง Login - ไม่ตรวจ Instant Navigation ของ Next.js (ป้าย Insight ตอน npm run dev)
-export const instant = false;
-
-export default ForecastPage;
+// 📦 FORECAST / ORDER ย้ายไปอยู่ MASTER DATA (Sidebar กลาง) แล้ว · ลิงก์ / Bookmark เดิมพาไปหน้าใหม่
+export default function Page() {
+  redirect("/master/forecast");
+}

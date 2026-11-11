@@ -48,6 +48,10 @@ public sealed class ProductionPlanController : AppController
         return Ok(new { message = $"บันทึก Actual {code} ({m:MMM yyyy}) {n} วันแล้ว" });
     }, "บันทึก Actual ไม่สำเร็จ");
 
+    // 🕘 ค่าที่เคยกรอกของผู้ใช้คนนี้ (ให้เลือกแทนการพิมพ์) · อ่านอย่างเดียว
+    [HttpGet("recent")]
+    public IActionResult Recent(int machineId) => Guard(Me?.CanEditPpCapacity == true) ?? Run(() => Ok(_svc.RecentValues(Uid, machineId)), "โหลดค่าล่าสุดไม่สำเร็จ");
+
     // ---------------------------------------------------------------- MASTER DATA › Production Plan STD
     [HttpGet("setup")]
     public IActionResult Setup(string dept) => Guard(Me?.CanViewPpSetup == true) ?? Run(() => Ok(new

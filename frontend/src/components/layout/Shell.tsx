@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -109,6 +110,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <span className="bars" id="bar2" />
             <span className="bars" id="bar3" />
           </button>
+          {/* ↩ กลับหน้าเลือกระบบ (ทุกหน้ายกเว้นหน้าเลือกระบบเอง) */}
+          {path !== "/systems" && (
+            <Link href="/systems" className="sys-back" aria-label="กลับหน้าเลือกระบบ" title="กลับหน้าเลือกระบบ (SELECT SYSTEM)">
+              <svg viewBox="0 0 24 24" className="sys-back-ic" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m14 6-6 6 6 6" />
+              </svg>
+              <span className="sys-back-tx">SYSTEMS</span>
+            </Link>
+          )}
           <Suspense>
             <PageTitle uid={me?.userId} />
           </Suspense>

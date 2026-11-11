@@ -159,7 +159,7 @@ export default function MachineStd() {
   const lab = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
   return (
-    <PageBody className="md-gray pp-page">
+    <PageBody className="md-gray md-color-actions pp-page">
       <PageHeader
         icon="/icons/64engine_motorFF.png"
         title="PRODUCTION PLAN • MACHINE STD"

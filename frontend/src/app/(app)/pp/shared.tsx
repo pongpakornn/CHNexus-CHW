@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { api } from "@/lib/api";
 import { sameData, useLive } from "@/lib/live";
+import { MonthField } from "@/components/forms/MonthField";
 import { EASE, staggerDelay } from "@/lib/motion";
 import { DEPTS, calcMachine, conditionCols, f0, f1, f2, monthLabel, pc, type Calc, type Col, type PpMonth, type Sum } from "@/lib/pp";
 import { useToast } from "@/components/notifications/Toasts";
@@ -59,40 +60,9 @@ export function usePpMonth(dept: string, month: string, paused = false) {
 }
 
 // 📅 เลือกเดือน (‹ เดือน ›): ชื่อเดือนเลื่อนออก / เข้าตามทิศที่กด
+// 📅 เลือกเดือน: ช่องเดือนแบบ CIMS (กดตรงไหนก็เปิดตารางเดือน) + ‹ › เลื่อนทีละเดือน
 export function MonthPicker({ value, onChange }: { value: string; onChange: (m: string) => void }) {
-  const reduce = useReducedMotion();
-  const [dir, setDir] = useState(1);
-  const shift = (k: number) => {
-    const [y, m] = value.split("-").map(Number);
-    const d = new Date(y, m - 1 + k, 1);
-    setDir(k);
-    onChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  };
-  return (
-    <div className="pp-month" role="group" aria-label="Month">
-      <motion.button type="button" aria-label="Previous month" onClick={() => shift(-1)} whileTap={{ scale: 0.85, x: -2 }}>
-        ‹
-      </motion.button>
-      <label>
-        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.span
-            key={value}
-            custom={dir}
-            initial={reduce ? false : { y: dir * 14, opacity: 0, filter: "blur(3px)" }}
-            animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-            exit={reduce ? undefined : { y: -dir * 14, opacity: 0, filter: "blur(3px)" }}
-            transition={{ duration: 0.3, ease: EASE }}
-          >
-            {monthLabel(value).toUpperCase()}
-          </motion.span>
-        </AnimatePresence>
-        <input type="month" value={value} onChange={(e) => e.target.value && (setDir(e.target.value > value ? 1 : -1), onChange(e.target.value))} aria-label="Select month" />
-      </label>
-      <motion.button type="button" aria-label="Next month" onClick={() => shift(1)} whileTap={{ scale: 0.85, x: 2 }}>
-        ›
-      </motion.button>
-    </div>
-  );
+  return <MonthField value={value} onChange={onChange} />;
 }
 
 const TONE: Record<string, [string, string]> = {

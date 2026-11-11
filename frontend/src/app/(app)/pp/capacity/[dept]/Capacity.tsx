@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -14,6 +14,7 @@ import { DOW, calcMachine, deptOf, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLa
 import { PpChart, Ring, type Series } from "../../PpChart";
 import { conditionRows, EffPill, Kpi, MonthPicker, PpIcon, ProcessChips, usePpMonth } from "../../shared";
 import { Seg } from "../../Seg";
+import { ManStep, NumPick, type Preset, type Recent } from "./ActInput";
 import "../../pp.css";
 
 // 🏭 PRODUCTION PLAN › CAPACITY › <หน่วยงาน> (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · 1 เครื่อง = 1 ชีทของ Excel
@@ -99,6 +100,18 @@ export default function Capacity({ dept }: { dept: string }) {
   }
   const val = (day: number, k: "hr" | "stroke" | "man") => draft[day]?.[k] ?? str(machine?.actual.find((a) => a.day === day)?.[k]);
 
+  // 🕘 ค่าที่ผู้ใช้คนนี้เคยกรอก (ให้เลือกแทนพิมพ์) · โหลดใหม่เมื่อเปลี่ยนเครื่อง / หลัง SAVE
+  const [recent, setRecent] = useState<Recent>({ hr: [], stroke: [], man: [] });
+  const recentMid = machine?.id;
+  const loadRecent = useCallback(() => {
+    if (!recentMid || !canEdit) return;
+    api<Recent>("/pp/recent", { query: { machineId: recentMid } })
+      .then((r) => setRecent({ hr: r.hr ?? [], stroke: r.stroke ?? [], man: r.man ?? [] }))
+      .catch(() => {});
+  }, [recentMid, canEdit]);
+  useEffect(loadRecent, [loadRecent]);
+  const presets: Preset[] = useMemo(() => (data?.shifts ?? []).map((x) => ({ v: x.hours, label: x.name })), [data?.shifts]);
+
   async function save() {
     if (!machine || !dirty) return;
     const cells = Object.entries(draft).map(([d, v]) => ({ day: Number(d), hr: num(v.hr), stroke: num(v.stroke), man: num(v.man) }));
@@ -109,6 +122,7 @@ export default function Capacity({ dept }: { dept: string }) {
       const r = await api<{ message: string }>("/pp/actual", { method: "POST", body: { machineId: machine.id, month, cells } });
       toast.show("SAVED", r.message, "ok");
       setDraft({});
+      loadRecent();
       await reload(true);
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
@@ -398,9 +412,9 @@ export default function Capacity({ dept }: { dept: string }) {
                   <td className="pp-stick">M/C ACTUAL {canEdit ? "· INPUT" : ""}</td>
                   <td colSpan={nd + 1} />
                 </tr>
-                <InRow label="Working hour" k="hr" days={days} wd={wd} val={val} edit={edit} draft={draft} can={canEdit} tot={f2(c.A2)} list={data.shifts.map((s) => s.hours)} />
-                <InRow label="Stroke" k="stroke" days={days} wd={wd} val={val} edit={edit} draft={draft} can={canEdit} tot={f0(c.A1)} />
-                <InRow label="Man" k="man" days={days} wd={wd} val={val} edit={edit} draft={draft} can={canEdit} tot={f1(c.A5)} />
+                <InRow label="Working hour" k="hr" days={days} wd={wd} val={val} edit={edit} draft={draft} can={canEdit} tot={f2(c.A2)} recent={recent.hr} presets={presets} />
+                <InRow label="Stroke" k="stroke" days={days} wd={wd} val={val} edit={edit} draft={draft} can={canEdit} tot={f0(c.A1)} recent={recent.stroke} />
+                <InRow label="Man" k="man" days={days} wd={wd} val={val} edit={edit} draft={draft} can={canEdit} tot={f1(c.A5)} recent={recent.man} />
                 <DRow label="A1 Stroke • Acc" vals={c.actAcc} fmt={f0} tot={f0(c.A1)} wd={wd} />
                 <DRow label="A2 Working Hr. • Acc" vals={c.actHrAcc} fmt={f2} tot={f1(c.A2)} wd={wd} />
                 <DRow label="A3 SPH" vals={c.sphDay} fmt={f0} tot={f0(c.A3)} wd={wd} />
@@ -434,15 +448,13 @@ export default function Capacity({ dept }: { dept: string }) {
                     {(["hr", "stroke", "man"] as const).map((k) => (
                       <label key={k}>
                         <span>{k === "hr" ? "WORKING HR." : k === "stroke" ? "STROKE" : "MAN"}</span>
-                        <input
-                          className="field"
-                          inputMode="decimal"
-                          readOnly={!canEdit}
-                          value={val(d, k)}
-                          onChange={(ev) => edit(d, k, ev.target.value)}
-                          list={k === "hr" ? "pp-hours" : undefined}
-                          aria-label={`${k} day ${d}`}
-                        />
+                        {!canEdit ? (
+                          <input className="field" readOnly value={val(d, k)} aria-label={`${k} day ${d}`} />
+                        ) : k === "man" ? (
+                          <ManStep value={val(d, k)} onChange={(v) => edit(d, k, v)} recent={recent.man} label={`MAN day ${d}`} />
+                        ) : (
+                          <NumPick className="field" value={val(d, k)} onChange={(v) => edit(d, k, v)} recent={k === "hr" ? recent.hr : recent.stroke} presets={k === "hr" ? presets : []} label={`${k} day ${d}`} />
+                        )}
                       </label>
                     ))}
                   </div>
@@ -450,11 +462,6 @@ export default function Capacity({ dept }: { dept: string }) {
               );
             })}
           </div>
-          <datalist id="pp-hours">
-            {data.shifts.map((s) => (
-              <option key={s.id} value={s.hours} label={s.name} />
-            ))}
-          </datalist>
         </Card>
       </motion.div>
 
@@ -502,7 +509,8 @@ function InRow({
   draft,
   can,
   tot,
-  list,
+  recent,
+  presets,
 }: {
   label: string;
   k: "hr" | "stroke" | "man";
@@ -513,7 +521,8 @@ function InRow({
   draft: Draft;
   can: boolean;
   tot: string;
-  list?: number[];
+  recent: number[];
+  presets?: Preset[];
 }) {
   return (
     <tr className="in">
@@ -523,19 +532,11 @@ function InRow({
       {days.map((d) => (
         <td key={d} className={`${wd.has(d) ? "" : "off"} ${draft[d] ? "is-dirty" : ""}`}>
           {can ? (
-            <input
-              className="pp-in"
-              inputMode="decimal"
-              value={val(d, k)}
-              onChange={(e) => edit(d, k, e.target.value)}
-              list={list ? "pp-hours" : undefined}
-              aria-label={`${label} ${d}`}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                const td = (e.target as HTMLElement).closest("td")?.nextElementSibling?.querySelector("input");
-                (td as HTMLInputElement | null)?.focus();
-              }}
-            />
+            k === "man" ? (
+              <ManStep value={val(d, k)} onChange={(v) => edit(d, k, v)} recent={recent} label={`${label} ${d}`} />
+            ) : (
+              <NumPick value={val(d, k)} onChange={(v) => edit(d, k, v)} recent={recent} presets={presets} label={`${label} ${d}`} />
+            )
           ) : (
             val(d, k)
           )}

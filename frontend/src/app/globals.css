@@ -12269,3 +12269,391 @@ table.lqp code {
 .sf-src button:disabled {
   opacity: 0.4;
 }
+
+/* ↩ ปุ่มกลับหน้าเลือกระบบ (แถบบน): เม็ดยาขอบม่วง · ชี้ = พื้นม่วง ลูกศรขยับไปซ้าย · มือถือ = เหลือแค่ลูกศร */
+.sys-back {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 8%, #fff);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  transition: background-color 0.3s var(--ease-drop), color 0.3s var(--ease-drop), box-shadow 0.35s var(--ease-drop), transform 0.35s var(--ease-drop);
+}
+.sys-back-ic {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.35s var(--ease-drop);
+}
+.sys-back:hover,
+.sys-back:focus-visible {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 10px 18px -10px var(--accent);
+  transform: translateY(-1px);
+}
+.sys-back:hover .sys-back-ic {
+  transform: translateX(-3px);
+}
+.sys-back:active {
+  transform: scale(0.94);
+}
+@media (max-width: 640px) {
+  .sys-back {
+    padding: 0 9px;
+  }
+  .sys-back-tx {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sys-back,
+  .sys-back-ic {
+    transition: none;
+  }
+}
+
+/* 🔎 Dropdown แบบพิมพ์ค้นหา (ComboBox / ค่าล่าสุด M/C Actual) = Motion เดียวกับ Dropdown ของ Product Control:
+   กล่องเผยจากกลางด้านบน (clip-path) แล้วรายการทยอยเลื่อนขึ้นทีละแถว · ชี้ = พื้นม่วงอ่อน · ที่เลือก = ม่วงไล่สี + ✓
+   (animate เฉพาะ transform / opacity / clip-path · แถวที่ 11 ขึ้นไปขึ้นพร้อมกัน = รายการยาวไม่หน่วง) */
+.cmb-list {
+  box-shadow: 0 22px 44px -18px rgb(40 30 90 / 0.45), 0 0 0 1px rgb(103 80 164 / 0.12);
+  animation: cmb-drop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  overscroll-behavior: contain;
+}
+.cmb-list.is-up {
+  animation-name: cmb-drop-up;
+}
+@keyframes cmb-drop {
+  from {
+    opacity: 0;
+    clip-path: inset(0 50% 100% 50% round 14px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 14px);
+  }
+}
+@keyframes cmb-drop-up {
+  from {
+    opacity: 0;
+    clip-path: inset(100% 50% 0 50% round 14px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 14px);
+  }
+}
+.cmb-list li {
+  animation: cmb-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.08s + var(--i, 0) * 0.04s);
+  transition: background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop), translate 0.25s var(--ease-drop);
+}
+.cmb-list li + li {
+  box-shadow: inset 0 1px 0 #f1eef7;
+}
+@keyframes cmb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cmb-list li.is-hi {
+  background: #f4f0fd;
+}
+.cmb-list li.is-on {
+  color: #fff;
+  background: linear-gradient(135deg, #8b6fd6, var(--accent));
+  box-shadow: 0 8px 16px -10px var(--accent);
+}
+.cmb-list li.is-on::before {
+  display: none;
+}
+.cmb-list li.is-on b,
+.cmb-list li.is-on small {
+  color: #fff;
+}
+.cmb-list li.is-on::after {
+  content: "✓";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  font-weight: 900;
+}
+/* ค่าล่าสุดของ M/C Actual: กล่องแคบ ตัวเลขชิดขวา */
+.cmb-list.pp-sug {
+  width: auto;
+  min-width: 150px;
+  max-width: 190px;
+}
+.cmb-list.pp-sug li {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.cmb-list.pp-sug li b {
+  font-variant-numeric: tabular-nums;
+}
+.cmb-list.pp-sug li small {
+  font-size: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmb-list,
+  .cmb-list li {
+    animation: none;
+  }
+}
+
+/* 📅 MonthField: ‹ [ช่องเดือนแบบ DateField] › · ตัวเดือนเลื่อนเข้าเมื่อเปลี่ยน */
+.mf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mf .dp {
+  position: relative;
+}
+.mf-btn {
+  min-width: 150px;
+}
+.mf-val {
+  display: inline-block;
+  animation: mf-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mf-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mf-val {
+    animation: none;
+  }
+}
+
+/* 🧲 MANAGE STOCK ลอยติดวงกลมโปรไฟล์ (Store › คลังย่อย): ปุ่มเม็ดยาม่วง = ยังไม่เลือก · แดง + ✕ = กำลังใช้งาน
+   รายการเผยแบบ Dropdown ของ Product Control (clip-path จากกลาง แล้วแถวทยอยเลื่อน) · บนจอ = กางขึ้น / มุมบน = กางลง */
+.mdock {
+  position: fixed;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.mdock.is-right {
+  align-items: flex-end;
+}
+.mdock.is-top {
+  flex-direction: column-reverse;
+}
+.mdock-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: mdock-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes mdock-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mdock-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px 0 6px;
+  border-radius: 9999px;
+  color: #fff;
+  background: linear-gradient(135deg, #8b6fd6, #6750a4 60%, #5b3fa0);
+  box-shadow: 0 14px 28px -14px rgb(103 80 164 / 0.9), 0 0 0 3px rgb(255 255 255 / 0.9);
+  transition: background 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), transform 0.35s var(--ease-drop);
+}
+.mdock-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 32px -14px rgb(103 80 164 / 0.95), 0 0 0 3px #fff;
+}
+.mdock-btn:active {
+  transform: scale(0.96);
+}
+.mdock-ic {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.2);
+  transition: transform 0.6s var(--ease-drop);
+}
+.mdock.is-open .mdock-ic {
+  transform: rotate(120deg);
+}
+.mdock-tx {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  text-align: left;
+}
+.mdock-tx small {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  animation: mf-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mdock-tx b {
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  animation: mf-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mdock.is-open .ms-bars > span:nth-child(1) {
+  transform: translateY(5.5px) rotate(45deg);
+}
+.mdock.is-open .ms-bars > span:nth-child(2) {
+  transform: translateX(-50%);
+  opacity: 0;
+}
+.mdock.is-open .ms-bars > span:nth-child(3) {
+  transform: translateY(-5.5px) rotate(-45deg);
+}
+/* กำลังใช้งาน = แดง + จุดกะพริบ + ✕ */
+.mdock.is-on .mdock-btn {
+  background: linear-gradient(135deg, #f87171, #dc2626 60%, #b91c1c);
+  box-shadow: 0 14px 28px -14px rgb(220 38 38 / 0.95), 0 0 0 3px rgb(255 255 255 / 0.9);
+}
+.mdock.is-on .mdock-ic {
+  animation: mdock-pulse 1.8s ease-in-out infinite;
+}
+@keyframes mdock-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(255 255 255 / 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(255 255 255 / 0);
+  }
+}
+.mdock-x {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  color: #fff;
+  background: #dc2626;
+  box-shadow: 0 10px 20px -10px rgb(220 38 38 / 0.95), 0 0 0 3px #fff;
+  animation: mdock-x-in 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transition: transform 0.3s var(--ease-drop), background-color 0.3s var(--ease-drop);
+}
+.mdock.is-right .mdock-pill {
+  flex-direction: row-reverse;
+}
+.mdock-x:hover {
+  background: #b91c1c;
+  transform: rotate(90deg);
+}
+.mdock-x:active {
+  transform: scale(0.88);
+}
+@keyframes mdock-x-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mdock-menu {
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 22px 44px -18px rgb(40 30 90 / 0.45), 0 0 0 1px rgb(103 80 164 / 0.12);
+  clip-path: inset(90% 50% 10% 50% round 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s var(--ease-drop);
+}
+.mdock.is-top .mdock-menu {
+  clip-path: inset(10% 50% 90% 50% round 16px);
+}
+.mdock.is-open .mdock-menu {
+  clip-path: inset(0 0 0 0 round 16px);
+  opacity: 1;
+  pointer-events: auto;
+}
+.mdock-cap {
+  padding: 6px 10px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.mdock-item {
+  transform: translateY(-20px);
+}
+.mdock.is-top .mdock-item {
+  transform: translateY(20px);
+}
+.mdock.is-open .mdock-item {
+  transform: none;
+  opacity: 1;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(0.1s + var(--i) * 0.06s), opacity 0.4s var(--ease-drop) calc(0.1s + var(--i) * 0.06s), background-color 0.2s var(--ease-drop), color 0.2s var(--ease-drop);
+}
+.mdock-item small {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+@media (max-width: 640px) {
+  .mdock-btn {
+    height: 44px;
+    padding-right: 12px;
+  }
+  .mdock-tx small {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mdock-pill,
+  .mdock-x,
+  .mdock.is-on .mdock-ic,
+  .mdock-tx small,
+  .mdock-tx b {
+    animation: none;
+  }
+  .mdock-menu,
+  .mdock-item {
+    transition: opacity 0.2s;
+  }
+}

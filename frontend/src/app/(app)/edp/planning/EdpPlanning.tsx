@@ -150,7 +150,7 @@ export default function EdpPlanning() {
 
   if (!meta) return <Loading />;
   return (
-    <PageBody className="md-gray">
+    <PageBody className="md-gray md-color-actions">
       <PageHeader
         icon="/icons/ForecastOrder.png"
         title="EDP • EDP PLANNING"
@@ -316,7 +316,7 @@ export default function EdpPlanning() {
                             <td>
                               <button
                                 type="button"
-                                className="cta-btn is-sm is-gray"
+                                className={`cta-btn is-sm ${dirty(r) ? "is-green" : "is-gray"}`}
                                 disabled={!dirty(r)}
                                 onClick={() => save(r)}
                               >

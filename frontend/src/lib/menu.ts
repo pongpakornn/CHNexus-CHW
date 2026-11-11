@@ -49,6 +49,8 @@ export const MASTER_ITEM: MenuItem = {
       stockType: t.type,
       caption: i === 0 ? "Product Control" : undefined,
     })),
+    // 📦 FORECAST / ORDER / DELIVERY (ย้ายมาจาก CIMS): ข้อมูลกลางที่ CIMS (Max-Min) และ Production Plan (PCS) ใช้ร่วมกัน
+    { href: "/master/forecast", label: "Forecast / Order", title: "MASTER DATA • FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast", caption: "Planning" },
     // 📅 WORKDAYS (ย้ายมาจาก CIMS › Max-Min Calculator): ลูกค้า · บริษัท
     { href: "/master/workdays", label: "Customer Workdays", title: "MASTER DATA • CUSTOMER WORKDAYS", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc", caption: "Workdays" },
     { href: "/master/workdays/company", label: "Company Workdays", title: "MASTER DATA • COMPANY WORKDAYS", icon: "/icons/Dashboard.png", can: "maxMinCalc" },
@@ -65,7 +67,7 @@ export const CIMS: SystemDef = {
   sub: "CHR Inventory Management",
   art: "/images/systems/cims.webp",
   title: "CIMS • INVENTORY CONTROL",
-  desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · PR · Forecast",
+  desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · Max-Min · PR",
   icon: "/icons/StoreMaxMin.png",
   color: "#6750a4",
   menu: [
@@ -74,7 +76,7 @@ export const CIMS: SystemDef = {
     { href: "/cims/scanner", label: "Multi-Scanner", title: "MULTI-SCANNER", icon: "/icons/MultiScanner.png", can: "scanner" },
     { href: "/cims/pick-list", label: "Pick List", title: "PICK LIST", icon: "/icons/PickList.png", can: "pickList" },
     { href: "/cims/max-min", label: "Max-Min Calculator", title: "MAX-MIN CALCULATOR", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc" },
-    { href: "/cims/forecast", label: "Forecast / Order", title: "FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast" },
+    // 📦 Forecast / Order ย้ายไป MASTER DATA › Planning (Sidebar กลาง) · /cims/forecast พาไป /master/forecast
     { href: "/cims/pr", label: "PR Management", title: "PURCHASE REQUEST", icon: "/icons/PR.png", can: "pr" },
     // 🕘 Activity Log ย้ายไปที่ USER MANAGEMENT › ปุ่ม ACTIVITY LOG (ข้าง ADD USER) · หน้า /cims/activity-log ยังเปิดตรงได้
     // 👤 USER MANAGEMENT ไม่อยู่ใน Sidebar แล้ว -> เข้าจากการ์ดที่หน้า SELECT SYSTEM
@@ -85,7 +87,7 @@ export const MASTER: SystemDef = {
   key: "master",
   label: "MASTER DATA",
   name: "Master Data",
-  sub: "Customer · Supplier · Product",
+  sub: "Customer · Supplier · Product · Forecast",
   art: "/images/systems/master-data.webp",
   title: "MASTER DATA",
   desc: "ข้อมูลกลางของทุกระบบ: Customer · Supplier · Product Control (Part / Material / Component)",

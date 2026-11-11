@@ -1,5 +1,6 @@
 "use client";
 
+import { MonthField } from "@/components/forms/MonthField";
 import { Fragment } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EASE } from "@/lib/motion";
@@ -159,24 +160,5 @@ export function PkSeg<T extends string>({ id, value, onChange, options }: { id: 
 
 // 📅 เลือกเดือนแบบ CIMS: ‹ [เดือน] › (ปุ่ม pk-step) · กดชื่อเดือน = เลือกจากปฏิทิน
 export function MonthStep({ value, onChange }: { value: string; onChange: (m: string) => void }) {
-  const [y, m] = value.split("-").map(Number);
-  const go = (k: number) => {
-    const d = new Date(y, m - 1 + k, 1);
-    onChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  };
-  return (
-    <div className="ch-month">
-      <button type="button" className="pk-step" aria-label="Previous month" onClick={() => go(-1)}>
-        ‹
-      </button>
-      <label className="ch-month-pill">
-        <small>MONTH</small>
-        <b>{new Date(y, m - 1, 1).toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</b>
-        <input type="month" value={value} onChange={(e) => e.target.value && onChange(e.target.value)} aria-label="Select month" />
-      </label>
-      <button type="button" className="pk-step" aria-label="Next month" onClick={() => go(1)}>
-        ›
-      </button>
-    </div>
-  );
+  return <MonthField value={value} onChange={onChange} />;
 }

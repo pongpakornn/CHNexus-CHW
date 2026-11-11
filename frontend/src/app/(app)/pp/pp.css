@@ -2077,3 +2077,118 @@ thead .pp-stick {
     scrollbar-width: none;
   }
 }
+
+/* 🔎 ค้นหา PART A / PART B: Motion แบบ Dropdown ของ Product Control (กล่องเผยจากบน + รายการทยอยขึ้น) */
+.pp-hits {
+  animation: cmb-drop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 22px 44px -18px rgb(40 30 90 / 0.45), 0 0 0 1px rgb(103 80 164 / 0.12);
+  border-color: transparent;
+}
+.pp-hits li {
+  animation: cmb-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.08s + var(--i, 0) * 0.04s);
+}
+.pp-hits button {
+  transition: background-color 0.2s var(--pp-ease), translate 0.25s var(--pp-ease);
+}
+.pp-hits button.is-hi {
+  background: #f4f0fd;
+  box-shadow: inset 3px 0 0 var(--accent);
+  translate: 2px 0;
+}
+
+/* 👷 MAN: ปุ่ม − / + ไม่ต้องพิมพ์ · กดตัวเลข = เลือกจากค่าล่าสุด */
+.pp-man {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  padding: 2px;
+  background: #fff;
+  transition: border-color 0.25s var(--pp-ease), box-shadow 0.25s var(--pp-ease);
+}
+.pp-man:focus-within,
+.pp-man:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 6px 14px -10px rgb(79 70 229 / 0.6);
+}
+.pp-man-b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  color: #dc2626;
+  background: #fef2f2;
+  transition: transform 0.2s var(--pp-ease), background-color 0.2s var(--pp-ease), color 0.2s var(--pp-ease), opacity 0.2s;
+}
+.pp-man-b.is-up {
+  color: #059669;
+  background: #ecfdf5;
+}
+.pp-man-b:hover:not(:disabled) {
+  color: #fff;
+  background: #dc2626;
+}
+.pp-man-b.is-up:hover:not(:disabled) {
+  background: #059669;
+}
+.pp-man-b:active:not(:disabled) {
+  transform: scale(0.85);
+}
+.pp-man-b:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pp-man-v {
+  min-width: 26px;
+  border-radius: 6px;
+  padding: 2px 3px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  overflow: hidden;
+}
+.pp-man.has-v .pp-man-v {
+  color: var(--ink);
+}
+.pp-man-v:focus-visible {
+  outline: 2px solid var(--pp-act);
+}
+.pp-man-v span {
+  display: inline-block;
+  animation: pp-man-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes pp-man-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pp-daycard .pp-man {
+  width: 100%;
+  justify-content: space-between;
+  padding: 4px;
+}
+.pp-daycard .pp-man-b {
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-hits,
+  .pp-hits li,
+  .pp-man-v span {
+    animation: none;
+  }
+}

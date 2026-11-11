@@ -16,6 +16,7 @@ import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg 
 import { CategoryPicker, Pager, SearchField } from "./Toolbar";
 import { type Counts, type Product, type Stock } from "./types";
 import { MinReportMenu } from "./MinReport";
+import { ManageDock } from "./ManageDock";
 import { AddCoilModal, AdjustCoilModal, EditCoilModal, ManageBar, ManageHistoryModal, type ManageMode } from "./CoilManage";
 
 type Meta = {
@@ -745,34 +746,6 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     setManage(next);
     if (next === "ADJUST" && coilsOn && !showCoils) toggleShowCoils(true);
   };
-  const manageMenu: MenuAction[] = meta.canManage
-    ? [
-        {
-          key: "add",
-          title: manage === "ADD" ? "✓ ADD MASTER COIL" : "ADD MASTER COIL",
-          detail: `แสดงปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Coil No ที่ยังไม่มีในคลัง ${s.code} (กดซ้ำ = ออก)`,
-          color: "#16a34a",
-          icon: "coil",
-          onClick: () => pickMode("ADD"),
-        },
-        {
-          key: "adjust",
-          title: manage === "ADJUST" ? "✓ ADJUST STOCK" : "ADJUST STOCK",
-          detail: "แสดงปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก · แก้น้ำหนัก / โอนย้ายออก / คืนยอด หรือลบออก (กดซ้ำ = ออก)",
-          color: "#ea580c",
-          icon: "calc",
-          onClick: () => pickMode("ADJUST"),
-        },
-        {
-          key: "history",
-          title: "HISTORY",
-          detail: `ประวัติ MANAGE STOCK ของคลัง ${s.code} (วันนี้ / เลือกวันที่) กรอง ADD / EDIT / TRANSFER / ADJUST`,
-          color: "#6750a4",
-          icon: "calendar",
-          onClick: () => setMHistory(true),
-        },
-      ]
-    : [];
 
   return (
     <PageBody>
@@ -782,21 +755,6 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         readOnlyNote={meta.canEdit || s.isLiveView ? undefined : "ดู / แก้ REMARK เท่านั้น"}
         actions={
           <>
-            {manageMenu.length > 0 && (
-              <ActionMenu
-                actions={manageMenu}
-                caption={["MANAGE STOCK", manage === "ADD" ? "● ADD MASTER COIL" : manage === "ADJUST" ? "● ADJUST STOCK" : "COIL · ADJUST · HISTORY"]}
-                fabColor="linear-gradient(145deg,#8b6fd6,#6750a4)"
-                label="MANAGE STOCK"
-                fab={
-                  <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <circle cx="12" cy="12" r="8.5" />
-                    <circle cx="12" cy="12" r="4.5" />
-                    <circle cx="12" cy="12" r="1.3" />
-                  </svg>
-                }
-              />
-            )}
             <MinReportMenu stock={s} autoOpen={openMinReport} />
             <ActionMenu actions={menu} />
             {meta.canImport && (
@@ -860,6 +818,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       )}
 
       <ManageBar mode={manage} onExit={() => setManage("")} />
+      {/* 🧲 MANAGE STOCK ลอยติดวงกลมโปรไฟล์ (เฉพาะคลังนี้ + ผู้มีสิทธิ์) */}
+      {meta.canManage && <ManageDock stockCode={s.code} mode={manage} onPick={pickMode} onHistory={() => setMHistory(true)} />}
 
       <div ref={wrapRef}>
       <div

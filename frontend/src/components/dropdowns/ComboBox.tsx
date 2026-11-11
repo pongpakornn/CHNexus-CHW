@@ -151,7 +151,7 @@ export function ComboBox({
               <li className="cmb-none">{free && free(text) != null ? `ใช้ค่า "${free(text)}" (Enter)` : "ไม่พบรายการ"}</li>
             ) : (
               items.map((o, i) => (
-                <li key={o.value} role="option" aria-selected={o.value === value} className={`${i === hi ? "is-hi" : ""} ${o.value === value ? "is-on" : ""} ${mono ? "font-mono" : ""}`} onMouseEnter={() => setHi(i)} onClick={() => pick(o)}>
+                <li key={o.value} role="option" aria-selected={o.value === value} className={`${i === hi ? "is-hi" : ""} ${o.value === value ? "is-on" : ""} ${mono ? "font-mono" : ""}`} style={{ "--i": Math.min(i, 10) } as React.CSSProperties} onMouseEnter={() => setHi(i)} onClick={() => pick(o)}>
                   <b>{o.label}</b>
                   {o.sub && <small>{o.sub}</small>}
                 </li>

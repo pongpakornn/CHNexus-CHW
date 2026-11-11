@@ -345,6 +345,21 @@ public sealed class ProductionPlanService
         return list.Count;
     }
 
+    // 🕘 ค่าที่ผู้ใช้คนนี้ (UserID) เคยบันทึก ล่าสุดก่อน · Working hour / Man = ทุกเครื่อง · Stroke = เฉพาะเครื่องนี้ (ยอดแต่ละเครื่องต่างกันมาก)
+    public sealed record Recent(List<decimal> Hr, List<decimal> Stroke, List<decimal> Man);
+    public Recent RecentValues(string uid, int machineId)
+    {
+        using var c = Conn();
+        List<decimal> Q(string col, bool byMachine) => c.Query<decimal>($@"
+            SELECT TOP 8 v FROM (
+                SELECT {col} AS v, MAX(COALESCE(UpdatedAt, WorkDate)) AS t
+                FROM ProductionPlan.DailyActuals
+                WHERE UpdatedBy = @uid AND {col} IS NOT NULL {(byMachine ? "AND MachineID = @machineId" : "")}
+                GROUP BY {col}) x
+            ORDER BY t DESC", new { uid, machineId }).ToList();
+        return new Recent(Q("WorkHours", false), Q("Stroke", true), Q("Man", false));
+    }
+
     public string MachineCode(int id)
     {
         using var c = Conn();

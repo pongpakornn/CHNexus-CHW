@@ -6,6 +6,7 @@ import { Modal } from "@/components/modals/Modal";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { Select } from "@/components/dropdowns/Select";
+import { DateField } from "@/components/forms/DateField";
 import { RowAction } from "@/components/button-action/RowAction";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { DUR, EASE, fadeOnly, fadeUp } from "@/lib/motion";
@@ -340,10 +341,7 @@ function SaveDialog({ date, shift, round, rounds, cards, onClose, onSaved }: { d
     >
       <div className="grid gap-3">
         <p className="text-sm font-semibold text-ink-soft">บันทึกการ์ด {cards.length} ใบลงวันที่ / กะ / รอบ ด้านล่าง · การ์ดเดิมของรอบนั้นจะถูกแทนที่ (รอบอื่นไม่ถูกแตะ)</p>
-        <label className="fx">
-          <span className="fx-cap">DATE</span>
-          <input type="date" className="field fx-in" value={d} onChange={(e) => e.target.value && setD(e.target.value)} />
-        </label>
+        <DateField label="DATE" value={d} onChange={(v) => v && setD(v)} className="w-full" />
         <label className="fx">
           <span className="fx-cap">SHIFT / ROUND</span>
           <Select
@@ -552,10 +550,7 @@ function ApplyDialog({ date, shift, round, rounds, onClose, onDone }: { date: st
             )}
           </label>
         ) : (
-          <label className="fx">
-            <span className="fx-cap">SOURCE DATE (กะ {shift} · {scope === "round" ? `รอบ ${round}` : "ทั้งกะ"})</span>
-            <input type="date" className="field fx-in" value={src} onChange={(e) => e.target.value && setSrc(e.target.value)} />
-          </label>
+          <DateField label={`SOURCE DATE (กะ ${shift} · ${scope === "round" ? `รอบ ${round}` : "ทั้งกะ"})`} value={src} onChange={(v) => v && setSrc(v)} className="w-full" />
         )}
         <p className="md-meta">
           <span>

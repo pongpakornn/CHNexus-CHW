@@ -152,7 +152,7 @@ export default function MachineProducts() {
   const showForm = !!machine && (can.add || !!row);
 
   return (
-    <PageBody className="md-gray pp-page">
+    <PageBody className="md-gray md-color-actions pp-page">
       <PageHeader
         icon="/icons/InventoryRegistration.png"
         title="PRODUCTION PLAN • MACHINE PRODUCTS"
@@ -448,10 +448,10 @@ function PartSearch({ kind, value, onChange, placeholder }: { kind: "A" | "B"; v
       />
       <AnimatePresence>
         {open && key.trim() && (
-          <motion.ul className="pp-hits" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: EASE }}>
+          <motion.ul className="pp-hits" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }}>
             {list.length === 0 && <li className="empty">ไม่พบสินค้า</li>}
             {list.map((h, i) => (
-              <li key={h.id + h.stock}>
+              <li key={h.id + h.stock} style={{ "--i": Math.min(i, 10) } as React.CSSProperties}>
                 <button type="button" className={i === hi ? "is-hi" : ""} onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setHi(i)} onClick={() => choose(h)}>
                   <b>{h.code}</b>
                   <em>{h.stock}</em>
