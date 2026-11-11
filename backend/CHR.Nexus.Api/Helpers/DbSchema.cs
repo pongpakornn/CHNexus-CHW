@@ -217,6 +217,10 @@ namespace Nexus.Helpers
                                                              && TableExists("ProductionPlan.DailyActuals") == true && TableExists("ProductionPlan.ShiftHours") == true
                                                              && ColumnIn("ProductionPlan.Machines", "StrokeByPcs") == true);
 
+        // 👥 PRODUCTION PLAN › WORKLOAD (38_Production_Plan_Workload.sql): คนที่มีจริงต่อเดือน (Direct / Ind1 / Ind2)
+        private static bool _ppWl;
+        public static bool HasPpWorkload => _ppWl || (_ppWl = HasProductionPlan && TableExists("ProductionPlan.WorkloadHeads") == true);
+
         // 🧪 CHEMICAL CONTROL (37_Chemical_Control.sql): ChemControl.Parameters / Readings / Sheets / SignFlow
         private static bool _chem;
         public static bool HasChemControl => _chem || (_chem = TableExists("ChemControl.Parameters") == true && TableExists("ChemControl.Readings") == true

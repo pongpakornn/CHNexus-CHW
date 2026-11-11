@@ -52,6 +52,28 @@ public sealed class ProductionPlanController : AppController
     [HttpGet("recent")]
     public IActionResult Recent(int machineId) => Guard(Me?.CanEditPpCapacity == true) ?? Run(() => Ok(_svc.RecentValues(Uid, machineId)), "โหลดค่าล่าสุดไม่สำเร็จ");
 
+    // ---------------------------------------------------------------- 👥 WORKLOAD (สรุปอัตรากำลังคน แผน, ผล) · ดู = สิทธิ์ Capacity · แก้คนที่มีจริง = สิทธิ์บันทึก Actual
+    private IActionResult GuardWl(bool can) => Guard(can) ?? (!DbSchema.HasPpWorkload ? Fail("ฐานข้อมูลยังไม่มีตาราง Workload (database/nexus/38_Production_Plan_Workload.sql)") : null);
+
+    [HttpGet("workload")]
+    public IActionResult Workload(string month) =>
+        GuardWl(Me?.CanViewPpCapacity == true) ?? Run(() => Ok(new { data = _svc.Workload(Mon(month)), can = new { edit = Me.CanEditPpCapacity } }), "โหลด Workload ไม่สำเร็จ");
+
+    public sealed record HeadsReq(string Month, List<ProductionPlanService.WlCell> Cells);
+
+    [HttpPost("workload/heads")]
+    public IActionResult SaveHeads([FromBody] HeadsReq r) => GuardWl(Me?.CanEditPpCapacity == true) ?? Run(() =>
+    {
+        if (r?.Cells == null || r.Cells.Count == 0) return Fail("ไม่มีข้อมูลที่แก้ไข");
+        if (r.Cells.Count > ProductionPlanService.WlRows.Length) return Fail("ข้อมูลไม่ถูกต้อง");
+        var m = Mon(r.Month);
+        int n = _svc.SaveHeads(m, r.Cells, Uid);
+        string rows = string.Join(" | ", r.Cells.Select(x => $"{x.Row}: D {x.Direct?.ToString("0.##") ?? "-"} / I1 {x.Ind1?.ToString("0.##") ?? "-"} / I2 {x.Ind2?.ToString("0.##") ?? "-"}"));
+        LogService.WriteLog(Uid, "PP_WORKLOAD_SAVE", $"{m:MM/yyyy} | {rows}", $"WL-{m:yyyyMM}");
+        Changed();
+        return Ok(new { message = $"บันทึกอัตรากำลังคน {m:MMM yyyy} {n} แถวแล้ว" });
+    }, "บันทึกอัตรากำลังคนไม่สำเร็จ");
+
     // ---------------------------------------------------------------- MASTER DATA › Production Plan STD
     [HttpGet("setup")]
     public IActionResult Setup(string dept) => Guard(Me?.CanViewPpSetup == true) ?? Run(() => Ok(new

@@ -312,6 +312,109 @@ public sealed class ProductionPlanService
         };
     }
 
+    // ---------------------------------------------------------------- 👥 WORKLOAD (สรุปอัตรากำลังคน N-1 · Current · N…N+3)
+    //   ส่งข้อมูลดิบของ 5 เดือน (เหมือน Month() แต่ทุกหน่วยงานพร้อมกัน · ~15 query) -> หน้าเว็บคำนวณ P1 / P9 / A1 ด้วยสูตรเดียวกับ Capacity
+    public static readonly string[] WlRows = { "TPS", "DELIVERY", "QA", "QC", "PRESS1", "PRESS2", "ASSEMBLY", "DIE", "PIPEPART", "PIPEASSY", "PAINTPART" };
+    public sealed class WlHead
+    {
+        public DateTime Month { get; set; }
+        public string Row { get; set; }
+        public decimal? Direct { get; set; }
+        public decimal? Ind1 { get; set; }
+        public decimal? Ind2 { get; set; }
+        public string UpdatedBy { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+
+    public object Workload(DateTime month)
+    {
+        var n = new DateTime(month.Year, month.Month, 1);
+        var months = Enumerable.Range(-1, 5).Select(i => n.AddMonths(i)).ToList();
+        var prev = months[0];
+        var shifts = Shifts();
+        var settings = Settings();
+        using var c = Conn();
+        var machines = c.Query<PpMachine>(@"
+            SELECT MachineID AS Id, Dept, MachineCode AS Code, GroupName AS [Group], SubGroup, SortNo AS Sort, QtyLine AS Qty,
+                   TargetEff AS Eff, ManPower AS Man, SphOverride AS Sph, StrokeByPcs AS ByPcs, IsActive AS Active
+            FROM ProductionPlan.Machines WHERE IsActive = 1 ORDER BY Dept, SortNo, MachineCode").ToList();
+        var ids = machines.Select(x => x.Id).ToArray();
+        var parts = ids.Length == 0 ? new List<PpPart>()
+            : c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).ToList();
+        // Actual ใช้เฉพาะเดือน N-1 (Production = A1)
+        var actual = ids.Length == 0 ? new List<PpActual>()
+            : c.Query<PpActual>(@"SELECT MachineID AS MachineId, DAY(WorkDate) AS Day, WorkHours AS Hr, Stroke, Man FROM ProductionPlan.DailyActuals
+                                  WHERE MachineID IN @ids AND WorkDate >= @prev AND WorkDate < DATEADD(MONTH, 1, @prev)", new { ids, prev }).ToList();
+        var acM = actual.GroupBy(a => a.MachineId).ToDictionary(g => g.Key, g => g.Select(a => new { day = a.Day, hr = a.Hr, stroke = a.Stroke, man = a.Man }).ToList());
+        var heads = c.Query<WlHead>(@"SELECT MonthStart AS Month, RowKey AS Row, Direct, Ind1, Ind2, UpdatedBy, UpdatedAt FROM ProductionPlan.WorkloadHeads
+                                       WHERE MonthStart IN @ms", new { ms = new[] { prev, n } }).ToList();
+        var outMonths = new List<object>();
+        foreach (var m in months)
+        {
+            int nd = DateTime.DaysInMonth(m.Year, m.Month);
+            // PCS ของเดือนนั้น: คัดลอก Product แล้วเติม PCS (ไม่แก้รายการต้นฉบับ)
+            var mp = parts.Select(p => new PpPart { Id = p.Id, MachineId = p.MachineId, Sort = p.Sort, PartAId = p.PartAId, PartA = p.PartA, PdCode = p.PdCode, Customer = p.Customer,
+                                                    PartBId = p.PartBId, PartB = p.PartB, Name = p.Name, Process = p.Process, Tp = p.Tp, Col = p.Col, Ct = p.Ct, Man = p.Man, Active = p.Active }).ToList();
+            FillPcs(mp, Demand(c, m));
+            var byM = mp.GroupBy(p => p.MachineId).ToDictionary(g => g.Key, g => g.ToList());
+            var wd = c.Query<DateTime>("SELECT WorkDate FROM Nexus.CustomerWorkdays WHERE CustomerCode = '#COMPANY' AND WorkDate >= @m AND WorkDate < DATEADD(MONTH, 1, @m)", new { m })
+                      .Select(d => d.Day).Distinct().OrderBy(d => d).ToList();
+            bool company = wd.Count > 0;
+            if (!company) wd = Enumerable.Range(1, nd).Where(d => new DateTime(m.Year, m.Month, d).DayOfWeek != DayOfWeek.Sunday).ToList();
+            bool isPrev = m == prev;
+            outMonths.Add(new
+            {
+                month = m.ToString("yyyy-MM"),
+                days = nd,
+                workdays = wd,
+                workdaySource = company ? "COMPANY" : "DEFAULT",
+                depts = machines.GroupBy(x => x.Dept).ToDictionary(g => g.Key, g => g.Select(x => new
+                {
+                    x.Id, x.Code, x.Group, x.SubGroup, x.Sort, x.Qty, x.Eff, x.Man, x.Sph, x.ByPcs,
+                    parts = byM.TryGetValue(x.Id, out var l) ? l : new List<PpPart>(),
+                    actual = isPrev && acM.TryGetValue(x.Id, out var a) ? (object)a : Array.Empty<object>()
+                }).ToList())
+            });
+        }
+        return new
+        {
+            month = n.ToString("yyyy-MM"),
+            shifts,
+            settings,
+            months = outMonths,
+            heads = heads.Select(h => new { month = h.Month.ToString("yyyy-MM"), row = h.Row, h.Direct, h.Ind1, h.Ind2, h.UpdatedBy, h.UpdatedAt })
+        };
+    }
+
+    public sealed record WlCell(string Row, decimal? Direct, decimal? Ind1, decimal? Ind2);
+
+    // บันทึกคนที่มีจริงของเดือน · ว่างทั้ง 3 ช่อง = ลบแถวนั้น
+    public int SaveHeads(DateTime month, IEnumerable<WlCell> cells, string uid)
+    {
+        var m = new DateTime(month.Year, month.Month, 1);
+        var list = cells.ToList();
+        foreach (var x in list)
+        {
+            if (!WlRows.Contains(x.Row)) throw new InvalidOperationException($"ไม่รู้จักแถว {x.Row}");
+            foreach (var v in new[] { x.Direct, x.Ind1, x.Ind2 })
+                if (v is < 0 or > 9999) throw new InvalidOperationException("จำนวนคนต้องอยู่ระหว่าง 0 - 9,999");
+        }
+        using var c = Conn();
+        c.Open();
+        using var t = c.BeginTransaction();
+        foreach (var x in list)
+        {
+            if (x.Direct == null && x.Ind1 == null && x.Ind2 == null)
+                c.Execute("DELETE FROM ProductionPlan.WorkloadHeads WHERE MonthStart = @m AND RowKey = @Row", new { m, x.Row }, t);
+            else
+                c.Execute(@"UPDATE ProductionPlan.WorkloadHeads SET Direct = @Direct, Ind1 = @Ind1, Ind2 = @Ind2, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE MonthStart = @m AND RowKey = @Row;
+                            IF @@ROWCOUNT = 0 INSERT INTO ProductionPlan.WorkloadHeads (MonthStart, RowKey, Direct, Ind1, Ind2, UpdatedBy) VALUES (@m, @Row, @Direct, @Ind1, @Ind2, @uid);",
+                          new { m, x.Row, x.Direct, x.Ind1, x.Ind2, uid }, t);
+        }
+        t.Commit();
+        return list.Count;
+    }
+
     public sealed record ActualCell(int Day, decimal? Hr, decimal? Stroke, decimal? Man);
 
     // บันทึก Actual รายวัน (ทั้งเดือนของเครื่องเดียว · ส่งเฉพาะวันที่แก้) ว่างทั้ง 3 ช่อง = ลบวันนั้น

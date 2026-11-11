@@ -128,7 +128,7 @@ export const EDP: SystemDef = {
   ],
 };
 
-// 📈 PRODUCTION PLAN: Capacity Planning ต่อหน่วยงาน (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · ค่า STD อยู่ที่ MASTER DATA › Production Plan
+// 📈 PRODUCTION PLAN: Capacity Planning ต่อหน่วยงาน (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART · QC) + WORKLOAD · ค่า STD อยู่ที่ MASTER DATA › Production Plan
 // หน่วยงาน (ชุดเดียวกับ lib/pp.ts › DEPTS)
 const PP_DEPTS = [
   { slug: "press1", name: "PRESS 1" },
@@ -157,7 +157,11 @@ export const PP: SystemDef = {
       label: "Capacity",
       title: "PRODUCTION PLAN • CAPACITY",
       icon: "/icons/Capacity.png",
-      children: PP_DEPTS.map((d) => ({ href: `/pp/capacity/${d.slug}`, label: d.name, title: `CAPACITY • ${d.name}`, icon: "/icons/Capacity.png", can: "ppCapacity" })),
+      // WORKLOAD (สรุปอัตรากำลังคน แผน, ผล) ต่อจากหน่วยงานสุดท้าย · ดึง P1 / P9 / A1 จาก Capacity ทุกหน่วยงาน
+      children: [
+        ...PP_DEPTS.map((d) => ({ href: `/pp/capacity/${d.slug}`, label: d.name, title: `CAPACITY • ${d.name}`, icon: "/icons/Capacity.png", can: "ppCapacity" })),
+        { href: "/pp/capacity/workload", label: "WORKLOAD", title: "PRODUCTION PLAN • WORKLOAD", icon: "/icons/management.png", can: "ppCapacity" },
+      ],
     },
   ],
 };
