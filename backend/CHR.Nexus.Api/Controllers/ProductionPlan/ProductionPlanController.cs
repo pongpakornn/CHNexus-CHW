@@ -10,6 +10,8 @@ namespace CHR.Nexus.Api.Controllers;
 public sealed class ProductionPlanController : AppController
 {
     private readonly ProductionPlanService _svc = new();
+    private readonly UploadCache _uploads;
+    public ProductionPlanController(UploadCache uploads) => _uploads = uploads;
     private IActionResult Guard(bool can) => Me == null || !can ? Deny() : !DbSchema.HasProductionPlan ? Fail("ฐานข้อมูลยังไม่มีตาราง Production Plan (database/nexus/33_Production_Plan.sql)") : null;
 
     private IActionResult Run(Func<IActionResult> f, string prefix)
@@ -71,7 +73,77 @@ public sealed class ProductionPlanController : AppController
 
     [HttpGet("workload")]
     public IActionResult Workload(string month) =>
-        GuardWl(Me?.CanViewPpCapacity == true) ?? Run(() => Ok(new { data = _svc.Workload(Mon(month)), can = new { edit = Me.CanEditPpCapacity } }), "โหลด Workload ไม่สำเร็จ");
+        GuardWl(Me?.CanViewPpCapacity == true) ?? Run(() =>
+        {
+            var n = Mon(month);
+            // 📊 CASE 1 ตาม EXCEL: ยอดจากไฟล์ Work load + เหตุผลที่ตรง / ไม่ตรง (เดือน N-1 ถึง N+3)
+            object refs = null, notes = null;
+            if (DbSchema.HasPpWorkloadRef)
+            {
+                var x = new WorkloadExcelService();
+                refs = x.Refs(n.AddMonths(-1), n.AddMonths(3));
+                notes = x.Notes(n.AddMonths(-1), n.AddMonths(3));
+            }
+            return Ok(new { data = _svc.Workload(n), refs, notes, can = new { edit = Me.CanEditPpCapacity, excel = Me.CanEditPpCapacity && DbSchema.HasPpWorkloadRef } });
+        }, "โหลด Workload ไม่สำเร็จ");
+
+    // 📥 IMPORT WORK LOAD EXCEL: อ่านชีท "9. ManPower" -> สรุปก่อนยืนยัน -> บันทึกยอดตาม Excel (CASE 1)
+    [HttpPost("workload/excel")]
+    [RequestSizeLimit(60_000_000)]
+    public async Task<IActionResult> WorkloadExcel(IFormFile file)
+    {
+        if (GuardWl(Me?.CanEditPpCapacity == true) is { } g) return g;
+        if (!DbSchema.HasPpWorkloadRef) return Fail("ฐานข้อมูลยังไม่มีตาราง ProductionPlan.WorkloadRef (database/nexus/41_Production_Plan_Workload_Excel.sql)");
+        string path;
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try
+        {
+            var p = new WorkloadExcelService().Read(path);
+            TryDelete(path);
+            var ms = p.Rows.Select(r => r.Month).Distinct().OrderBy(m => m).ToList();
+            string Line(DateTime m)
+            {
+                var rs = p.Rows.Where(r => r.Month == m).ToList();
+                return $"• {m:MMM yyyy}: PDT {rs.Sum(r => r.Pdt ?? 0):N0} · Direct {rs.Sum(r => r.Direct ?? 0):N2}" + (rs.Any(r => r.Production.HasValue) ? $" · Production {rs.Sum(r => r.Production ?? 0):N0}" : "");
+            }
+            string summary = $"ไฟล์: {file.FileName}\nชีท: {p.Sheet}{(p.FileMonth.HasValue ? $" (เดือน N = {p.FileMonth:MMMM yyyy})" : "")}\n\n" +
+                             string.Join("\n", ms.Select(Line)) +
+                             "\n\nบันทึกเป็นยอด CASE 1 (ตาม EXCEL) ของเดือนที่มีในไฟล์ · ไม่เปลี่ยนยอดที่ระบบคำนวณ (CASE 2)\n\nยืนยันการนำเข้าหรือไม่?";
+            return Ok(new { id = _uploads.Put("", file.FileName, Uid, "wlxl", p), summary });
+        }
+        catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
+        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Work load ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("workload/excel/apply")]
+    public IActionResult WorkloadExcelApply([FromBody] string id) => GuardWl(Me?.CanEditPpCapacity == true) ?? Run(() =>
+    {
+        var it = _uploads.Get(id, Uid, "wlxl");
+        if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
+        var p = (WorkloadExcelService.Parsed)it.State;
+        int n = new WorkloadExcelService().Save(p, it.FileName, Uid);
+        _uploads.Remove(id);
+        var ms = p.Rows.Select(r => r.Month).Distinct().OrderBy(m => m).ToList();
+        LogService.WriteLog(Uid, "PP_WORKLOAD_EXCEL_IMPORT", $"File: {it.FileName} | Sheet: {p.Sheet} | Months: {ms.First():MM/yyyy} - {ms.Last():MM/yyyy} | Rows: {n}", $"WL-{p.FileMonth:yyyyMM}");
+        Changed();
+        return Ok(new { message = $"นำเข้ายอด Work load (ตาม EXCEL) แล้ว {ms.Count} เดือน ({ms.First():MMM yyyy} - {ms.Last():MMM yyyy})" });
+    }, "นำเข้าไม่สำเร็จ");
+
+    public sealed record WlNoteReq(string Month, string Row, string Note);
+
+    // 📝 เหตุผลที่ยอดตรง / ไม่ตรง (หน่วยงาน × เดือน) · ว่าง = ลบ
+    [HttpPost("workload/note")]
+    public IActionResult WorkloadNote([FromBody] WlNoteReq r) => GuardWl(Me?.CanEditPpCapacity == true) ?? Run(() =>
+    {
+        if (!DbSchema.HasPpWorkloadRef) return Fail("ฐานข้อมูลยังไม่มีตาราง ProductionPlan.WorkloadNotes (database/nexus/41_Production_Plan_Workload_Excel.sql)");
+        if (r == null || !ProductionPlanService.WlRows.Contains(r.Row)) return Fail("ข้อมูลไม่ถูกต้อง");
+        if ((r.Note ?? "").Length > 4000) return Fail("หมายเหตุยาวเกิน 4,000 ตัวอักษร");
+        var m = Mon(r.Month);
+        new WorkloadExcelService().SaveNote(m, r.Row, r.Note, Uid);
+        LogService.WriteLog(Uid, "PP_WORKLOAD_NOTE", $"{m:MM/yyyy} | {r.Row} | {(string.IsNullOrWhiteSpace(r.Note) ? "(ลบ)" : r.Note.Trim())}", $"WL-{m:yyyyMM}");
+        Changed();
+        return Ok(new { message = string.IsNullOrWhiteSpace(r.Note) ? "ลบหมายเหตุแล้ว" : "บันทึกหมายเหตุแล้ว" });
+    }, "บันทึกหมายเหตุไม่สำเร็จ");
 
     public sealed record HeadsReq(string Month, List<ProductionPlanService.WlCell> Cells);
 

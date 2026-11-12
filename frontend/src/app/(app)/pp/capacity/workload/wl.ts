@@ -32,7 +32,16 @@ export const WL_GROUPS = WL_ROWS.reduce<{ grp: string; n: number }[]>((a, r) => 
 
 export type WlMonth = { month: string; days: number; workdays: number[]; workdaySource: "COMPANY" | "DEFAULT"; depts: Record<string, PpMachine[]> };
 export type WlHead = { month: string; row: string; direct: number | null; ind1: number | null; ind2: number | null; updatedBy: string | null; updatedAt: string };
-export type WlRes = { data: { month: string; shifts: PpShift[]; settings: Record<string, number>; months: WlMonth[]; heads: WlHead[] }; can: { edit: boolean } };
+// 📊 CASE 1 ตาม EXCEL: ยอดจากไฟล์ Work load (ชีท 9. ManPower) · หมายเหตุ = เหตุผลที่ตรง / ไม่ตรง
+export type WlRef = { month: string; row: string; pdt: number | null; direct: number | null; production: number | null; fileName: string | null; fileMonth: string | null; updatedBy: string | null; updatedAt: string };
+export type WlNote = { month: string; row: string; note: string; updatedBy: string | null; updatedAt: string };
+export type WlCase = "EXCEL" | "SYSTEM";
+export type WlRes = {
+  data: { month: string; shifts: PpShift[]; settings: Record<string, number>; months: WlMonth[]; heads: WlHead[] };
+  refs?: WlRef[] | null;
+  notes?: WlNote[] | null;
+  can: { edit: boolean; excel?: boolean };
+};
 export type WlField = "direct" | "ind1" | "ind2";
 export type Heads = { direct: number; ind1: number; ind2: number };
 export type WlPlan = { pdt: number; direct: number; ind1: number; ind2: number; total: number; diff: number };
@@ -71,7 +80,13 @@ export function deptTotals(m: WlMonth, shifts: PpShift[], settings: Record<strin
 }
 
 // ตารางทั้งหมด: N-1 Plan · N-1 Actual · Current · N…N+3 Plan · headOf = คนที่มีจริงของเดือน (ค่าที่กำลังพิมพ์ / ที่บันทึกไว้)
-export function buildTable(data: WlRes["data"], totals: Record<string, Tot>[], headOf: (m: string, row: string) => Heads): WlTable | null {
+//   refOf (CASE 1 ตาม EXCEL) = PDT / Direct / Production ของไฟล์ Work load แทนค่าที่ระบบคำนวณ (ไม่มีในไฟล์ = ใช้ของระบบ)
+export function buildTable(
+  data: WlRes["data"],
+  totals: Record<string, Tot>[],
+  headOf: (m: string, row: string) => Heads,
+  refOf?: (m: string, row: string) => WlRef | undefined,
+): WlTable | null {
   const ms = data.months;
   if (ms.length < 5) return null;
   const prevM = ms[0].month,
@@ -81,15 +96,16 @@ export function buildTable(data: WlRes["data"], totals: Record<string, Tot>[], h
     const cur = headOf(curM, r.key);
     const plan = (i: number, ind: { ind1: number; ind2: number }, have: number): WlPlan => {
       const t = r.dept ? totals[i][r.dept] : undefined;
-      const pdt = t?.p1 ?? 0;
-      const direct = r.direct === false ? 0 : (t?.p9 ?? 0);
+      const x = refOf?.(ms[i].month, r.key);
+      const pdt = x ? (x.pdt ?? 0) : (t?.p1 ?? 0);
+      const direct = r.direct === false ? 0 : x ? (x.direct ?? 0) : (t?.p9 ?? 0);
       const total = direct + ind.ind1 + ind.ind2;
       return { pdt, direct, ind1: ind.ind1, ind2: ind.ind2, total, diff: have - direct };
     };
     return {
       r,
       prevPlan: plan(0, prev, prev.direct),
-      prevAct: { prod: r.dept ? (totals[0][r.dept]?.a1 ?? 0) : 0, ...prev, total: prev.direct + prev.ind1 + prev.ind2 },
+      prevAct: { prod: refOf?.(prevM, r.key)?.production ?? (r.dept ? (totals[0][r.dept]?.a1 ?? 0) : 0), ...prev, total: prev.direct + prev.ind1 + prev.ind2 },
       cur: { ...cur, total: cur.direct + cur.ind1 + cur.ind2 },
       plans: [1, 2, 3, 4].map((i) => plan(i, cur, cur.direct)),
     };
@@ -112,6 +128,13 @@ export function buildTable(data: WlRes["data"], totals: Record<string, Tot>[], h
       plans: [0, 1, 2, 3].map((i) => P((x) => x.plans[i])),
     },
   };
+}
+
+// ยอดตาม EXCEL ของเดือน + แถว
+export function refMap(refs: WlRef[] | null | undefined) {
+  const map = new Map<string, WlRef>();
+  for (const r of refs ?? []) map.set(`${r.month}|${r.row}`, r);
+  return map;
 }
 
 export function savedHeads(heads: WlHead[]) {

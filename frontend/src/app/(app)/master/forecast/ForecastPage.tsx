@@ -9,9 +9,6 @@ import { Modal } from "@/components/modals/Modal";
 import { CalcChoiceModal } from "@/components/modals/CalcChoiceModal";
 import { useToast } from "@/components/notifications/Toasts";
 import { MonthChart, type MonthPoint } from "@/components/charts/Charts";
-import { PillSwitch } from "@/components/charts/ChartHeader";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { EASE } from "@/lib/motion";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
@@ -22,8 +19,6 @@ import { useRouter } from "next/navigation";
 type Month = { key: string; label: string };
 type Row = { customer: string; partA: string; partNo: string; productName: string; forecast: number; order: number; delivery: number; month: string };
 type Top = { rank: number; title: string; sub: string; order: number; forecast: number; percent: number; shareOfMonth: number };
-type Src = "DIFF3" | "DIFF2";
-type Summary = { year: number; updatedAt: string | null; diff3: MonthPoint[]; diff2: MonthPoint[]; customers: { diff3: number; diff2: number }; extra: { customer: string; forecast: number; order: number; delivery: number }[] };
 const PAGE = 100; // แถวต่อหน้า (เหมือนหน้าคลัง) · ดึงจาก Server ทีละหน้า (ข้อมูลทุกเดือนมีหลายพันแถว)
 const n0 = (v: number) => Math.round(v).toLocaleString("en-US");
 
@@ -51,11 +46,6 @@ export default function ForecastPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const withCalcRef = useRef(true);
   const [choice, setChoice] = useState<{ title: string; text: string; calc: string; only: string } | null>(null);
-  // 📊 กราฟ 2 แบบ: DIFF (3) = ลูกค้าที่ใช้ในระบบ (ยอดราย PART A ที่ Import) · DIFF (2) = ลูกค้าทั้งหมดจากไฟล์ FORECAST (ยอดสรุป)
-  const reduce = useReducedMotion();
-  const [src, setSrc] = useState<Src>("DIFF3");
-  const [sum, setSum] = useState<Summary | null>(null);
-  const sumRef = useRef<HTMLInputElement>(null);
 
   const loadMonths = useCallback(
     async (select?: string) => {
@@ -113,37 +103,6 @@ export default function ForecastPage() {
     const t = setTimeout(loadTop, 0);
     return () => clearTimeout(t);
   }, [months, loadTop]);
-
-  const sumYear = chart?.year;
-  const loadSum = useCallback(async () => {
-    if (!sumYear) return;
-    try {
-      const r = await api<{ ready: boolean; data?: Summary }>("/forecast/summary", { query: { year: sumYear } });
-      setSum(r.ready && r.data ? r.data : null);
-    } catch {
-      setSum(null);
-    }
-  }, [sumYear]);
-  useEffect(() => {
-    const t = setTimeout(loadSum, 0);
-    return () => clearTimeout(t);
-  }, [loadSum]);
-  useLive(["forecast"], loadSum, 60000);
-
-  async function importSummary(file: File) {
-    setBusy(true);
-    try {
-      const pv = await upload<{ id: string; summary: string }>("/forecast/summary/import", file, { year: String(chart?.year ?? new Date().getFullYear()) });
-      if (!(await dlg.confirm({ title: "IMPORT DIFF (2) / DIFF (3)", message: pv.summary, ok: "IMPORT" }))) return;
-      const r = await api<{ message: string }>("/forecast/summary/apply", { method: "POST", body: pv.id });
-      toast.show("Summary imported", r.message, "ok");
-      await loadSum();
-    } catch (e) {
-      toast.show("ERROR", (e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   // 📄 แบ่งหน้าละ PAGE แถว · เปลี่ยนเดือน / คำค้นหา = กลับหน้าแรก (ข้อมูลอัปเดตแล้วหน้าเกิน = หน้าสุดท้าย)
   const pages = Math.max(1, Math.ceil(total / PAGE));
@@ -220,8 +179,6 @@ export default function ForecastPage() {
 
   if (!months) return <Loading />;
   const all = tableMonth === "ALL";
-  const hasSum = !!sum && sum.diff2.some((m) => m.forecast + m.order + m.delivery > 0);
-  const view: Src = hasSum ? src : "DIFF3";
 
   const monthOpts = [{ value: "ALL", label: "ALL MONTHS" }, ...months.map((m) => ({ value: m.key, label: m.label }))];
 
@@ -277,15 +234,6 @@ export default function ForecastPage() {
                         busy,
                         onClick: startImport,
                       },
-                      {
-                        key: "summary",
-                        title: "IMPORT DIFF (2) / (3)",
-                        detail: "นำเข้าไฟล์ FORECAST (ที่มีชีท DIFF (2) และ DIFF (3)) เพื่อแสดงกราฟเปรียบเทียบ ลูกค้าทั้งหมด vs ที่ใช้ในระบบ · ไม่เปลี่ยนยอดราย PART A",
-                        color: "#d97706",
-                        icon: "import" as const,
-                        busy,
-                        onClick: () => sumRef.current?.click(),
-                      },
                     ]
                   : []),
               ]}
@@ -303,17 +251,6 @@ export default function ForecastPage() {
                     if (f) doImport(f);
                   }}
                 />
-                <input
-                  ref={sumRef}
-                  type="file"
-                  accept=".xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (f) importSummary(f);
-                  }}
-                />
               </>
             )}
           </>
@@ -321,38 +258,8 @@ export default function ForecastPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-        <Card
-          title={`FORECAST, ORDER & DELIVERY • ${chart?.year ?? ""}${src === "DIFF2" ? " • ALL CUSTOMERS" : ""}`}
-          actions={
-            hasSum ? (
-              <PillSwitch
-                label="Forecast source"
-                value={src}
-                onChange={setSrc}
-                options={[
-                  { v: "DIFF3", l: "DIFF (3)", title: `ลูกค้าที่ใช้ในระบบ (ยอดราย PART A ที่ Import) · ${sum?.customers.diff3 ?? 0} ลูกค้า` },
-                  { v: "DIFF2", l: "DIFF (2)", title: `ลูกค้าทั้งหมดจากไฟล์ FORECAST · ${sum?.customers.diff2 ?? 0} ลูกค้า` },
-                ]}
-              />
-            ) : undefined
-          }
-          bodyClass="p-4"
-        >
-          {!chart ? (
-            <Loading />
-          ) : (
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={view}
-                initial={reduce ? { opacity: 0 } : { opacity: 0, x: view === "DIFF2" ? 24 : -24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, x: view === "DIFF2" ? -24 : 24 }}
-                transition={{ duration: 0.32, ease: EASE }}
-              >
-                <MonthChart data={view === "DIFF2" && sum ? sum.diff2 : chart.months} year={chart.year} />
-              </motion.div>
-            </AnimatePresence>
-          )}
+        <Card title={`FORECAST, ORDER & DELIVERY • ${chart?.year ?? ""}`} bodyClass="p-4">
+          {!chart ? <Loading /> : <MonthChart data={chart.months} year={chart.year} />}
         </Card>
         <Card
           title="TOP 5 ORDER"
@@ -389,8 +296,6 @@ export default function ForecastPage() {
           )}
         </Card>
       </div>
-
-      {hasSum && sum && <CompareCard sum={sum} />}
 
       <Card
         title="ITEMS"
@@ -561,93 +466,5 @@ export default function ForecastPage() {
         })()}
       </Modal>
     </PageBody>
-  );
-}
-
-// 📊 DIFF (2) vs DIFF (3): ยอดรายเดือนของ 2 กราฟ + ลูกค้าที่มีเฉพาะ DIFF (2) (ยอดที่เกินมา)
-function CompareCard({ sum }: { sum: Summary }) {
-  const [k, setK] = useState<"order" | "forecast" | "delivery">("order");
-  const reduce = useReducedMotion();
-  const rows = sum.diff3.map((m, i) => ({ label: m.label, a: m[k], b: sum.diff2[i]?.[k] ?? 0 }));
-  const ta = rows.reduce((x, r) => x + r.a, 0),
-    tb = rows.reduce((x, r) => x + r.b, 0);
-  const max = Math.max(1, ...rows.map((r) => Math.max(r.a, r.b)));
-  const extraMax = Math.max(1, ...sum.extra.map((e) => e[k]));
-  return (
-    <Card
-      title={`DIFF (2) vs DIFF (3) • ${sum.year}`}
-      actions={
-        <PillSwitch
-          label="Compare value"
-          value={k}
-          onChange={setK}
-          options={[
-            { v: "order", l: "ORDER" },
-            { v: "forecast", l: "FORECAST" },
-            { v: "delivery", l: "DELIVERY" },
-          ]}
-        />
-      }
-      bodyClass="p-4"
-    >
-      <div className="grid gap-5 xl:grid-cols-[3fr_2fr]">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap gap-2 text-xs font-bold">
-            <span className="fc-cmp-chip is-a">
-              DIFF (3) • {sum.customers.diff3} ลูกค้า • {n0(ta)}
-            </span>
-            <span className="fc-cmp-chip is-b">
-              DIFF (2) • {sum.customers.diff2} ลูกค้า • {n0(tb)}
-            </span>
-            <span className="fc-cmp-chip is-d">
-              +{n0(tb - ta)} ({ta ? (((tb - ta) / ta) * 100).toFixed(1) : "0"}%)
-            </span>
-          </div>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div key={k} initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.28, ease: EASE }} className="grid gap-1.5">
-              {rows.map((r, i) => (
-                <div key={r.label} className="fc-cmp-row" title={`DIFF (3) ${n0(r.a)} · DIFF (2) ${n0(r.b)} · ต่าง ${n0(r.b - r.a)}`}>
-                  <span className="m">{r.label}</span>
-                  <span className="bars">
-                    <motion.i className="is-b" initial={{ scaleX: 0 }} animate={{ scaleX: r.b / max }} transition={{ duration: reduce ? 0 : 0.7, ease: EASE, delay: Math.min(i * 0.03, 0.4) }} />
-                    <motion.i className="is-a" initial={{ scaleX: 0 }} animate={{ scaleX: r.a / max }} transition={{ duration: reduce ? 0 : 0.7, ease: EASE, delay: Math.min(i * 0.03, 0.4) + 0.05 }} />
-                  </span>
-                  <span className="v">
-                    <b>{n0(r.b)}</b>
-                    <small>{r.b - r.a ? `+${n0(r.b - r.a)}` : "–"}</small>
-                  </span>
-                </div>
-              ))}
-            </motion.div>
-          </AnimatePresence>
-          <p className="mt-2 text-[11px] font-semibold text-ink-soft">แถบเข้ม = DIFF (3) (ใช้ในระบบ) · แถบอ่อน = DIFF (2) (ลูกค้าทั้งหมด) · ตัวเลข = DIFF (2) และส่วนที่เกินมา</p>
-        </div>
-        <div className="min-w-0">
-          <h4 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-[#1f2350]">ลูกค้าที่มีเฉพาะ DIFF (2) • {sum.extra.length}</h4>
-          {sum.extra.length === 0 ? (
-            <Empty>ไม่มี</Empty>
-          ) : (
-            <div className="grid gap-1.5">
-              {sum.extra.map((e, i) => (
-                <div key={e.customer} className="top-row" style={{ "--d": `${i * 50}ms` } as React.CSSProperties}>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[13px] font-extrabold text-[#1e2a5a]">{e.customer}</span>
-                      <span className="shrink-0 text-[13px] font-black tabular-nums text-[#1e2a5a]">{n0(e[k])}</span>
-                    </div>
-                    <div className="top-bar">
-                      <i style={{ width: `${Math.max(3, (e[k] / extraMax) * 100)}%` }} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <p className="mt-2 text-[11px] font-semibold text-ink-soft">
-            Capacity / Max-Min ใช้ยอดราย PART A ที่ Import (DIFF (3)) · DIFF (2) ใช้ดูเปรียบเทียบเท่านั้น{sum.updatedAt ? ` · อัพเดท ${new Date(sum.updatedAt).toLocaleDateString("en-GB")}` : ""}
-          </p>
-        </div>
-      </div>
-    </Card>
   );
 }

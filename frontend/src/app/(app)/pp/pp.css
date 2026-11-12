@@ -2542,3 +2542,309 @@ thead .pp-stick {
 .pp-eff-row.wl-gap {
   grid-template-columns: minmax(120px, 190px) minmax(0, 1fr) 48px;
 }
+
+/* 📊 WORKLOAD › CASE 1 (ตาม EXCEL) / ⚙ CASE 2 (ตามระบบ) + การ์ดเปรียบเทียบ */
+.wl-case {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1.5px solid #e6e3ee;
+  background: #fff;
+  transition: border-color 0.3s var(--ease-drop), background 0.3s var(--ease-drop);
+}
+.wl-case > span {
+  flex: 1;
+  min-width: 220px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b4458;
+}
+.wl-case.is-xl {
+  border-color: #bbf7d0;
+  background: linear-gradient(120deg, #f0fdf4, #fff 70%);
+}
+.wl-case.is-sys {
+  border-color: #bfdbfe;
+  background: linear-gradient(120deg, #eff6ff, #fff 70%);
+}
+.wlc-sum {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.wlc-sum > div {
+  --c: #6750a4;
+  position: relative;
+  display: grid;
+  padding: 12px 14px 12px 18px;
+  border-radius: 16px;
+  border: 1px solid #ece9f3;
+  background: #fff;
+  overflow: hidden;
+  animation: wlc-in 0.45s var(--ease-drop) backwards;
+}
+.wlc-sum > div:nth-child(2) { animation-delay: 60ms; }
+.wlc-sum > div:nth-child(3) { animation-delay: 120ms; }
+.wlc-sum > div:nth-child(4) { animation-delay: 180ms; }
+.wlc-sum > div::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--c);
+}
+.wlc-sum .is-xl { --c: #16a34a; }
+.wlc-sum .is-sys { --c: #2563eb; }
+.wlc-sum .is-ok { --c: #16a34a; }
+.wlc-sum .is-diff { --c: #dc2626; }
+.wlc-sum .is-cnt { --c: #6750a4; }
+.wlc-sum small {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--c);
+}
+.wlc-sum b {
+  font-size: 22px;
+  font-weight: 900;
+  color: #1f2350;
+  font-variant-numeric: tabular-nums;
+}
+.wlc-sum span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b6680;
+}
+.wlc-file {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b4458;
+  background: #f4f3f8;
+}
+.wlc-wrap {
+  overflow: auto;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+}
+.wlc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+.wlc-table th {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  background: #3f3f46;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid #52525b;
+  border-right: 1px solid #52525b;
+}
+.wlc-table th.is-grp {
+  background: #52525b;
+}
+.wlc-table th.is-xl {
+  background: #166534;
+}
+.wlc-table th.is-sys {
+  background: #1d4ed8;
+}
+.wlc-table td {
+  padding: 8px 10px;
+  text-align: right;
+  font-weight: 700;
+  color: #1f2350;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid #f0eef5;
+  border-right: 1px solid #f4f3f8;
+  white-space: nowrap;
+}
+.wlc-table td.is-xl {
+  background: #f7fef9;
+}
+.wlc-table td.is-sys {
+  background: #f8faff;
+}
+.wlc-table td.is-pos {
+  color: #b45309;
+}
+.wlc-table td.is-neg {
+  color: #dc2626;
+}
+.wlc-table td.is-zero {
+  color: #16a34a;
+}
+.wlc-table .is-name {
+  text-align: left;
+  font-weight: 900;
+}
+.wlc-table .is-name i {
+  display: inline-block;
+  width: 14px;
+  font-style: normal;
+  color: #9a94ab;
+}
+.wlc-table .is-name em {
+  margin-left: 6px;
+  font-style: normal;
+}
+.wlc-row {
+  cursor: pointer;
+  animation: wlc-in 0.35s var(--ease-drop) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.wlc-row td {
+  transition: background 0.2s;
+}
+.wlc-row:hover td,
+.wlc-row.is-open td {
+  background: #eef2ff;
+}
+.wlc-row:focus-visible {
+  outline: 2px solid #6750a4;
+  outline-offset: -2px;
+}
+.wlc-table tfoot td {
+  font-weight: 900;
+  background: #f4f3f8;
+  border-top: 2px solid #3f3f46;
+}
+.wlc-table tfoot td:first-child {
+  text-align: left;
+}
+.wlc-st {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.wlc-st.is-ok {
+  color: #166534;
+  background: #dcfce7;
+}
+.wlc-st.is-bad {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.wlc-st.is-none {
+  color: #6b6680;
+  background: #f1f0f5;
+}
+.wlc-detail td {
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  background: #fafafa;
+}
+.wlc-panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+.wlc-pane {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid #bbf7d0;
+  background: #fff;
+}
+.wlc-pane.is-sys {
+  border-color: #bfdbfe;
+}
+.wlc-pane > b {
+  font-size: 13px;
+  font-weight: 900;
+  color: #1f2350;
+}
+.wlc-pane textarea {
+  font-size: 12.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.wlc-pane small {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b6680;
+}
+.wlc-pane ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #4b4458;
+  line-height: 1.55;
+}
+.wlc-pane li.is-warn {
+  color: #b91c1c;
+  font-weight: 800;
+}
+.wlc-note {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #4b4458;
+  white-space: pre-line;
+}
+@keyframes wlc-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+/* 📱 มือถือ: ตารางเปรียบเทียบ = การ์ดต่อหน่วยงาน */
+@media (max-width: 760px) {
+  .wlc-table thead {
+    display: none;
+  }
+  .wlc-table,
+  .wlc-table tbody,
+  .wlc-table tfoot,
+  .wlc-table tr,
+  .wlc-table td {
+    display: block;
+    width: 100%;
+  }
+  .wlc-row,
+  .wlc-table tfoot tr {
+    margin: 8px;
+    width: auto;
+    border: 1px solid #ece9f3;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .wlc-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .wlc-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 900;
+    color: #9a94ab;
+  }
+  .wlc-table tfoot td:empty {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wlc-sum > div,
+  .wlc-row {
+    animation: none;
+  }
+}

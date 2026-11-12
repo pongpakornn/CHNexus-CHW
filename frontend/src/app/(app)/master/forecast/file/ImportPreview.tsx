@@ -47,7 +47,6 @@ export function ImportPreview({ file, year, withCalc, rows, onClose }: { file: F
   const [fixes, setFixes] = useState<Record<string, Fix>>({});
   const [editing, setEditing] = useState<PvMissing | null>(null);
   const [meta, setMeta] = useState<PMeta | null>(null);
-  const [summary, setSummary] = useState(!!file.ref);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,7 +91,6 @@ export function ImportPreview({ file, year, withCalc, rows, onClose }: { file: F
       `ยอดเดิมตรงกัน ${cnt.same.toLocaleString()} รายการ (ใช้ตัวเดิม ไม่แตะ)`,
       open.length ? `⚠ ไม่มีในระบบ ${open.length.toLocaleString()} รายการ (ข้าม ไม่นำเข้า)` : "",
       pend.length ? `\n➕ เพิ่ม Product ใหม่ ${pend.length} รายการก่อน แล้วจึงอัพเดทยอด` : "",
-      summary ? "📊 อัพเดทกราฟ DIFF (2) / DIFF (3) จากไฟล์นี้ด้วย" : "",
       withCalc ? "แล้วคำนวณ MAX / MIN ของคลังที่เปิด AUTO CALC" : "นำเข้าอย่างเดียว ไม่คำนวณ MAX / MIN",
     ].filter(Boolean);
     if (!(await dlg.confirm({ title: "IMPORT FORECAST FILE", message: lines.join("\n") + "\n\nยืนยันการนำเข้าหรือไม่?", ok: "IMPORT" }))) return;
@@ -133,7 +131,7 @@ export function ImportPreview({ file, year, withCalc, rows, onClose }: { file: F
       }
       // 3) อัพเดทยอด (Server จับคู่ PART A ใหม่ทุกแถว · เงื่อนไขเดิม)
       setBusy("กำลังอัพเดทยอด Forecast / Order / Delivery …");
-      const r = await api<{ message: string; month: string | null }>("/forecast/file/apply", { method: "POST", body: { year, withCalc, rows: effective(fx), fileId: file.id, summary } });
+      const r = await api<{ message: string; month: string | null }>("/forecast/file/apply", { method: "POST", body: { year, withCalc, rows: effective(fx), fileId: file.id, summary: false } });
       await dlg.alert({ title: "IMPORT FORECAST FILE", message: r.message, tone: r.message.includes("⚠") ? "warn" : "ok" });
       router.push("/master/forecast");
     } catch (e) {
@@ -204,12 +202,6 @@ export function ImportPreview({ file, year, withCalc, rows, onClose }: { file: F
                   {open.length > 0 && <PvCard tone="bad" icon="⚠" title="ไม่มีในระบบ" n={open.length} sub={`${open.reduce((a, m) => a + m.rows, 0).toLocaleString()} แถว • กดเพื่อเพิ่ม / เลือกตัวที่มีอยู่`} onClick={() => go("missing")} i={4} />}
                   {fixed.length > 0 && <PvCard tone="purple" icon="🛠" title="แก้แล้ว • พร้อมดำเนินการ" n={fixed.length} sub={`เพิ่ม Product ใหม่ ${fixed.filter((m) => fixes[m.key]?.mode === "new").length} • ใช้ตัวที่มีอยู่ ${fixed.filter((m) => fixes[m.key]?.mode === "map").length}`} onClick={() => go("fixed")} i={5} />}
                 </div>
-                {file.ref && (
-                  <button type="button" role="switch" aria-checked={summary} className={`sw w-fit ${summary ? "is-on" : ""}`} onClick={() => setSummary((v) => !v)}>
-                    <span className="sw-track" />
-                    อัพเดทกราฟ DIFF (2) / DIFF (3) จากไฟล์นี้ด้วย
-                  </button>
-                )}
                 {open.length > 0 && (
                   <div className="ff-alerts">
                     <b>⚠ รายการที่ไม่มีในระบบ ({open.length}) • จะไม่นำเข้าจนกว่าจะแก้</b>

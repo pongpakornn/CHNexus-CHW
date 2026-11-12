@@ -221,6 +221,10 @@ namespace Nexus.Helpers
         private static bool _ppWl;
         public static bool HasPpWorkload => _ppWl || (_ppWl = HasProductionPlan && TableExists("ProductionPlan.WorkloadHeads") == true);
 
+        // 👥 WORKLOAD เทียบไฟล์ Excel Work load (41_Production_Plan_Workload_Excel.sql): ProductionPlan.WorkloadRef / WorkloadNotes
+        private static bool _ppWlRef;
+        public static bool HasPpWorkloadRef => _ppWlRef || (_ppWlRef = HasPpWorkload && TableExists("ProductionPlan.WorkloadRef") == true && TableExists("ProductionPlan.WorkloadNotes") == true);
+
         // 📈 PRODUCTION PLAN › PCS ที่กำหนดเองรายเดือน + 📊 FORECAST SUMMARY DIFF (2) / (3) (39_Production_Plan_Pcs_Override_Forecast_Summary.sql)
         private static bool _ppOv, _fcSum;
         public static bool HasPpPcsOverride => _ppOv || (_ppOv = HasProductionPlan && TableExists("ProductionPlan.PcsOverrides") == true);

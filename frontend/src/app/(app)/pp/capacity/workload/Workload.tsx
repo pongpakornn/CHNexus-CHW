@@ -1,21 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
-import { api } from "@/lib/api";
+import { api, upload } from "@/lib/api";
+import { PillSwitch } from "@/components/charts/ChartHeader";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { f0, f1, thisMonth } from "@/lib/pp";
 import { Kpi, MonthPicker, PpIcon } from "../../shared";
-import { EN, WL_FIELDS, WL_GROUPS, buildTable, deptTotals, savedHeads, signed, updOf, useWorkload, type WlField, type WlPlan } from "./wl";
+import { EN, WL_FIELDS, WL_GROUPS, buildTable, deptTotals, refMap, savedHeads, signed, updOf, useWorkload, type WlCase, type WlField, type WlPlan } from "./wl";
+import { WlCompare } from "./WlCompare";
 import "../../pp.css";
 
 // 👥 PRODUCTION PLAN › CAPACITY › WORKLOAD : สรุปอัตรากำลังคน แผน, ผล ประจำเดือน (Monthly man-power Plan & Actual) · แทนชีท "9. ManPower" ของ Excel Work load
 //   สูตร / ข้อมูลอยู่ที่ ./wl.ts (ใช้ร่วมกับ DASHBOARD › WORKLOAD)
 //   คนที่มีจริง (Current ของเดือน N · Actual ของเดือน N-1) = กรอกที่หน้านี้ แล้วกด SAVE · Capacity / Forecast / วันทำงานเปลี่ยน = อัพเดทเอง
+//   📊 CASE 1 ตาม EXCEL = PDT / Direct / Production จากไฟล์ Work load (IMPORT WORK LOAD EXCEL) · ⚙ CASE 2 ตามระบบ = คำนวณจาก Forecast / Order ในระบบ
+//   การ์ดเปรียบเทียบ (WlCompare) = ยอดทั้งสองแบบทีละหน่วยงาน + เหตุผลที่ตรง / ไม่ตรง
 type Draft = Record<string, string>; // `${month}|${row}|${field}` -> ข้อความที่พิมพ์
 
 const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(/,/g, "")));
@@ -32,6 +36,24 @@ export default function Workload() {
   const [saving, setSaving] = useState(false);
   const dirty = Object.keys(draft).length;
   const { res, err, load } = useWorkload(month, dirty > 0);
+  // 📊 CASE 1 / ⚙ CASE 2 (จำไว้ในเครื่อง)
+  const [cs, setCs] = useState<WlCase>(() => {
+    try {
+      return (localStorage.getItem("wl-case") as WlCase) || "EXCEL";
+    } catch {
+      return "EXCEL";
+    }
+  });
+  const pickCase = (v: WlCase) => {
+    setCs(v);
+    try {
+      localStorage.setItem("wl-case", v);
+    } catch {
+      /* ไม่เป็นไร */
+    }
+  };
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   // ออกจากหน้าโดยยังไม่ SAVE = เตือน
   useEffect(() => {
@@ -69,7 +91,27 @@ export default function Workload() {
     },
     [saved, draft],
   );
-  const table = useMemo(() => (data ? buildTable(data, totals, headOf) : null), [data, totals, headOf]);
+  const refs = useMemo(() => refMap(res?.refs), [res]);
+  const hasRef = ms.some((m) => [...refs.keys()].some((k) => k.startsWith(m.month + "|")));
+  const useXl = cs === "EXCEL" && hasRef;
+  const refOf = useCallback((m: string, row: string) => refs.get(`${m}|${row}`), [refs]);
+  const table = useMemo(() => (data ? buildTable(data, totals, headOf, useXl ? refOf : undefined) : null), [data, totals, headOf, useXl, refOf]);
+
+  // 📥 IMPORT WORK LOAD EXCEL -> สรุป -> ยืนยัน
+  async function importExcel(f: File) {
+    setImporting(true);
+    try {
+      const pv = await upload<{ id: string; summary: string }>("/pp/workload/excel", f);
+      if (!(await dlg.confirm({ title: "IMPORT WORK LOAD EXCEL", message: pv.summary, ok: "IMPORT" }))) return;
+      const r = await api<{ message: string }>("/pp/workload/excel/apply", { method: "POST", body: pv.id });
+      toast.show("IMPORTED", r.message, "ok");
+      await load(true);
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setImporting(false);
+    }
+  }
   const upd = useMemo(() => updOf(data?.heads ?? [], curM), [data, curM]);
 
   const setCell = (m: string, row: string, f: WlField, v: string) => {
@@ -133,7 +175,29 @@ export default function Workload() {
       icon="/icons/management.png"
       title="PRODUCTION PLAN • WORKLOAD"
       subtitle={`สรุปอัตรากำลังคน แผน, ผล ประจำเดือน ${curM ? EN(curM).toUpperCase() : ""} · Monthly man-power Plan & Actual`}
-      actions={<MonthPicker value={month} onChange={changeMonth} />}
+      actions={
+        <>
+          {res?.can.excel && (
+            <>
+              <button type="button" className="fill-btn" disabled={importing} onClick={() => fileRef.current?.click()} title="นำเข้ายอด PDT / Direct จากไฟล์ Work load (ชีท 9. ManPower) เป็น CASE 1 ตาม EXCEL">
+                {importing ? "…" : "📥 IMPORT WORK LOAD EXCEL"}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xlsm"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) importExcel(f);
+                }}
+              />
+            </>
+          )}
+          <MonthPicker value={month} onChange={changeMonth} />
+        </>
+      }
     />
   );
   if (!data || !table)
@@ -179,6 +243,26 @@ export default function Workload() {
         </div>
       )}
 
+      {/* 📊 CASE 1 / ⚙ CASE 2: ที่มาของ PDT / Direct ในตาราง */}
+      <div className={`wl-case ${useXl ? "is-xl" : "is-sys"}`}>
+        <PillSwitch
+          label="ที่มาของยอด"
+          value={useXl ? "EXCEL" : "SYSTEM"}
+          onChange={(v) => pickCase(v as WlCase)}
+          options={[
+            { v: "EXCEL", l: "📊 CASE 1 • ตาม EXCEL", title: hasRef ? "PDT / Direct / Production จากไฟล์ Work load" : "ยังไม่มียอด EXCEL ของเดือนนี้ (IMPORT WORK LOAD EXCEL)" },
+            { v: "SYSTEM", l: "⚙ CASE 2 • ตามระบบ", title: "คำนวณจาก Forecast / Order ที่มีในระบบ + STD ของ Capacity" },
+          ]}
+        />
+        <span>
+          {useXl
+            ? "PDT / Direct / Production = ยอดจากไฟล์ Work load ที่ Import (ตรงกับ Excel) · เดือน / หน่วยงานที่ไม่มีในไฟล์ใช้ยอดของระบบ"
+            : cs === "EXCEL" && !hasRef
+              ? "ยังไม่มียอด EXCEL ของเดือนเหล่านี้ · แสดงยอดของระบบ (กด IMPORT WORK LOAD EXCEL)"
+              : "PDT / Direct = ระบบคำนวณจาก Forecast / Order ที่มีในระบบจริง + STD ของ Capacity (สูตรเดียวกับ Excel)"}
+        </span>
+      </div>
+
       <div className="pp-kpis">
         <Kpi i={0} tone="plan" icon={<PpIcon k="plan" />} label={`PLAN MAN • ${EN(curM).toUpperCase()}`} value={N.total} fmt={f1} unit=" คน" sub={`Direct ${f1(N.direct)} · Ind1 ${f0(N.ind1)} · Ind2 ${f0(N.ind2)}`} />
         <Kpi i={1} tone="act" icon={<PpIcon k="act" />} label={`CURRENT • UPDATE ${upd}`} value={C.total} fmt={f0} unit=" คน" sub={`Direct ${f0(C.direct)} · Ind1 ${f0(C.ind1)} · Ind2 ${f0(C.ind2)}`} frac={N.total ? C.total / N.total : null} />
@@ -197,7 +281,7 @@ export default function Workload() {
 
       <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={2}>
         <Card
-          title="9. MONTHLY MAN-POWER PLAN & ACTUAL"
+          title={`9. MONTHLY MAN-POWER PLAN & ACTUAL • ${useXl ? "CASE 1 ตาม EXCEL" : "CASE 2 ตามระบบ"}`}
           actions={<span className="pp-hint m-0">{canEdit ? "กรอกจำนวนคนที่มีจริงในช่อง CURRENT / ACTUAL แล้วกด SAVE · Plan คำนวณจาก Capacity เอง" : "ดูอย่างเดียว (ไม่มีสิทธิ์แก้จำนวนคน)"}</span>}
           bodyClass="p-0"
         >
@@ -323,9 +407,14 @@ export default function Workload() {
             <span>
               <b className="wl-pos">+n</b> / <b className="wl-neg">−n</b> Actual = คนที่มีจริง (Direct) − แผน (Direct) · ติดลบ = คนขาด
             </span>
-            <span>PDT / Direct = Total P1 / P9 ของ Capacity · Production = Total A1 ของเดือนก่อน</span>
+            <span>{useXl ? "PDT / Direct / Production = ยอดในไฟล์ Work load (CASE 1)" : "PDT / Direct = Total P1 / P9 ของ Capacity · Production = Total A1 ของเดือนก่อน"}</span>
           </div>
         </Card>
+      </motion.div>
+
+      {/* 🔍 เปรียบเทียบ CASE 1 vs CASE 2 + เหตุผล */}
+      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={3}>
+        <WlCompare months={ms} totals={totals} refs={refs} notes={res?.notes ?? []} canEdit={!!res?.can.excel} onSaved={() => load(true)} />
       </motion.div>
 
       {/* แถบ SAVE ลอยล่าง: แสดงเมื่อมีการแก้ไข */}
