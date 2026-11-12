@@ -13,6 +13,7 @@ import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { f0, f1 } from "@/lib/pp";
 import { PpChart, type Series } from "../PpChart";
 import { Seg } from "../Seg";
+import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { EN, buildTable, deptTotals, refMap, savedHeads, signed, updOf, useWorkload, type WlRes, type WlTable, type WlTableRow } from "../capacity/workload/wl";
 import { WlGrid, WlLegend } from "../capacity/workload/WlGrid";
 
@@ -85,47 +86,59 @@ const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9" }
 type Pick = "-1" | "0" | "1" | "2" | "3"; // -1 = เดือน N-1 (แผน vs คนที่มีจริงเดือนก่อน)
 type Metric = "direct" | "total";
 
-// 👥 กราฟ PLAN vs CURRENT รายหน่วยงาน (เลือก N…N+3 · DIRECT / TOTAL) · กดกราฟ = ไปหน้าตาราง WORKLOAD
-function WlByDept({ table, months, curM }: { table: WlTable; months: string[]; curM: string }) {
+// 👥 กราฟ WORKLOAD: เลือกหน่วยงานได้แบบ Capacity
+//   ALL = ทุกหน่วยงานของเดือนที่เลือก (N-1 … N+3) · เลือกหน่วยงาน = หน่วยงานนั้นทุกเดือน N-1 → N+3
+//   PLAN MANPOWER (ยอดตามไฟล์ Excel) vs ACTUAL MANPOWER (N-1 = Actual เดือนก่อน · N ขึ้นไป = คนที่มีจริงตอนนี้) · DIRECT / TOTAL · กดกราฟ = ไปหน้าตาราง
+function WlByDept({ table, months, curM, dept }: { table: WlTable; months: string[]; curM: string; dept?: string }) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const [pick, setPick] = useState<Pick>("0");
   const [metric, setMetric] = useState<Metric>("direct");
+  const [unit, setUnit] = useState<string>(() => (dept && table.rows.some((x) => x.r.key === dept) ? dept : "ALL"));
   const i = Number(pick);
   const pm = months[i + 1] ?? curM;
-  // N-1 = แผนเดือนก่อน vs คนที่มีจริงเดือนก่อน (Actual) · N…N+3 = แผน vs คนที่มีจริงตอนนี้ (Current)
-  const val = (x: WlTableRow) => {
-    const p = i < 0 ? x.prevPlan : x.plans[i],
-      h = i < 0 ? x.prevAct : x.cur;
-    return metric === "direct" ? { plan: p.direct, have: h.direct } : { plan: p.total, have: h.total };
-  };
+  const pv = (p: { direct: number; total: number }) => (metric === "direct" ? p.direct : p.total);
+  const found = unit === "ALL" ? null : (table.rows.find((x) => x.r.key === unit) ?? null);
+  const one = found && (metric === "total" || (found.r.dept && found.r.direct !== false)) ? found : null; // DIRECT = เฉพาะแถวที่ดึงจาก Capacity
+  const lbl = { plan: metric === "direct" ? "PLAN MANPOWER (DIRECT)" : "PLAN MANPOWER", have: metric === "direct" ? "ACTUAL MANPOWER (DIRECT)" : "ACTUAL MANPOWER" };
+
+  // ทุกหน่วยงาน (เดือนที่เลือก)
   const rows = metric === "total" ? table.rows : table.rows.filter((x) => x.r.dept && x.r.direct !== false);
+  const val = (x: WlTableRow) => ({ plan: pv(i < 0 ? x.prevPlan : x.plans[i]), have: pv(i < 0 ? x.prevAct : x.cur) });
+  // หน่วยงานเดียว (ทุกเดือน)
+  const trend = one ? [{ plan: pv(one.prevPlan), have: pv(one.prevAct) }, ...one.plans.map((p) => ({ plan: pv(p), have: pv(one.cur) }))] : [];
+  const tag = (k: number) => (k === 0 ? "N-1" : k === 1 ? "N" : `N+${k - 1}`);
+
+  const cats = one ? months.map((m, k) => `${EN(m).slice(0, 3).toUpperCase()} (${tag(k)})`) : rows.map((x) => x.r.short);
+  const pts = one ? trend : rows.map(val);
   const series: Series[] = [
-    { key: "plan", label: metric === "direct" ? "PLAN MANPOWER (DIRECT)" : "PLAN MANPOWER", kind: "bar", color: C.plan, color2: C.plan2, values: rows.map((x) => val(x).plan), fmt: f1 },
-    { key: "have", label: metric === "direct" ? "ACTUAL MANPOWER (DIRECT)" : "ACTUAL MANPOWER", kind: "bar", color: C.act, color2: C.act2, values: rows.map((x) => val(x).have), fmt: f0 },
+    { key: "plan", label: lbl.plan, kind: "bar", color: C.plan, color2: C.plan2, values: pts.map((x) => x.plan), fmt: f1 },
+    { key: "have", label: lbl.have, kind: "bar", color: C.act, color2: C.act2, values: pts.map((x) => x.have), fmt: f0 },
   ];
+  const units = [{ value: "ALL", label: "ALL • ทุกหน่วยงาน" }, ...table.rows.filter((x) => metric === "total" || (x.r.dept && x.r.direct !== false)).map((x) => ({ value: x.r.key, label: `${x.r.short} • ${x.r.name}` }))];
   return (
     <Card
       clip={false}
-      title={`👥 WORKLOAD • PLAN vs CURRENT • ${EN(pm).toUpperCase()}`}
+      title={one ? `👥 WORKLOAD • ${one.r.short} • ${EN(months[0]).toUpperCase()} → ${EN(months[4]).toUpperCase()}` : `👥 WORKLOAD • PLAN vs ACTUAL • ${EN(pm).toUpperCase()}`}
       actions={
         <>
-          <Seg id="dwl-n" value={pick} onChange={setPick} options={(["-1", "0", "1", "2", "3"] as Pick[]).map((v) => ({ v, l: v === "-1" ? "N-1" : v === "0" ? "N" : `N+${v}` }))} />
+          <MenuSelect compact className="w-[230px]" value={units.some((u) => u.value === unit) ? unit : "ALL"} options={units} onChange={setUnit} label="หน่วยงาน" />
+          {!one && <Seg id="dwl-n" value={pick} onChange={setPick} options={(["-1", "0", "1", "2", "3"] as Pick[]).map((v) => ({ v, l: v === "-1" ? "N-1" : v === "0" ? "N" : `N+${v}` }))} />}
           <Seg id="dwl-m" value={metric} onChange={setMetric} options={[{ v: "direct", l: "DIRECT" }, { v: "total", l: "TOTAL" }]} />
         </>
       }
       bodyClass="px-2 pb-3 pt-2 md:px-4"
     >
       <AnimatePresence mode="wait" initial={false}>
-        <motion.div key={pick + metric} initial={reduce ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={reduce ? undefined : { opacity: 0, x: -14 }} transition={{ duration: 0.3, ease: EASE }}>
+        <motion.div key={unit + pick + metric} initial={reduce ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={reduce ? undefined : { opacity: 0, x: -14 }} transition={{ duration: 0.3, ease: EASE }}>
           <PpChart
-            ariaLabel="Workload plan versus current by department"
+            ariaLabel={one ? `Workload ${one.r.short} by month` : "Workload plan versus actual by department"}
             height={300}
-            cats={rows.map((x) => x.r.short)}
+            cats={cats}
             series={series}
-            tipTitle={(k) => `${rows[k].r.name} · ${EN(pm)}`}
+            tipTitle={(k) => (one ? `${one.r.name} · ${EN(months[k])} (${tag(k)})` : `${rows[k].r.name} · ${EN(pm)}`)}
             tipExtra={(k) => {
-              const v = val(rows[k]);
+              const v = pts[k];
               const d = Math.round(v.have - v.plan);
               return (
                 <div className="r is-sum">
@@ -138,7 +151,7 @@ function WlByDept({ table, months, curM }: { table: WlTable; months: string[]; c
           />
         </motion.div>
       </AnimatePresence>
-      <p className="pp-hint">แท่งม่วง = PLAN MANPOWER (ยอดตามไฟล์ Excel Work load) · แท่งฟ้า = ACTUAL MANPOWER (คนที่มีจริง · N-1 = Actual เดือนก่อน) · กดกราฟเพื่อไปหน้าตาราง WORKLOAD</p>
+      <p className="pp-hint">แท่งม่วง = PLAN MANPOWER (ยอดตามไฟล์ Excel Work load) · แท่งฟ้า = ACTUAL MANPOWER (N-1 = Actual เดือนก่อน · N ขึ้นไป = คนที่มีจริงตอนนี้) · เลือกหน่วยงานเพื่อดูทุกเดือน · กดกราฟเพื่อไปหน้าตาราง WORKLOAD</p>
     </Card>
   );
 }
@@ -161,7 +174,7 @@ export function WlTableCard({ table, ms, upd, curM }: { table: WlTable; ms: WlRe
   );
 }
 
-export function WorkloadSection({ month }: { month: string }) {
+export function WorkloadSection({ month, dept }: { month: string; dept?: string }) {
   const reduce = useReducedMotion();
   const { res, err } = useWorkload(month);
   const { table, upd } = useWlTable(res);
@@ -177,7 +190,7 @@ export function WorkloadSection({ month }: { month: string }) {
   return (
     <>
       <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.08 }} custom={0}>
-        <WlByDept table={table} months={ms.map((m) => m.month)} curM={curM} />
+        <WlByDept key={dept ?? "ALL"} table={table} months={ms.map((m) => m.month)} curM={curM} dept={dept} />
       </motion.div>
       <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.05 }} custom={0}>
         <WlTableCard table={table} ms={ms} upd={upd} curM={curM} />

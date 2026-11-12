@@ -253,7 +253,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
           <ConditionMatrix data={data} calcs={calcs} dept={D.slug} />
         </Card>
       </motion.div>
-      <WorkloadSection month={month} />
+      <WorkloadSection month={month} dept={dept} />
     </PageBody>
   );
 }

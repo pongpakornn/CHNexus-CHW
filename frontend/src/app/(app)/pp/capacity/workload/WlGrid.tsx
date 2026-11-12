@@ -182,14 +182,9 @@ function PlanCells({ p, total, sum }: { p: WlPlan; total?: boolean; sum?: { pos:
       <td>{total ? f0(p.ind2) : f1(p.ind2)}</td>
       <td className={total ? "is-sum" : "is-day"}>{f1(p.total)}</td>
       {total ? (
-        <td className="wl-actsum" title={sum ? `เกิน +${sum.pos} · ขาด ${sum.neg} · สุทธิ ${signed(sum.pos + sum.neg)} คน` : undefined}>
-          {sum && (
-            <>
-              <b className="wl-pos">+{sum.pos}</b>
-              <b className="wl-neg">{sum.neg < 0 ? `−${Math.abs(sum.neg)}` : "−0"}</b>
-              <small className={sum.pos + sum.neg < 0 ? "wl-neg" : sum.pos + sum.neg > 0 ? "wl-pos" : "wl-zero"}>สุทธิ {signed(sum.pos + sum.neg)}</small>
-            </>
-          )}
+        // แถว TOTAL: ยอดสุทธิของทุกหน่วยงาน (เกินรวม + ขาดรวม) · ชี้ดู = แยกเกิน / ขาด
+        <td className={`wl-actsum ${sum && sum.pos + sum.neg < 0 ? "wl-neg" : sum && sum.pos + sum.neg > 0 ? "wl-pos" : "wl-zero"}`} title={sum ? `เกินรวม +${sum.pos} · ขาดรวม ${sum.neg} คน` : undefined}>
+          {sum ? signed(sum.pos + sum.neg) : ""}
         </td>
       ) : (
         <td className={d > 0 ? "wl-pos" : d < 0 ? "wl-neg" : "wl-zero"}>{signed(d)}</td>
