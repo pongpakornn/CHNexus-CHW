@@ -16,7 +16,7 @@ import { ForecastSection, WlTableCard, useWlTable } from "./DashSections";
 // 👥 PRODUCTION PLAN › DASHBOARD › WORKLOAD: ภาพรวมอัตรากำลังคน (ข้อมูล / สูตรเดียวกับ CAPACITY › WORKLOAD)
 //   KPI · กราฟ Plan vs คนที่มีจริง รายแถว (เลือก N…N+3 · Direct / Total) · แนวโน้ม N-1 → N+3 · แถวที่คน Direct ขาด / เกิน
 const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", pdt: "#d97706" };
-type Pick = "0" | "1" | "2" | "3";
+type Pick = "-1" | "0" | "1" | "2" | "3"; // -1 = เดือน N-1
 type Metric = "direct" | "total";
 
 export function WorkloadDash({ month, setMonth, picker }: { month: string; setMonth: (m: string) => void; picker: React.ReactNode }) {
@@ -57,14 +57,19 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
   const last = table.tot.plans[3];
   const need3 = last.total - Cur.total;
   const pm = ms[i + 1]?.month ?? curM;
-  const val = (x: WlTableRow) => (metric === "direct" ? { plan: x.plans[i].direct, have: x.cur.direct } : { plan: x.plans[i].total, have: x.cur.total });
+  // N-1 = แผน / คนที่มีจริงของเดือนก่อน (Actual) · N…N+3 = แผน vs คนที่มีจริงตอนนี้ (Current)
+  const planAt = (x: WlTableRow) => (i < 0 ? x.prevPlan : x.plans[i]);
+  const haveAt = (x: WlTableRow) => (i < 0 ? x.prevAct : x.cur);
+  const totPlan = i < 0 ? table.tot.prevPlan : table.tot.plans[i];
+  const totHave = i < 0 ? table.tot.prevAct : Cur;
+  const val = (x: WlTableRow) => (metric === "direct" ? { plan: planAt(x).direct, have: haveAt(x).direct } : { plan: planAt(x).total, have: haveAt(x).total });
   const rows = metric === "total" ? table.rows : table.rows.filter((x) => x.r.dept && x.r.direct !== false); // DIRECT = เฉพาะแถวที่ดึงจาก Capacity
 
   const byRow: { cats: string[]; series: Series[] } = {
     cats: rows.map((x) => x.r.short),
     series: [
-      { key: "plan", label: metric === "direct" ? "PLAN DIRECT (P9)" : "PLAN TOTAL", kind: "bar", color: C.plan, color2: C.plan2, values: rows.map((x) => val(x).plan), fmt: f1 },
-      { key: "have", label: metric === "direct" ? "CURRENT DIRECT" : "CURRENT TOTAL", kind: "bar", color: C.act, color2: C.act2, values: rows.map((x) => val(x).have), fmt: f0 },
+      { key: "plan", label: metric === "direct" ? "PLAN MANPOWER (DIRECT)" : "PLAN MANPOWER", kind: "bar", color: C.plan, color2: C.plan2, values: rows.map((x) => val(x).plan), fmt: f1 },
+      { key: "have", label: metric === "direct" ? "ACTUAL MANPOWER (DIRECT)" : "ACTUAL MANPOWER", kind: "bar", color: C.act, color2: C.act2, values: rows.map((x) => val(x).have), fmt: f0 },
     ],
   };
   // แนวโน้ม 5 เดือน: N-1 ใช้ Actual (คนที่มีจริงเดือนก่อน) · N…N+3 ใช้ Current
@@ -73,7 +78,7 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
     series: [
       {
         key: "plan",
-        label: metric === "direct" ? "PLAN DIRECT" : "PLAN TOTAL",
+        label: metric === "direct" ? "PLAN MANPOWER (DIRECT)" : "PLAN MANPOWER",
         kind: "bar",
         color: C.plan,
         color2: C.plan2,
@@ -94,7 +99,7 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
   // แถวที่คน Direct ขาด / เกิน (เดือนที่เลือก) เรียงขาดมากสุดก่อน
   const gaps = table.rows
     .filter((x) => x.r.dept && x.r.direct !== false)
-    .map((x) => ({ x, plan: x.plans[i].direct, have: x.cur.direct, d: x.cur.direct - x.plans[i].direct }))
+    .map((x) => ({ x, plan: planAt(x).direct, have: haveAt(x).direct, d: haveAt(x).direct - planAt(x).direct }))
     .sort((a, b) => a.d - b.d);
   const gapMax = Math.max(1, ...gaps.map((g) => Math.max(g.plan, g.have)));
   const wlHref = `/pp/capacity/workload?month=${curM}`;
@@ -141,7 +146,7 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
           title={`PLAN vs CURRENT • BY DEPARTMENT • ${EN(pm).toUpperCase()}`}
           actions={
             <>
-              <Seg id="wl-n" value={pick} onChange={setPick} options={(["0", "1", "2", "3"] as Pick[]).map((v, k) => ({ v, l: k ? `N+${k}` : "N" }))} />
+              <Seg id="wl-n" value={pick} onChange={setPick} options={(["-1", "0", "1", "2", "3"] as Pick[]).map((v) => ({ v, l: v === "-1" ? "N-1" : v === "0" ? "N" : `N+${v}` }))} />
               <Seg id="wl-m" value={metric} onChange={setMetric} options={[{ v: "direct", l: "DIRECT" }, { v: "total", l: "TOTAL" }]} />
             </>
           }
@@ -241,28 +246,28 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
                 <tr>
                   <th>DEPARTMENT</th>
                   <th>PDT (N)</th>
-                  <th>PLAN DIRECT</th>
-                  <th>CURRENT DIRECT</th>
+                  <th>{i < 0 ? "PLAN DIRECT (N-1)" : "PLAN DIRECT"}</th>
+                  <th>{i < 0 ? "ACTUAL DIRECT (N-1)" : "ACTUAL DIRECT"}</th>
                   <th>+/−</th>
-                  <th>PLAN TOTAL</th>
-                  <th>CURRENT TOTAL</th>
+                  <th>PLAN MANPOWER</th>
+                  <th>ACTUAL MANPOWER</th>
                 </tr>
               </thead>
               <tbody>
                 {table.rows.map((x, k) => {
-                  const d = Math.round(x.cur.direct - x.plans[i].direct);
+                  const d = Math.round(haveAt(x).direct - planAt(x).direct);
                   return (
                     <tr key={x.r.key} className="pp-rise" style={{ "--i": k } as React.CSSProperties}>
                       <td className="t">
                         <b>{x.r.name}</b>
                         <small>{x.r.grp}</small>
                       </td>
-                      <td>{f0(x.plans[i].pdt)}</td>
-                      <td>{f1(x.plans[i].direct)}</td>
-                      <td>{f0(x.cur.direct)}</td>
+                      <td>{f0(planAt(x).pdt)}</td>
+                      <td>{f1(planAt(x).direct)}</td>
+                      <td>{f0(haveAt(x).direct)}</td>
                       <td className={d < 0 ? "wl-neg" : d > 0 ? "wl-pos" : "wl-zero"}>{signed(d)}</td>
-                      <td>{f1(x.plans[i].total)}</td>
-                      <td>{f0(x.cur.total)}</td>
+                      <td>{f1(planAt(x).total)}</td>
+                      <td>{f0(haveAt(x).total)}</td>
                     </tr>
                   );
                 })}
@@ -270,12 +275,12 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
               <tfoot>
                 <tr>
                   <td>TOTAL</td>
-                  <td>{f0(table.tot.plans[i].pdt)}</td>
-                  <td>{f1(table.tot.plans[i].direct)}</td>
-                  <td>{f0(Cur.direct)}</td>
-                  <td className={Cur.direct - table.tot.plans[i].direct < 0 ? "wl-neg" : "wl-pos"}>{signed(Cur.direct - table.tot.plans[i].direct)}</td>
-                  <td>{f1(table.tot.plans[i].total)}</td>
-                  <td>{f0(Cur.total)}</td>
+                  <td>{f0(totPlan.pdt)}</td>
+                  <td>{f1(totPlan.direct)}</td>
+                  <td>{f0(totHave.direct)}</td>
+                  <td className={totHave.direct - totPlan.direct < 0 ? "wl-neg" : "wl-pos"}>{signed(totHave.direct - totPlan.direct)}</td>
+                  <td>{f1(totPlan.total)}</td>
+                  <td>{f0(totHave.total)}</td>
                 </tr>
               </tfoot>
             </table>

@@ -106,7 +106,7 @@ export function WlGrid({ table, ms, upd, cell }: { table: WlTable; ms: WlMonth[]
             <td className="wl-stick wl-totlab" colSpan={2}>
               TOTAL
             </td>
-            <PlanCells p={table.tot.prevPlan} total />
+            <PlanCells p={table.tot.prevPlan} total sum={sumOf(table.rows.map((x) => x.prevPlan.diff))} />
             <td className="wl-blk">{f0(table.tot.prevAct.prod)}</td>
             <td>{f0(table.tot.prevAct.direct)}</td>
             <td>{f0(table.tot.prevAct.ind1)}</td>
@@ -117,7 +117,7 @@ export function WlGrid({ table, ms, upd, cell }: { table: WlTable; ms: WlMonth[]
             <td>{f0(C.ind2)}</td>
             <td className="is-sum">{f1(C.total)}</td>
             {table.tot.plans.map((p, j) => (
-              <PlanCells key={j} p={p} total />
+              <PlanCells key={j} p={p} total sum={sumOf(table.rows.map((x) => x.plans[j].diff))} />
             ))}
           </tr>
         </tfoot>
@@ -166,7 +166,13 @@ function SubHead() {
     </>
   );
 }
-function PlanCells({ p, total }: { p: WlPlan; total?: boolean }) {
+// Actual ของแถว TOTAL: รวมส่วนที่เกิน (+) และส่วนที่ขาด (−) แยกกัน (ปัดรายหน่วยงานแบบเดียวกับช่องในตาราง)
+const sumOf = (ds: number[]) => {
+  const r = ds.map((d) => Math.round(d));
+  return { pos: r.filter((d) => d > 0).reduce((a, b) => a + b, 0), neg: r.filter((d) => d < 0).reduce((a, b) => a + b, 0) };
+};
+
+function PlanCells({ p, total, sum }: { p: WlPlan; total?: boolean; sum?: { pos: number; neg: number } }) {
   const d = Math.round(p.diff);
   return (
     <>
@@ -175,7 +181,19 @@ function PlanCells({ p, total }: { p: WlPlan; total?: boolean }) {
       <td>{total ? f0(p.ind1) : f1(p.ind1)}</td>
       <td>{total ? f0(p.ind2) : f1(p.ind2)}</td>
       <td className={total ? "is-sum" : "is-day"}>{f1(p.total)}</td>
-      <td className={total ? "" : d > 0 ? "wl-pos" : d < 0 ? "wl-neg" : "wl-zero"}>{total ? "" : signed(d)}</td>
+      {total ? (
+        <td className="wl-actsum" title={sum ? `เกิน +${sum.pos} · ขาด ${sum.neg} · สุทธิ ${signed(sum.pos + sum.neg)} คน` : undefined}>
+          {sum && (
+            <>
+              <b className="wl-pos">+{sum.pos}</b>
+              <b className="wl-neg">{sum.neg < 0 ? `−${Math.abs(sum.neg)}` : "−0"}</b>
+              <small className={sum.pos + sum.neg < 0 ? "wl-neg" : sum.pos + sum.neg > 0 ? "wl-pos" : "wl-zero"}>สุทธิ {signed(sum.pos + sum.neg)}</small>
+            </>
+          )}
+        </td>
+      ) : (
+        <td className={d > 0 ? "wl-pos" : d < 0 ? "wl-neg" : "wl-zero"}>{signed(d)}</td>
+      )}
     </>
   );
 }

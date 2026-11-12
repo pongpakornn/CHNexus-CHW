@@ -82,7 +82,7 @@ export function useWlTable(res: WlRes | null) {
 }
 
 const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9" };
-type Pick = "0" | "1" | "2" | "3";
+type Pick = "-1" | "0" | "1" | "2" | "3"; // -1 = เดือน N-1 (แผน vs คนที่มีจริงเดือนก่อน)
 type Metric = "direct" | "total";
 
 // 👥 กราฟ PLAN vs CURRENT รายหน่วยงาน (เลือก N…N+3 · DIRECT / TOTAL) · กดกราฟ = ไปหน้าตาราง WORKLOAD
@@ -93,11 +93,16 @@ function WlByDept({ table, months, curM }: { table: WlTable; months: string[]; c
   const [metric, setMetric] = useState<Metric>("direct");
   const i = Number(pick);
   const pm = months[i + 1] ?? curM;
-  const val = (x: WlTableRow) => (metric === "direct" ? { plan: x.plans[i].direct, have: x.cur.direct } : { plan: x.plans[i].total, have: x.cur.total });
+  // N-1 = แผนเดือนก่อน vs คนที่มีจริงเดือนก่อน (Actual) · N…N+3 = แผน vs คนที่มีจริงตอนนี้ (Current)
+  const val = (x: WlTableRow) => {
+    const p = i < 0 ? x.prevPlan : x.plans[i],
+      h = i < 0 ? x.prevAct : x.cur;
+    return metric === "direct" ? { plan: p.direct, have: h.direct } : { plan: p.total, have: h.total };
+  };
   const rows = metric === "total" ? table.rows : table.rows.filter((x) => x.r.dept && x.r.direct !== false);
   const series: Series[] = [
-    { key: "plan", label: metric === "direct" ? "PLAN DIRECT" : "PLAN TOTAL", kind: "bar", color: C.plan, color2: C.plan2, values: rows.map((x) => val(x).plan), fmt: f1 },
-    { key: "have", label: metric === "direct" ? "CURRENT DIRECT" : "CURRENT TOTAL", kind: "bar", color: C.act, color2: C.act2, values: rows.map((x) => val(x).have), fmt: f0 },
+    { key: "plan", label: metric === "direct" ? "PLAN MANPOWER (DIRECT)" : "PLAN MANPOWER", kind: "bar", color: C.plan, color2: C.plan2, values: rows.map((x) => val(x).plan), fmt: f1 },
+    { key: "have", label: metric === "direct" ? "ACTUAL MANPOWER (DIRECT)" : "ACTUAL MANPOWER", kind: "bar", color: C.act, color2: C.act2, values: rows.map((x) => val(x).have), fmt: f0 },
   ];
   return (
     <Card
@@ -105,7 +110,7 @@ function WlByDept({ table, months, curM }: { table: WlTable; months: string[]; c
       title={`👥 WORKLOAD • PLAN vs CURRENT • ${EN(pm).toUpperCase()}`}
       actions={
         <>
-          <Seg id="dwl-n" value={pick} onChange={setPick} options={(["0", "1", "2", "3"] as Pick[]).map((v, k) => ({ v, l: k ? `N+${k}` : "N" }))} />
+          <Seg id="dwl-n" value={pick} onChange={setPick} options={(["-1", "0", "1", "2", "3"] as Pick[]).map((v) => ({ v, l: v === "-1" ? "N-1" : v === "0" ? "N" : `N+${v}` }))} />
           <Seg id="dwl-m" value={metric} onChange={setMetric} options={[{ v: "direct", l: "DIRECT" }, { v: "total", l: "TOTAL" }]} />
         </>
       }
@@ -133,7 +138,7 @@ function WlByDept({ table, months, curM }: { table: WlTable; months: string[]; c
           />
         </motion.div>
       </AnimatePresence>
-      <p className="pp-hint">แท่งม่วง = คนตามแผน (ยอดตามไฟล์ Excel Work load) · แท่งฟ้า = คนที่มีจริง · กดกราฟเพื่อไปหน้าตาราง WORKLOAD</p>
+      <p className="pp-hint">แท่งม่วง = PLAN MANPOWER (ยอดตามไฟล์ Excel Work load) · แท่งฟ้า = ACTUAL MANPOWER (คนที่มีจริง · N-1 = Actual เดือนก่อน) · กดกราฟเพื่อไปหน้าตาราง WORKLOAD</p>
     </Card>
   );
 }
