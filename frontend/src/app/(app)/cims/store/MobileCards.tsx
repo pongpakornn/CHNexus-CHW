@@ -208,7 +208,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
   );
 });
 
-const COIL_LABEL: Record<string, string> = { COILNO: "COIL NO.", MOTHER: "MASTER COIL", WEIGHT: "WEIGHT", COIL: "STOCK (COIL)", TON: "TON", RECEIVED: "RECEIVED" };
+const COIL_LABEL: Record<string, string> = { COILNO: "NUMBER COIL", MOTHER: "MASTER COIL", WEIGHT: "WEIGHT", COIL: "STOCK (COIL)", TON: "TON", RECEIVED: "RECEIVED" };
 const coilVal = (k: string, r: CoilRow) => ({ COILNO: r.coilNo, MOTHER: masterOf(r), WEIGHT: r.weight, COIL: "1", TON: r.ton, RECEIVED: r.received })[k] ?? "";
 
 // 🧲 Coil บนมือถือ: แถบ MASTER COIL -> Coil ลูกเป็นการ์ดเล็ก (เลข Coil ใหญ่ + ค่าอื่นเป็นคู่ ชื่อ : ค่า)

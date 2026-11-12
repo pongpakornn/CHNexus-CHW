@@ -13888,3 +13888,88 @@ table.lqp code {
     border-radius: 0;
   }
 }
+
+/* 🧲 MANAGE STOCK: ปุ่มกลมแยกออกมาแบบ MIN REPORT (ใช้ .rm-item / .rm-btn / .rm-tip ชุดเดียวกัน) · กล่องอ้างอิง 56px ซ้อนกึ่งกลางวงกลม 52px */
+.mfab-fan {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 56px;
+  height: 56px;
+  pointer-events: none;
+}
+.mfab-fan.is-open {
+  pointer-events: auto;
+}
+.mfab-fan .rm-item.is-up .rm-tip {
+  top: auto;
+  bottom: -2px;
+}
+.mfab-fan .rm-item.is-up .rm-tip::before {
+  top: auto;
+  bottom: 20px;
+}
+.mfab.is-drag .mfab-fan {
+  display: none;
+}
+
+/* 👤 SETUP › ADD USERID */
+.uo-box {
+  border: 1px solid var(--line, #e5e3ee);
+  border-radius: 16px;
+  padding: 14px;
+  background: #fff;
+}
+.uo-tree {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .uo-tree { grid-template-columns: minmax(0, 1fr); }
+}
+.uo-col {
+  min-width: 0;
+  border: 1px solid var(--line, #e5e3ee);
+  border-radius: 16px;
+  padding: 14px;
+  background: #fff;
+  animation: adm-in 0.4s var(--ease-drop) backwards;
+}
+.uo-col:nth-child(2) { animation-delay: 60ms; }
+.uo-col:nth-child(3) { animation-delay: 120ms; }
+.uo-list { max-height: 420px; overflow: auto; }
+.uo-list .rs-row.is-pick { cursor: pointer; transition: background-color 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop); }
+.uo-list .rs-row.is-pick:hover { background: #f6f3ff; }
+.uo-list .rs-row.is-sel { background: #efe9ff; box-shadow: inset 3px 0 0 #6750a4; }
+.uo-count {
+  flex-shrink: 0;
+  min-width: 26px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ece6fb;
+  color: #6750a4;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: center;
+}
+.uo-empty { padding: 12px 6px; font-size: 12px; font-weight: 700; color: #8a8699; }
+.uo-extra {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed #d6d2e6;
+  font-size: 12px;
+  font-weight: 800;
+  color: #6b6680;
+  text-align: left;
+  transition: background-color 0.25s var(--ease-drop), border-color 0.25s var(--ease-drop);
+}
+.uo-extra:hover, .uo-extra.is-sel { background: #efe9ff; border-color: #6750a4; color: #4c3a8a; }
+
+/* 🧲 MANAGE STOCK: การ์ดอธิบายของปุ่มที่กางออกไม่ล้นขอบจอมือถือ */
+@media (max-width: 640px) {
+  .mfab-fan .rm-tip { width: min(250px, 50vw); }
+}

@@ -400,7 +400,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     const keys = ["NO", ...mCoilOrder];
     const iCoil = keys.indexOf("COILNO");
     const iMother = keys.indexOf("MOTHER");
-    if (iCoil >= 0 && iMother > iCoil) [keys[iCoil], keys[iMother]] = ["MOTHER", "COILNO"]; // MASTER COIL มาก่อน COIL NO.
+    if (iCoil >= 0 && iMother > iCoil) [keys[iCoil], keys[iMother]] = ["MOTHER", "COILNO"]; // MASTER COIL มาก่อน NUMBER COIL
     if (mCoilRemark) keys.push("REMARK");
     const coilsOn = mStock.showCoilRows && !!mCoilReg;
     // คลังประเภท Material: กดทั้งแถวเพื่อเปิด / ปิด Coil
@@ -604,13 +604,14 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     }
   }
 
+  // 📄 TEMPLATE MAX-MIN = Export ข้อมูลปัจจุบันของคลัง (คอลัมน์ตามรูปแบบของคลัง) · TEMPLATE COIL = ไฟล์เปล่าสำหรับเพิ่ม / อัพเดท Coil
   async function template(coil: boolean) {
     const ok = await dlg.confirm({
-      title: "TEMPLATE EXCEL",
-      ok: "YES",
+      title: coil ? "TEMPLATE COIL" : "TEMPLATE MAX-MIN",
+      ok: "EXPORT",
       message: coil
-        ? `ต้องการสร้างไฟล์ Template สำหรับนำเข้า COIL LIST ของคลัง ${s.code} ใช่หรือไม่?\n\n• กรอก PRODUCT CODE / MASTER COIL / COIL NO / WEIGHT (KG.) ของ Coil ลูกแต่ละม้วน\n• นำเข้ากลับด้วยปุ่ม IMPORT EXCEL`
-        : `ต้องการสร้างไฟล์ Template สำหรับ IMPORT EXCEL ของคลัง ${s.code} ใช่หรือไม่?\n\n• คอลัมน์ตามที่ ${s.code} แสดงในหน้านี้ + ข้อมูลสินค้าปัจจุบันใส่ไว้ให้แล้ว\n${s.countCoil ? "• คลังนับ Coil: 1 แถว = 1 Coil (เลข Coil / Master Coil / น้ำหนัก)\n" : ""}• แก้ตัวเลข / เพิ่มสินค้าใหม่ แล้วนำเข้ากลับด้วยปุ่ม IMPORT EXCEL`,
+        ? `สร้างไฟล์ TEMPLATE COIL ของคลัง ${s.code} ใช่หรือไม่?\n\n• กรอก PRODUCT CODE / MASTER COIL / NUMBER COIL / WEIGHT (KG.) / LABEL DATE ของ Coil แต่ละม้วน\n• ชีท HOW TO = วิธีกรอก · ชีท PRODUCT CODE = รหัสสินค้าของ ${s.code}\n• กรอกแล้วนำเข้ากลับด้วยปุ่ม IMPORT (MAX-MIN / COIL)`
+        : `Export TEMPLATE MAX-MIN ของคลัง ${s.code} ใช่หรือไม่?\n\n• ข้อมูลปัจจุบันของ ${s.code} ใส่ไว้ให้แล้ว (คอลัมน์ตามรูปแบบของคลังนี้)\n${s.countCoil ? "• 1 แถว = 1 Coil (MASTER COIL / NUMBER COIL / น้ำหนัก)\n" : ""}• แก้ MAX / MIN / ยอด / SHOW-HIDE (1 = แสดง · 0 = ไม่แสดง) แล้วนำเข้ากลับด้วยปุ่ม IMPORT (MAX-MIN / COIL)\n• ชีท HOW TO = วิธีกรอก · ชีท PRODUCT CODE = รหัสสินค้าของ ${s.code}`,
     });
     if (!ok) return;
     try {
@@ -702,8 +703,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       ? ([
           {
             key: "import",
-            title: busy ? "IMPORTING..." : "IMPORT EXCEL",
-            detail: `นำเข้าไฟล์ Excel (.xlsx) เพื่อเพิ่ม / แก้ไขสินค้า${s.countCoil && meta.hasCoilRegister ? " หรือ COIL LIST" : ""} ของคลัง ${s.code} · ระบบแสดงสรุปให้ยืนยันก่อนบันทึกทุกครั้ง`,
+            title: busy ? "IMPORTING..." : s.countCoil && meta.hasCoilRegister ? "IMPORT (MAX-MIN / COIL)" : "IMPORT MAX-MIN",
+            detail: `นำเข้าไฟล์ TEMPLATE MAX-MIN (อัพเดท MAX / MIN / ยอด / SHOW-HIDE / เพิ่มสินค้า)${s.countCoil && meta.hasCoilRegister ? " หรือ TEMPLATE COIL (เพิ่ม / อัพเดท Coil)" : ""} ของคลัง ${s.code} · ระบบดูชนิดไฟล์เอง และแสดงสรุปให้ยืนยันก่อนบันทึกทุกครั้ง`,
             color: "#2563eb",
             icon: "import",
             busy,
@@ -711,8 +712,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
           },
           {
             key: "template",
-            title: "TEMPLATE",
-            detail: `สร้างไฟล์ Template สำหรับ IMPORT EXCEL ของคลัง ${s.code} · คอลัมน์ตามที่หน้านี้แสดง พร้อมข้อมูลสินค้าปัจจุบัน`,
+            title: "TEMPLATE MAX-MIN",
+            detail: `EXPORT TEMPLATE ข้อมูลปัจจุบันของ ${s.code} (คอลัมน์ตามรูปแบบของคลังนี้ + ชีท HOW TO / PRODUCT CODE) · แก้ MAX / MIN / ยอด / SHOW-HIDE แล้ว IMPORT กลับเข้าระบบ`,
             color: "#7c3aed",
             icon: "template",
             onClick: () => template(false),
@@ -721,8 +722,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
             ? [
                 {
                   key: "coil",
-                  title: "COIL TEMPLATE",
-                  detail: `สร้างไฟล์ Template สำหรับนำเข้า COIL LIST ของคลัง ${s.code} · กรอก PRODUCT CODE / MASTER COIL / COIL NO / WEIGHT (KG.) ของ Coil ลูกแต่ละม้วน`,
+                  title: "TEMPLATE COIL",
+                  detail: `EXPORT TEMPLATE สำหรับเพิ่ม / อัพเดท Coil ของ ${s.code} · PRODUCT CODE / MASTER COIL / NUMBER COIL / WEIGHT (KG.) / LABEL DATE + ชีท HOW TO / PRODUCT CODE · กรอกแล้ว IMPORT กลับ`,
                   color: "#ea580c",
                   icon: "coil",
                   onClick: () => template(true),

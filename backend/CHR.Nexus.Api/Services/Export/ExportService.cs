@@ -35,7 +35,7 @@ namespace Nexus.Services
         // ตั้งต่อคลังที่ปุ่ม ADMIN > QR CODE หน้า Inventory Registration:
         //   qrFields = รูปแบบที่ 2 สิ่งที่อยู่ใน QR (คั่นด้วย |) / labelFields = รูปแบบที่ 1 ข้อความใต้ QR บรรทัดละช่อง (บรรทัดแรกตัวหนา)
         //   ไม่ส่งมา = PRODUCT CODE|PRODUCT NAME และพิมพ์รหัส + ชื่อใต้ QR (ค่าเดิม)
-        //   coils = Coil ในคลังต่อสินค้า (ใช้เมื่อเลือกช่อง MASTER COIL / COIL NO)
+        //   coils = Coil ในคลังต่อสินค้า (ใช้เมื่อเลือกช่อง MASTER COIL / NUMBER COIL)
         //   qrSep = ตัวคั่นช่องใน QR ของคลัง (ไม่ส่ง = | เดิม)
         public string GenerateA4Pdf(List<ProductControlModel> items, IList<string> qrFields = null, IList<string> labelFields = null,
                                     IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null, string qrSep = QrFormat.DefaultSep)

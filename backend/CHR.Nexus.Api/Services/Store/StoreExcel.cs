@@ -70,7 +70,7 @@ public static class StoreExcel
         {
             var coils = new CoilService().GetCoils(stock.StkId, 0).ToLookup(c => c.PartId);
             var cs = wb.Worksheets.Add("COIL DETAIL");
-            string[] ch = { "NO", "MASTER COIL", "COIL NO", "WEIGHT (KG.)", "WEIGHT (TON)", "LABEL DATE", "RECEIVED" };
+            string[] ch = { "NO", "MASTER COIL", "NUMBER COIL", "WEIGHT (KG.)", "WEIGHT (TON)", "LABEL DATE", "RECEIVED" };
             ImportTemplateService.Header(cs, ch, new double[] { 6.4, 20, 22, 15, 15, 15, 19 });
             int cr = 2;
             var cGroups = new List<(int Row, string Text)>();

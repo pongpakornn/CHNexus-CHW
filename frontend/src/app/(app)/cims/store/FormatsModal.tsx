@@ -288,7 +288,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
                   {txt("CODE FIELD #", "codePos", { num: true })}
                   {txt("ALT CODE FIELD #", "altCodePos", { num: true })}
                   {txt("QTY FIELD #", "qtyPos", { num: true })}
-                  {txt("COIL NO FIELD #", "coilNoPos", { num: true })}
+                  {txt("NUMBER COIL FIELD #", "coilNoPos", { num: true })}
                   {txt("MASTER COIL FIELD #", "motherCoilPos", { num: true })}
                   <div className="col-span-2 min-w-0 md:col-span-3">
                     {pick("DEDUCT FROM STOCK (ตัดยอดจากคลัง)", "sourceStkId", [{ value: "", label: "— NONE —" }, ...data.stocks.map((s) => ({ value: String(s.stkId), label: s.display }))])}
@@ -324,7 +324,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
                     </div>
                     {(test.coilNo || test.mother) && (
                       <div className="text-warning">
-                        🧲 COIL NO: {test.coilNo ?? "-"} • MASTER COIL: {test.mother ?? "-"}
+                        🧲 NUMBER COIL: {test.coilNo ?? "-"} • MASTER COIL: {test.mother ?? "-"}
                       </div>
                     )}
                     {test.lookup && <div className={test.lookup.startsWith("FOUND") ? "text-success" : "text-ink-soft"}>{test.lookup}</div>}

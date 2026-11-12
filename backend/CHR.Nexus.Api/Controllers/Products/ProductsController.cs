@@ -158,7 +158,7 @@ public sealed class ProductsController : AppController
         string coilText = null;
         var map = new ProductControlLayoutService().GetCoils(stkId, ptId);
         if (map.TryGetValue(ptId, out var c) && c.Coils.Count > 0)
-            coilText = $"🧲 IN STOCK NOW: {c.Coils.Count:N0} COIL  •  COIL NO {string.Join(", ", c.Coils.Take(8))}{(c.Coils.Count > 8 ? " ..." : "")}" +
+            coilText = $"🧲 IN STOCK NOW: {c.Coils.Count:N0} COIL  •  NUMBER COIL {string.Join(", ", c.Coils.Take(8))}{(c.Coils.Count > 8 ? " ..." : "")}" +
                        (c.Mothers.Count > 0 ? $"  •  MASTER COIL {string.Join(", ", c.Mothers.Take(5))}{(c.Mothers.Count > 5 ? " ..." : "")}" : "");
         decimal? weight = DbSchema.HasPartWeight ? _svc.GetPartWeight(ptId) : null;
         var cf = new CustomFieldService().GetValues(new[] { ptId }).TryGetValue(ptId, out var cv) ? cv.ToDictionary(x => CustomFields.KeyOf(x.Key), x => x.Value) : new Dictionary<string, string>();
@@ -300,9 +300,9 @@ public sealed class ProductsController : AppController
         string no = (f.CoilNo ?? "").Trim(), master = (f.MasterCoil ?? "").Trim(), kgText = (f.CoilKg ?? "").Replace(",", "").Trim();
         if (no.Length == 0 && master.Length == 0 && kgText.Length == 0) return null;
         if (!DbSchema.HasCoilRegister) return "ฐานข้อมูลยังไม่รองรับทะเบียน Coil";
-        // กรอกแค่ MASTER COIL = รับ Master ทั้งม้วน (เลข Coil = เลข Master) - เดิมไม่ให้บันทึกถ้าไม่มี COIL NO
+        // กรอกแค่ MASTER COIL = รับ Master ทั้งม้วน (เลข Coil = เลข Master) - เดิมไม่ให้บันทึกถ้าไม่มี NUMBER COIL
         if (no.Length == 0 && master.Length > 0) { no = master; master = ""; }
-        if (no.Length == 0) return "กรุณากรอก COIL NO (เลข Coil ลูก) หรือ MASTER COIL";
+        if (no.Length == 0) return "กรุณากรอก NUMBER COIL (เลข Coil ลูก) หรือ MASTER COIL";
         if (!Qty.TryParse(kgText, out decimal kg) || kg <= 0) return "กรุณากรอก COIL WEIGHT (KG) เป็นตัวเลขมากกว่า 0";
         var ticked = stocks.Where(s => s.CountCoil && ((s.IsMain && f.InMain) || f.OtherStockIds.Contains(s.StkId))).ToList();
         var stock = ticked.FirstOrDefault(s => s.StkId == f.FilterStkId) ?? ticked.FirstOrDefault();

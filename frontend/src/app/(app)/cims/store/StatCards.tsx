@@ -3,9 +3,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 
 // 🃏 การ์ดตัวเลขบนหน้าคลัง (หน้าตาเดียวกับการ์ด Dashboard): MAX / MIN / ยังไม่ตั้ง (NO ORDER) / SHOW ALL
-//   กดการ์ด = กรองตารางเหมือนปุ่มเดิมของ WPF (เปลี่ยนแค่หน้าตา) · ด้านล่าง: คลังที่นับ Coil = MASTER COIL / COIL NO ของสินค้าในการ์ดนั้น (COIL | KG | TON) · คลังอื่น = จำนวนสินค้า
+//   กดการ์ด = กรองตารางเหมือนปุ่มเดิมของ WPF (เปลี่ยนแค่หน้าตา) · ด้านล่าง: คลังที่นับ Coil = MASTER COIL / NUMBER COIL ของสินค้าในการ์ดนั้น (COIL | KG | TON) · คลังอื่น = จำนวนสินค้า
 
-// ยอด Coil: จำนวน / KG / TON ของ MASTER COIL และ COIL NO - ทั้งคลัง + แยกตามการ์ด (max / min / noSet = null ถ้าคลังไม่มีสถานะ)
+// ยอด Coil: จำนวน / KG / TON ของ MASTER COIL และ NUMBER COIL - ทั้งคลัง + แยกตามการ์ด (max / min / noSet = null ถ้าคลังไม่มีสถานะ)
 export type CoilPart = { masterCount: number; masterKg: string; masterTon: string; childCount: number; childKg: string; childTon: string };
 export type CoilSum = (CoilPart & { max: CoilPart | null; min: CoilPart | null; noSet: CoilPart | null }) | null;
 type Kind = "MAX" | "MIN" | "NOSET" | "ALL";
@@ -155,8 +155,8 @@ function Line({ label, parts, tone, bg, delay, tip }: { label: string; parts: st
   );
 }
 
-// 🧲 MASTER COIL / 🌀 COIL NO : จำนวน | KG | TON
-// สีแถวตามการ์ด: MASTER COIL = สีอ่อน / COIL NO = อ่อนกว่า
+// 🧲 MASTER COIL / 🌀 NUMBER COIL : จำนวน | KG | TON
+// สีแถวตามการ์ด: MASTER COIL = สีอ่อน / NUMBER COIL = อ่อนกว่า
 function CoilLines({ sum, kind }: { sum: CoilPart; kind: Kind }) {
   const c = CARD[kind];
   return (
@@ -170,7 +170,7 @@ function CoilLines({ sum, kind }: { sum: CoilPart; kind: Kind }) {
         tip="Master coils in stock (not cut from another coil): number of coils, total weight (KG / TON)"
       />
       <Line
-        label="🌀 COIL NO"
+        label="🌀 NUMBER COIL"
         parts={[`${sum.childCount.toLocaleString()} COIL`, `${sum.childKg} KG`, `${sum.childTon} TON`]}
         tone={c.text}
         bg={c.soft2}

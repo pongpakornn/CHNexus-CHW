@@ -133,20 +133,20 @@ namespace Nexus.Services
         public static readonly string[] PartHeads =
         {
             "NO", "PRODUCT CODE", "PRODUCT NAME", "SUPPLIER", "CUSTOMER", "CATEGORY", "PART A", "PART B", "PART NO", "MODEL",
-            "PACK SIZE", "BIN", "COIL NO", "MASTER COIL", "QR CODE", "IMAGE", "STOCK1", "STOCK2", "STOCK3", "SHOW/HIDE", "MAX", "MIN",
+            "PACK SIZE", "BIN", "NUMBER COIL", "MASTER COIL", "QR CODE", "IMAGE", "STOCK1", "STOCK2", "STOCK3", "SHOW/HIDE", "MAX", "MIN",
             "STOCK (UNIT)", "STOCK (BOX)", "STOCK (COIL)", "STOCK (PCS)", "REMARK"
         };
 
         private static readonly Dictionary<string, double> PartWidths = new Dictionary<string, double>
         {
             ["NO"] = 6.4, ["PRODUCT CODE"] = 18, ["PRODUCT NAME"] = 34, ["SUPPLIER"] = 14, ["CUSTOMER"] = 14, ["CATEGORY"] = 14, ["PART A"] = 16, ["PART B"] = 16,
-            ["PART NO"] = 18, ["MODEL"] = 14, ["PACK SIZE"] = 10, ["BIN"] = 14, ["COIL NO"] = 16, ["MASTER COIL"] = 16, ["QR CODE"] = 16,
+            ["PART NO"] = 18, ["MODEL"] = 14, ["PACK SIZE"] = 10, ["BIN"] = 14, ["NUMBER COIL"] = 16, ["MASTER COIL"] = 16, ["QR CODE"] = 16,
             ["IMAGE"] = 28, ["STOCK1"] = 14, ["STOCK2"] = 14, ["STOCK3"] = 14, ["SHOW/HIDE"] = 11, ["REMARK"] = 24
         };
 
         // หัวคอลัมน์ของ Template ตามคลังที่เลือก: คอลัมน์ที่คลังนั้นแสดงใน Store (Max-Min) เรียงตามที่ตั้งไว้ (TABLE COLUMNS)
         //   + ข้อมูลที่ต้องใช้ลงทะเบียน (SUPPLIER / CATEGORY / PACK SIZE / BIN / QR CODE / STOCK1 / SHOW/HIDE)
-        //   คลังที่นับ Coil มี COIL NO / MASTER COIL ถัดจาก BIN / หัวยอดใช้หน่วยของคลัง เช่น STOCK (KG.) / MAX (COIL)
+        //   คลังที่นับ Coil มี NUMBER COIL / MASTER COIL ถัดจาก BIN / หัวยอดใช้หน่วยของคลัง เช่น STOCK (KG.) / MAX (COIL)
         private static bool SameHead(string a, string b) =>
             string.Equals(new string((a ?? "").Where(char.IsLetterOrDigit).ToArray()), new string((b ?? "").Where(char.IsLetterOrDigit).ToArray()), StringComparison.OrdinalIgnoreCase);
 
@@ -179,8 +179,46 @@ namespace Nexus.Services
             // ยอดคงคลังต้องมีเสมอ (คลังที่ซ่อนคอลัมน์ยอด) - คลัง Coil ใช้เป็นน้ำหนักของแต่ละ Coil
             if (!heads.Contains(s.QtyHeader)) heads.Add(s.QtyHeader);
             heads.AddRange(new[] { "SUPPLIER", "CATEGORY", "PACK SIZE", "BIN" });
-            if (s.CountCoil) heads.AddRange(new[] { "COIL NO", "MASTER COIL" });
+            if (s.CountCoil) heads.AddRange(new[] { "NUMBER COIL", "MASTER COIL" });
             heads.AddRange(new[] { "QR CODE", "STOCK1", "SHOW/HIDE" });
+            return heads.Distinct().ToArray();
+        }
+
+        // 📄 TEMPLATE MAX-MIN (หน้า Store (Max-Min)): คอลัมน์ตามที่คลังแสดงในตาราง (ไม่รวม IMAGE / REMARK) + กลุ่มของคลัง + BIN
+        //   + MASTER COIL / NUMBER COIL (คลังที่นับ Coil) + SHOW/HIDE เช่น STOCK-MAT:
+        //   NO · PRODUCT CODE · PRODUCT NAME · MAX (COIL) · MIN (COIL) · STOCK (COIL) · STOCK (KG.) · CATEGORY · BIN · MASTER COIL · NUMBER COIL · SHOW/HIDE
+        public static string[] MaxMinHeadsFor(StockModel s)
+        {
+            var heads = new List<string> { "NO" };
+            foreach (string key in s.ColumnOrderList())
+            {
+                switch (key)
+                {
+                    case "CUSTOMER": if (s.ColCustomer) heads.Add("CUSTOMER"); break;
+                    case "CODE": heads.Add("PRODUCT CODE"); break;
+                    case "PARTA": if (s.ColPartA) heads.Add("PART A"); break;
+                    case "PARTB": if (s.ColPartB) heads.Add("PART B"); break;
+                    case "PARTNO": if (s.ColPartNo) heads.Add("PART NO"); break;
+                    case "MODEL": if (s.ColModel) heads.Add("MODEL"); break;
+                    case "NAME": heads.Add("PRODUCT NAME"); break;
+                    case "PACKSIZE": heads.Add("PACK SIZE"); break;
+                    case "SUPPLIER": heads.Add("SUPPLIER"); break;
+                    case "CATEGORY": heads.Add("CATEGORY"); break;
+                    case "MAXMIN": if (s.UseMaxMin) { heads.Add(s.MaxHeader); heads.Add(s.MinHeader); } break;
+                    case "COIL": if (s.CountCoil) heads.Add("STOCK (COIL)"); break;
+                    case "QTY": heads.Add(s.QtyHeader); break;
+                    case "BOX": if (s.ColStockBox && !s.CountCoil) heads.Add("STOCK (BOX)"); break;
+                    case "PCS": if (s.ColStockPcs && !SameHead(s.QtyHeader, "STOCK (PCS)")) heads.Add("STOCK (PCS)"); break;
+                }
+            }
+            foreach (var must in new[] { "PRODUCT NAME", "PRODUCT CODE" }) if (!heads.Contains(must)) heads.Insert(1, must);
+            if (s.UseMaxMin && !heads.Contains(s.MaxHeader)) heads.AddRange(new[] { s.MaxHeader, s.MinHeader });
+            if (s.CountCoil && !heads.Contains("STOCK (COIL)")) heads.Add("STOCK (COIL)");
+            if (!heads.Contains(s.QtyHeader)) heads.Add(s.QtyHeader);
+            heads.Add(s.GroupByCustomer ? "CUSTOMER" : s.GroupBySupplier ? "SUPPLIER" : "CATEGORY");
+            heads.Add("BIN");
+            if (s.CountCoil) heads.AddRange(new[] { "MASTER COIL", "NUMBER COIL" });
+            heads.Add("SHOW/HIDE");
             return heads.Distinct().ToArray();
         }
 
@@ -208,7 +246,7 @@ namespace Nexus.Services
                     case "PACKSIZE": heads.Add("PACK SIZE"); break;
                     case "BIN": heads.Add("BIN"); break;
                     case "MOTHER": if (s.CountCoil) heads.Add("MASTER COIL"); break;
-                    case "COILNO": if (s.CountCoil) heads.Add("COIL NO"); break;
+                    case "COILNO": if (s.CountCoil) heads.Add("NUMBER COIL"); break;
                     case "WEIGHT": heads.Add("WEIGHT (KG)"); break;
                     case "QRCODE": heads.Add("QR CODE"); break;
                     default:
@@ -238,7 +276,7 @@ namespace Nexus.Services
                 for (int r = 2; r <= lastRow; r++) ws.Cell(r, 1).Value = r - 1;
                 int stockCol = Array.IndexOf(heads, "STOCK1") + 1;
                 if (forStock != null && stockCol > 0) ws.Range(2, stockCol, lastRow, stockCol).Value = forStock.Code;
-                foreach (var h in new[] { "PRODUCT CODE", "BIN", "COIL NO", "MASTER COIL", "QR CODE", "PART A", "PART B", "PART NO" })
+                foreach (var h in new[] { "PRODUCT CODE", "BIN", "NUMBER COIL", "MASTER COIL", "QR CODE", "PART A", "PART B", "PART NO" })
                 {
                     int c = Array.IndexOf(heads, h) + 1;
                     if (c > 0) ws.Range(2, c, lastRow, c).Style.NumberFormat.Format = "@";   // เลขรหัสขึ้นต้น 0 ไม่หาย
@@ -253,10 +291,10 @@ namespace Nexus.Services
                     ("PART A / PART NO / MODEL", "รหัสเพิ่มเติม (ไม่บังคับ) - ใช้ค้นหาและสแกนได้"),
                     ("PACK SIZE", "จำนวนต่อ 1 กล่อง / 1 ป้าย (ตัวเลข)"),
                     ("BIN / QR CODE", "ตำแหน่งเก็บ / รหัส QR ของสินค้า (ไม่บังคับ) - BIN ว่าง = N/A"),
-                    ("COIL NO", "เลข Coil ตามป้าย (คลังที่นับ Coil เช่น STOCK-MAT / PANTA) - 1 แถว = 1 Coil / ห้ามซ้ำ / น้ำหนักของ Coil นี้ใส่ที่ STOCK (UNIT) ของแถว"),
-                    ("สินค้า 1 ตัว หลาย Coil", "แถวแรกใส่ข้อมูลสินค้าครบ + COIL NO / แถวถัดไปใส่แค่ BIN / COIL NO / MASTER COIL / น้ำหนัก (เว้น PRODUCT CODE ว่างได้ หรือใส่ PRODUCT CODE ซ้ำก็ได้) - แถวละ 1 Coil / STOCK (UNIT) ของสินค้า = น้ำหนักรวมของ Coil ในคลังนั้น / STOCK (COIL) = จำนวน Coil"),
+                    ("NUMBER COIL", "เลข Coil ตามป้าย (คลังที่นับ Coil เช่น STOCK-MAT / PANTA) - 1 แถว = 1 Coil / ห้ามซ้ำ / น้ำหนักของ Coil นี้ใส่ที่ STOCK (UNIT) ของแถว"),
+                    ("สินค้า 1 ตัว หลาย Coil", "แถวแรกใส่ข้อมูลสินค้าครบ + NUMBER COIL / แถวถัดไปใส่แค่ BIN / NUMBER COIL / MASTER COIL / น้ำหนัก (เว้น PRODUCT CODE ว่างได้ หรือใส่ PRODUCT CODE ซ้ำก็ได้) - แถวละ 1 Coil / STOCK (UNIT) ของสินค้า = น้ำหนักรวมของ Coil ในคลังนั้น / STOCK (COIL) = จำนวน Coil"),
                     ("น้ำหนัก Coil", "ช่องยอดคงคลัง เช่น STOCK (KG.) / STOCK (UNIT) ของแถว Coil = น้ำหนักของ Coil นั้น (ตัวเลขเท่านั้น ห้ามใส่คำว่า KG)"),
-                    ("MASTER COIL", "Master Coilที่ Coil นี้ตัดมา (ไม่บังคับ) - Coil ที่เป็น Master Coilเองให้เว้นว่าง เช่น COIL NO = CWD1477A, MASTER COIL = ว่าง"),
+                    ("MASTER COIL", "Master Coilที่ Coil นี้ตัดมา (ไม่บังคับ) - Coil ที่เป็น Master Coilเองให้เว้นว่าง เช่น NUMBER COIL = CWD1477A, MASTER COIL = ว่าง"),
                     ("IMAGE", "ชื่อไฟล์รูปในโฟลเดอร์ 1. Image Stock เช่น STOCK-4C\\STOCK-4C-01.png (ไม่บังคับ / ว่าง = ไม่มีรูป หรือไม่เปลี่ยนรูปเดิม) - ใส่รูปทีละรายการได้ที่ปุ่มรูปในหน้า MASTER DATA › Product Control"),
                     ("STOCK1 - STOCK3", "รหัสคลังที่สินค้าอยู่ ช่องละ 1 คลัง (ดูชีท STOCK CODES) - ไม่ใส่เลย = คลังหลัก"),
                     ("SHOW/HIDE", "1 = แสดง / 0 = ซ่อน ในตาราง Store (Max-Min) - ว่าง = แสดง"),
@@ -269,39 +307,102 @@ namespace Nexus.Services
                     ("", "กรอกข้อมูลในชีท PRODUCTS (ชีทแรก) ได้ไม่จำกัดแถว แล้วกด IMPORT EXCEL ในหน้า MASTER DATA › Product Control"),
                 });
 
-                // ตัวอย่างสินค้า 1 ตัว หลาย Coil (อยู่ในชีท HOW TO เท่านั้น - ไม่ถูก Import)
+                // 📘 ชีท EX = ตัวอย่างที่กรอกแล้ว (หัวคอลัมน์เดียวกับ PRODUCTS · ไม่ถูก Import เพราะตัวอ่านไฟล์อ่านชีทแรกเท่านั้น)
+                ExampleSheet(wb, heads, forStock);
                 var g = wb.Worksheet("HOW TO");
-                int ex = (g.LastRowUsed()?.RowNumber() ?? 20) + 2;
-                g.Cell(ex, 1).Value = "ตัวอย่าง: สินค้า 1 ตัว มี 3 Coil ในคลัง STOCK-MAT (กรอกในชีท PRODUCTS) - แถวที่ 2-3 เว้น PRODUCT CODE ได้ (หรือใส่ซ้ำก็ได้)";
-                g.Cell(ex, 1).Style.Font.Bold = true;
-                string[] exHeads = { "PRODUCT CODE", "PRODUCT NAME", "SUPPLIER", "BIN", "COIL NO", "MASTER COIL", "STOCK1", "STOCK (UNIT)" };
-                object[][] exRows =
-                {
-                    new object[] { "CC03-1600-0050", "SPHC-P(SPH270C) 1.6x1295xC", "PANTA", "CWD1477A", "CWD1477A", "", "STOCK-MAT", 3936 },
-                    new object[] { "", "", "", "CWD1477B", "CWD1477B", "", "STOCK-MAT", 11470 },
-                    new object[] { "", "", "", "CTF0256A", "CTF0256A", "", "STOCK-MAT", 10260 },
-                };
-                for (int i = 0; i < exHeads.Length; i++) g.Cell(ex + 1, i + 1).Value = exHeads[i];
-                var eh = g.Range(ex + 1, 1, ex + 1, exHeads.Length);
-                eh.Style.Fill.BackgroundColor = XLColor.FromHtml("#002060"); eh.Style.Font.FontColor = XLColor.White; eh.Style.Font.Bold = true;
-                for (int rr = 0; rr < exRows.Length; rr++)
-                    for (int cc = 0; cc < exRows[rr].Length; cc++) g.Cell(ex + 2 + rr, cc + 1).Value = XLCellValue.FromObject(exRows[rr][cc]);
-                var eb = g.Range(ex + 1, 1, ex + 1 + exRows.Length, exHeads.Length);
-                eb.Style.Border.OutsideBorder = XLBorderStyleValues.Thin; eb.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-                g.Cell(ex + 2 + exRows.Length, 1).Value = "ผล: สินค้า CC03-1600-0050 1 รายการ  •  STOCK (UNIT) = 25,666 KG  •  STOCK (COIL) = 3  •  กด PD CODE ในหน้า Store (Max-Min) เห็นทั้ง 3 Coil";
+                int gr = (g.LastRowUsed()?.RowNumber() ?? 20) + 2;
+                g.Cell(gr, 1).Value = "ดูตัวอย่างที่กรอกแล้วที่ชีท EX · กรอกจริงที่ชีท PRODUCTS (ชีทแรก) แล้วกด IMPORT EXCEL";
+                g.Cell(gr, 1).Style.Font.Bold = true;
+                g.Cell(gr, 1).Style.Font.FontColor = XLColor.FromHtml("#C62828");
 
-                var s = wb.AddWorksheet("STOCK CODES");
-                Header(s, new[] { "STOCK CODE", "STOCK NAME", "UNIT", "MAIN" }, new double[] { 18, 32, 10, 8 });
-                int row = 2;
-                foreach (var st in stocks ?? new List<StockModel>())
+                if (forStock == null)
                 {
-                    s.Cell(row, 1).Value = st.Code; s.Cell(row, 2).Value = st.Name; s.Cell(row, 3).Value = st.Unit; s.Cell(row, 4).Value = st.IsMain ? "Y" : "";
-                    row++;
+                    var s = wb.AddWorksheet("STOCK CODES");
+                    Header(s, new[] { "STOCK CODE", "STOCK NAME", "UNIT", "MAIN" }, new double[] { 18, 32, 10, 8 });
+                    int row = 2;
+                    foreach (var st in stocks ?? new List<StockModel>())
+                    {
+                        s.Cell(row, 1).Value = st.Code; s.Cell(row, 2).Value = st.Name; s.Cell(row, 3).Value = st.Unit; s.Cell(row, 4).Value = st.IsMain ? "Y" : "";
+                        row++;
+                    }
+                    Body(s, row - 1, 4);
                 }
-                Body(s, row - 1, 4);
                 wb.Worksheet(1).SetTabActive();
                 wb.SaveAs(path);
             }
+        }
+
+        // 📘 ชีท EX ของ Template Product Control: ตัวอย่าง 3 แถวตามหัวคอลัมน์ของคลัง (คลังที่นับ Coil = สินค้า 1 ตัว 3 Coil)
+        private static void ExampleSheet(XLWorkbook wb, string[] heads, StockModel st)
+        {
+            var ex = wb.AddWorksheet("EX");
+            Header(ex, heads, heads.Select(h => PartWidths.TryGetValue(h, out double w) ? w : 14).ToArray());
+            bool coil = st?.CountCoil == true;
+            string stock = st?.Code ?? "STOCK-MAT";
+            string qty = st?.QtyHeader ?? "STOCK (UNIT)";
+            object V(string h, int i)
+            {
+                if (h == "NO") return i + 1;
+                if (coil && i > 0)
+                {
+                    // แถว Coil ถัดไปของสินค้าเดียวกัน: ใส่แค่ BIN / NUMBER COIL / MASTER COIL / น้ำหนัก / STOCK1
+                    return h switch
+                    {
+                        "BIN" => "A-01",
+                        "NUMBER COIL" => i == 1 ? "CWD1477B" : "CTF0256A",
+                        "MASTER COIL" => "",
+                        "STOCK1" => stock,
+                        _ when h == qty || h == "WEIGHT (KG)" => i == 1 ? 11470 : 10260,
+                        _ => "",
+                    };
+                }
+                string[] code = { "PD-0001", "PD-0002", "PD-0003" };
+                return h switch
+                {
+                    "PRODUCT CODE" => coil ? "CC03-1600-0050" : code[i],
+                    "PRODUCT NAME" => coil ? "SPHC-P(SPH270C) 1.6x1295xC" : $"ตัวอย่างสินค้า {(char)('A' + i)}",
+                    "SUPPLIER" => coil ? "PANTA" : "SUP-A",
+                    "CUSTOMER" => "CUST-A",
+                    "CATEGORY" => coil ? "MATERIAL" : "GENERAL",
+                    "MODEL" => $"MODEL-{i + 1}",
+                    "PART A" => $"A974-0000{i + 1}",
+                    "PART B" => $"B171-0001{i + 1}",
+                    "PART NO" => $"12345-AB{i + 1}",
+                    "PACK SIZE" => 50,
+                    "PACKSIZE" => 50,
+                    "BIN" => coil ? "A-01" : $"A-0{i + 1}",
+                    "NUMBER COIL" => coil ? "CWD1477A" : "",
+                    "MASTER COIL" => "",
+                    "QR CODE" => "",
+                    "IMAGE" => "",
+                    "STOCK1" => stock,
+                    "STOCK2" => "",
+                    "STOCK3" => "",
+                    "SHOW/HIDE" => 1,
+                    "REMARK" => i == 0 ? "ตัวอย่าง" : "",
+                    "WEIGHT (KG)" => coil ? 3936 : 1.5,
+                    "STOCK (COIL)" => "",
+                    "STOCK (BOX)" => 3,
+                    "STOCK (PCS)" => 150,
+                    _ when h.StartsWith("MAX") => coil ? 5 : 200,
+                    _ when h.StartsWith("MIN") => coil ? 2 : 50,
+                    _ when h == qty || h.StartsWith("STOCK (") => coil ? 3936 : 150,
+                    _ => "",
+                };
+            }
+            for (int i = 0; i < 3; i++)
+                for (int c = 0; c < heads.Length; c++)
+                {
+                    var v = V(heads[c], i);
+                    if (!(v is string t && t.Length == 0)) ex.Cell(i + 2, c + 1).Value = XLCellValue.FromObject(v);
+                }
+            Body(ex, 4, heads.Length);
+            ex.Cell(6, 1).Value = coil
+                ? $"ตัวอย่าง: สินค้า 1 ตัว มี 3 Coil ในคลัง {stock} - แถวที่ 2-3 เว้น PRODUCT CODE ได้ (หรือใส่ซ้ำก็ได้) · ผล: STOCK (KG.) = น้ำหนักรวมของ 3 Coil · STOCK (COIL) = 3"
+                : "ตัวอย่าง: สินค้า 3 รายการ · กรอกจริงที่ชีท PRODUCTS (ชีทแรก) · ช่องว่าง = ไม่ใส่ค่า";
+            ex.Cell(6, 1).Style.Font.Bold = true;
+            ex.Cell(6, 1).Style.Font.FontColor = XLColor.FromHtml("#C62828");
+            ex.SheetView.FreezeRows(1);
         }
 
         // ---------------------------------------------------------------- Forecast / Order / Delivery

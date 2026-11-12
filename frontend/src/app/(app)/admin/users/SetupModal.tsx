@@ -15,10 +15,11 @@ import { LayoutPanel } from "./LayoutPanel";
 import { SignFlowPanel } from "./SignFlowPanel";
 import { MinReasonPanel } from "./MinReasonPanel";
 import { EdpAlertPanel } from "./EdpAlertPanel";
+import { UserOrgPanel } from "./UserOrgPanel";
 
-type Section = "PR" | "EXCEL" | "DEPT" | "MIN" | "REASON" | "FLOW" | "LAYOUT" | "EDP";
+type Section = "PR" | "EXCEL" | "DEPT" | "MIN" | "REASON" | "FLOW" | "LAYOUT" | "EDP" | "USERID";
 type Dirty = Record<Section, boolean>;
-const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS", MIN: "MIN REPORT", REASON: "MIN REASONS", FLOW: "SIGN FLOW", LAYOUT: "LAYOUT SETUP", EDP: "EDP ALERT" };
+const NAMES: Record<Section, string> = { PR: "PR SETTINGS", EXCEL: "EXCEL SETUP", DEPT: "DEPARTMENTS", MIN: "MIN REPORT", REASON: "MIN REASONS", FLOW: "SIGN FLOW", LAYOUT: "LAYOUT SETUP", EDP: "EDP ALERT", USERID: "ADD USERID" };
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
 const SIDE_KEY = "setup-side";
@@ -29,6 +30,7 @@ const TABS: [Section, string, string, React.ReactNode][] = [
   ["MIN", "MIN REPORT", "แจ้งเตือนสินค้าค้างที่ค่า MIN", <path key="m" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0M12 8v3.5" />],
   ["REASON", "MIN REASONS", "ตัวเลือกหมายเหตุ · เพิ่ม / แก้ไข / ลบ", <path key="r" d="M5 4h14v12H9l-4 4zM9 8h6M9 12h4" />],
   ["FLOW", "SIGN FLOW", "SETUP FLOW SIGNATURE · MIN REPORT · CHEMICAL CONTROL", <path key="f" d="M4 18c3-1 4-6 6-6s1 5 3 5 3-4 4-4M15 4l5 5-8 8H7v-5zM13 6l5 5" />],
+  ["USERID", "ADD USERID", "ตำแหน่ง · ฝ่าย → แผนก → หน่วยงาน", <path key="u" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2.5 21a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6" />],
   ["EDP", "EDP ALERT", "แจ้งเตือนการ์ด EDP เลยเวลา", <path key="t" d="M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 2M5 3.5 2.5 6M19 3.5 21.5 6" />],
   ["LAYOUT", "LAYOUT SETUP", "ตำแหน่งจัดเก็บ · QR ตำแหน่ง", <path key="l" d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7v5M9.5 9.5h5" />],
 ];
@@ -38,7 +40,7 @@ const TABS: [Section, string, string, React.ReactNode][] = [
 export function SetupModal({ onClose }: { onClose: () => void }) {
   const dlg = useDialogs();
   const [sec, setSec] = useState<Section>("PR");
-  const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false, MIN: false, REASON: false, FLOW: false, LAYOUT: false, EDP: false });
+  const [dirty, setDirty] = useState<Dirty>({ PR: false, EXCEL: false, DEPT: false, MIN: false, REASON: false, FLOW: false, LAYOUT: false, EDP: false, USERID: false });
   const [mini, setMini] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const mark = useCallback((s: Section, v: boolean) => setDirty((d) => (d[s] === v ? d : { ...d, [s]: v })), []);
@@ -126,6 +128,9 @@ export function SetupModal({ onClose }: { onClose: () => void }) {
             </div>
             <div hidden={sec !== "FLOW"} className={sec === "FLOW" ? "adm-pane" : ""}>
               <SignFlowPanel onDirty={(v) => mark("FLOW", v)} />
+            </div>
+            <div hidden={sec !== "USERID"} className={sec === "USERID" ? "adm-pane" : ""}>
+              <UserOrgPanel onDirty={(v) => mark("USERID", v)} />
             </div>
             <div hidden={sec !== "EDP"} className={sec === "EDP" ? "adm-pane" : ""}>
               <EdpAlertPanel onDirty={(v) => mark("EDP", v)} />

@@ -304,7 +304,7 @@ namespace Nexus.Services
             }
         }
 
-        // 🧲 เพิ่ม Coil จากหน้า Inventory Registration (MASTER COIL / COIL NO / COIL WEIGHT): Coil เข้าทะเบียนของคลัง
+        // 🧲 เพิ่ม Coil จากหน้า Inventory Registration (MASTER COIL / NUMBER COIL / COIL WEIGHT): Coil เข้าทะเบียนของคลัง
         //    + ยอดคลังของสินค้า + น้ำหนัก Coil / STOCK (COIL) นับใหม่จากทะเบียน (บันทึก CoilMoves "REGISTER")
         public void AddCoil(int ptId, StockModel stock, string coilNo, string master, decimal kg, string userId)
         {

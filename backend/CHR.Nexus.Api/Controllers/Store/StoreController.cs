@@ -49,7 +49,7 @@ public sealed class StoreController : AppController
         return list;
     }
 
-    // 🧲 MASTER COIL / COIL NO (จำนวน / KG / TON) ของคลังที่นับ Coil (RefreshCountsAsync) + แยกตามการ์ด MAX / MIN / ยังไม่ตั้ง
+    // 🧲 MASTER COIL / NUMBER COIL (จำนวน / KG / TON) ของคลังที่นับ Coil (RefreshCountsAsync) + แยกตามการ์ด MAX / MIN / ยังไม่ตั้ง
     private static object CoilSum(StockModel s, bool split) =>
         !s.CountCoil || !DbSchema.HasCoilRegister ? null : StoreCoils.Get(s.StkId, split);
 
@@ -451,12 +451,16 @@ public sealed class StoreController : AppController
         try
         {
             string path;
-            if (coil) path = new CoilImportService().WriteTemplate(s);
+            var products = _products.GetProducts(s, "", "", "", 0, 1000000).OrderBy(p => p.GroupKey).ThenBy(p => p.PartCode).ToList();
+            if (coil)
+            {
+                path = new CoilImportService().WriteTemplate(s, products);
+                LogService.WriteLog(Uid, "STORE_TEMPLATE_COIL", $"Stock: {s.Code} | Products: {products.Count} | File: {Path.GetFileName(path)}", s.Code);
+            }
             else
             {
-                var products = _products.GetProducts(s, "", "", "", 0, 1000000).OrderBy(p => p.GroupKey).ThenBy(p => p.PartCode).ToList();
                 path = new StoreMasterImportService().WriteTemplate(s, products, _stocks.GetStocks());
-                LogService.WriteLog(Uid, "STORE_TEMPLATE", $"Stock: {s.Code} | Rows: {products.Count} | File: {Path.GetFileName(path)}", s.Code);
+                LogService.WriteLog(Uid, "STORE_TEMPLATE_MAXMIN", $"Stock: {s.Code} | Rows: {products.Count} | File: {Path.GetFileName(path)}", s.Code);
             }
             return Download(path);
         }

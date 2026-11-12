@@ -43,6 +43,15 @@ public sealed class UsersController : AppController
     }
 
     // ⚡ เรียลไทม์ (3 วินาที): เครื่องอื่นเพิ่ม / แก้ / ล็อกผู้ใช้ / สิทธิ์ / ออนไลน์ -> หน้าโหลดใหม่เอง
+    // ตัวเลือก Dropdown ของฟอร์ม ADD / EDIT USER (ตั้งที่ SETUP › ADD USERID) · ยังไม่มีตาราง = ฟอร์มใช้ช่องพิมพ์แบบเดิม
+    [HttpGet("org-options")]
+    public IActionResult OrgOptions()
+    {
+        if (Me?.CanViewUserMgmt != true) return Deny();
+        if (!DbSchema.HasUserOrg) return Ok(new { ready = false, items = Array.Empty<object>() });
+        return Ok(new { ready = true, items = new UserOrgService().All() });
+    }
+
     [HttpGet("token")]
     public IActionResult Token()
     {

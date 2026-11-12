@@ -71,7 +71,7 @@ function CoilImage({ partId }: { partId: number }) {
 
 function CoilDetail({ coil, where }: { coil: ApiCoil; where: string }) {
   const rows: [string, string][] = [
-    ["Coil No", coil.coilNo],
+    ["Number Coil", coil.coilNo],
     ["Master Coil", coil.motherCoil || "-"],
     ["PD Code", coil.partCode],
     ["ชื่อสินค้า", coil.partName || "-"],
@@ -109,7 +109,10 @@ export default function Layout3DPage() {
   const [data, setData] = useState<ApiData | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
   const [sel, setSel] = useState<PageSel>(null);
-  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
+  // ป้ายชี้: เปลี่ยน state เฉพาะตอนข้อความเปลี่ยน · ตำแหน่งตามเมาส์เขียนลง DOM ตรง ๆ (ไม่ render ทั้งหน้าทุกครั้งที่ขยับเมาส์ = ไม่กระตุก)
+  const [tip, setTip] = useState<string | null>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const tipPos = useRef({ x: 0, y: 0 });
   const [noGl, setNoGl] = useState(false);
   const [q, setQ] = useState("");
 
@@ -163,7 +166,7 @@ export default function Layout3DPage() {
     setSel(h.kind === "slot" ? { kind: "slot", slotId: h.slotId } : h.kind === "floor" ? { kind: "floor", zoneId: h.zoneId, coilId: h.coilId } : null);
   };
   const onHover = (h: Hit | null, x: number, y: number) => {
-    if (!h) return setTip(null);
+    if (!h) return setTip((t) => (t === null ? t : null));
     const z = ZONE_BY_ID.get(h.zoneId)!;
     const text =
       h.kind === "slot"
@@ -171,7 +174,9 @@ export default function Layout3DPage() {
         : h.kind === "floor"
           ? `${z.name} · ${model.byZone.get(z.id)?.find((c) => c.coilId === h.coilId)?.coilNo ?? ""}`
           : `${z.name} · ${countOf(z)}`;
-    setTip({ text, x, y });
+    tipPos.current = { x, y };
+    if (tipRef.current) tipRef.current.style.transform = `translate3d(${x + 12}px, ${y + 12}px, 0)`;
+    setTip((t) => (t === text ? t : text));
   };
   const pickRef = useRef(onPick);
   const hoverRef = useRef(onHover);
@@ -268,7 +273,7 @@ export default function Layout3DPage() {
         <Chip label="วางพื้น (ม้วน)" value={onFloor} color="var(--warning)" />
         {model.outside.length > 0 && <Chip label="นอกผัง" value={model.outside.length} color="var(--danger)" />}
         <div className="relative z-30 ml-auto w-full sm:w-80">
-          <SearchBox value={q} onChange={setQ} placeholder="ค้นหา Coil No / PD Code / ตำแหน่ง" />
+          <SearchBox value={q} onChange={setQ} placeholder="ค้นหา Number Coil / PD Code / ตำแหน่ง" />
           {results && (
             <ul className="absolute inset-x-0 top-full mt-1 max-h-72 overflow-auto rounded-xl border border-line/60 bg-surface p-1 shadow-lg">
               {results.length === 0 && <li className="px-3 py-2 text-sm font-semibold text-ink-soft">ไม่พบรายการที่ตรงกับ &quot;{q.trim()}&quot;</li>}
@@ -343,8 +348,14 @@ export default function Layout3DPage() {
             ))}
           </div>
           {tip && (
-            <div className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-white/15 bg-[#15305f] px-2 py-1 text-xs font-bold text-[#e9f1ff]" style={{ left: tip.x + 12, top: tip.y + 12 }}>
-              {tip.text}
+            <div
+              ref={(el) => {
+                tipRef.current = el;
+                if (el) el.style.transform = `translate3d(${tipPos.current.x + 12}px, ${tipPos.current.y + 12}px, 0)`;
+              }}
+              className="pointer-events-none absolute left-0 top-0 z-10 whitespace-nowrap rounded-md border border-white/15 bg-[#15305f] px-2 py-1 text-xs font-bold text-[#e9f1ff] will-change-transform"
+            >
+              {tip}
             </div>
           )}
         </section>

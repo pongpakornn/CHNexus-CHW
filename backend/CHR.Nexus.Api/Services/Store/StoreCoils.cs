@@ -4,7 +4,7 @@ using Nexus.Services;
 
 namespace CHR.Nexus.Api.Web;
 
-// 🧲 ยอด Coil ของการ์ดหน้าคลัง: MASTER COIL / COIL NO (จำนวน / KG / TON)
+// 🧲 ยอด Coil ของการ์ดหน้าคลัง: MASTER COIL / NUMBER COIL (จำนวน / KG / TON)
 //   all = ทั้งคลัง (CoilService.GetSummary เดิม) · max / min / noSet = แยกตามสถานะสินค้า (เงื่อนไขเดียวกับ GetStatusCounts)
 public static class StoreCoils
 {

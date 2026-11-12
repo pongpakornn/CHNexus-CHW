@@ -172,7 +172,7 @@ namespace Nexus.Services
             if (label.Contains(',') || label.Contains('|')) throw new InvalidOperationException("ชื่อช่องห้ามมี , หรือ |");
             // ชื่อซ้ำกับช่องของระบบ = สับสนตอน Import Excel
             string[] reserved = { "NO", "IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "PRODUCT CODE", "PD CODE", "PART A", "PART B", "PART NO", "PRODUCT NAME",
-                                  "PACKSIZE", "BIN", "MASTER COIL", "COIL NO", "WEIGHT (KG)", "WEIGHT", "QR CODE", "QTY", "MAX", "MIN", "REMARK", "STOCK" };
+                                  "PACKSIZE", "BIN", "MASTER COIL", "NUMBER COIL", "COIL NO", "WEIGHT (KG)", "WEIGHT", "QR CODE", "QTY", "MAX", "MIN", "REMARK", "STOCK" };
             if (reserved.Contains(label)) throw new InvalidOperationException($"ชื่อ \"{label}\" ซ้ำกับช่องของระบบ กรุณาใช้ชื่ออื่น");
             return label;
         }

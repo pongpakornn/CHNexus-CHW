@@ -262,7 +262,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
                   <th>DATE</th>
                   <th>STOCK</th>
                   <th>PD CODE</th>
-                  <th>COIL NO</th>
+                  <th>NUMBER COIL</th>
                   <th>MASTER COIL</th>
                   <th className="text-right">QTY</th>
                   {deducted ? (
@@ -501,7 +501,7 @@ function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: Reg
           <input className="field" value={master} onChange={(e) => setMaster(e.target.value)} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">COIL NO</span>
+          <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">NUMBER COIL</span>
           <input className="field" value={coil} onChange={(e) => setCoil(e.target.value)} />
         </label>
       </div>

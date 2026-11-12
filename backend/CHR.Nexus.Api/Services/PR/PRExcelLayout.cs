@@ -62,7 +62,7 @@ namespace Nexus.Services
             ("DATE", "DATE (today)"), ("NO", "NO (running)"), ("PRNO", "PR NO"), ("PRDATE", "PR DATE"), ("APPROVED", "APPROVED DATE"),
             ("REQUESTER", "REQUESTER"), ("DEPARTMENT", "DEPARTMENT"), ("REMARK", "REMARK"), ("TARGET", "TARGET"), ("STOCK", "STOCK"),
             ("CODE", "PRODUCT CODE"), ("NAME", "PRODUCT NAME"), ("QTY", "QTY"), ("UNIT", "UNIT"),
-            ("BIN", "BIN"), ("MOTHERCOIL", "MASTER COIL"), ("COILNO", "COIL NO"), ("PARTA", "PART A"), ("PARTB", "PART B"),
+            ("BIN", "BIN"), ("MOTHERCOIL", "MASTER COIL"), ("COILNO", "NUMBER COIL"), ("PARTA", "PART A"), ("PARTB", "PART B"),
             ("PARTNO", "PART NO"), ("MODEL", "MODEL"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY")
         };
 

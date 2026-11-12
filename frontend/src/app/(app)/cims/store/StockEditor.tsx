@@ -36,7 +36,7 @@ const COLUMNS: [string, string][] = [
   ["BIN", "BIN"],
 ];
 const SUB_ROWS: [string, string][] = [
-  ["COILNO", "COIL NO"],
+  ["COILNO", "NUMBER COIL"],
   ["MOTHER", "MASTER COIL"],
   ["WEIGHT", "WEIGHT (KG)"],
   ["COIL", "COIL"],
@@ -291,7 +291,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               {check("inPickList", "PICK LIST QR")}
               {check("inSupplier", "SUPPLIER LABEL")}
               {check("inSysQr", "SYSTEM QR")}
-              {check("inExcel", "IMPORT EXCEL")}
+              {check("inExcel", "IMPORT EXCEL (TEMPLATE MAX-MIN / COIL)")}
             </div>
             <div className="grid gap-2">
               <div className="text-xs font-extrabold text-danger">OUT (จ่ายออก)</div>

@@ -319,6 +319,8 @@ namespace Nexus.Services
             {
                 foreach (var ws in wb.Worksheets)
                 {
+                    // ชีทคำอธิบาย / ตัวอย่าง / รายการอ้างอิงของ Template ไม่ใช่ข้อมูลจริง
+                    if (new[] { "EX", "HOW TO", "SYSTEM IDS", "OPTIONS" }.Contains(ws.Name.Trim(), StringComparer.OrdinalIgnoreCase)) continue;
                     var perm = FindHeader(ws, PermHeads, "ID", "SYS");
                     if (perm.Row > 0) { ReadPermSheet(ws, perm.Row, perm.Cols, result, systemIds, seenPerm); continue; }
                     var user = FindHeader(ws, ImportHeads, "ID", "NAME");
@@ -471,50 +473,148 @@ namespace Nexus.Services
             return (add, upd, perms);
         }
 
-        // 📄 แบบฟอร์ม Import (รูปแบบเดียวกับ Template อื่นทั้งระบบ): ชีท USERS + ชีท PERMISSIONS (ว่างพร้อมกรอก)
-        //    + ชีท HOW TO (วิธีกรอก + ตัวอย่าง) + ชีท SYSTEM IDS (รหัสระบบ / รหัสคลังที่ใช้ได้)
+        // กลุ่มระบบแบบเดียวกับหน้า PERMISSION (CIMS / MASTER DATA / EDP / PRODUCTION PLAN / CHEMICAL / USER MANAGEMENT)
+        private static readonly (string Group, string[] Ids)[] PermGroups =
+        {
+            ("CIMS", new[] { "DASHBOARD", "StoreMaxMin", "MultiScanner", "PackingCard", "MAXMINCALC", "ForecastOrder", "PR" }),
+            ("MASTER DATA", new[] { "MasterData", "ProductControl" }),
+            ("EDP PLANNING", new[] { "EdpGraph", "EdpSubmission", "EdpPlanning", "EdpPlanSetting" }),
+            ("PRODUCTION PLAN", new[] { "PpDashboard", "PpCapacity", "PpSetup" }),
+            ("CHEMICAL CONTROL", new[] { "ChemRecord", "ChemSetup" }),
+            ("USER MANAGEMENT", new[] { "UserManagement", "ActivityLog" }),
+        };
+        private static string GroupOf(string sysId) =>
+            PermGroups.FirstOrDefault(g => g.Ids.Any(i => string.Equals(i, sysId, StringComparison.OrdinalIgnoreCase))).Group ?? "OTHER";
+
+        // 📄 แบบฟอร์ม Import ผู้ใช้ / สิทธิ์ (รูปแบบเดียวกับ Template อื่นทั้งระบบ · ตามหน้า User Management ปัจจุบัน)
+        //    USERS: ตำแหน่ง -> ฝ่าย -> แผนก -> หน่วยงาน (Dropdown จาก SETUP › ADD USERID · พิมพ์ค่าอื่นได้)
+        //    PERMISSIONS: SYSTEMID Dropdown · Y / N · ชีท SYSTEM IDS เรียงตามกลุ่มระบบ + คลัง · ชีท HOW TO + EX (ตัวอย่างที่กรอกแล้ว)
         public void CreateImportTemplate(string path)
         {
             using (var wb = new ClosedXML.Excel.XLWorkbook())
             {
+                string[] uh = { "NO", "USERID", "PASSWORD", "FULLNAME", "POSITION", "DIVISION", "SECTION", "UNIT", "USERLEVEL", "ISLOCKED", "ISMASTERADMIN" };
+                string[] ph = { "NO", "USERID", "SYSTEMID", "CANVIEW", "CANADD", "CANEDIT", "CANDELETE", "CANAPPROVE" };
+                const int uLast = 101, pLast = 301;
+
                 var u = wb.AddWorksheet("USERS");
-                ImportTemplateService.Header(u, new[] { "NO", "USERID", "PASSWORD", "FULLNAME", "DIVISION", "DEPARTMENT", "SECTION", "POSITION", "USERLEVEL", "ISONLINE", "ISLOCKED", "ISMASTERADMIN" },
-                                             new double[] { 6.4, 14, 14, 28, 16, 16, 16, 16, 12, 11, 11, 19 });
-                ImportTemplateService.Body(u, 31, 12);
-                for (int r = 2; r <= 31; r++) u.Cell(r, 1).Value = r - 1;
+                ImportTemplateService.Header(u, uh, new double[] { 6.4, 14, 14, 28, 20, 24, 24, 24, 12, 11, 16 });
+                ImportTemplateService.Body(u, uLast, uh.Length);
+                for (int r = 2; r <= uLast; r++) u.Cell(r, 1).Value = r - 1;
+                u.Range(2, 2, uLast, 3).Style.NumberFormat.Format = "@";   // USERID / PASSWORD ขึ้นต้น 0 ไม่หาย
+                ImportTemplateService.LeftAlign(u, uLast, 4, 5, 6, 7, 8);
 
                 var p = wb.AddWorksheet("PERMISSIONS");
-                ImportTemplateService.Header(p, new[] { "NO", "USERID", "SYSTEMID", "CANVIEW", "CANADD", "CANEDIT", "CANDELETE", "CANAPPROVE" },
-                                             new double[] { 6.4, 14, 20, 11, 11, 11, 12, 13 });
-                ImportTemplateService.Body(p, 51, 8);
-                for (int r = 2; r <= 51; r++) p.Cell(r, 1).Value = r - 1;
+                ImportTemplateService.Header(p, ph, new double[] { 6.4, 14, 24, 11, 11, 11, 12, 13 });
+                ImportTemplateService.Body(p, pLast, ph.Length);
+                for (int r = 2; r <= pLast; r++) p.Cell(r, 1).Value = r - 1;
+                p.Range(2, 2, pLast, 2).Style.NumberFormat.Format = "@";
 
-                ImportTemplateService.Guide(wb, "CHR-Nexus - Import User / Permission", new[]
+                // ชีทรายการ (Dropdown อ้างถึง)
+                var ids = wb.AddWorksheet("SYSTEM IDS");
+                ImportTemplateService.Header(ids, new[] { "GROUP", "SYSTEMID", "SYSTEM", "VIEW / ADD / EDIT / DEL / APPROVE" }, new double[] { 20, 22, 36, 100 });
+                int row = 2;
+                foreach (var (grp, list) in PermGroups)
+                    foreach (var id in list)
+                    {
+                        var sys = Systems.FirstOrDefault(x => string.Equals(x.SysId, id, StringComparison.OrdinalIgnoreCase));
+                        if (sys.SysId == null) continue;
+                        ids.Cell(row, 1).Value = grp; ids.Cell(row, 2).Value = sys.SysId; ids.Cell(row, 3).Value = sys.Title; ids.Cell(row, 4).Value = sys.Hint; row++;
+                    }
+                foreach (var sys in Systems.Where(x => GroupOf(x.SysId) == "OTHER")) { ids.Cell(row, 1).Value = "OTHER"; ids.Cell(row, 2).Value = sys.SysId; ids.Cell(row, 3).Value = sys.Title; ids.Cell(row, 4).Value = sys.Hint; row++; }
+                foreach (var code in ValidSystemIds().Skip(Systems.Length))
                 {
-                    ("ชีท USERS", "1 แถว = 1 ผู้ใช้  •  ตัวอย่าง: USERID EMP001 / PASSWORD 1234 / FULLNAME Example Name / USERLEVEL 2 / ISLOCKED 0"),
-                    ("USERID * / FULLNAME *", "บังคับ - USERID ที่มีอยู่แล้ว = อัพเดทข้อมูล / ใหม่ = เพิ่มผู้ใช้ (ต้องมี PASSWORD)"),
-                    ("PASSWORD", "รหัสผ่าน - ผู้ใช้เดิมเว้นว่าง = ใช้รหัสเดิม"),
-                    ("DIVISION - POSITION", "สังกัด / ตำแหน่ง (ไม่บังคับ)"),
-                    ("USERLEVEL", "1 = Admin (ทำได้ทุกอย่าง) / 2 / 3 = ได้เฉพาะสิทธิ์ที่ติ๊ก"),
-                    ("ISLOCKED", "1 = ล็อก (เข้าระบบไม่ได้) / 0 = ใช้งานได้  •  ISONLINE ระบบจัดการเอง"),
-                    ("ISMASTERADMIN", "1 = Master Admin (นำเข้าได้เฉพาะ Admin)"),
-                    ("ชีท PERMISSIONS", "1 แถว = 1 ผู้ใช้ + 1 ระบบ  •  ตัวอย่าง: EMP001 / MultiScanner / Y / Y / N / N / N"),
-                    ("SYSTEMID", "รหัสระบบหรือรหัสคลัง ดูในชีท SYSTEM IDS - ระบบที่ไม่มีในไฟล์คงสิทธิ์เดิม"),
-                    ("CANVIEW - CANAPPROVE", "Y / N หรือ 1 / 0"),
-                    ("NO", "ลำดับ - ระบบไม่ได้ใช้"),
-                    ("", "กรอกในชีท USERS และ / หรือ PERMISSIONS แล้วกด IMPORT USER / PERMISSION ในหน้า User Management"),
+                    ids.Cell(row, 1).Value = "CIMS • STOCKS"; ids.Cell(row, 2).Value = code; ids.Cell(row, 3).Value = "Stock (สิทธิ์รายคลัง)";
+                    ids.Cell(row, 4).Value = "VIEW = see the stock  •  ADD = import excel (TEMPLATE MAX-MIN / COIL)  •  EDIT = edit Max / Min / Qty  •  APPROVE (+ EDIT) = MANAGE STOCK (คลังที่นับ Coil)";
+                    row++;
+                }
+                int idLast = Math.Max(2, row - 1);
+                ImportTemplateService.Body(ids, idLast, 4);
+                ImportTemplateService.LeftAlign(ids, idLast, 1, 2, 3, 4);
+
+                // ตัวเลือก POSITION / ฝ่าย / แผนก / หน่วยงาน (SETUP › ADD USERID)
+                var opts = Nexus.Helpers.DbSchema.HasUserOrg ? new UserOrgService().All() : new List<UserOrgService.Opt>();
+                var o = wb.AddWorksheet("OPTIONS");
+                string[] oh = { "POSITION", "DIVISION (ฝ่าย)", "SECTION (แผนก)", "UNIT (หน่วยงาน)" };
+                ImportTemplateService.Header(o, oh, new double[] { 26, 28, 28, 28 });
+                int oLast = 1;
+                string[] kinds = { "POSITION", "DIVISION", "SECTION", "UNIT" };
+                for (int k = 0; k < kinds.Length; k++)
+                {
+                    var names = opts.Where(x => x.Kind == kinds[k]).Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    for (int i = 0; i < names.Count; i++) o.Cell(i + 2, k + 1).Value = names[i];
+                    oLast = Math.Max(oLast, names.Count + 1);
+                    if (names.Count > 0)
+                    {
+                        var dv = u.Range(2, 5 + k, uLast, 5 + k).CreateDataValidation();
+                        dv.List(o.Range(2, k + 1, names.Count + 1, k + 1), true);
+                        dv.ErrorStyle = ClosedXML.Excel.XLErrorStyle.Information;   // พิมพ์ค่าอื่นได้ (แจ้งเตือนเฉย ๆ)
+                        dv.ShowErrorMessage = true;
+                        dv.ErrorTitle = "ไม่มีในรายการ";
+                        dv.ErrorMessage = "ค่านี้ไม่มีใน SETUP › ADD USERID · กด OK เพื่อใช้ค่านี้ หรือ Cancel เพื่อเลือกจากรายการ";
+                    }
+                }
+                if (oLast >= 2) ImportTemplateService.Body(o, oLast, 4);
+                ImportTemplateService.LeftAlign(o, Math.Max(2, oLast), 1, 2, 3, 4);
+
+                var lv = u.Range(2, 9, uLast, 9).CreateDataValidation(); lv.List("\"1,2,3\"", true);
+                foreach (int c in new[] { 10, 11 }) u.Range(2, c, uLast, c).CreateDataValidation().List("\"0,1\"", true);
+                var sv = p.Range(2, 3, pLast, 3).CreateDataValidation();
+                sv.List(ids.Range(2, 2, idLast, 2), true);
+                p.Range(2, 4, pLast, 8).CreateDataValidation().List("\"Y,N\"", true);
+
+                ImportTemplateService.Guide(wb, "CHR-Nexus - USER MANAGEMENT › IMPORT USER / PERMISSION", new[]
+                {
+                    ("ชีท USERS", "1 แถว = 1 ผู้ใช้ · ดูตัวอย่างที่ชีท EX"),
+                    ("USERID * / FULLNAME *", "บังคับ · USERID ที่มีอยู่แล้ว = อัพเดทข้อมูล · ใหม่ = เพิ่มผู้ใช้ (ต้องมี PASSWORD) · USERID ห้ามมีช่องว่าง ยาวไม่เกิน 20"),
+                    ("PASSWORD", "รหัสผ่าน · ผู้ใช้เดิมเว้นว่าง = ใช้รหัสเดิม"),
+                    ("POSITION", "ตำแหน่ง · เลือกจาก Dropdown (ตั้งที่ SETUP › ADD USERID · ดูชีท OPTIONS) หรือพิมพ์เอง"),
+                    ("DIVISION → SECTION → UNIT", "ฝ่าย → แผนก → หน่วยงาน · เลือกจาก Dropdown หรือพิมพ์เอง · ว่าง = ไม่ระบุ"),
+                    ("USERLEVEL", "1 = ADMIN (ทุกระบบ + ตั้งค่า) · 2 = MANAGER · 3 = STAFF (2 / 3 ได้เฉพาะสิทธิ์ที่กำหนดในชีท PERMISSIONS)"),
+                    ("ISLOCKED", "1 = ล็อก (เข้าระบบไม่ได้) · 0 = ใช้งานได้"),
+                    ("ISMASTERADMIN", "1 = Master Admin (นำเข้าได้เฉพาะ Admin Level 1)"),
+                    ("ชีท PERMISSIONS", "1 แถว = 1 ผู้ใช้ + 1 ระบบ (หรือ 1 คลัง) · ระบบที่ไม่มีในไฟล์ = คงสิทธิ์เดิม"),
+                    ("SYSTEMID", "เลือกจาก Dropdown · ดูชีท SYSTEM IDS (เรียงตามกลุ่ม: CIMS · CIMS • STOCKS · MASTER DATA · EDP PLANNING · PRODUCTION PLAN · CHEMICAL CONTROL · USER MANAGEMENT)"),
+                    ("CANVIEW - CANAPPROVE", "Y / N (หรือ 1 / 0) · ความหมายของแต่ละช่องดูคอลัมน์ VIEW / ADD / EDIT / DEL / APPROVE ในชีท SYSTEM IDS"),
+                    ("NO", "ลำดับ · ระบบไม่ได้ใช้"),
+                    ("", "กรอกในชีท USERS และ / หรือ PERMISSIONS แล้วกด IMPORT ในหน้า User Management · ระบบแสดงสรุปให้ยืนยันก่อนบันทึก · ทุกการ Import เก็บลง Activity Log"),
                 });
 
-                var s = wb.AddWorksheet("SYSTEM IDS");
-                ImportTemplateService.Header(s, new[] { "SYSTEMID", "SYSTEM", "VIEW / ADD / EDIT / DEL / APPROVE" }, new double[] { 20, 30, 90 });
-                int row = 2;
-                foreach (var sys in Systems) { s.Cell(row, 1).Value = sys.SysId; s.Cell(row, 2).Value = sys.Title; s.Cell(row, 3).Value = sys.Hint; row++; }
-                foreach (var code in ValidSystemIds().Skip(Systems.Length)) { s.Cell(row, 1).Value = code; s.Cell(row, 2).Value = "Stock"; s.Cell(row, 3).Value = "VIEW = see the stock  •  ADD = import excel  •  EDIT = edit Max / Min / Qty"; row++; }
-                ImportTemplateService.Body(s, row - 1, 3);
-                s.Range(2, 3, Math.Max(2, row - 1), 3).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Left;
+                // 📘 EX: ตัวอย่างที่กรอกแล้ว (ไม่ถูก Import - ตัวอ่านไฟล์ข้ามชีทนี้)
+                var ex = wb.AddWorksheet("EX");
+                string P0(int k, string fb) => opts.Where(x => x.Kind == kinds[k]).Select(x => x.Name).FirstOrDefault() ?? fb;
+                ex.Cell(1, 1).Value = "ตัวอย่างชีท USERS"; ex.Cell(1, 1).Style.Font.Bold = true;
+                object[][] us =
+                {
+                    new object[] { 1, "EMP001", "1234", "Somchai Jaidee", P0(0, "Operator"), P0(1, "ฝ่ายผลิต"), P0(2, "แผนกผลิต 1"), P0(3, "ปั๊ม 1"), 3, 0, 0 },
+                    new object[] { 2, "EMP002", "5678", "Suda Rakngan", P0(0, "Leader"), P0(1, "ฝ่ายผลิต"), P0(2, "แผนกผลิต 1"), P0(3, "ปั๊ม 1"), 2, 0, 0 },
+                };
+                for (int c = 0; c < uh.Length; c++) ex.Cell(2, c + 1).Value = uh[c];
+                for (int r = 0; r < us.Length; r++) for (int c = 0; c < us[r].Length; c++) ex.Cell(3 + r, c + 1).Value = ClosedXML.Excel.XLCellValue.FromObject(us[r][c]);
+                StyleEx(ex.Range(2, 1, 2 + us.Length, uh.Length));
+                ex.Cell(7, 1).Value = "ตัวอย่างชีท PERMISSIONS (EMP001 สแกน + ดูคลัง STOCK-MAT · EMP002 ส่งยอด EDP)"; ex.Cell(7, 1).Style.Font.Bold = true;
+                object[][] ps =
+                {
+                    new object[] { 1, "EMP001", "MultiScanner", "Y", "N", "N", "N", "N" },
+                    new object[] { 2, "EMP001", "STOCK-MAT", "Y", "N", "N", "N", "N" },
+                    new object[] { 3, "EMP002", "EdpSubmission", "Y", "N", "Y", "N", "N" },
+                    new object[] { 4, "EMP002", "EdpPlanning", "Y", "N", "Y", "N", "N" },
+                };
+                for (int c = 0; c < ph.Length; c++) ex.Cell(8, c + 1).Value = ph[c];
+                for (int r = 0; r < ps.Length; r++) for (int c = 0; c < ps[r].Length; c++) ex.Cell(9 + r, c + 1).Value = ClosedXML.Excel.XLCellValue.FromObject(ps[r][c]);
+                StyleEx(ex.Range(8, 1, 8 + ps.Length, ph.Length));
+                for (int c = 1; c <= uh.Length; c++) ex.Column(c).Width = c == 4 ? 24 : c >= 5 && c <= 8 ? 20 : 13;
+
                 wb.Worksheet(1).SetTabActive();
                 wb.SaveAs(path);
             }
+        }
+
+        private static void StyleEx(ClosedXML.Excel.IXLRange r)
+        {
+            var h = r.FirstRow();
+            h.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#002060"); h.Style.Font.FontColor = ClosedXML.Excel.XLColor.White; h.Style.Font.Bold = true;
+            r.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin; r.Style.Border.InsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
         }
 
         // ลบผู้ใช้: มีประวัติในระบบ (สแกน / PR / Log) -> ลบไม่ได้ คืนข้อความบอกเหตุผล (แนะนำให้ LOCK แทน)

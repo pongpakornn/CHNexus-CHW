@@ -10,7 +10,7 @@ import { qty } from "@/lib/format";
 export type CoilRow = { coilId: number; isMother: boolean; no: number; coilNo: string; motherCoil: string; weightKG: number; ton: number; received: string };
 
 // 🧲 Coil ของสินค้าในคลัง (แบบหน้า STOCK-MAT): จัดกลุ่มตาม Master Coil
-//   Master: ✏️ เปลี่ยนชื่อ (Coil ลูกเปลี่ยนตาม) · Coil ลูก: ✏️ แก้ COIL NO / MASTER / KG · 🗑 ลบ (เฉพาะที่ยังไม่เคยสแกน)
+//   Master: ✏️ เปลี่ยนชื่อ (Coil ลูกเปลี่ยนตาม) · Coil ลูก: ✏️ แก้ NUMBER COIL / MASTER / KG · 🗑 ลบ (เฉพาะที่ยังไม่เคยสแกน)
 export function CoilPanel({
   rows,
   stkId,
@@ -123,7 +123,7 @@ export function CoilPanel({
                 <div key={r.coilId} className="cp-row is-edit">
                   <span className="cp-no">{r.no}</span>
                   <label className="cp-f">
-                    <span>COIL NO</span>
+                    <span>NUMBER COIL</span>
                     <input className="field !h-8 !py-1" autoFocus value={edit.coilNo} onChange={(e) => setEdit({ ...edit, coilNo: e.target.value })} onKeyDown={(e) => e.key === "Enter" && saveEdit()} />
                   </label>
                   <label className="cp-f">
@@ -154,7 +154,7 @@ export function CoilPanel({
                       {canEdit && (
                         <RowAction
                           kind="edit"
-                          title="แก้ COIL NO / MASTER / KG"
+                          title="แก้ NUMBER COIL / MASTER / KG"
                           onClick={() => (setRename(null), setEdit({ id: r.coilId, coilNo: r.coilNo, master: r.motherCoil && r.motherCoil !== r.coilNo ? r.motherCoil : "", kg: String(r.weightKG) }))}
                         />
                       )}

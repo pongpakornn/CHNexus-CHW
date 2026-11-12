@@ -47,7 +47,7 @@ namespace Nexus.Services
         public string Remark { get; set; }
         public string Image { get; set; }   // IMAGE = ชื่อไฟล์รูป (เก็บตามไฟล์ / ว่าง = ไม่มีรูป)
 
-        // 🧲 แถว Coil: 1 แถว = 1 Coil (COIL NO + MASTER COIL + น้ำหนัก = STOCK (UNIT) ของแถวนั้น)
+        // 🧲 แถว Coil: 1 แถว = 1 Coil (NUMBER COIL + MASTER COIL + น้ำหนัก = STOCK (UNIT) ของแถวนั้น)
         //    สินค้าเดียวกันหลาย Coil = ใส่ PRODUCT CODE ซ้ำได้หลายแถว (แถวแรก = ข้อมูลสินค้า / แถวถัดไป = เพิ่ม Coil)
         public string CoilNo { get; set; }
         public string MotherCoil { get; set; }
@@ -79,7 +79,7 @@ namespace Nexus.Services
             ["BIN"] = new[] { "BIN", "LOCATION", "LOC" },
             ["QRCODE"] = new[] { "QRCODE", "QR" },
             ["IMAGE"] = new[] { "IMAGE", "IMAGEFILE", "IMAGEFILENAME", "PICTURE", "รูป", "รูปภาพ" },
-            ["COILNO"] = new[] { "COILNO", "COILNUMBER", "เลขCOIL" },
+            ["COILNO"] = new[] { "COILNO", "COILNUMBER", "NUMBERCOIL", "NOCOIL", "เลขCOIL" },
             ["MOTHERCOIL"] = new[] { "MASTERCOIL", "MASTER", "COILMASTER", "MOTHERCOIL", "MOTHER", "COILMOTHER", "COILแม่" },
             ["STOCK"] = new[] { "STOCK", "STOCKCODE", "คลัง" },
             ["CUSTOMER"] = new[] { "CUSTOMER", "CUST", "CUSTOMERCODE", "ลูกค้า" },
@@ -202,10 +202,10 @@ namespace Nexus.Services
                         if (v.Length > 0 && v != "-") item.Extra[ex.Key] = v;
                     }
                     string psz = Get(r, "PACKSIZE");
-                    // แถว Coil ใต้แถวสินค้า (PRODUCT CODE / NAME ว่าง แต่มี COIL NO) = Coil เพิ่มของสินค้าแถวบน
+                    // แถว Coil ใต้แถวสินค้า (PRODUCT CODE / NAME ว่าง แต่มี NUMBER COIL) = Coil เพิ่มของสินค้าแถวบน
                     if (string.IsNullOrEmpty(item.Code) && string.IsNullOrEmpty(item.Name) && item.CoilNo != null)
                     {
-                        if (lastProduct == null) { item.Error = $"COIL NO {item.CoilNo}: ไม่มีแถวสินค้าด้านบน (ใส่ PRODUCT CODE ที่แถวแรกของสินค้า)"; rows.Add(item); continue; }
+                        if (lastProduct == null) { item.Error = $"NUMBER COIL {item.CoilNo}: ไม่มีแถวสินค้าด้านบน (ใส่ PRODUCT CODE ที่แถวแรกของสินค้า)"; rows.Add(item); continue; }
                         item.ContOwner = lastProduct;
                         item.Code = lastProduct.Code; item.Name = lastProduct.Name; item.PartA = lastProduct.PartA;
                         item.StockText = lastProduct.StockText; item.StockCodes.AddRange(lastProduct.StockCodes);
@@ -256,7 +256,7 @@ namespace Nexus.Services
                     }
                     // WEIGHT (KG): แถว Coil = น้ำหนักของ Coil (ใช้แทน STOCK (UNIT) ได้) / แถวสินค้า = น้ำหนักสินค้า
                     decimal? weight = Num("WEIGHT", "WEIGHT (KG)");
-                    // ใส่แค่ MASTER COIL (ไม่มี COIL NO) = Master ทั้งม้วน (เลข Coil = เลข Master) แบบช่องกรอกในหน้าเว็บ
+                    // ใส่แค่ MASTER COIL (ไม่มี NUMBER COIL) = Master ทั้งม้วน (เลข Coil = เลข Master) แบบช่องกรอกในหน้าเว็บ
                     if (item.Error == null && item.CoilNo == null && item.MotherCoil != null) { item.CoilNo = item.MotherCoil; item.MotherCoil = null; }
                     if (item.Error == null && weight.HasValue)
                     {
@@ -266,11 +266,11 @@ namespace Nexus.Services
                     // แถว Coil: น้ำหนักของ Coil นี้ = STOCK (UNIT) / STOCK (PCS) ของแถว / 1 แถว = 1 Coil
                     if (item.Error == null && item.CoilNo != null)
                     {
-                        if (!item.StockPcs.HasValue || item.StockPcs.Value <= 0) item.Error = $"COIL NO {item.CoilNo}: ใส่น้ำหนักของ Coil นี้ที่ STOCK (UNIT)";
-                        else if (item.Coil.HasValue && item.Coil.Value != 1) item.Error = $"COIL NO {item.CoilNo}: 1 แถว = 1 Coil (STOCK (COIL) ว่าง หรือ 1)";
+                        if (!item.StockPcs.HasValue || item.StockPcs.Value <= 0) item.Error = $"NUMBER COIL {item.CoilNo}: ใส่น้ำหนักของ Coil นี้ที่ STOCK (UNIT)";
+                        else if (item.Coil.HasValue && item.Coil.Value != 1) item.Error = $"NUMBER COIL {item.CoilNo}: 1 แถว = 1 Coil (STOCK (COIL) ว่าง หรือ 1)";
                         else item.CoilWeight = item.StockPcs.Value;
                     }
-                    else if (item.Error == null && item.MotherCoil != null) item.Error = "ใส่ MASTER COIL แล้วต้องใส่ COIL NO ด้วย";
+                    else if (item.Error == null && item.MotherCoil != null) item.Error = "ใส่ MASTER COIL แล้วต้องใส่ NUMBER COIL ด้วย";
                     string rmk = Get(r, "REMARK");
                     item.Remark = rmk.Length == 0 ? null : rmk;
                     if (item.Error == null && item.Max.HasValue && item.Min.HasValue && item.Max > 0 && item.Min > item.Max)
@@ -359,12 +359,12 @@ namespace Nexus.Services
             {
                 string k = Key(r.Code, r.PartA);
                 if (r.ContOwner != null && (!r.ContOwner.IsValid || r.ContOwner.CoilNo == null))
-                    r.Error = r.ContOwner.IsValid ? $"แถวสินค้า {r.ContOwner.RowNumber} ต้องใส่ COIL NO ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {r.ContOwner.RowNumber} ไม่ผ่าน ({r.ContOwner.Error})";
+                    r.Error = r.ContOwner.IsValid ? $"แถวสินค้า {r.ContOwner.RowNumber} ต้องใส่ NUMBER COIL ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {r.ContOwner.RowNumber} ไม่ผ่าน ({r.ContOwner.Error})";
                 else if (existing.Contains(k)) r.Error = "สินค้านี้ลงทะเบียนไว้แล้ว (PRODUCT CODE + PART A) - เพิ่ม / อัพเดทผ่าน IMPORT EXCEL หน้า Store (Max-Min)";
                 else if (first.TryGetValue(k, out var owner))
                 {
                     if (r.CoilNo != null && owner.CoilNo != null) { r.IsCoilExtra = true; r.CoilOwner = owner; }
-                    else r.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ COIL NO ทุกแถว";
+                    else r.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ NUMBER COIL ทุกแถว";
                 }
                 else first[k] = r;
             }
@@ -378,9 +378,9 @@ namespace Nexus.Services
                              .Concat(owner.OtherStockIds.Select(id => stocks.FirstOrDefault(s => s.StkId == id)))
                              .FirstOrDefault(s => s != null && s.CountCoil);
                 if (!Nexus.Helpers.DbSchema.HasCoilRegister) r.Error = "ฐานข้อมูลยังไม่มีทะเบียน Coil (Update_20261008.sql)";
-                else if (target == null) r.Error = $"COIL NO {r.CoilNo}: คลังของสินค้านี้ไม่ได้นับ Coil (เปิด STOCK (COIL) ที่ EDIT STOCK)";
-                else if (seenCoil.TryGetValue(r.CoilNo, out int at)) r.Error = $"COIL NO {r.CoilNo} ซ้ำกับแถว {at}";
-                else if (coils.TryGetValue(r.CoilNo, out var c) && c.Status == "IN") r.Error = $"COIL NO {r.CoilNo} อยู่ในคลัง {c.StockCode} แล้ว";
+                else if (target == null) r.Error = $"NUMBER COIL {r.CoilNo}: คลังของสินค้านี้ไม่ได้นับ Coil (เปิด STOCK (COIL) ที่ EDIT STOCK)";
+                else if (seenCoil.TryGetValue(r.CoilNo, out int at)) r.Error = $"NUMBER COIL {r.CoilNo} ซ้ำกับแถว {at}";
+                else if (coils.TryGetValue(r.CoilNo, out var c) && c.Status == "IN") r.Error = $"NUMBER COIL {r.CoilNo} อยู่ในคลัง {c.StockCode} แล้ว";
                 else { seenCoil[r.CoilNo] = r.RowNumber; r.CoilStockId = target.StkId; r.CoilStockIsMain = target.IsMain; }
             }
             // แถวแรกของสินค้าไม่ผ่าน -> แถว Coil เพิ่มของสินค้านั้นก็ไม่นำเข้า
@@ -504,7 +504,7 @@ namespace Nexus.Services
                                 cmd.ExecuteNonQuery();
                             }
 
-                        // 🧲 Coil ของสินค้านี้ (ทุกแถวที่ใส่ COIL NO) -> ทะเบียน Coil ของคลังที่นับ Coil + นับ STOCK (COIL) ใหม่
+                        // 🧲 Coil ของสินค้านี้ (ทุกแถวที่ใส่ NUMBER COIL) -> ทะเบียน Coil ของคลังที่นับ Coil + นับ STOCK (COIL) ใหม่
                         if (coilRows.TryGetValue(r, out var cl))
                             CoilImportService.RegisterCoils(conn, trans, cl.Select(c => (c.CoilNo, c.MotherCoil, c.CoilWeight)), ptId, r.CoilStockId, r.CoilStockIsMain, userId, true);
                     }

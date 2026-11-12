@@ -72,7 +72,7 @@ namespace Nexus.Services
         }
 
         // ✏️ แก้ / 🗑 ลบ Coil ที่ลงทะเบียนผิด (หน้า Inventory Registration)
-        //   - แก้: COIL NO (ห้ามซ้ำ) / MASTER COIL / น้ำหนัก -> ยอดคลังของสินค้าปรับตามส่วนต่างน้ำหนัก + CoilMoves "EDIT"
+        //   - แก้: NUMBER COIL (ห้ามซ้ำ) / MASTER COIL / น้ำหนัก -> ยอดคลังของสินค้าปรับตามส่วนต่างน้ำหนัก + CoilMoves "EDIT"
         //   - ลบ: เฉพาะ Coil ที่ยังอยู่ในคลังและไม่เคยถูกสแกน (มีแค่ REGISTER / IMPORT / EDIT) -> ยอดคลังลดตามน้ำหนัก
         //   คืนข้อความไว้ลง Log (ค่าเดิม -> ค่าใหม่) · ผิดเงื่อนไข = InvalidOperationException (ข้อความภาษาไทยแสดงผู้ใช้)
         private static readonly string[] ManualMoves = { "REGISTER", "IMPORT", "EDIT" };
@@ -111,7 +111,7 @@ namespace Nexus.Services
             if (!DbSchema.HasCoilRegister) throw new InvalidOperationException("ฐานข้อมูลยังไม่มีทะเบียน Coil");
             coilNo = (coilNo ?? "").Trim();
             master = string.IsNullOrWhiteSpace(master) ? null : master.Trim();
-            if (coilNo.Length == 0) throw new InvalidOperationException("กรุณากรอก COIL NO");
+            if (coilNo.Length == 0) throw new InvalidOperationException("กรุณากรอก NUMBER COIL");
             if (kg <= 0) throw new InvalidOperationException("น้ำหนัก (KG) ต้องมากกว่า 0");
             if (master != null && string.Equals(master, coilNo, StringComparison.OrdinalIgnoreCase)) master = null; // Master ทั้งม้วน = ไม่อ้างถึงตัวเอง
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
@@ -127,7 +127,7 @@ namespace Nexus.Services
                         {
                             cmd.Parameters.AddWithValue("@c", coilNo);
                             cmd.Parameters.AddWithValue("@id", coilId);
-                            if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) throw new InvalidOperationException($"COIL NO {coilNo} มีในทะเบียนแล้ว - ใช้เลขซ้ำไม่ได้");
+                            if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) throw new InvalidOperationException($"NUMBER COIL {coilNo} มีในทะเบียนแล้ว - ใช้เลขซ้ำไม่ได้");
                         }
                     using (var cmd = new SqlCommand("UPDATE Nexus.Coils SET CoilNo = @c, MotherCoil = @m, WeightKG = @w, UpdatedDate = GETDATE() WHERE CoilID = @id", conn, trans))
                     {
@@ -152,7 +152,7 @@ namespace Nexus.Services
                     CoilImportService.RecountCoils(conn, trans, c.PartId, c.StockId, stock.IsMain);
                     trans.Commit();
                     var d = new List<string>();
-                    if (!string.Equals(c.CoilNo, coilNo, StringComparison.Ordinal)) d.Add($"COIL NO: {c.CoilNo}->{coilNo}");
+                    if (!string.Equals(c.CoilNo, coilNo, StringComparison.Ordinal)) d.Add($"NUMBER COIL: {c.CoilNo}->{coilNo}");
                     if ((c.Mother ?? "") != (master ?? "")) d.Add($"MASTER: {c.Mother ?? "-"}->{master ?? "-"}");
                     if (c.Kg != kg) d.Add($"KG: {Qty.Plain(c.Kg)}->{Qty.Plain(kg)}");
                     return $"{stock.Code} | Coil {coilNo} | {(d.Count > 0 ? string.Join("  |  ", d) : "No changes")}";
@@ -225,7 +225,7 @@ namespace Nexus.Services
                         cmd.Parameters.AddWithValue("@s", stockId);
                         cmd.Parameters.AddWithValue("@p", ptId);
                         try { n += cmd.ExecuteNonQuery(); }
-                        catch (SqlException ex) when (ex.Number == 50001) { throw new InvalidOperationException($"COIL NO {to} มีในทะเบียนแล้ว - ใช้ชื่อซ้ำไม่ได้"); }
+                        catch (SqlException ex) when (ex.Number == 50001) { throw new InvalidOperationException($"NUMBER COIL {to} มีในทะเบียนแล้ว - ใช้ชื่อซ้ำไม่ได้"); }
                     }
                     if (n == 0) throw new InvalidOperationException($"ไม่พบ Coil ของ MASTER {from} ในคลัง {stock.Code}");
                     trans.Commit();
@@ -271,7 +271,7 @@ namespace Nexus.Services
         }
 
         // 🧲 ยอด Coil ในคลัง (Status IN): MASTER COIL = ม้วนที่ไม่ได้ตัดมาจาก Coil อื่น (MASTER COIL ว่าง / เท่ากับตัวเอง)
-        //    COIL NO = ม้วนลูกที่ตัดมาจาก Master Coil - คืนทุกคลังที่มี Coil (StockID -> ยอด)
+        //    NUMBER COIL = ม้วนลูกที่ตัดมาจาก Master Coil - คืนทุกคลังที่มี Coil (StockID -> ยอด)
         public class CoilSummary
         {
             public int MasterCount { get; set; }

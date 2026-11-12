@@ -200,7 +200,7 @@ namespace Nexus.Services
                 LEFT JOIN Nexus.Parts p ON p.PartID = m.PartID
                 LEFT JOIN Nexus.Stocks s ON s.StockID = m.StockID
                 LEFT JOIN Nexus.Stocks src ON src.StockID = m.SourceStockID
-                -- Master Coil ในคลังต้นทาง: เลขบนป้ายก่อน · ไม่มี = เลขจาก COIL NO ตัดท้าย -ตัวเลข (ป้ายพิมพ์ขาด เช่น 2635 -> 26355026302)
+                -- Master Coil ในคลังต้นทาง: เลขบนป้ายก่อน · ไม่มี = เลขจาก NUMBER COIL ตัดท้าย -ตัวเลข (ป้ายพิมพ์ขาด เช่น 2635 -> 26355026302)
                 OUTER APPLY (SELECT CASE WHEN CHARINDEX('-', REVERSE(m.CoilNo)) > 1 AND RIGHT(m.CoilNo, CHARINDEX('-', REVERSE(m.CoilNo)) - 1) NOT LIKE '%[^0-9]%'
                                          THEN LEFT(m.CoilNo, LEN(m.CoilNo) - CHARINDEX('-', REVERSE(m.CoilNo))) END AS FromNo) d
                 OUTER APPLY (SELECT TOP 1 c.CoilNo, c.WeightKG FROM Nexus.Coils c
@@ -570,7 +570,7 @@ namespace Nexus.Services
             using (var wb = new ClosedXML.Excel.XLWorkbook())
             {
                 var ws = wb.Worksheets.Add("DEDUCTED");
-                string[] heads = { "NO", "SCAN DATE", "PD CODE", "PRODUCT NAME", "MASTER COIL", "COIL NO", "CUT FROM SOURCE (KG)", "SOURCE PD CODE", "SOURCE PRODUCT NAME", "MASTER COIL BEFORE (KG)", "SOURCE BALANCE", "USER", "STOCK", "BARCODE" };
+                string[] heads = { "NO", "SCAN DATE", "PD CODE", "PRODUCT NAME", "MASTER COIL", "NUMBER COIL", "CUT FROM SOURCE (KG)", "SOURCE PD CODE", "SOURCE PRODUCT NAME", "MASTER COIL BEFORE (KG)", "SOURCE BALANCE", "USER", "STOCK", "BARCODE" };
                 ImportTemplateService.Header(ws, heads, new double[] { 6.4, 19, 18, 34, 15, 18, 16, 18, 34, 18, 16, 10, 26, 70 });
                 int row = 2;
                 foreach (var x in rows)
@@ -608,7 +608,7 @@ namespace Nexus.Services
             using (var wb = new ClosedXML.Excel.XLWorkbook())
             {
                 var ws = wb.Worksheets.Add("NOT DEDUCTED");
-                string[] heads = { "NO", "SCAN DATE", "PD CODE", "PRODUCT NAME", "MASTER COIL", "COIL NO", "SCANNED QTY (KG)", "STATUS", "REASON", "MASTER COIL NOW", "USER", "STOCK", "BARCODE" };
+                string[] heads = { "NO", "SCAN DATE", "PD CODE", "PRODUCT NAME", "MASTER COIL", "NUMBER COIL", "SCANNED QTY (KG)", "STATUS", "REASON", "MASTER COIL NOW", "USER", "STOCK", "BARCODE" };
                 ImportTemplateService.Header(ws, heads, new double[] { 6.4, 19, 18, 34, 15, 18, 16, 34, 38, 20, 10, 26, 70 });
                 int row = 2;
                 foreach (var x in rows)

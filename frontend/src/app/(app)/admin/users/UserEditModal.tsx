@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
+import { ComboBox, type ComboOption } from "@/components/dropdowns/ComboBox";
 import { api } from "@/lib/api";
 import type { User } from "./types";
 
@@ -33,6 +34,58 @@ export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User |
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+
+  // 🔽 ตัวเลือก POSITION / ฝ่าย -> แผนก -> หน่วยงาน (ตั้งที่ SETUP › ADD USERID) · ยังไม่ตั้ง = ช่องพิมพ์แบบเดิม
+  type Org = { id: number; kind: string; name: string; parentId: number | null };
+  const [org, setOrg] = useState<Org[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<{ ready: boolean; items: Org[] }>("/users/org-options")
+      .then((r) => alive && setOrg(r.ready ? r.items : []))
+      .catch(() => alive && setOrg([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const opts = useMemo(() => {
+    const o = org ?? [];
+    const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const of = (kind: string, parent?: number[] | null) => o.filter((x) => x.kind === kind && (parent == null || parent.includes(x.parentId ?? 0)));
+    const divIds = o.filter((x) => x.kind === "DIVISION" && same(x.name, f.division)).map((x) => x.id);
+    const secIds = of("SECTION", f.division.trim() ? divIds : null).filter((x) => same(x.name, f.section)).map((x) => x.id);
+    // รายการตามลำดับชั้น: ยังไม่เลือกชั้นบน = ทุกตัว · ค่าเดิมที่ไม่มีในรายการ = ยังแสดง (ไม่หาย)
+    const list = (items: Org[], cur: string): ComboOption[] => {
+      const names = [...new Set(items.map((x) => x.name))];
+      if (cur.trim() && !names.some((n) => same(n, cur))) names.unshift(cur.trim());
+      return [{ value: "", label: "- ไม่ระบุ -" }, ...names.map((n) => ({ value: n, label: n }))];
+    };
+    return {
+      on: o.length > 0,
+      position: list(of("POSITION"), f.position),
+      division: list(of("DIVISION"), f.division),
+      section: list(of("SECTION", f.division.trim() && divIds.length ? divIds : null), f.section),
+      unit: list(of("UNIT", f.section.trim() && secIds.length ? secIds : null), f.department),
+    };
+  }, [org, f.position, f.division, f.section, f.department]);
+  // เปลี่ยนฝ่าย = แผนก / หน่วยงานเดิมที่ไม่อยู่ใต้ฝ่ายใหม่ล้างออก · เปลี่ยนแผนก = หน่วยงานเดิมที่ไม่อยู่ใต้แผนกใหม่ล้างออก
+  const pickDivision = (v: string) => {
+    const o = org ?? [];
+    const ids = o.filter((x) => x.kind === "DIVISION" && x.name === v).map((x) => x.id);
+    const secOk = !v || o.some((x) => x.kind === "SECTION" && x.name === f.section && ids.includes(x.parentId ?? 0));
+    setF((x) => ({ ...x, division: v, section: secOk ? x.section : "", department: secOk ? x.department : "" }));
+  };
+  const pickSection = (v: string) => {
+    const o = org ?? [];
+    const ids = o.filter((x) => x.kind === "SECTION" && x.name === v).map((x) => x.id);
+    const unitOk = !v || o.some((x) => x.kind === "UNIT" && x.name === f.department && ids.includes(x.parentId ?? 0));
+    setF((x) => ({ ...x, section: v, department: unitOk ? x.department : "" }));
+  };
+  const drop = (label: string, value: string, options: ComboOption[], onPick: (v: string) => void) => (
+    <label className="fx">
+      <span className="fx-cap">{label}</span>
+      <ComboBox value={value} options={options} onChange={onPick} ariaLabel={label} placeholder="พิมพ์เพื่อค้นหา / เลือก" />
+    </label>
+  );
 
   async function save() {
     const id = f.userId.trim();
@@ -122,12 +175,23 @@ export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User |
             <span className="fm-no">2</span>
             <b>ORGANIZATION</b>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {input("POSITION (ตำแหน่ง)", "position")}
-            {input("UNIT (หน่วยงาน)", "department")}
-            {input("SECTION (แผนก)", "section")}
-            {input("DIVISION (ฝ่าย)", "division")}
-          </div>
+          {opts.on ? (
+            // ตำแหน่ง -> ฝ่าย -> แผนก -> หน่วยงาน (เลือกชั้นบนแล้วชั้นล่างเหลือเฉพาะที่สังกัด)
+            <div className="grid gap-3 sm:grid-cols-2">
+              {drop("POSITION (ตำแหน่ง)", f.position, opts.position, (v) => set("position", v))}
+              {drop("DIVISION (ฝ่าย)", f.division, opts.division, pickDivision)}
+              {drop("SECTION (แผนก)", f.section, opts.section, pickSection)}
+              {drop("UNIT (หน่วยงาน)", f.department, opts.unit, (v) => set("department", v))}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {input("POSITION (ตำแหน่ง)", "position")}
+              {input("DIVISION (ฝ่าย)", "division")}
+              {input("SECTION (แผนก)", "section")}
+              {input("UNIT (หน่วยงาน)", "department")}
+            </div>
+          )}
+          {opts.on && <p className="mt-2 text-[11px] font-bold text-ink-soft">ตัวเลือกตั้งได้ที่ SETUP › ADD USERID · เลือกฝ่ายแล้วแผนกเหลือเฉพาะของฝ่ายนั้น · เลือกแผนกแล้วหน่วยงานเหลือเฉพาะของแผนกนั้น</p>}
         </section>
 
         <section className="fm-group" style={{ "--d": "140ms" } as React.CSSProperties}>

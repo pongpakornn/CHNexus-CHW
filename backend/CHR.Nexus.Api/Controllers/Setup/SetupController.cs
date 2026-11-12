@@ -230,6 +230,33 @@ public sealed class SetupController : AppController
     }
 
     // ---------------------------------------------------------------- DEPARTMENTS
+    // ---------------------------------------------------------------- ADD USERID (Dropdown ตำแหน่ง / ฝ่าย -> แผนก -> หน่วยงาน)
+    [HttpGet("user-org")]
+    public IActionResult UserOrg()
+    {
+        if (!IsAdmin) return AdminOnly();
+        if (!DbSchema.HasUserOrg) return Ok(new { ready = false, items = Array.Empty<object>() });
+        return Ok(new { ready = true, items = new UserOrgService().All() });
+    }
+
+    [HttpPost("user-org")]
+    public IActionResult SaveUserOrg([FromBody] List<UserOrgService.Item> items)
+    {
+        if (!IsAdmin) return AdminOnly();
+        if (!DbSchema.HasUserOrg) return Fail("ฐานข้อมูลยังไม่มีตาราง Nexus.UserOrgOptions (database/nexus/43_User_Org_Options.sql)");
+        if (items == null || items.Count > 3000) return Fail("ข้อมูลไม่ถูกต้อง");
+        try
+        {
+            var (add, upd, del) = new UserOrgService().Save(items, Uid);
+            string count(string k) => $"{items.Count(x => string.Equals(x.Kind, k, StringComparison.OrdinalIgnoreCase))}";
+            LogService.WriteLog(Uid, "SETUP_USER_ORG", $"ADD USERID options | POSITION {count("POSITION")} · DIVISION {count("DIVISION")} · SECTION {count("SECTION")} · UNIT {count("UNIT")} | Added {add} · Updated {upd} · Deleted {del}", "");
+            LiveBus.Publish("users");
+            return Ok(new { message = $"บันทึกตัวเลือก ADD USERID แล้ว\nเพิ่ม {add} · แก้ไข {upd} · ลบ {del}" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+        catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
+    }
+
     [HttpGet("departments")]
     public IActionResult Departments()
     {

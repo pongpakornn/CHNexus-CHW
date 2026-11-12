@@ -36,7 +36,7 @@ namespace Nexus.Services
         {
             ("IMAGE", "IMAGE"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY"), ("MODEL", "MODEL"),
             ("CODE", "PRODUCT CODE"), ("PARTA", "PART A"), ("PARTB", "PART B"), ("PARTNO", "PART NO"), ("NAME", "PRODUCT NAME"),
-            ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "COIL NO"), ("WEIGHT", "WEIGHT (KG)"),
+            ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "NUMBER COIL"), ("WEIGHT", "WEIGHT (KG)"),
             ("QRCODE", "QR CODE")
         };
         public static readonly string[] Default = { "IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "CODE", "PARTA", "PARTB", "PARTNO", "NAME", "PACKSIZE", "BIN", "MOTHER", "COILNO", "WEIGHT", "QRCODE" };
@@ -88,7 +88,7 @@ namespace Nexus.Services
         }
 
         // ค่าของช่องจากสินค้า (ไม่มี = ว่าง) - ตัด | ในค่าออก กันตำแหน่งช่องเลื่อนตอนแสกน
-        //   coils = Coil ที่อยู่ในคลัง (MASTER COIL / COIL NO) จาก GetCoils - มี = ใช้เลข Coil ทั้งหมดคั่นด้วย ,
+        //   coils = Coil ที่อยู่ในคลัง (MASTER COIL / NUMBER COIL) จาก GetCoils - มี = ใช้เลข Coil ทั้งหมดคั่นด้วย ,
         public static string Value(Nexus.Models.ProductControlModel m, string key, IDictionary<int, (List<string> Mothers, List<string> Coils)> coils = null, string sep = DefaultSep)
         {
             if ((key == "MOTHER" || key == "COILNO") && coils != null && coils.TryGetValue(m.PtId, out var cl))
@@ -144,7 +144,7 @@ namespace Nexus.Services
         {
             ("IMAGE", "IMAGE"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY"),
             ("PARTA", "PART A"), ("PARTB", "PART B"), ("MODEL", "MODEL"), ("CODE", "PRODUCT CODE"), ("PARTNO", "PART NO"),
-            ("NAME", "PRODUCT NAME"), ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "COIL NO"),
+            ("NAME", "PRODUCT NAME"), ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "NUMBER COIL"),
             ("QRCODE", "QR CODE")
         };
         public static readonly string[] Groups = { "CATEGORY", "CUSTOMER", "SUPPLIER", "NONE" };

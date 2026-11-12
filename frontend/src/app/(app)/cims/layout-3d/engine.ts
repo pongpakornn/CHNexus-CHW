@@ -598,6 +598,8 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
   const floorCoils = new Map<string, CoilState[]>();
   let leaving: Leaving[] = [];
   let floorPicks: FloorPick[] = [];
+  // กล่องเลือกของม้วนบนพื้น: ใช้ซ้ำทุกเฟรม (ไม่สร้างออบเจกต์ใหม่ทุกเฟรม = ไม่มี GC กระตุกเป็นช่วง ๆ)
+  const pickPool: FloorPick[] = [];
 
   const _m = new THREE.Matrix4();
   const _p = new THREE.Vector3();
@@ -637,7 +639,7 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
       const c = slotCoil.get(s.id);
       if (c && (!focus || s.zoneId === focus.id)) put(s.x, s.y0 + RAIL_TOP, s.z, c, c.t0, sel?.kind === "slot" && sel.slotId === s.id, null, true);
     }
-    floorPicks = [];
+    let np = 0;
     for (const z of ZONES) {
       if (z.kind !== "floor" || (focus && z !== focus)) continue;
       (floorCoils.get(z.id) ?? []).forEach((c, k) => {
@@ -646,9 +648,15 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
         put(x, base, zz, c, c.t0, sel?.kind === "floor" && sel.coilId === c.id, null, false);
         const r = RO * c.sr;
         const hw = (CW * c.sw) / 2;
-        floorPicks.push({ zoneId: z.id, coilId: c.id, box: new THREE.Box3(new THREE.Vector3(x - hw, 0, zz - r), new THREE.Vector3(x + hw, base + 2 * r, zz + r)) });
+        const fp = (pickPool[np] ??= { zoneId: z.id, coilId: c.id, box: new THREE.Box3() });
+        fp.zoneId = z.id;
+        fp.coilId = c.id;
+        fp.box.min.set(x - hw, 0, zz - r);
+        fp.box.max.set(x + hw, base + 2 * r, zz + r);
+        np++;
       });
     }
+    floorPicks = pickPool.slice(0, np);
     leaving = leaving.filter((l) => {
       const lp = reduceMotion ? 1 : (t - l.t0) / 260;
       if (lp >= 1) return false;
@@ -754,9 +762,11 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
     const i = renderer.info.render;
     handlers.onPerf?.(`${i.calls} draw calls · ${Math.round(i.triangles / 100) / 10}k tris · ${idle ? "พักการวาด" : fps + " fps"}`);
   }
+  let warm = 0; // เฟรมแรก ๆ หลังพักการวาด (dt ยังไม่นิ่ง) ไม่นับเป็นเฟรมช้า
   function invalidate() {
     if (running || disposed) return;
     running = true;
+    warm = 0;
     last = performance.now();
     raf = requestAnimationFrame(tick);
   }
@@ -779,9 +789,11 @@ export function createEngine(canvas: HTMLCanvasElement, stage: HTMLElement, hand
         fN = 0;
       }
     }
-    // เครื่องช้า (เฟรมเกิน 30 ms ต่อเนื่อง) = ลดความละเอียดทีละขั้น จนเหลือ 1x
-    if (dt > 0.03 && pr > 1) {
-      if (++slow > 25) {
+    // เครื่องช้าจริง (เฟรมเกิน 34 ms ต่อเนื่อง ~1 วินาที ขณะแท็บเปิดอยู่) = ลดความละเอียดทีละขั้น จนเหลือ 1x
+    //   ไม่นับเฟรมแรกหลังพักการวาด / แท็บที่ซ่อน / เฟรมสะดุดครั้งเดียว (GC / หน้าเว็บทำงานอื่น) -> ไม่ลดความคมชัดโดยไม่จำเป็น
+    warm++;
+    if (warm > 8 && !document.hidden && dt > 0.034 && dt < 0.05 && pr > 1) {
+      if (++slow > 30) {
         pr = Math.max(1, pr - 0.25);
         slow = 0;
         resize(true);

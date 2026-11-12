@@ -1,6 +1,6 @@
 // 🧲 MANAGE STOCK ของคลังที่นับ Coil (หน้า Store > คลัง > ปุ่ม MANAGE STOCK) - สิทธิ์ EDIT + APPROVE ของคลังนั้น
-//   ADD      = เพิ่ม Master Coil / Coil No ที่บรรทัด PD CODE (ป้ายค้าง NOT DEDUCTED เลขเดียวกัน = รับเข้า + ตัดต้นทางแทน ไม่ซ้ำ)
-//   EDIT     = แก้ Master Coil / Coil No / น้ำหนัก / REMARK · ยอดสินค้าปรับตามส่วนต่าง · ส่วนต่างคืน / ตัดคลังต้นทาง (STOCK-PANTA)
+//   ADD      = เพิ่ม Master Coil / Number Coil ที่บรรทัด PD CODE (ป้ายค้าง NOT DEDUCTED เลขเดียวกัน = รับเข้า + ตัดต้นทางแทน ไม่ซ้ำ)
+//   EDIT     = แก้ Master Coil / Number Coil / น้ำหนัก / REMARK · ยอดสินค้าปรับตามส่วนต่าง · ส่วนต่างคืน / ตัดคลังต้นทาง (STOCK-PANTA)
 //              ที่ Coil นี้ถูกตัดมาตอนสแกน · RECEIVED = เวลาที่แก้
 //   TRANSFER = โอนย้ายออก = สแกนออกจากคลังนี้ (บันทึกที่ Multi-Scanner)
 //   ADJUST   = ปรับปรุงยอด: RETURN คืนยอดคลังต้นทาง / REMOVE ลบออกจากคลัง (Master Coil ต้นทางคงเดิม) + หมายเหตุ
@@ -201,14 +201,14 @@ namespace Nexus.Services
         }
 
         // ================================================================ ➕ ADD (บรรทัด PD CODE)
-        //   COIL NO ว่าง = Master Coil ทั้งม้วน (เลข Coil = Master Coil) เช่นเพิ่ม Master Coil ที่ STOCK-PANTA
+        //   NUMBER COIL ว่าง = Master Coil ทั้งม้วน (เลข Coil = Master Coil) เช่นเพิ่ม Master Coil ที่ STOCK-PANTA
         //   deduct = ตัด Master Coil ของคลังต้นทาง (เหมือนสแกนรับป้าย: บันทึกสแกนเข้า + DEDUCTED / ตัดไม่ได้ = NOT DEDUCTED แบบรับเข้าแล้ว)
         public Result Add(int stkId, int partId, string master, string coilNo, decimal kg, string remark, bool deduct, string userId)
         {
             if (!DbSchema.HasCoilRegister) throw new InvalidOperationException("ฐานข้อมูลยังไม่มีทะเบียน Coil");
             var stock = StockOf(stkId);
             master = Clean(master); coilNo = Clean(coilNo); remark = Clean(remark);
-            if (master == null && coilNo == null) throw new InvalidOperationException("กรุณากรอก MASTER COIL หรือ COIL NO");
+            if (master == null && coilNo == null) throw new InvalidOperationException("กรุณากรอก MASTER COIL หรือ NUMBER COIL");
             if (kg <= 0) throw new InvalidOperationException("น้ำหนัก (KG) ต้องมากกว่า 0");
             if (coilNo == null) { coilNo = master; master = null; }
             if (master != null && string.Equals(master, coilNo, StringComparison.OrdinalIgnoreCase)) master = null;
@@ -233,7 +233,7 @@ namespace Nexus.Services
                 {
                     cmd.Parameters.AddWithValue("@c", coilNo);
                     var at = cmd.ExecuteScalar();
-                    if (at != null) throw new InvalidOperationException($"COIL NO {coilNo} อยู่ในคลัง {at} แล้ว - ใช้เลขซ้ำไม่ได้ (แก้ไขที่รายการเดิมแทน)");
+                    if (at != null) throw new InvalidOperationException($"NUMBER COIL {coilNo} อยู่ในคลัง {at} แล้ว - ใช้เลขซ้ำไม่ได้ (แก้ไขที่รายการเดิมแทน)");
                 }
             }
 
@@ -359,7 +359,7 @@ namespace Nexus.Services
             if (!DbSchema.HasCoilRegister) throw new InvalidOperationException("ฐานข้อมูลยังไม่มีทะเบียน Coil");
             var stock = StockOf(stkId);
             master = Clean(master); coilNo = Clean(coilNo); remark = Clean(remark);
-            if (coilNo == null) throw new InvalidOperationException("กรุณากรอก COIL NO");
+            if (coilNo == null) throw new InvalidOperationException("กรุณากรอก NUMBER COIL");
             if (kg <= 0) throw new InvalidOperationException("น้ำหนัก (KG) ต้องมากกว่า 0");
             if (master != null && string.Equals(master, coilNo, StringComparison.OrdinalIgnoreCase)) master = null;
             if (remark != null && remark.Length > 500) throw new InvalidOperationException("REMARK ยาวเกิน 500 ตัวอักษร");
@@ -378,7 +378,7 @@ namespace Nexus.Services
                         {
                             cmd.Parameters.AddWithValue("@c", coilNo);
                             cmd.Parameters.AddWithValue("@id", coilId);
-                            if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) throw new InvalidOperationException($"COIL NO {coilNo} มีในทะเบียนแล้ว - ใช้เลขซ้ำไม่ได้");
+                            if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) throw new InvalidOperationException($"NUMBER COIL {coilNo} มีในทะเบียนแล้ว - ใช้เลขซ้ำไม่ได้");
                         }
                     partCode = PartCode(conn, trans, c.PartId);
                     oldRemark = Remark(conn, trans, coilId);
@@ -407,7 +407,7 @@ namespace Nexus.Services
                 }
             }
             var d = new List<string>();
-            if (!string.Equals(c.CoilNo, coilNo, StringComparison.Ordinal)) d.Add($"COIL NO: {c.CoilNo} → {coilNo}");
+            if (!string.Equals(c.CoilNo, coilNo, StringComparison.Ordinal)) d.Add($"NUMBER COIL: {c.CoilNo} → {coilNo}");
             if ((c.Mother ?? "") != (master ?? "")) d.Add($"MASTER: {c.Mother ?? "-"} → {master ?? "-"}");
             if (delta != 0) d.Add($"KG: {Kg(c.Kg)} → {Kg(kg)} (TON {Kg(c.Kg / 1000m)} → {Kg(kg / 1000m)})");
             if ((oldRemark ?? "") != (remark ?? "")) d.Add($"REMARK: {oldRemark ?? "-"} → {remark ?? "-"}");

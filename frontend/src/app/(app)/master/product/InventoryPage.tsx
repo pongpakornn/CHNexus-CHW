@@ -250,7 +250,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const formCols = formStk == null ? null : (meta.layouts.find((l) => l.stkId === formStk)?.layout.formFields ?? null);
   const fieldKeys = formCols && formCols.length > 0 ? formCols : ALL_FIELDS;
   const showImage = fieldKeys.includes("IMAGE");
-  // คลังที่นับ Coil: MASTER / COIL NO / WEIGHT = ของ Coil · คลังอื่น: WEIGHT = น้ำหนักสินค้า
+  // คลังที่นับ Coil: MASTER / NUMBER COIL / WEIGHT = ของ Coil · คลังอื่น: WEIGHT = น้ำหนักสินค้า
   const coilForm = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
   const showPartWeight = !!formStock && !formStock.countCoil && fieldKeys.includes("WEIGHT");
   const cfDefs = meta.customFields ?? [];
@@ -760,7 +760,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                       case "MOTHER":
                         return coilForm ? <Fragment key={k}>{input("MASTER COIL", "masterCoil", { placeholder: "กรอกอย่างเดียว = Master ทั้งม้วน" })}</Fragment> : null;
                       case "COILNO":
-                        return coilForm ? <Fragment key={k}>{input("COIL NO", "coilNo")}</Fragment> : null;
+                        return coilForm ? <Fragment key={k}>{input("NUMBER COIL", "coilNo")}</Fragment> : null;
                       case "WEIGHT":
                         return coilForm ? (
                           <Fragment key={k}>{input("COIL WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}</Fragment>
@@ -776,7 +776,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                 {/* แก้ไขสินค้า: ช่อง Coil ในฟอร์ม = เพิ่ม Coil ใหม่ · Coil เดิมแก้ / ลบ / เปลี่ยนชื่อ Master ที่แถว Coil ใต้สินค้าในตาราง */}
                 {editId && coilForm && (
                   <div className="mt-1.5 text-xs font-semibold text-ink-soft">
-                    ✏️ MASTER COIL / COIL NO / WEIGHT ในฟอร์มนี้ = <b>เพิ่ม Coil ใหม่</b> (กรอก MASTER อย่างเดียว + WEIGHT = Master ทั้งม้วน) · แก้ / ลบ Coil เดิม หรือเปลี่ยนชื่อ MASTER กดปุ่ม ✏ / 🗑 ที่แถว Coil ใต้สินค้าในตาราง
+                    ✏️ MASTER COIL / NUMBER COIL / WEIGHT ในฟอร์มนี้ = <b>เพิ่ม Coil ใหม่</b> (กรอก MASTER อย่างเดียว + WEIGHT = Master ทั้งม้วน) · แก้ / ลบ Coil เดิม หรือเปลี่ยนชื่อ MASTER กดปุ่ม ✏ / 🗑 ที่แถว Coil ใต้สินค้าในตาราง
                   </div>
                 )}
                 <datalist id="dl-sup">{meta.suggestions.suppliers.map((s) => <option key={s} value={s} />)}</datalist>

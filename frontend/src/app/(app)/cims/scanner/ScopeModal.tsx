@@ -151,7 +151,7 @@ export function ScopeModal({ ctx, onClose, onSaved }: { ctx: ScannerContext; onC
 
               {card?.coil && (
                 <div className="sk-coil mt-3">
-                  COIL NO {card.coil.totalCount.toLocaleString()}
+                  NUMBER COIL {card.coil.totalCount.toLocaleString()}
                   <span className="mx-1.5 opacity-35">|</span>
                   {qty(card.coil.totalKg)} KG
                 </div>

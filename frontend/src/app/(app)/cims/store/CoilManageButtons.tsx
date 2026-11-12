@@ -12,8 +12,8 @@ export function AddCoilButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       className="ra mng-add"
-      title="ADD MASTER COIL / COIL NO"
-      aria-label="ADD MASTER COIL / COIL NO"
+      title="ADD MASTER COIL / NUMBER COIL"
+      aria-label="ADD MASTER COIL / NUMBER COIL"
       onClick={(e) => {
         e.stopPropagation();
         onClick();

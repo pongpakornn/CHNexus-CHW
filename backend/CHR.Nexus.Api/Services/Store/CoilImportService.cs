@@ -29,13 +29,13 @@ namespace Nexus.Services
 
     public class CoilImportService
     {
-        public static readonly string[] Heads = { "NO", "PRODUCT CODE", "MASTER COIL", "COIL NO", "WEIGHT (KG.)", "LABEL DATE" };
+        public static readonly string[] Heads = { "NO", "PRODUCT CODE", "MASTER COIL", "NUMBER COIL", "WEIGHT (KG.)", "LABEL DATE" };
 
         private static readonly Dictionary<string, string[]> Headers = new Dictionary<string, string[]>
         {
             ["CODE"] = new[] { "PRODUCTCODE", "PDCODE", "PARTCODE", "CODE" },
             ["MOTHER"] = new[] { "MASTERCOIL", "MASTER", "COILMASTER", "MOTHERCOIL", "MOTHER", "COILMOTHER", "BIN" },
-            ["COIL"] = new[] { "COILNO", "COILNUMBER", "COIL" },
+            ["COIL"] = new[] { "COILNO", "COILNUMBER", "NUMBERCOIL", "NOCOIL", "COIL" },
             ["WEIGHT"] = new[] { "WEIGHTKG", "WEIGHT", "KG", "QTYKG", "STOCKKG" },
             ["DATE"] = new[] { "LABELDATE", "DATE" }
         };
@@ -69,7 +69,7 @@ namespace Nexus.Services
             return 0;
         }
 
-        // ไฟล์ COIL LIST = มีหัว PRODUCT CODE + COIL NO + WEIGHT (KG.)
+        // ไฟล์ COIL LIST = มีหัว PRODUCT CODE + NUMBER COIL + WEIGHT (KG.)
         public static bool IsCoilFile(string path)
         {
             using (var wb = Open(path)) return FindHeader(wb.Worksheet(1), out _) > 0;
@@ -82,7 +82,7 @@ namespace Nexus.Services
             {
                 var ws = wb.Worksheet(1);
                 int header = FindHeader(ws, out var cols);
-                if (header == 0) throw new Exception("ไม่พบหัวคอลัมน์ PRODUCT CODE / COIL NO / WEIGHT (KG.)");
+                if (header == 0) throw new Exception("ไม่พบหัวคอลัมน์ PRODUCT CODE / NUMBER COIL / WEIGHT (KG.)");
                 int last = ws.LastRowUsed()?.RowNumber() ?? header;
 
                 string Get(int r, string key) => cols.TryGetValue(key, out int c) ? ws.Cell(r, c).GetFormattedString().Trim() : "";
@@ -102,7 +102,7 @@ namespace Nexus.Services
                         LabelDate = Get(r, "DATE") is string d && d != "" && d != "-" ? d : null
                     };
                     if (code == "") row.Error = "ไม่มี PRODUCT CODE";
-                    else if (coil == "" || coil == "-") row.Error = "ไม่มี COIL NO";
+                    else if (coil == "" || coil == "-") row.Error = "ไม่มี NUMBER COIL";
                     else if (!Qty.TryParse(weight, out decimal w) || w <= 0) row.Error = $"WEIGHT (KG.) ไม่ถูกต้อง ({(weight == "" ? "ว่าง" : weight)})";
                     else row.WeightKG = w;
                     rows.Add(row);
@@ -111,7 +111,7 @@ namespace Nexus.Services
 
             // Coil ซ้ำกันในไฟล์
             foreach (var g in rows.Where(r => r.IsValid).GroupBy(r => r.CoilNo).Where(g => g.Count() > 1))
-                foreach (var dup in g.Skip(1)) dup.Error = $"COIL NO {dup.CoilNo} ซ้ำกับแถว {g.First().RowNumber}";
+                foreach (var dup in g.Skip(1)) dup.Error = $"NUMBER COIL {dup.CoilNo} ซ้ำกับแถว {g.First().RowNumber}";
 
             Validate(rows, stock);
             return rows;
@@ -193,15 +193,28 @@ namespace Nexus.Services
             }
         }
 
+        // 🧲 ยอดของสินค้าในคลังนับ Coil ตามทะเบียน Coil (ทะเบียน = ความจริง):
+        //   STOCK (COIL) = จำนวน Coil ที่อยู่ (IN) · STOCK (KG.) = น้ำหนักรวมของ Coil ที่อยู่ (เฉพาะสินค้าที่มี Coil ในทะเบียนของคลังนั้นแล้ว)
+        //   สินค้าที่ยังไม่เคยมี Coil ในทะเบียน = คงยอด KG เดิม (ยอดที่สแกนรับก่อนมีทะเบียน) · คลังหลัก / คลังอื่น ดูจาก Nexus.Stocks เอง (ไม่เชื่อค่า isMain ที่ส่งมา)
+        //   เดิมยอด KG บวก / ลบตามป้ายที่สแกน -> ป้ายที่ไม่มีในทะเบียน / แก้น้ำหนัก Coil ภายหลัง ทำให้ KG ไม่ตรงกับ Coil (ตัดสต็อกไม่ได้)
         internal static void RecountCoils(SqlConnection conn, SqlTransaction trans, int ptId, int stkId, bool isMain)
         {
-            string sql = isMain
-                ? "UPDATE Nexus.Parts SET CoilQuantity = (SELECT COUNT(*) FROM Nexus.Coils WHERE StockID = @stk AND PartID = @pt AND Status = 'IN') WHERE PartID = @pt"
-                : "UPDATE Nexus.PartStocks SET BoxQuantity = (SELECT COUNT(*) FROM Nexus.Coils WHERE StockID = @stk AND PartID = @pt AND Status = 'IN') WHERE StockID = @stk AND PartID = @pt";
+            const string sql = @"
+                DECLARE @main BIT = @isMain, @cc BIT = 0;
+                SELECT @main = IsMain, @cc = CountCoil FROM Nexus.Stocks WHERE StockID = @stk;
+                DECLARE @n INT, @kg DECIMAL(18, 3), @any INT;
+                SELECT @n = COUNT(CASE WHEN Status = 'IN' THEN 1 END), @kg = ISNULL(SUM(CASE WHEN Status = 'IN' THEN WeightKG END), 0), @any = COUNT(*)
+                FROM Nexus.Coils WHERE StockID = @stk AND PartID = @pt;
+                DECLARE @setKg BIT = CASE WHEN @cc = 1 AND @any > 0 THEN 1 ELSE 0 END;
+                IF @main = 1
+                    UPDATE Nexus.Parts SET CoilQuantity = @n, StockQuantity = CASE WHEN @setKg = 1 THEN @kg ELSE StockQuantity END WHERE PartID = @pt;
+                ELSE
+                    UPDATE Nexus.PartStocks SET BoxQuantity = @n, Quantity = CASE WHEN @setKg = 1 THEN @kg ELSE Quantity END WHERE StockID = @stk AND PartID = @pt;";
             using (var cmd = new SqlCommand(sql, conn, trans))
             {
                 cmd.Parameters.AddWithValue("@stk", stkId);
                 cmd.Parameters.AddWithValue("@pt", ptId);
+                cmd.Parameters.AddWithValue("@isMain", isMain);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -245,11 +258,13 @@ namespace Nexus.Services
         }
 
         // 📄 Template COIL LIST (แบบเดียวกับ Template ทั้งระบบ: แผ่นข้อมูล -> HOW TO + ตัวอย่าง -> PRODUCT CODES)
-        public string WriteTemplate(StockModel stock)
+        // products = สินค้าที่แสดงในหน้า Store (Max-Min) ของคลังนี้ (ชีท PRODUCT CODE) · ไม่ส่ง = อ่านจากฐานข้อมูล
+        public string WriteTemplate(StockModel stock, IEnumerable<StoreProductModel> products = null)
         {
-            string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Store, $"{stock.Code}_COIL_LIST_Template");
+            string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Store, $"{stock.Code}_Template_Coil");
 
-            var parts = new List<(string Code, string Name)>();
+            var parts = products?.Select(p => (Code: p.PartCode, Name: p.PartName ?? "")).ToList() ?? new List<(string Code, string Name)>();
+            if (products == null)
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
             using (var cmd = new SqlCommand(stock.IsMain
                 ? "SELECT PartCode, ISNULL(Description, N'') FROM Nexus.Parts ORDER BY PartCode"
@@ -275,12 +290,13 @@ namespace Nexus.Services
 
                 ImportTemplateService.Guide(wb, $"COIL LIST -> {stock.Code}", new[]
                 {
-                    ("PRODUCT CODE", $"รหัสสินค้าที่อยู่ในคลัง {stock.Code} (ดูแผ่น PRODUCT CODES) - ต้องกรอก"),
+                    ("PRODUCT CODE", $"รหัสสินค้าที่อยู่ในคลัง {stock.Code} (ดูชีท PRODUCT CODE) - ต้องกรอก"),
                     ("MASTER COIL", "เลข Master Coil เช่น CWE0885B (ว่างได้ = ไม่ระบุ)"),
-                    ("COIL NO", "เลข Coil ลูก เช่น CWE0885B-006 - ต้องกรอก / ห้ามซ้ำ / Coil ที่มีอยู่แล้วในคลังนี้ = อัพเดทน้ำหนัก + Master Coil"),
+                    ("NUMBER COIL", "เลข Coil ลูก เช่น CWE0885B-006 - ต้องกรอก / ห้ามซ้ำ / Coil ที่มีอยู่แล้วในคลังนี้ = อัพเดทน้ำหนัก + Master Coil"),
                     ("WEIGHT (KG.)", "น้ำหนักของ Coil ลูกนั้น (กก.) - ต้องมากกว่า 0"),
                     ("LABEL DATE", "วันที่บนป้าย (ว่างได้)"),
-                    ("ผลการ Import", "STOCK (COIL) ของสินค้าในไฟล์ = นับใหม่จากทะเบียน Coil / ยอด KG ไม่เปลี่ยน"),
+                    ("ผลการ Import", "STOCK (COIL) = จำนวน Coil ในทะเบียน · STOCK (KG.) = น้ำหนักรวมของ Coil ที่อยู่ในคลัง (ระบบคำนวณให้ทั้งคู่)"),
+                    ("IMPORT", $"กด IMPORT (MAX-MIN / COIL) ในหน้า Store (Max-Min) ของ {stock.Code} · ระบบแสดงสรุปให้ยืนยันก่อนบันทึก"),
                 });
                 var g = wb.Worksheet("HOW TO");
                 int ex = 13;
@@ -302,7 +318,7 @@ namespace Nexus.Services
                 g.Range(ex, 1, ex + samples.Length, Heads.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                 g.Range(ex, 1, ex + samples.Length, Heads.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
-                var pc = wb.AddWorksheet("PRODUCT CODES");
+                var pc = wb.AddWorksheet("PRODUCT CODE");
                 ImportTemplateService.Header(pc, new[] { "PRODUCT CODE", "PRODUCT NAME" }, new double[] { 24, 60 });
                 for (int i = 0; i < parts.Count; i++) { pc.Cell(i + 2, 1).Value = parts[i].Code; pc.Cell(i + 2, 2).Value = parts[i].Name; }
                 ImportTemplateService.Body(pc, parts.Count + 1, 2);

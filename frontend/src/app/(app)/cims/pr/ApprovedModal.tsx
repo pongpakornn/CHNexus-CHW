@@ -141,7 +141,7 @@ export function ApprovedModal({
                   <th>STOCK</th>
                   <th>PRODUCT</th>
                   {data.hasCoil && <th>MASTER COIL</th>}
-                  {data.hasCoil && <th>COIL NO</th>}
+                  {data.hasCoil && <th>NUMBER COIL</th>}
                   <th className="text-right">QTY</th>
                   <th>DEPARTMENT</th>
                   <th>TARGET</th>

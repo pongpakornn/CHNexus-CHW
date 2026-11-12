@@ -85,7 +85,7 @@ namespace Nexus.Services
             ["QTY"] = new[] { "QTY", "QUANTITY", "QTYKG", "QTYPCS", "QTYSHEET", "QTYBOX", "STOCKQTY", "STOCKKG", "STOCKKGS", "STOCKSHEET", "STOCKUNIT", "BALANCE", "จำนวน", "ยอด" },
             ["PCS"] = new[] { "STOCKPCS" },   // STOCK (PCS) = ตัวเลขเดียวกับ QTY ของคลังที่นับเป็นชิ้น
             ["IMAGE"] = new[] { "IMAGE", "IMAGEFILE", "IMAGEFILENAME", "PICTURE", "รูป", "รูปภาพ" },
-            ["COILNO"] = new[] { "COILNO", "COILNUMBER", "เลขCOIL" },
+            ["COILNO"] = new[] { "COILNO", "COILNUMBER", "NUMBERCOIL", "NOCOIL", "เลขCOIL" },
             ["MOTHERCOIL"] = new[] { "MASTERCOIL", "MASTER", "COILMASTER", "MOTHERCOIL", "MOTHER", "COILMOTHER", "COILแม่" },
             ["BOX"] = new[] { "STOCKBOX" },
             ["COIL"] = new[] { "QTYCOIL", "COIL", "COILS", "STOCKCOIL", "COILQTY" },   // QTY (COIL) ของคลังที่นับ Coil
@@ -97,61 +97,108 @@ namespace Nexus.Services
             ["STOCK9"] = new[] { "STOCK9" }, ["STOCK10"] = new[] { "STOCK10" }
         };
 
-        // 📄 TEMPLATE ของหน้า Store (Max-Min): หัวคอลัมน์แบบเดียวกับ Template ของ Inventory Registration ตามคลังนี้
-        //    + ใส่ข้อมูลสินค้าปัจจุบันของคลังไว้ให้แล้ว (แก้ตัวเลข / ข้อมูล แล้ว IMPORT EXCEL กลับได้เลย)
-        //    คลังที่นับ Coil: 1 แถว = 1 Coil (แถวแรกของสินค้ามีข้อมูลครบ แถวถัดไปมีแค่ COIL NO / MASTER COIL / น้ำหนัก)
+        // 📄 TEMPLATE MAX-MIN ของหน้า Store (Max-Min): ข้อมูลปัจจุบันของคลัง (ตามที่กรองได้ทั้งคลัง) ใส่ไว้ให้แล้ว
+        //    แก้ MAX / MIN / ยอด / SHOW-HIDE แล้ว IMPORT กลับได้ทันที (ตัวอ่านไฟล์เดิมของ IMPORT EXCEL แบบอัพเดทข้อมูล)
+        //    ชีท: MAX-MIN (ชีทแรก = ตัวที่ Import อ่าน) · HOW TO · PRODUCT CODE (รายการสินค้าของคลังสำหรับอ้างอิง)
+        //    คลังที่นับ Coil: 1 แถว = 1 Coil (STOCK (COIL) = 1 · STOCK (KG.) = น้ำหนักของ Coil นั้น) · สินค้าที่ยังไม่มี Coil ในทะเบียน = 1 แถว ยอดรวม
         public string WriteTemplate(StockModel stock, IList<StoreProductModel> products, List<StockModel> stocks)
         {
-            string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Store, $"{stock.Code}_Template");
-            new ImportTemplateService().CreatePartTemplate(path, stocks, stock);
+            string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Store, $"{stock.Code}_Template_Max-Min");
             var coils = stock.CountCoil && Nexus.Helpers.DbSchema.HasCoilRegister
                 ? new CoilService().GetCoils(stock.StkId, 0).ToLookup(c => c.PartId) : null;
-            using (var wb = new XLWorkbook(path))
+            var heads = ImportTemplateService.MaxMinHeadsFor(stock);
+            string grp = stock.GroupByCustomer ? "CUSTOMER" : stock.GroupBySupplier ? "SUPPLIER" : "CATEGORY";
+            using (var wb = new XLWorkbook())
             {
-                var ws = wb.Worksheet(1);
-                var heads = ImportTemplateService.PartHeadsFor(stock);
+                var ws = wb.AddWorksheet("MAX-MIN");
+                ImportTemplateService.Header(ws, heads, heads.Select(h => h == "NO" ? 6.4 : h == "PRODUCT NAME" ? 40 : h == "PRODUCT CODE" || h.Contains("COIL") && !h.StartsWith("STOCK") && !h.StartsWith("M") ? 20 : h == "SHOW/HIDE" ? 11 : 14).ToArray());
                 int Col(string h) => Array.IndexOf(heads, h) + 1;
                 string D(string v) => v == "-" ? "" : v ?? "";
                 int r = 2;
-                ws.Range(2, 1, Math.Max(2, ws.LastRowUsed()?.RowNumber() ?? 2), heads.Length).Clear(XLClearOptions.Contents);
                 foreach (var p in products)
                 {
                     var list = coils != null ? coils[p.PartId].ToList() : new List<CoilRowModel>();
-                    void Set(string h, object v) { int c = Col(h); if (c > 0 && v != null && !(v is string s && s.Length == 0)) ws.Cell(r, c).Value = XLCellValue.FromObject(v); }
+                    void Set(string h, object v) { int c = Col(h); if (c > 0 && v != null && !(v is string t && t.Length == 0)) ws.Cell(r, c).Value = XLCellValue.FromObject(v); }
                     object Num(string v) => Nexus.Helpers.Qty.TryParse(D(v), out decimal d) ? (object)d : D(v);
+                    string bin = D(p.Bin) == "N/A" ? "" : p.Bin;
                     Set("NO", r - 1);
                     Set("PRODUCT CODE", p.PartCode); Set("PRODUCT NAME", p.PartName); Set("CUSTOMER", p.Customer);
-                    Set("PART A", p.PartA); Set("PART B", p.PartB); Set("PART NO", p.PartNo); Set("MODEL", p.Model); Set("IMAGE", p.ImageFileName);
-                    Set(stock.MaxHeader, Num(p.Max)); Set(stock.MinHeader, Num(p.Min));
-                    Set(stock.QtyHeader, list.Count > 0 ? (object)list[0].WeightKG : Num(p.Qty));
-                    if (!stock.CountCoil) { Set("STOCK (BOX)", Num(p.StockBox)); Set("STOCK (PCS)", Num(p.StockPcs)); }
-                    Set("REMARK", p.Remark); Set("SUPPLIER", p.Supplier); Set("CATEGORY", p.Category);
-                    Set("PACK SIZE", Num(p.PackSize)); Set("BIN", D(p.Bin) == "N/A" ? "" : p.Bin);
-                    Set("STOCK1", stock.Code); Set("SHOW/HIDE", p.IsShow ? 1 : 0);
-                    if (list.Count > 0) { Set("COIL NO", list[0].CoilNo); Set("MASTER COIL", list[0].MotherCoil); }
-                    r++;
-                    foreach (var c in list.Skip(1))   // Coil ถัดไปของสินค้าเดียวกัน
+                    Set("PART A", p.PartA); Set("PART B", p.PartB); Set("PART NO", p.PartNo); Set("MODEL", p.Model);
+                    Set("PACK SIZE", Num(p.PackSize)); Set("SUPPLIER", p.Supplier); Set("CATEGORY", p.Category);
+                    if (stock.UseMaxMin) { Set(stock.MaxHeader, Num(p.Max)); Set(stock.MinHeader, Num(p.Min)); }
+                    if (list.Count > 0) { Set("STOCK (COIL)", 1); Set(stock.QtyHeader, list[0].WeightKG); Set("MASTER COIL", list[0].MotherCoil); Set("NUMBER COIL", list[0].CoilNo); }
+                    else
                     {
-                        Set("NO", r - 1); Set("BIN", D(p.Bin) == "N/A" ? "" : p.Bin);
-                        Set("COIL NO", c.CoilNo); Set("MASTER COIL", c.MotherCoil); Set(stock.QtyHeader, c.WeightKG); Set("STOCK1", stock.Code);
+                        Set(stock.QtyHeader, Num(p.Qty));
+                        if (stock.CountCoil) Set("STOCK (COIL)", Num(p.StockBox));
+                        else { Set("STOCK (BOX)", Num(p.StockBox)); Set("STOCK (PCS)", Num(p.StockPcs)); }
+                    }
+                    Set("BIN", bin);
+                    Set("SHOW/HIDE", p.IsShow ? 1 : 0);
+                    r++;
+                    foreach (var c in list.Skip(1))   // Coil ถัดไปของสินค้าเดียวกัน = แถวละ 1 Coil (PRODUCT CODE ซ้ำ)
+                    {
+                        Set("NO", r - 1); Set("PRODUCT CODE", p.PartCode); Set("PRODUCT NAME", p.PartName);
+                        Set("STOCK (COIL)", 1); Set(stock.QtyHeader, c.WeightKG); Set("BIN", bin);
+                        Set("MASTER COIL", c.MotherCoil); Set("NUMBER COIL", c.CoilNo);
                         r++;
                     }
                 }
-                int last = Math.Max(r - 1, 2) + 20;   // แถวว่างไว้เพิ่มสินค้าใหม่
+                int last = Math.Max(r - 1, 2) + 20;   // แถวว่างไว้เพิ่มสินค้า / Coil ใหม่
                 ImportTemplateService.Body(ws, last, heads.Length);
-                foreach (var h in new[] { "PRODUCT CODE", "BIN", "COIL NO", "MASTER COIL", "QR CODE", "PART A", "PART NO" })
+                foreach (var h in new[] { "PRODUCT CODE", "BIN", "NUMBER COIL", "MASTER COIL", "PART A", "PART B", "PART NO" })
                 {
                     int c = Col(h);
                     if (c > 0) ws.Range(2, c, last, c).Style.NumberFormat.Format = "@";
                 }
+                ImportTemplateService.LeftAlign(ws, last, new[] { Col("PRODUCT NAME") }.Where(c => c > 0).ToArray());
                 int q = Col(stock.QtyHeader);
-                if (q > 0) ws.Range(2, q, last, q).Style.NumberFormat.Format = ImportTemplateService.QtyFormat(stock.AllowDecimal);
-                var g = wb.Worksheet("HOW TO");
-                int gr = (g.LastRowUsed()?.RowNumber() ?? 1) + 2;
-                g.Cell(gr, 1).Value = $"ไฟล์นี้มีข้อมูลปัจจุบันของ {stock.Code} ใส่ไว้ให้แล้ว: แก้ตัวเลข / ข้อมูล แล้วกด IMPORT EXCEL ในหน้า Store (Max-Min) ของ {stock.Code} - ช่องว่าง = ไม่เปลี่ยน / ยอดคงคลัง = ตั้งตามไฟล์ (ไม่ใช่บวกเพิ่ม)";
-                g.Cell(gr, 1).Style.Font.Bold = true;
-                g.Cell(gr, 1).Style.Font.FontColor = XLColor.FromHtml("#C62828");
-                wb.Save();
+                if (q > 0) ws.Range(2, q, last, q).Style.NumberFormat.Format = stock.CountCoil ? "#,##0.###" : ImportTemplateService.QtyFormat(stock.AllowDecimal);
+                // ช่องที่มักแก้ (MAX / MIN / ยอด / SHOW/HIDE) = พื้นเหลืองอ่อน
+                foreach (var h in new[] { stock.MaxHeader, stock.MinHeader, "STOCK (COIL)", stock.QtyHeader, "STOCK (BOX)", "STOCK (PCS)", "SHOW/HIDE" })
+                {
+                    int c = Col(h);
+                    if (c > 0) ws.Range(2, c, last, c).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF2CC");
+                }
+                ws.SheetView.Freeze(1, Math.Max(1, Col("PRODUCT NAME")));
+
+                var how = new List<(string, string)>
+                {
+                    ("ไฟล์นี้คืออะไร", $"ข้อมูลปัจจุบันของคลัง {stock.Code} ในหน้า Store (Max-Min) ใส่ไว้ให้แล้ว · แก้ตัวเลขแล้วกด IMPORT (MAX-MIN / COIL) ในหน้าเดียวกัน"),
+                    ("PRODUCT CODE *", "รหัสสินค้า (บังคับ) · มีในระบบแล้ว = อัพเดท · ยังไม่มี = ลงทะเบียนใหม่ (ต้องมี PRODUCT NAME) · ดูรายการที่ชีท PRODUCT CODE"),
+                    ("PRODUCT NAME", "ชื่อสินค้า · ว่าง = ไม่เปลี่ยน"),
+                };
+                if (stock.UseMaxMin) how.Add(($"{stock.MaxHeader} / {stock.MinHeader}", "ค่า MAX / MIN ของคลังนี้ · ว่าง = ไม่เปลี่ยน" + (stock.AllowDecimal ? " · ทศนิยมได้" : "")));
+                if (stock.CountCoil)
+                {
+                    how.Add(("STOCK (COIL)", "จำนวน Coil · แถวที่มี NUMBER COIL = 1 Coil ต่อแถว (ใส่ 1 หรือว่าง) · สินค้าที่ยังไม่มี Coil ในทะเบียน = จำนวน Coil รวม"));
+                    how.Add((stock.QtyHeader, "แถวที่มี NUMBER COIL = น้ำหนักของ Coil นั้น · ยอดรวมของสินค้า = น้ำหนักรวมของ Coil ที่อยู่ในคลัง (ระบบคำนวณให้)"));
+                    how.Add(("MASTER COIL", "Master Coil ที่ Coil นี้ตัดมา (ไม่บังคับ)"));
+                    how.Add(("NUMBER COIL", "เลข Coil ตามป้าย · 1 แถว = 1 Coil · ห้ามซ้ำ · สินค้าหลาย Coil = ใส่ PRODUCT CODE ซ้ำหลายแถว"));
+                }
+                else how.Add((stock.QtyHeader, "ยอดคงคลัง = ตั้งตามไฟล์ (ไม่ใช่บวกเพิ่ม) · ว่าง = ไม่เปลี่ยน"));
+                how.Add((grp, $"กลุ่มที่ใช้แบ่งตารางของ {stock.Code} · ว่าง = ไม่เปลี่ยน"));
+                how.Add(("BIN", "ตำแหน่งเก็บ · ว่าง = ไม่เปลี่ยน"));
+                how.Add(("SHOW/HIDE", "1 หรือ SHOW = แสดงในหน้านี้ · 0 หรือ HIDE = ไม่แสดง · ไฟล์นี้มีเฉพาะสินค้าที่แสดงอยู่ตอนนี้ (= 1) · สินค้าที่ซ่อนอยู่ให้กลับมาแสดง: เพิ่มแถว PRODUCT CODE + PRODUCT NAME แล้วใส่ 1"));
+                how.Add(("ช่องสีเหลือง", "ช่องที่มักแก้ (MAX / MIN / ยอด / SHOW/HIDE) · ช่องอื่นแก้ได้เหมือนกัน"));
+                how.Add(("", "หน้าจอแสดงสรุปให้ยืนยันก่อนบันทึกทุกครั้ง · ทุกการ Import เก็บลง Activity Log"));
+                ImportTemplateService.Guide(wb, $"CHR-Nexus - CIMS › Store (Max-Min) › {stock.Code} • TEMPLATE MAX-MIN", how);
+
+                var pc = wb.AddWorksheet("PRODUCT CODE");
+                string[] ph = { "NO", "PRODUCT CODE", "PRODUCT NAME", grp, "BIN" };
+                ImportTemplateService.Header(pc, ph, new double[] { 6.4, 22, 50, 22, 14 });
+                int pr = 2;
+                foreach (var p in products)
+                {
+                    pc.Cell(pr, 1).Value = pr - 1; pc.Cell(pr, 2).Value = p.PartCode; pc.Cell(pr, 3).Value = p.PartName ?? "";
+                    pc.Cell(pr, 4).Value = (grp == "CUSTOMER" ? p.Customer : grp == "SUPPLIER" ? p.Supplier : p.Category) ?? "";
+                    pc.Cell(pr, 5).Value = D(p.Bin) == "N/A" ? "" : p.Bin ?? "";
+                    pr++;
+                }
+                ImportTemplateService.Body(pc, Math.Max(2, pr - 1), ph.Length);
+                ImportTemplateService.LeftAlign(pc, Math.Max(2, pr - 1), 2, 3, 4);
+                ws.SetTabActive();
+                wb.SaveAs(path);
             }
             return path;
         }
@@ -228,10 +275,10 @@ namespace Nexus.Services
                         MotherCoil = Opt(r, "MOTHERCOIL") is string mc && mc != "-" ? mc.ToUpperInvariant() : null,
                         Remark = cols.ContainsKey("REMARK") ? Get(r, "REMARK") : null
                     };
-                    // แถว Coil ใต้แถวสินค้า (PRODUCT CODE / NAME ว่าง แต่มี COIL NO) = Coil เพิ่มของสินค้าแถวบน
+                    // แถว Coil ใต้แถวสินค้า (PRODUCT CODE / NAME ว่าง แต่มี NUMBER COIL) = Coil เพิ่มของสินค้าแถวบน
                     if (x.Code.Length == 0 && x.Name == null && x.CoilNo != null)
                     {
-                        if (lastProduct == null) { x.Error = $"COIL NO {x.CoilNo}: ไม่มีแถวสินค้าด้านบน (ใส่ PRODUCT CODE ที่แถวแรกของสินค้า)"; rows.Add(x); continue; }
+                        if (lastProduct == null) { x.Error = $"NUMBER COIL {x.CoilNo}: ไม่มีแถวสินค้าด้านบน (ใส่ PRODUCT CODE ที่แถวแรกของสินค้า)"; rows.Add(x); continue; }
                         x.ContOwner = lastProduct; x.Code = lastProduct.Code; x.Name = lastProduct.Name; x.PartA = lastProduct.PartA;
                     }
                     // PRODUCT CODE นำเข้าตามไฟล์ (ไม่เอาช่องอื่นมาใส่แทน) - ไม่มีรหัสให้ใส่ "-" ในไฟล์
@@ -263,11 +310,11 @@ namespace Nexus.Services
                     // แถว Coil: น้ำหนักของ Coil = STOCK (UNIT) ของแถว / 1 แถว = 1 Coil
                     if (x.Error == null && x.CoilNo != null)
                     {
-                        if (!x.Qty.HasValue || x.Qty.Value <= 0) x.Error = $"COIL NO {x.CoilNo}: ใส่น้ำหนักของ Coil นี้ที่ STOCK (UNIT)";
-                        else if (x.Coil.HasValue && x.Coil.Value != 1) x.Error = $"COIL NO {x.CoilNo}: 1 แถว = 1 Coil (STOCK (COIL) ว่าง หรือ 1)";
+                        if (!x.Qty.HasValue || x.Qty.Value <= 0) x.Error = $"NUMBER COIL {x.CoilNo}: ใส่น้ำหนักของ Coil นี้ที่ STOCK (UNIT)";
+                        else if (x.Coil.HasValue && x.Coil.Value != 1) x.Error = $"NUMBER COIL {x.CoilNo}: 1 แถว = 1 Coil (STOCK (COIL) ว่าง หรือ 1)";
                         else x.CoilWeight = x.Qty.Value;
                     }
-                    else if (x.Error == null && x.MotherCoil != null) x.Error = "ใส่ MASTER COIL แล้วต้องใส่ COIL NO ด้วย";
+                    else if (x.Error == null && x.MotherCoil != null) x.Error = "ใส่ MASTER COIL แล้วต้องใส่ NUMBER COIL ด้วย";
 
                     string sh = (Get(r, "SHOWHIDE") ?? "").ToUpperInvariant();
                     if (sh == "SHOW" || sh == "Y" || sh == "YES" || sh == "1" || sh == "แสดง") x.ShowInMain = true;
@@ -314,13 +361,13 @@ namespace Nexus.Services
             {
                 if (x.ContOwner != null && (!x.ContOwner.IsValid || x.ContOwner.CoilNo == null))
                 {
-                    x.Error = x.ContOwner.IsValid ? $"แถวสินค้า {x.ContOwner.RowNumber} ต้องใส่ COIL NO ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {x.ContOwner.RowNumber} ไม่ผ่าน ({x.ContOwner.Error})";
+                    x.Error = x.ContOwner.IsValid ? $"แถวสินค้า {x.ContOwner.RowNumber} ต้องใส่ NUMBER COIL ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {x.ContOwner.RowNumber} ไม่ผ่าน ({x.ContOwner.Error})";
                     continue;
                 }
                 if (seen.TryGetValue(K(x.Code, x.PartA), out var owner))
                 {
                     if (x.CoilNo != null && owner.CoilNo != null) { x.IsCoilExtra = true; x.CoilOwner = owner; }
-                    else x.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ COIL NO ทุกแถว";
+                    else x.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ NUMBER COIL ทุกแถว";
                     continue;
                 }
                 seen[K(x.Code, x.PartA)] = x;
@@ -344,9 +391,9 @@ namespace Nexus.Services
                 {
                     var target = (x.CoilOwner ?? x).Stocks.FirstOrDefault(s => s.CountCoil);
                     if (!Nexus.Helpers.DbSchema.HasCoilRegister) x.Error = "ฐานข้อมูลยังไม่มีทะเบียน Coil (Update_20261008.sql)";
-                    else if (target == null) x.Error = $"COIL NO {x.CoilNo}: คลังของสินค้านี้ไม่ได้นับ Coil (เปิด STOCK (COIL) ที่ EDIT STOCK)";
-                    else if (seenCoil.TryGetValue(x.CoilNo, out int at)) x.Error = $"COIL NO {x.CoilNo} ซ้ำกับแถว {at}";
-                    else if (coils.TryGetValue(x.CoilNo, out var c) && c.Status == "IN" && c.Stock != target.StkId) x.Error = $"COIL NO {x.CoilNo} อยู่ในคลัง {c.StockCode} แล้ว";
+                    else if (target == null) x.Error = $"NUMBER COIL {x.CoilNo}: คลังของสินค้านี้ไม่ได้นับ Coil (เปิด STOCK (COIL) ที่ EDIT STOCK)";
+                    else if (seenCoil.TryGetValue(x.CoilNo, out int at)) x.Error = $"NUMBER COIL {x.CoilNo} ซ้ำกับแถว {at}";
+                    else if (coils.TryGetValue(x.CoilNo, out var c) && c.Status == "IN" && c.Stock != target.StkId) x.Error = $"NUMBER COIL {x.CoilNo} อยู่ในคลัง {c.StockCode} แล้ว";
                     else { seenCoil[x.CoilNo] = x.RowNumber; x.CoilStock = target; }
                 }
                 foreach (var x in rows.Where(v => v.IsValid && v.IsCoilExtra && !v.CoilOwner.IsValid))

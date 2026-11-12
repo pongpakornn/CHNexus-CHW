@@ -442,7 +442,7 @@ namespace Nexus.Services
         }
 
         // ==========================================
-        // 🧲 ทะเบียน Coil (Nexus.Coils) - เลข Coil ลูก / แม่ จากป้าย (Barcode Format ที่ตั้ง COIL NO FIELD #)
+        // 🧲 ทะเบียน Coil (Nexus.Coils) - เลข Coil ลูก / แม่ จากป้าย (Barcode Format ที่ตั้ง NUMBER COIL FIELD #)
         // ==========================================
         public class CoilLabel
         {
@@ -499,7 +499,7 @@ namespace Nexus.Services
             }
         }
 
-        // เลข Master Coil ของป้ายไม่มีในคลังต้นทาง แต่เลขจาก COIL NO มี -> ใช้เลขจาก COIL NO แทน (ป้ายเดิมที่มีอยู่จริงไม่เปลี่ยน)
+        // เลข Master Coil ของป้ายไม่มีในคลังต้นทาง แต่เลขจาก NUMBER COIL มี -> ใช้เลขจาก NUMBER COIL แทน (ป้ายเดิมที่มีอยู่จริงไม่เปลี่ยน)
         private static void ResolveMother(SqlConnection conn, SqlTransaction trans, CoilLabel coil, int stkId)
         {
             string fromNo = MotherFromCoilNo(coil.CoilNo);
@@ -588,7 +588,7 @@ namespace Nexus.Services
             }
         }
 
-        // Master Coil (COIL NO = เลข Master Coil) ในคลังต้นทาง: หักน้ำหนักเท่าที่ตัด / เหลือ 0 = OUT (ใช้หมดแล้ว)
+        // Master Coil (NUMBER COIL = เลข Master Coil) ในคลังต้นทาง: หักน้ำหนักเท่าที่ตัด / เหลือ 0 = OUT (ใช้หมดแล้ว)
         private static void ConsumeMotherCoil(SqlConnection conn, SqlTransaction trans, string mother, int stkId, int partId, decimal used, int txId, string userId)
         {
             int coilId = 0; decimal w = 0;
@@ -756,7 +756,11 @@ namespace Nexus.Services
 
                         int txId = Convert.ToInt32(cmdLog.ExecuteScalar());
                         // 🧲 ป้ายที่มีเลข Coil ลูก: เก็บ / ย้าย Coil ลูกเข้าคลังนี้ (สแกนเศษไม่นับ Coil)
-                        if (stock != null && stock.CountCoil && !remainder) CoilReceive(conn, trans, coil, ptId, stock.StkId, qty, txId, userId);
+                        if (stock != null && stock.CountCoil && !remainder)
+                        {
+                            CoilReceive(conn, trans, coil, ptId, stock.StkId, qty, txId, userId);
+                            CoilImportService.RecountCoils(conn, trans, ptId, stock.StkId, stock.IsMain);   // KG / COIL ตามทะเบียน
+                        }
                     }
 
                     trans.Commit();
@@ -883,7 +887,7 @@ namespace Nexus.Services
 
                         // 🧲 ทะเบียน Coil: Coil ลูกนี้อยู่ในคลังต้นทาง -> สินค้าของลูกนั้น / ไม่เจอลูก -> สินค้าที่มี Master Coilเดียวกันในคลังต้นทาง
                         int coilPart = 0; string how = null;
-                        // 🔎 เลข Master Coil บนป้ายไม่มีในคลังต้นทาง (เช่นป้ายพิมพ์ขาดเหลือ "2635") -> ใช้เลขจาก COIL NO ตัดท้าย -ตัวเลข (26355026302-024 -> 26355026302) ถ้ามีในคลังต้นทาง
+                        // 🔎 เลข Master Coil บนป้ายไม่มีในคลังต้นทาง (เช่นป้ายพิมพ์ขาดเหลือ "2635") -> ใช้เลขจาก NUMBER COIL ตัดท้าย -ตัวเลข (26355026302-024 -> 26355026302) ถ้ามีในคลังต้นทาง
                         if (coil != null && Nexus.Helpers.DbSchema.HasCoilRegister) ResolveMother(conn, trans, coil, sourceStkId);
                         if (coil != null && Nexus.Helpers.DbSchema.HasCoilRegister)
                         {
@@ -896,7 +900,7 @@ namespace Nexus.Services
                                     if (v != null && v != DBNull.Value) { coilPart = Convert.ToInt32(v); how = "COIL"; }
                                 }
                             if (coilPart == 0 && !string.IsNullOrWhiteSpace(coil.MotherCoil))
-                                // Master Coil = Coil ลูกที่มี MASTER COIL นี้ หรือ Master Coilที่ลงทะเบียนไว้เอง (COIL NO = เลข Master Coil)
+                                // Master Coil = Coil ลูกที่มี MASTER COIL นี้ หรือ Master Coilที่ลงทะเบียนไว้เอง (NUMBER COIL = เลข Master Coil)
                                 using (var cmd = new SqlCommand(@"SELECT TOP 1 PartID FROM Nexus.Coils WHERE (MotherCoil = @m OR CoilNo = @m) AND StockID = @s AND Status = 'IN'
                                                                   GROUP BY PartID ORDER BY COUNT(*) DESC, PartID", conn, trans))
                                 {
@@ -1075,7 +1079,11 @@ namespace Nexus.Services
                         if (result.Deducted > 0 && srcPart > 0) AutoPrForDeduct(conn, trans, sourceStkId, srcPart, result.Deducted, txId, userId, $"{result.SourceCode} -> {stock?.Code}");
 
                         // 🧲 ย้าย Coil ลูก (มีอยู่ในคลังต้นทาง) / เพิ่มใหม่ เข้าคลังที่รับ - น้ำหนักตามป้าย (รายการเดิมที่รับไปแล้ว = ทำไปแล้ว)
-                        if (stock.CountCoil && !remainder && existingTxId == null) CoilReceive(conn, trans, coil, ptId, stock.StkId, qty, txId, userId);
+                        if (stock.CountCoil && !remainder && existingTxId == null)
+                        {
+                            CoilReceive(conn, trans, coil, ptId, stock.StkId, qty, txId, userId);
+                            CoilImportService.RecountCoils(conn, trans, ptId, stock.StkId, stock.IsMain);   // KG / COIL ตามทะเบียน
+                        }
 
                         // Coil ที่เพิ่มเองไว้ก่อน: STOCK (COIL) ของคลังที่รับนับใหม่จากทะเบียน (สินค้าเดิมของ Coil + สินค้าที่รับเข้า)
                         if (tookOverPart > 0)
@@ -1218,7 +1226,11 @@ namespace Nexus.Services
 
                             int txId = Convert.ToInt32(cmdLog.ExecuteScalar());
                             // 🧲 จ่ายออกทั้งลูก: Coil ลูกนี้ (อยู่ในคลังนี้) -> OUT / สแกนเศษไม่นับ Coil
-                            if (stock != null && stock.CountCoil && !remainder) CoilOut(conn, trans, coil, stock.StkId, txId, userId);
+                            if (stock != null && stock.CountCoil && !remainder)
+                            {
+                                CoilOut(conn, trans, coil, stock.StkId, txId, userId);
+                                CoilImportService.RecountCoils(conn, trans, ptId, stock.StkId, stock.IsMain);   // KG / COIL ตามทะเบียน (ป้ายที่ไม่มีในทะเบียน ไม่ทำให้ KG เพี้ยน)
+                            }
                         }
 
                         trans.Commit();

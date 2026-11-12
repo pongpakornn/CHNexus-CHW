@@ -63,6 +63,7 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
   const [hover, setHover] = useState(-1);
   const [tipPos, setTipPos] = useState({ x: 0, y: 0, flip: false });
   const tapSkip = useRef(false); // มือถือ: แตะครั้งแรก = ดูค่า · แตะซ้ำแท่งเดิม = เปิด (onPick)
+  const lastY = useRef(-999); // ป้ายตามเมาส์แนวตั้งแบบหยาบ (ไม่ render กราฟใหม่ทุกพิกเซลที่ขยับ)
 
   useEffect(() => {
     const el = box.current;
@@ -95,9 +96,13 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
   function at(clientX: number, clientY: number) {
     const r = box.current!.getBoundingClientRect();
     const i = Math.floor((clientX - r.left - m.l) / band);
-    if (i < 0 || i >= n || !band) return setHover(-1);
+    if (i < 0 || i >= n || !band) return hover !== -1 && setHover(-1);
+    const y = Math.max(8, Math.min(clientY - r.top - 30, H - 120));
+    // แท่งเดิม + เมาส์ขยับนิดเดียว = ไม่ต้องวาดใหม่ (เดิมวาดกราฟทั้งชุดทุกครั้งที่ขยับเมาส์ = กระตุก)
+    if (i === hover && Math.abs(y - lastY.current) < 28) return;
+    lastY.current = y;
     setHover(i);
-    setTipPos({ x: sx(i), y: Math.max(8, Math.min(clientY - r.top - 30, H - 120)), flip: sx(i) > W * 0.6 });
+    setTipPos({ x: sx(i), y, flip: sx(i) > W * 0.6 });
   }
 
   return (

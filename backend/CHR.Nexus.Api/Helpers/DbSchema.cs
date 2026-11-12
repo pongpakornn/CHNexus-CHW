@@ -181,6 +181,9 @@ namespace Nexus.Helpers
         public static bool HasPartWeight => _partWeight ?? (_partWeight = ColumnIn("Nexus.Parts", "WeightKG")) ?? false;
         public static bool HasScanWho => _scanWho ?? (_scanWho = ColumnIn("Nexus.ScanTransactions", "EmployeeID")) ?? false;
         public static bool HasScanDepartments => _scanDepartments ?? (_scanDepartments = TableExists("Nexus.ScanDepartments")) ?? false;
+        // database/nexus/43_User_Org_Options.sql: ตัวเลือก POSITION / ฝ่าย / แผนก / หน่วยงาน ของฟอร์มผู้ใช้
+        private static bool _userOrg;
+        public static bool HasUserOrg => _userOrg || (_userOrg = TableExists("Nexus.UserOrgOptions") == true);
         public static bool HasScanRpa => _scanRpa ?? (_scanRpa = TableExists("Nexus.ScanRpaLayouts")) ?? false;
         // database/nexus/17_Scan_Qr_Suffix.sql: ต่อท้าย QR ตอนสแกนรับเข้า (DATE / REF / RUNNING ต่อ UserID + คลัง) + เลขรันนิ่งรายวันของคลัง
         private static bool? _scanQrSuffix;

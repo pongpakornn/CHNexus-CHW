@@ -44,6 +44,8 @@ const AUTO_SRC: Opt[] = [
 ];
 // ป้าย NEW (ช่องที่สร้างไม่เกิน 4 สัปดาห์ - Server ตัดสิน)
 const NewDot = () => <span className="cf-new" title="ช่องใหม่ (แสดง 4 สัปดาห์)">NEW</span>;
+// 🏭 ช่องข้อมูลที่ระบบ EDP PLANNING ใช้ (ช่องเพิ่มเองของ STORE-PC) -> เลือกเป็นคอลัมน์ของตาราง Part Information ได้ (ไม่ไปแสดงที่ Store (Max-Min))
+const EDP_LABELS = ["HG TYPE", "PCS/HG", "HG QTY", "CT (SEC)", "STD TIME (MIN.)"];
 const CF_TYPES = [
   { value: "TEXT", label: "TEXT (ข้อความ)" },
   { value: "NUMBER", label: "NUMBER (ตัวเลข + หน่วย)" },
@@ -947,7 +949,7 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                     <div className="adm-title">ช่องกรอกลงทะเบียนสินค้า (ลำดับตามที่เลือก) • TEMPLATE EXCEL ของคลังนี้ใช้ช่องชุดเดียวกัน</div>
                     {orderList(l.formFields ?? [], [...data.formFields, ...cfOpts(cur)], (v) => edit((x) => ({ ...x, formFields: v })), ["CODE", "NAME"])}
                     <p className="text-[11px] font-semibold text-ink-soft">
-                      MASTER COIL / COIL NO / WEIGHT ของคลังที่นับ Coil = ของแต่ละ Coil (MASTER COIL อย่างเดียว = Master ทั้งม้วน) · คลังอื่น WEIGHT = น้ำหนักสินค้า · ช่องที่ไม่ได้เลือก ค่าเดิมของสินค้าไม่ถูกลบ
+                      MASTER COIL / NUMBER COIL / WEIGHT ของคลังที่นับ Coil = ของแต่ละ Coil (MASTER COIL อย่างเดียว = Master ทั้งม้วน) · คลังอื่น WEIGHT = น้ำหนักสินค้า · ช่องที่ไม่ได้เลือก ค่าเดิมของสินค้าไม่ถูกลบ
                     </p>
                     {!data.hasFormFields && <div className="text-xs font-bold text-warning">ฐานข้อมูลยังไม่รองรับ (database/nexus/09_ProductControl_FormFields.sql)</div>}
                   </div>
@@ -989,6 +991,33 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
                     <div className="adm-title mb-2">COLUMNS (ลำดับตามที่เลือก)</div>
                     {orderList(l.columns, [...data.columns, ...cfOpts(cur)], (v) => edit((x) => ({ ...x, columns: v })))}
                   </div>
+                  {(() => {
+                    const edp = cfOpts(cur).filter((o) => EDP_LABELS.includes(o.label.trim().toUpperCase()));
+                    if (edp.length === 0) return null;
+                    const keys = edp.map((o) => o.key);
+                    const on = keys.filter((k) => l.columns.includes(k)).length;
+                    return (
+                      <div className="rounded-xl border border-dashed border-line p-3">
+                        <div className="adm-title mb-1">🏭 EDP COLUMNS ({on}/{keys.length})</div>
+                        <p className="mb-2 text-xs font-bold text-ink-soft">ข้อมูลที่ระบบ EDP PLANNING ใช้ · แสดงเป็นคอลัมน์ในตาราง Part Information เท่านั้น (หน้า Store (Max-Min) ไม่เปลี่ยน) · กดเพื่อเปิด / ปิดทีละคอลัมน์ · ลำดับจัดได้ที่ COLUMNS ด้านบน</p>
+                        <div className="flex flex-wrap gap-2">
+                          {edp.map((o) =>
+                            fill(
+                              l.columns.includes(o.key),
+                              <>
+                                {l.columns.includes(o.key) ? "✓ " : "＋ "}
+                                {o.label}
+                              </>,
+                              () => edit((x) => ({ ...x, columns: x.columns.includes(o.key) ? x.columns.filter((k) => k !== o.key) : [...x.columns, o.key] })),
+                              "edp-" + o.key,
+                            ),
+                          )}
+                          {on < keys.length && fill(false, "＋ ALL EDP", () => edit((x) => ({ ...x, columns: [...x.columns, ...keys.filter((k) => !x.columns.includes(k))] })), "edp-all", "is-add")}
+                          {on > 0 && fill(false, "✕ HIDE EDP", () => edit((x) => ({ ...x, columns: x.columns.filter((k) => !keys.includes(k)) })), "edp-none")}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {l && tab === "QR" && (

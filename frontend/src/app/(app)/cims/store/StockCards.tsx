@@ -159,14 +159,14 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
                     <div
                       className="flex min-w-0 items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3 text-xs font-extrabold tabular-nums"
                       style={{ background: `color-mix(in srgb, ${col} 9%, transparent)`, color: col }}
-                      title={`MASTER COIL ${c.coil.masterCount} (${qty(c.coil.masterKg)} KG) • COIL NO ${c.coil.childCount} (${qty(c.coil.childKg)} KG)`}
+                      title={`MASTER COIL ${c.coil.masterCount} (${qty(c.coil.masterKg)} KG) • NUMBER COIL ${c.coil.childCount} (${qty(c.coil.childKg)} KG)`}
                     >
                       <span className="grid size-6 shrink-0 place-items-center rounded-full" style={tileStyle(col)}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={COIL_ICON} alt="" className="size-4 object-contain" />
                       </span>
                       <span className="min-w-0 truncate max-sm:whitespace-normal">
-                        COIL NO {c.coil.totalCount.toLocaleString()}
+                        NUMBER COIL {c.coil.totalCount.toLocaleString()}
                         <span className="mx-1.5 opacity-35">|</span>
                         {qty(c.coil.totalKg)} KG
                         <span className="mx-1.5 opacity-35">|</span>

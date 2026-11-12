@@ -17,7 +17,7 @@ export type { ManageMode };
 import type { Product } from "./types";
 
 // 🧲 MANAGE STOCK ของคลังที่นับ Coil (สิทธิ์ EDIT + APPROVE ของคลัง)
-//   ADD    = ปุ่ม ＋ ที่บรรทัด PD CODE: เพิ่ม Master Coil / Coil No
+//   ADD    = ปุ่ม ＋ ที่บรรทัด PD CODE: เพิ่ม Master Coil / Number Coil
 //   ADJUST = ปุ่ม ACTION ที่แถว Coil ลูก: EDIT / TRANSFER (สแกนออก) / ADJUST (คืนยอด / ลบออก)
 //   HISTORY = ประวัติการจัดการของคลังนี้ (วันนี้ / เลือกช่วงวันที่ / กรองประเภท)
 
@@ -34,8 +34,8 @@ export function ManageBar({ mode, onExit }: { mode: ManageMode; onExit: () => vo
         {add ? "＋" : "⚖"}
       </span>
       <div className="min-w-0 flex-1">
-        <b>{add ? "ADD MASTER COIL / COIL NO" : "ADJUST STOCK"}</b>
-        <span>{add ? "กดปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Coil No ที่ยังไม่มีในคลัง" : "เปิด Coil ของสินค้า แล้วใช้ปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก"}</span>
+        <b>{add ? "ADD MASTER COIL / NUMBER COIL" : "ADJUST STOCK"}</b>
+        <span>{add ? "กดปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Number Coil ที่ยังไม่มีในคลัง" : "เปิด Coil ของสินค้า แล้วใช้ปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก"}</span>
       </div>
       <button type="button" className="fill-btn is-xs" onClick={onExit}>
         ✕ EXIT
@@ -88,12 +88,12 @@ export function AddCoilModal({ stkId, stockCode, product, onClose, onDone }: { s
   const canDeduct = !!source && !isMaster && !!master.trim();
 
   async function save() {
-    if (!master.trim() && !coil.trim()) return toast.show("WARNING", "กรุณากรอก MASTER COIL หรือ COIL NO", "warn");
+    if (!master.trim() && !coil.trim()) return toast.show("WARNING", "กรุณากรอก MASTER COIL หรือ NUMBER COIL", "warn");
     if (w === null || Number.isNaN(w) || w <= 0) return toast.show("WARNING", "กรุณากรอก WEIGHT (KG) เป็นตัวเลขมากกว่า 0", "warn");
     const what = isMaster ? `Master Coil ${master.trim() || coil.trim()}` : `Coil ${coil.trim()}  (Master ${master.trim() || "-"})`;
     const how = canDeduct && deduct ? `\nตัด Master Coil ${master.trim()} ใน ${source} ${qty(w)} KG (เหมือนสแกนรับป้าย)` : "\nเพิ่มเข้าทะเบียนคลังนี้อย่างเดียว (ไม่ตัดคลังอื่น)";
     const ok = await dlg.confirm({
-      title: "ADD MASTER COIL / COIL NO",
+      title: "ADD MASTER COIL / NUMBER COIL",
       ok: "＋ ADD",
       message: `${stockCode}  •  ${product.partCode}\n${what}\nWEIGHT ${qty(w)} KG  (${ton(w)} TON)${how}\n\nมีป้ายเลขเดียวกันค้างใน NOT DEDUCTED = รับเข้า + ตัดให้แทน (ไม่ซ้ำ)\nยืนยันหรือไม่?`,
     });
@@ -115,7 +115,7 @@ export function AddCoilModal({ stkId, stockCode, product, onClose, onDone }: { s
   return (
     <Modal
       open
-      title="＋ ADD MASTER COIL / COIL NO"
+      title="＋ ADD MASTER COIL / NUMBER COIL"
       onClose={onClose}
       footer={
         <>
@@ -137,7 +137,7 @@ export function AddCoilModal({ stkId, stockCode, product, onClose, onDone }: { s
         <Field label="MASTER COIL" hint="Master Coil ทั้งม้วน = กรอกช่องนี้อย่างเดียว">
           <input className="field" autoFocus value={master} maxLength={100} onChange={(e) => setMaster(e.target.value)} />
         </Field>
-        <Field label="COIL NO" hint="Coil ลูกที่ตัดจาก Master Coil">
+        <Field label="NUMBER COIL" hint="Coil ลูกที่ตัดจาก Master Coil">
           <input className="field" value={coil} maxLength={100} onChange={(e) => setCoil(e.target.value)} />
         </Field>
         <Field label="WEIGHT (KG.) *">
@@ -186,10 +186,10 @@ export function EditCoilModal({ stkId, stockCode, partCode, row, onClose, onDone
   const diff = w === null || Number.isNaN(w) ? 0 : Number((w - old).toFixed(3));
 
   async function save() {
-    if (!coil.trim()) return toast.show("WARNING", "กรุณากรอก COIL NO", "warn");
+    if (!coil.trim()) return toast.show("WARNING", "กรุณากรอก NUMBER COIL", "warn");
     if (w === null || Number.isNaN(w) || w <= 0) return toast.show("WARNING", "กรุณากรอก WEIGHT (KG) เป็นตัวเลขมากกว่า 0", "warn");
     const changes = [
-      coil.trim() !== row.coilNo && `COIL NO: ${row.coilNo} → ${coil.trim()}`,
+      coil.trim() !== row.coilNo && `NUMBER COIL: ${row.coilNo} → ${coil.trim()}`,
       master.trim() !== (row.motherCoil === "-" ? "" : row.motherCoil) && `MASTER: ${masterOf(row)} → ${master.trim() || "-"}`,
       diff !== 0 && `WEIGHT: ${qty(old)} → ${qty(w)} KG (${diff > 0 ? "+" : ""}${qty(diff)})`,
       remark.trim() !== (row.remark ?? "") && `REMARK: ${row.remark || "-"} → ${remark.trim() || "-"}`,
@@ -240,7 +240,7 @@ export function EditCoilModal({ stkId, stockCode, partCode, row, onClose, onDone
         <Field label="MASTER COIL">
           <input className="field" value={master} maxLength={100} onChange={(e) => setMaster(e.target.value)} />
         </Field>
-        <Field label="COIL NO *">
+        <Field label="NUMBER COIL *">
           <input className="field" value={coil} maxLength={100} onChange={(e) => setCoil(e.target.value)} />
         </Field>
         <Field label="WEIGHT (KG.) *">
@@ -449,7 +449,7 @@ export function ManageHistoryModal({ stkId, stockCode, onClose }: { stkId: numbe
                 <th>ACTION</th>
                 <th>PD CODE</th>
                 <th>MASTER COIL</th>
-                <th>COIL NO</th>
+                <th>NUMBER COIL</th>
                 <th className="text-right">KG BEFORE → AFTER</th>
                 <th>SOURCE</th>
                 <th>DETAIL</th>

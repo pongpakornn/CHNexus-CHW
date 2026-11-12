@@ -373,7 +373,7 @@ export default function PrPage() {
                     <th>DATE</th>
                     <th>PRODUCT</th>
                     {coil && <th>MASTER COIL</th>}
-                    {coil && <th>COIL NO</th>}
+                    {coil && <th>NUMBER COIL</th>}
                     <th className="text-right">QTY</th>
                     <th>STATUS</th>
                     <th>REQUESTER</th>
