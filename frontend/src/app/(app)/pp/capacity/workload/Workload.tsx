@@ -12,6 +12,7 @@ import { f0, f1, thisMonth } from "@/lib/pp";
 import { Kpi, MonthPicker, PpIcon } from "../../shared";
 import { EN, buildTable, deptTotals, refMap, savedHeads, signed, updOf, useWorkload, type WlField } from "./wl";
 import { WlGrid, WlLegend } from "./WlGrid";
+import { PpImportPreview } from "../../PpImportPreview";
 import "../../pp.css";
 
 // 👥 PRODUCTION PLAN › CAPACITY › WORKLOAD : สรุปอัตรากำลังคน แผน, ผล ประจำเดือน (Monthly man-power Plan & Actual) · แทนชีท "9. ManPower" ของ Excel Work load
@@ -37,6 +38,9 @@ export default function Workload() {
   const { res, err, load } = useWorkload(month, dirty > 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  // 📥 IMPORT Current (คนที่มีจริง) จาก Template ช่องกรอก -> หน้าเตรียม IMPORT แบบ Forecast
+  const curFile = useRef<HTMLInputElement>(null);
+  const [curPv, setCurPv] = useState<File | null>(null);
 
   // ออกจากหน้าโดยยังไม่ SAVE = เตือน
   useEffect(() => {
@@ -166,7 +170,7 @@ export default function Workload() {
                 onClick={() => download("/pp/workload/template", { month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))}
                 title="ดาวน์โหลด Template (ชีท 9. ManPower) ของเดือน N-1 ถึง N+3 · กรอก PDT / Direct แล้ว IMPORT กลับ"
               >
-                📄 TEMPLATE
+                📄 WORK LOAD TEMPLATE
               </button>
               <button type="button" className="fill-btn" disabled={importing} onClick={() => fileRef.current?.click()} title="นำเข้ายอด PDT / Direct / Production จากไฟล์ Work load (ชีท 9. ManPower) หรือไฟล์ Template">
                 {importing ? "…" : "📥 IMPORT WORK LOAD EXCEL"}
@@ -180,6 +184,47 @@ export default function Workload() {
                   const f = e.target.files?.[0];
                   e.target.value = "";
                   if (f) importExcel(f);
+                }}
+              />
+            </>
+          )}
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                className="fill-btn"
+                onClick={() => download("/pp/workload/current/template", { month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))}
+                title="ดาวน์โหลด Template คนที่มีจริง (Current) ของเดือนนี้ · DIRECT / IND1 / IND2 ทุกหน่วยงาน · เดือนใส่ให้แล้ว"
+              >
+                📄 CURRENT TEMPLATE
+              </button>
+              <button
+                type="button"
+                className="fill-btn"
+                onClick={() => (dirty ? toast.show("WARNING", "มีจำนวนคนที่ยังไม่ได้ SAVE · กด SAVE หรือ CANCEL ก่อน IMPORT", "warn") : curFile.current?.click())}
+                title="นำเข้าคนที่มีจริงจากไฟล์ Template · ยอดเท่าเดิม = ไม่แตะ · ยอดต่าง = อัพเดท · ว่าง = คงยอดเดิม (ยังไม่มียอด = 0)"
+              >
+                📥 IMPORT CURRENT
+              </button>
+              <input
+                ref={curFile}
+                type="file"
+                accept=".xlsx,.xlsm"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) setCurPv(f);
+                }}
+              />
+              <PpImportPreview
+                file={curPv}
+                endpoint="/pp/workload/current/import"
+                title="WORKLOAD • CURRENT (คนที่มีจริง)"
+                onClose={() => setCurPv(null)}
+                onDone={() => {
+                  setCurPv(null);
+                  load(true);
                 }}
               />
             </>

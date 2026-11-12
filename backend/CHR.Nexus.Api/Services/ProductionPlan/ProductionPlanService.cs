@@ -505,6 +505,42 @@ public sealed class ProductionPlanService
         return new Recent(Q("WorkHours", false), Q("Stroke", true), Q("Man", false));
     }
 
+    // ---------------------------------------------------------------- 📥 IMPORT Template (Actual รายวัน / คนที่มีจริง) : ค่าที่บันทึกไว้แล้ว
+    public List<PpMachine> AllMachines()
+    {
+        using var c = Conn();
+        return c.Query<PpMachine>(@"SELECT MachineID AS Id, Dept, MachineCode AS Code, GroupName AS [Group], SubGroup, SortNo AS Sort, IsActive AS Active
+                                    FROM ProductionPlan.Machines WHERE IsActive = 1 ORDER BY Dept, SortNo, MachineCode").ToList();
+    }
+
+    public List<PpActual> Actuals(IEnumerable<int> machineIds, DateTime month)
+    {
+        var ids = machineIds.Distinct().ToArray();
+        if (ids.Length == 0) return new();
+        var m = new DateTime(month.Year, month.Month, 1);
+        using var c = Conn();
+        return c.Query<PpActual>(@"SELECT MachineID AS MachineId, DAY(WorkDate) AS Day, WorkHours AS Hr, Stroke, Man FROM ProductionPlan.DailyActuals
+                                   WHERE MachineID IN @ids AND WorkDate >= @m AND WorkDate < DATEADD(MONTH, 1, @m)", new { ids, m }).ToList();
+    }
+
+    // วันทำงานของเดือน (ปฏิทินบริษัท · ไม่มี = ทุกวันยกเว้นอาทิตย์) แบบเดียวกับ Month()
+    public List<int> Workdays(DateTime month)
+    {
+        var m = new DateTime(month.Year, month.Month, 1);
+        int nd = DateTime.DaysInMonth(m.Year, m.Month);
+        using var c = Conn();
+        var wd = c.Query<DateTime>("SELECT WorkDate FROM Nexus.CustomerWorkdays WHERE CustomerCode = '#COMPANY' AND WorkDate >= @m AND WorkDate < DATEADD(MONTH, 1, @m)", new { m })
+                  .Select(d => d.Day).Distinct().OrderBy(d => d).ToList();
+        return wd.Count > 0 ? wd : Enumerable.Range(1, nd).Where(d => new DateTime(m.Year, m.Month, d).DayOfWeek != DayOfWeek.Sunday).ToList();
+    }
+
+    public List<WlHead> Heads(DateTime month)
+    {
+        var m = new DateTime(month.Year, month.Month, 1);
+        using var c = Conn();
+        return c.Query<WlHead>(@"SELECT MonthStart AS Month, RowKey AS Row, Direct, Ind1, Ind2, UpdatedBy, UpdatedAt FROM ProductionPlan.WorkloadHeads WHERE MonthStart = @m", new { m }).ToList();
+    }
+
     public string MachineCode(int id)
     {
         using var c = Conn();

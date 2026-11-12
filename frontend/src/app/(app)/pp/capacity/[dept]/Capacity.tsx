@@ -15,6 +15,7 @@ import { PpChart, Ring, type Series } from "../../PpChart";
 import { conditionRows, EffPill, Kpi, MonthPicker, PpIcon, ProcessChips, usePpMonth } from "../../shared";
 import { Seg } from "../../Seg";
 import { ManStep, NumPick, type Preset, type Recent } from "./ActInput";
+import { PpImportPreview } from "../../PpImportPreview";
 import "../../pp.css";
 
 // 🏭 PRODUCTION PLAN › CAPACITY › <หน่วยงาน> (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · 1 เครื่อง = 1 ชีทของ Excel
@@ -49,6 +50,9 @@ export default function Capacity({ dept }: { dept: string }) {
   const canEdit = !!res?.can.actual;
   // 📥 IMPORT PCS (Template) -> สรุป -> ยืนยัน
   const pcsFile = useRef<HTMLInputElement>(null);
+  // 📥 IMPORT M/C ACTUAL (Template ช่องกรอก) -> หน้าเตรียม IMPORT แบบ Forecast
+  const actFile = useRef<HTMLInputElement>(null);
+  const [actPv, setActPv] = useState<File | null>(null);
   const [pcsBusy, setPcsBusy] = useState(false);
   async function importPcs(f: File) {
     setPcsBusy(true);
@@ -164,6 +168,48 @@ export default function Capacity({ dept }: { dept: string }) {
       subtitle={machine ? `${machine.code} · ${machine.subGroup ?? machine.group} · ${monthLabel(month).toUpperCase()}` : "CAPACITY PLANNING"}
       actions={
         <>
+          {/* 📄 M/C ACTUAL · INPUT: TEMPLATE (ทุกเครื่อง × WORKING HOUR / STROKE / MAN × วันที่ · เดือนใส่ให้แล้ว) -> กรอก / Link สูตร -> IMPORT */}
+          <button
+            type="button"
+            className="fill-btn"
+            onClick={() => download("/pp/actual/template", { dept: D, month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))}
+            title="ดาวน์โหลด Template M/C ACTUAL ของเดือนนี้ (ทุกเครื่องของหน่วยงาน · Working hour / Stroke / Man รายวัน) กรอกหรือ Link สูตรแล้ว IMPORT กลับ"
+          >
+            📄 ACTUAL TEMPLATE
+          </button>
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                className="fill-btn"
+                onClick={() => (dirty ? toast.show("WARNING", "มี Actual ที่ยังไม่ได้ SAVE · กด SAVE หรือ CANCEL ก่อน IMPORT", "warn") : actFile.current?.click())}
+                title="นำเข้า M/C ACTUAL จากไฟล์ Template · ยอดเท่าเดิม = ไม่แตะ · ยอดต่าง = อัพเดท · ว่าง = คงยอดเดิม (ยังไม่มียอด = 0)"
+              >
+                📥 IMPORT ACTUAL
+              </button>
+              <input
+                ref={actFile}
+                type="file"
+                accept=".xlsx,.xlsm"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) setActPv(f);
+                }}
+              />
+              <PpImportPreview
+                file={actPv}
+                endpoint="/pp/actual/import"
+                title={`M/C ACTUAL • ${deptOf(D).name}`}
+                onClose={() => setActPv(null)}
+                onDone={() => {
+                  setActPv(null);
+                  reload(true);
+                }}
+              />
+            </>
+          )}
           {/* 📄 PCS ของเดือนตามไฟล์ Capacity ของหน่วยงาน: TEMPLATE (ทุกแถว Product) -> กรอก PCS -> IMPORT = ตั้ง PCS (M) */}
           <button
             type="button"
@@ -171,7 +217,7 @@ export default function Capacity({ dept }: { dept: string }) {
             onClick={() => download("/pp/pcs/template", { dept: D, month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))}
             title="ดาวน์โหลด Template PCS ของเดือนนี้ (ทุกแถว Product ของหน่วยงาน) กรอก PCS ตามไฟล์ Capacity แล้ว IMPORT กลับ"
           >
-            📄 TEMPLATE
+            📄 PCS TEMPLATE
           </button>
           {res?.can.pcs && (
             <>

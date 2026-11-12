@@ -184,7 +184,7 @@ public sealed class PpExcelController : AppController
     }
 
     // ---------------------------------------------------------------- WORKLOAD
-    private static readonly (string Key, string Grp, string Name)[] WlRows =
+    internal static readonly (string Key, string Grp, string Name)[] WlRows =
     {
         ("TPS", "แผนกบริหารการผลิตและโลจิสติกส์", "วางแผนการผลิตและTPS"),
         ("DELIVERY", "", "จัดส่งและส่งมอบ"),
