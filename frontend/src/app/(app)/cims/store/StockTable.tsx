@@ -16,6 +16,7 @@ import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg 
 import { CategoryPicker, Pager, SearchField } from "./Toolbar";
 import { type Counts, type Product, type Stock } from "./types";
 import { MinReportMenu } from "./MinReport";
+import { Layout3DButton } from "./Layout3DButton";
 import { ManageDock } from "./ManageDock";
 import { AddCoilModal, AdjustCoilModal, EditCoilModal, ManageBar, ManageHistoryModal, type ManageMode } from "./CoilManage";
 
@@ -756,6 +757,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         actions={
           <>
             <MinReportMenu stock={s} autoOpen={openMinReport} />
+            {s.code.toUpperCase() === "STOCK-MAT" && <Layout3DButton stockCode={s.code} />}
             <ActionMenu actions={menu} />
             {meta.canImport && (
               <input

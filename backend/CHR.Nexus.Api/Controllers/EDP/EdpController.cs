@@ -47,7 +47,7 @@ public sealed class EdpController : AppController
     [HttpGet("cards")]
     public IActionResult Cards(DateTime date, string shift, int? round) =>
         Guard(Me?.CanViewEdpSubmit == true || Me?.CanViewEdpSetting == true)
-        ?? Ok(new { status = Sh(shift) == EdpService.AllDay ? null : _svc.Status(date, Sh(shift)), sig = _svc.Signature(date, Sh(shift)), cards = _svc.Cards(date, Sh(shift), round) });
+        ?? Ok(new { status = Sh(shift) == EdpService.AllDay ? null : _svc.Status(date, Sh(shift)), sig = _svc.Signature(date, Sh(shift)), planSig = _svc.PlanSignature(date, Sh(shift)), cards = _svc.Cards(date, Sh(shift), round) });
 
     [HttpGet("signature")]
     public IActionResult Signature(DateTime date, string shift) =>
@@ -57,7 +57,7 @@ public sealed class EdpController : AppController
     public sealed record ShiftReq(DateTime Date, string Shift);
     public sealed record MarkReq(int PldId, int QtyAct, int HgAct, string PartNo);
     public sealed record EditReq(int PldId, bool Problem, int? PartId, int Qty, int Hg, string Remark);
-    public sealed record SwapReq(int A, int B, List<EdpService.SlotTime> Times);
+    public sealed record SwapReq(int A, int B, List<EdpService.SlotTime> Times, DateTime? Date = null, string Shift = null, string PlanSig = null);
 
     [HttpPost("start")]
     public IActionResult Start([FromBody] ShiftReq r) => Guard(Me?.CanViewEdpSubmit == true) ?? Run(() =>
@@ -99,6 +99,9 @@ public sealed class EdpController : AppController
     [HttpPost("swap")]
     public IActionResult Swap([FromBody] SwapReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
     {
+        // SUB-14: แผนถูกแก้จากเครื่องอื่นหลังจากที่เครื่องนี้โหลดมา = เวลาที่คำนวณไว้อาจไม่ตรงแล้ว -> ยกเลิกแล้วโหลดใหม่
+        if (r.Date.HasValue && !string.IsNullOrEmpty(r.PlanSig) && _svc.PlanSignature(r.Date.Value, Sh(r.Shift)) != r.PlanSig)
+            return Fail("แผนนี้ถูกแก้ไขจากเครื่องอื่นไปแล้ว ระบบจะโหลดแผนล่าสุดให้ กรุณาลองใหม่อีกครั้ง");
         var batch = _svc.Swap(r.A, r.B, r.Times, Uid);
         LogService.WriteLog(Uid, "EDP_SWAP_CARD", $"สลับการ์ด {r.A} <-> {r.B} ({r.Times?.Count ?? 0} การ์ดเปลี่ยนเวลา) · UNDO {batch}", $"{r.A}-{r.B}");
         return Ok(new { message = "สลับการ์ดแล้ว (กด UNDO SWAP เพื่อย้อนได้)", batch });
@@ -197,7 +200,7 @@ public sealed class EdpController : AppController
     }, "ลงแม่แบบไม่สำเร็จ");
 
     // ---------------------------------------------------------------- EDP Planning
-    public sealed record MonitorReq(string Operator, string Remark, bool IsDone);
+    public sealed record MonitorReq(string Operator, string Remark, bool? IsDone, bool Group = false);   // IsDone = null = ไม่ได้ติ๊ก DONE (ไม่แตะสถานะ)
 
     [HttpGet("monitor")]
     public IActionResult Monitor(DateTime? date, string shift, string q) => Guard(Me?.CanViewEdpPlanning == true) ?? Run(() =>
@@ -211,8 +214,8 @@ public sealed class EdpController : AppController
     {
         string op = (r.Operator ?? "").Trim(), remark = (r.Remark ?? "").Trim();
         if (op.Length > 100) return Fail("ชื่อ Operator ยาวเกิน 100 ตัวอักษร");
-        if (!_svc.UpdateMonitor(id, op.Length == 0 ? null : op, remark.Length == 0 ? null : remark, r.IsDone)) return Fail("ไม่พบรายการนี้แล้ว");
-        LogService.WriteLog(Uid, "EDP_PLANNING_UPDATE", $"OPERATOR {op} | DONE {(r.IsDone ? "Y" : "N")} | {remark}", id.ToString());
+        if (!_svc.UpdateMonitor(id, op.Length == 0 ? null : op, remark.Length == 0 ? null : remark, r.IsDone, r.Group)) return Fail("ไม่พบรายการนี้แล้ว");
+        LogService.WriteLog(Uid, "EDP_PLANNING_UPDATE", $"OPERATOR {op} | DONE {(r.IsDone == null ? "-" : r.IsDone.Value ? "Y" : "N")}{(r.Group && r.IsDone != null ? " (ทุกการ์ดของชิ้นงานนี้)" : "")} | {remark}", id.ToString());
         return Ok(new { message = "บันทึกแล้ว" });
     }, "บันทึกไม่สำเร็จ");
 

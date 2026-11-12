@@ -165,7 +165,7 @@ export default function PlanSubmission() {
   const closed = data?.status === "COMPLETED";
 
   const late = (c: Card) => {
-    if (c.isDone || c.isProblem) return 0;
+    if (c.isDone || c.isProblem || closed) return 0; // ปิดกะแล้ว (COMPLETED) = ดูย้อนหลัง ไม่เตือน (RefreshOverdueAlerts · IsReviewMode)
     const t = times.get(c.pldId);
     const due = t ? resolve(date, t.se, c.shift) : null;
     return due && now > due.getTime() ? Math.max(1, Math.floor((now - due.getTime()) / 60000)) : 0;
@@ -211,6 +211,7 @@ export default function PlanSubmission() {
     if (!A || !B || a === b) return;
     if (A.shift !== B.shift) return toast.show("SWAP", "สลับได้เฉพาะการ์ดในกะเดียวกัน", "warn");
     if (A.isDone || B.isDone) return toast.show("SWAP", "การ์ดที่ทำเสร็จแล้วสลับเวลาไม่ได้", "warn");
+    if (busy.has(a) || busy.has(b)) return toast.show("SWAP", "การ์ดนี้กำลังบันทึก MARK SUCCESS อยู่ ลองใหม่อีกครั้ง", "warn");
     if (!(await dlg.confirm({ title: "SWAP CARDS", message: `สลับเวลาการ์ด\n${A.customer} ${A.partNo} (${A.timeStart})\n↔ ${B.customer} ${B.partNo} (${B.timeStart}) ?`, ok: "SWAP" }))) return;
     // ช่องเวลาตามแผนใน DB + HG ตั้งต้น (ก่อนแก้ครั้งแรก) แบบ ExecuteSwapCards · ส่วนต่างจากยอดจริงจึงไม่ถูกนับซ้ำ
     const same = cards.filter((c) => c.shift === A.shift);
@@ -218,7 +219,7 @@ export default function PlanSubmission() {
     const ch = slotSwap(slots, same.indexOf(A), same.indexOf(B));
     const list = [...ch.entries()].map(([k, t]) => ({ pldId: same[k].pldId, timeStart: `${t.sb}-${t.se}`, timeEnd: `${t.ob}-${t.oe}` }));
     try {
-      const r = await api<{ message: string; batch: string }>("/edp/swap", { method: "POST", body: { a, b, times: list } });
+      const r = await api<{ message: string; batch: string }>("/edp/swap", { method: "POST", body: { a, b, times: list, date, shift, planSig: data?.planSig } });
       toast.show("SWAP", r.message, "ok");
       setUndo(r.batch);
     } catch (e) {
@@ -310,16 +311,17 @@ export default function PlanSubmission() {
             <DragGrid
               items={shown}
               idOf={(c) => c.pldId}
-              locked={(c) => c.isDone || c.isProblem || !canSubmit || closed}
+              locked={(c) => c.isDone || busy.has(c.pldId) || !canSubmit || closed}
               onSwap={swap}
               render={(c, _i, handle, lifted) => {
                 const t: Times = times.get(c.pldId) ?? timesOf(c.timeStart, c.timeEnd);
                 const lt = late(c);
                 const img = imgOf(c);
                 const lock = c.isDone || c.isProblem || !canSubmit || closed;
+                const moveLock = c.isDone || busy.has(c.pldId) || !canSubmit || closed; // ลากสลับได้ = ยังไม่ MARK (ใบผลิตไม่ได้ก็ลากได้ แบบ CanMoveCard)
                 return (
                   <article className={`edp-card is-set ${c.isDone ? "is-done" : ""} ${c.isProblem ? "is-problem" : ""} ${lt ? "is-late" : ""} ${lifted ? "is-lifted" : ""}`}>
-                    <header className={lock ? "" : "edp-handle"} {...(lock ? {} : handle)} title={lock ? undefined : "ลากที่หัวการ์ดไปวางทับอีกใบเพื่อสลับเวลา"}>
+                    <header className={moveLock ? "" : "edp-handle"} {...(moveLock ? {} : handle)} title={moveLock ? undefined : "ลากที่หัวการ์ดไปวางทับอีกใบเพื่อสลับเวลา"}>
                       <span className="edp-round">
                         {shift === "ALL" ? `${c.shift === "DAY" ? "☀" : "🌙"} ` : ""}R{c.roundId || "-"}
                       </span>
@@ -327,7 +329,7 @@ export default function PlanSubmission() {
                       {lt > 0 && <span className="edp-late">ช้า {lateText(lt)}</span>}
                       {c.isDone && <span className="edp-badge is-ok">✔ FINISHED</span>}
                       {c.isProblem && <span className="edp-badge is-bad">⛔ ผลิตไม่ได้</span>}
-                      {!lock && (
+                      {!moveLock && (
                         <span className="edp-grip" aria-hidden>
                           ⠿
                         </span>

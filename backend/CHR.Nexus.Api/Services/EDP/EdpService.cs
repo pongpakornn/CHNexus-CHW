@@ -61,6 +61,7 @@ public sealed class EdpPart
 
 public sealed class EdpPlanCardIn
 {
+    public int? PldId { get; set; }          // การ์ดเดิมในรอบนี้ (SAVE ALL แก้ทับ · ยอดจริง / MARK / หมายเหตุไม่หาย) · ไม่มี = การ์ดใหม่
     public int? PartId { get; set; }
     public string TimeStart { get; set; }
     public string TimeEnd { get; set; }
@@ -211,6 +212,17 @@ public sealed class EdpService
             WHERE H.PLH_DATE = @date AND (@shift = 'ALL' OR H.SHIFT = @shift)", new { date = date.Date, shift });
     }
 
+    // ลายเซ็นแผนแบบ PlanService.GetPlanSignature (SUB-16): COUNT + CHECKSUM ของ PLD_ID, PT_ID, QTY_PLAN, HG_PLAN, TIME_START, TIME_END, IS_VISIBLE, EFF_ROUND_ID
+    //   ไม่รวมยอดจริง / MARK -> หน้างานเครื่องอื่นกด MARK ไม่ทำให้การสลับการ์ดถูกยกเลิก (SUB-14)
+    public string PlanSignature(DateTime date, string shift)
+    {
+        using var c = Conn();
+        return c.QuerySingle<string>(@"
+            SELECT CONCAT(COUNT(*), ':', ISNULL(CHECKSUM_AGG(CHECKSUM(D.PLD_ID, D.PT_ID, D.QTY_PLAN, D.HG_PLAN, D.TIME_START, D.TIME_END, D.IS_VISIBLE, D.EFF_ROUND_ID)), 0))
+            FROM EDP.vw_PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID
+            WHERE H.PLH_DATE = @date AND (@shift = 'ALL' OR H.SHIFT = @shift)", new { date = date.Date, shift });
+    }
+
     // ---------------------------------------------------------------- Plan Submission (หน้างาน)
     public void Start(DateTime date, string shift)
     {
@@ -329,6 +341,9 @@ public sealed class EdpService
                               new { date = date.Date, shift, uid }, t);
 
     // บันทึกเฉพาะรอบที่เลือก (รอบอื่นของวันที่ + กะเดียวกันไม่ถูกแตะ)
+    //   แก้จากโปรแกรมเดิม (SPEC CHK-01 / CHK-03): เดิมลบการ์ดทั้งรอบแล้วสร้างใหม่ -> การ์ดที่หน้างาน MARK แล้วยอดจริง / สถานะ / หมายเหตุหาย และ PLD_ID ใหม่ (ประวัติ EDIT หลุด)
+    //   ตอนนี้: การ์ดเดิม (PLD_ID) = แก้ค่าแผนทับ (ยอดจริง / MARK / ผลิตไม่ได้ / หมายเหตุ / Operator คงเดิม) · ใบที่เอาออกจากจอ = ลบ · ใบใหม่ = เพิ่ม
+    //   ขอบเขต = รอบจริงของการ์ด (EFF_ROUND_ID) การ์ดเก่าที่ ROUND_ID ว่างจึงไม่ค้างซ้อน
     public int Save(DateTime date, string shift, int round, List<EdpPlanCardIn> cards, string uid)
     {
         using var c = Conn();
@@ -336,10 +351,18 @@ public sealed class EdpService
         EnsureRoundInShift(c, null, shift, round);
         using var t = c.BeginTransaction();
         int h = Header(c, t, date, shift, uid);
-        c.Execute("DELETE FROM EDP.PlanCards WHERE PLH_ID = @h AND ROUND_ID = @round", new { h, round }, t);
+        var have = c.Query<int>(@"SELECT D.PLD_ID FROM EDP.PlanCards D WITH (UPDLOCK, HOLDLOCK) JOIN EDP.vw_PlanCards E ON E.PLD_ID = D.PLD_ID
+                                  WHERE D.PLH_ID = @h AND E.EFF_ROUND_ID = @round", new { h, round }, t).ToHashSet();
+        var keep = cards.Where(x => x.PldId is int id && have.Contains(id)).ToList();
+        var keepIds = keep.Select(x => x.PldId.Value).ToHashSet();
+        var drop = have.Where(id => !keepIds.Contains(id)).ToList();
+        if (drop.Count > 0) c.Execute("DELETE FROM EDP.PlanCards WHERE PLD_ID IN @drop", new { drop }, t);
+        c.Execute(@"UPDATE EDP.PlanCards SET PT_ID = @PartId, TIME_START = @TimeStart, TIME_END = @TimeEnd, QTY_PLAN = @Qty, HG_PLAN = @Hg, IS_VISIBLE = @Visible, ROUND_ID = @round
+                    WHERE PLD_ID = @PldId AND PLH_ID = @h",
+                  keep.Select(x => new { x.PldId, h, x.PartId, x.TimeStart, x.TimeEnd, x.Qty, x.Hg, x.Visible, round }), t);
         c.Execute(@"INSERT INTO EDP.PlanCards (PLH_ID, PT_ID, TIME_START, TIME_END, QTY_PLAN, HG_PLAN, IS_VISIBLE, ROUND_ID)
                     VALUES (@h, @PartId, @TimeStart, @TimeEnd, @Qty, @Hg, @Visible, @round)",
-                  cards.Select(x => new { h, x.PartId, x.TimeStart, x.TimeEnd, x.Qty, x.Hg, x.Visible, round }), t);
+                  cards.Where(x => !(x.PldId is int id && keepIds.Contains(id))).Select(x => new { h, x.PartId, x.TimeStart, x.TimeEnd, x.Qty, x.Hg, x.Visible, round }), t);
         t.Commit();
         return cards.Count;
     }
@@ -361,7 +384,8 @@ public sealed class EdpService
         var p = new { sd = sd.Date, ss, sr };
         if (c.ExecuteScalar<int>("SELECT COUNT(*)" + SrcScope, p, t) == 0) { t.Rollback(); return 0; }
         int h = Header(c, t, td, ts, uid);
-        c.Execute("DELETE FROM EDP.PlanCards WHERE PLH_ID = @h AND (@tr IS NULL OR ROUND_ID = @tr)", new { h, tr }, t);
+        c.Execute(@"DELETE D FROM EDP.PlanCards D JOIN EDP.vw_PlanCards E ON E.PLD_ID = D.PLD_ID
+                    WHERE D.PLH_ID = @h AND (@tr IS NULL OR E.EFF_ROUND_ID = @tr)", new { h, tr }, t);   // รอบจริง (CHK-03)
         int n = c.Execute(@"INSERT INTO EDP.PlanCards (PLH_ID, PT_ID, TIME_START, TIME_END, QTY_PLAN, HG_PLAN, IS_VISIBLE, ROUND_ID)
                             SELECT @h, D.PT_ID, D.TIME_START, D.TIME_END, D.QTY_PLAN, D.HG_PLAN, 1, ISNULL(@tr, D.EFF_ROUND_ID)" + SrcScope + " ORDER BY D.PLD_ID",
                           new { h, tr, sd = sd.Date, ss, sr }, t);
@@ -464,7 +488,8 @@ public sealed class EdpService
             if (rounds.Any(x => x == null)) throw new InvalidOperationException("แม่แบบมีการ์ดที่ระบุรอบไม่ได้ กรุณาบันทึกแม่แบบใหม่");
             if (!round.HasValue) foreach (int r in rounds.Select(x => x.Value)) EnsureRoundInShift(c, t, s, r);
             int h = Header(c, t, date, s, uid);
-            c.Execute("DELETE FROM EDP.PlanCards WHERE PLH_ID = @h AND (@r IS NULL OR ROUND_ID = @r)", new { h, r = round }, t);
+            c.Execute(@"DELETE D FROM EDP.PlanCards D JOIN EDP.vw_PlanCards E ON E.PLD_ID = D.PLD_ID
+                        WHERE D.PLH_ID = @h AND (@r IS NULL OR E.EFF_ROUND_ID = @r)", new { h, r = round }, t);   // รอบจริง (CHK-03)
             rows += c.Execute(@"INSERT INTO EDP.PlanCards (PLH_ID, PT_ID, TIME_START, TIME_END, QTY_PLAN, HG_PLAN, IS_VISIBLE, ROUND_ID)
                                 SELECT @h, D.PT_ID, D.TIME_START, D.TIME_END, ISNULL(D.QTY_PLAN,0), ISNULL(D.HG_PLAN,0), 1, " + expr +
                               " FROM EDP.PlanTemplateCards D" + where + " ORDER BY D.SEQ, D.TPD_ID", new { h, id = tplId, s, r = round }, t);
@@ -502,10 +527,21 @@ public sealed class EdpService
         return (d, c.Query<EdpMonitorRow>(sql, new { d, shift, like }).ToList());
     }
 
-    public bool UpdateMonitor(int id, string op, string remark, bool done)
+    //   แก้จากโปรแกรมเดิม (SPEC CHK-05): เดิมเขียน IS_DONE ค่ารวมของกลุ่มลงการ์ดใบแรกทุกครั้งที่บันทึก Operator / Remark -> ใบแรกกลายเป็น DONE ทั้งที่ยังไม่ผลิต
+    //   ตอนนี้: done = null (ไม่ได้ติ๊ก) ไม่แตะ IS_DONE · ติ๊ก DONE ของแถวรวม (group) = ทุกการ์ดที่แสดงของชิ้นงานนั้นในแผน (วันที่ + กะ) เดียวกัน
+    public bool UpdateMonitor(int id, string op, string remark, bool? done, bool group)
     {
         using var c = Conn();
-        return c.Execute("UPDATE EDP.PlanCards SET OP_NAME = @op, REMARK = @remark, IS_DONE = @done WHERE PLD_ID = @id", new { id, op, remark, done }) > 0;
+        c.Open();
+        using var t = c.BeginTransaction();
+        if (c.Execute("UPDATE EDP.PlanCards SET OP_NAME = @op, REMARK = @remark WHERE PLD_ID = @id", new { id, op, remark }, t) == 0) return false;
+        if (done.HasValue)
+            c.Execute(group
+                ? @"UPDATE D SET D.IS_DONE = @done FROM EDP.PlanCards D JOIN EDP.PlanCards X ON X.PLH_ID = D.PLH_ID AND X.PT_ID = D.PT_ID
+                    WHERE X.PLD_ID = @id AND ISNULL(D.IS_VISIBLE, 1) = 1"
+                : "UPDATE EDP.PlanCards SET IS_DONE = @done WHERE PLD_ID = @id", new { id, done = done.Value }, t);
+        t.Commit();
+        return true;
     }
 
     // Excel แบบเดิม: วันที่ · กะ DAY แล้ว NIGHT · รวมทั้งหมด

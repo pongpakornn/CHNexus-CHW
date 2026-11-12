@@ -74,8 +74,6 @@ export const CIMS: SystemDef = {
     { href: "/cims/dashboard", label: "Dashboard", title: "DASHBOARD", icon: "/icons/Dashboard.png", can: "dashboard" },
     { href: "/cims/store", label: "Store ( Max - Min )", title: "STORE ( MAX - MIN )", icon: "/icons/StoreMaxMin.png", can: "store" },
     { href: "/cims/scanner", label: "Multi-Scanner", title: "MULTI-SCANNER", icon: "/icons/MultiScanner.png", can: "scanner" },
-    // 🧊 LAYOUT 3D: ผังคลัง Stock Material แบบ 3D (สถานะตำแหน่งจากการสแกน LAYOUT ที่ Multi-Scanner) · ใช้สิทธิ์ดูคลังเดียวกับ Store
-    { href: "/cims/layout-3d", label: "Layout 3D", title: "STOCK MATERIAL • LAYOUT 3D", icon: "/icons/StoreWarehouse.png", can: "store" },
     { href: "/cims/pick-list", label: "Pick List", title: "PICK LIST", icon: "/icons/PickList.png", can: "pickList" },
     { href: "/cims/max-min", label: "Max-Min Calculator", title: "MAX-MIN CALCULATOR", icon: "/icons/CalculatorMxMn.png", can: "maxMinCalc" },
     // 📦 Forecast / Order ย้ายไป MASTER DATA › Planning (Sidebar กลาง) · /cims/forecast พาไป /master/forecast

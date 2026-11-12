@@ -31,7 +31,8 @@ const toEd = (c: Card): Ed => {
   const hg = c.hgAct != null && c.hgAct > 0 ? c.hgAct : c.hgPlan;
   return { key: c.pldId, partId: c.partId, customer: c.customer, qty: c.qtyPlan, hg, perHg: c.qtyHg, t, base: t, baseHg: baseHgOf(hg, t), visible: c.isVisible, roundId: c.roundId, done: c.isDone, img: imgOf(c), partName: c.partName };
 };
-const out = (e: Ed) => ({ partId: e.partId, timeStart: `${e.t.sb}-${e.t.se}`, timeEnd: `${e.t.ob}-${e.t.oe}`, qty: e.qty, hg: e.hg, visible: e.visible, roundId: e.roundId });
+// pldId = การ์ดเดิม (SAVE ALL แก้ทับ ยอดจริง / MARK ไม่หาย) · การ์ดใหม่ key ติดลบ = null
+const out = (e: Ed) => ({ pldId: e.key > 0 ? e.key : null, partId: e.partId, timeStart: `${e.t.sb}-${e.t.se}`, timeEnd: `${e.t.ob}-${e.t.oe}`, qty: e.qty, hg: e.hg, visible: e.visible, roundId: e.roundId });
 
 export default function PlanSetting() {
   const toast = useToast();
@@ -141,7 +142,8 @@ export default function PlanSetting() {
   }
   function swap(a: number, b: number) {
     if (!eds || a === b) return;
-    const ord = sorted(eds);
+    const st = shiftStart((shift === "ALL" ? "DAY" : shift) as Shift);
+    const ord = [...eds].sort((x, y) => sortMin(x.t.sb, st) - sortMin(y.t.sb, st)); // เวลาบนจอตอนนี้ (SET-08)
     const ia = ord.findIndex((e) => e.key === a),
       ib = ord.findIndex((e) => e.key === b);
     const ch = slotSwap(ord.map((e) => ({ ...e.t, hg: e.hg })), ia, ib);
@@ -163,7 +165,7 @@ export default function PlanSetting() {
       // เลือกชิ้นงาน = 1 HG · จำนวน = QTY_HG ชิ้น (แบบ PlanItem.FetchPartDetails) แล้วเวลาในรอบคิดใหม่
       pickPart: (e, p) => {
         fns.current.patch(e.key, { partId: p.partId, customer: p.customer, perHg: p.qtyHg, img: p.img ? `/api/images/part/${p.partId}` : null, partName: p.partName });
-        fns.current.setHg(e.key, 1, p.qtyHg);
+        fns.current.setHg(e.key, p.qtyHg > 0 ? 1 : e.hg, p.qtyHg > 0 ? p.qtyHg : 0);
       },
     }),
     [],

@@ -102,6 +102,7 @@ function EdpAlertHost({ path }: { path: string }) {
   // การ์ดที่เลยเวลา: เวลาไหลต่อกันทั้งกะแบบหน้า Plan Submission (cascade เดียวกัน) · เรียงช้ามากสุดก่อน
   const late = useMemo<Late[]>(() => {
     if (!cfg?.enabled || !plan) return [];
+    if (plan.res.status === "COMPLETED") return []; // ปิดกะแล้ว = ไม่เตือน (แบบ RefreshOverdueAlerts ไม่เตือนตอนดูย้อนหลัง)
     if (cfg.onlyStarted !== false && plan.res.status !== "IN PROGRESS") return [];
     const list = plan.res.cards
       .filter((c) => c.isVisible && c.partNo)

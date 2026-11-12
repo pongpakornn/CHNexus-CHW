@@ -119,7 +119,9 @@ export default function EdpPlanning() {
         body: {
           operator: val(r, "operator"),
           remark: val(r, "remark"),
-          isDone: val(r, "isDone"),
+          // DONE เขียนเฉพาะตอนติ๊กเปลี่ยนจริง (ไม่งั้นค่ารวมของกลุ่มไปทับการ์ดใบแรก · CHK-05) · แถวรวม = ทุกการ์ดของชิ้นงานนี้
+          isDone: draft[r.id]?.isDone !== undefined && draft[r.id].isDone !== r.isDone ? draft[r.id].isDone : null,
+          group: shift !== "ALL",
         },
       });
       toast.show("SAVED", res.message, "ok");
