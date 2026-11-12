@@ -103,6 +103,7 @@ Server จริง: ใช้ `appsettings.Local.json` หรือ Environment
 | **Dashboard** — การ์ด 4 ใบแยกคลัง (อัพเดททุก 3 วินาที) + Order ลูกค้าเดือนนี้ + Forecast / Order / Delivery ทั้งปี | ✅ |
 | **Store (Max-Min)** — การ์ดคลัง / ตาราง / ตั้งค่าคลัง / Barcode Formats / Import-Export | ✅ |
 | **Multi-Scanner** — IN / OUT / RETURN / REMAINDER / TEST, หลายคลัง + AUTO + ★, EMPLOYEE ID / DEPARTMENT, ทะเบียน Coil, DEDUCTED / NOT DEDUCTED (APPROVE), ADJUST SCAN, DISPLAY, HISTORY + EXPORT + **EXPORT RPA** | ✅ |
+| **Layout 3D** (Stock Material) — ผังคลัง 3D: กดโซน = ซูมดู Rack / กด Coil = ข้อมูล + รูป · สถานะจากการสแกน LAYOUT ที่ Multi-Scanner (อ่านอย่างเดียว) · แก้ผังที่ `frontend/src/app/(app)/cims/layout-3d/plan.ts` · Index เสริม `database/nexus/39_Layout_3D_Index.sql` | 🧪 รอทดสอบกับฐานจริง |
 | **Inventory Registration** — ลงทะเบียน / แก้ไข / Import / QR / Admin | ✅ |
 | **Pick List** | ✅ |
 | **Max-Min Calculator** — สูตร (FORMULAS) / AUTO CALC ต่อคลัง / MAX-MIN (DAYS) ต่อสินค้า / RESET / วันทำงานลูกค้า (ปฏิทิน 12 เดือน) / Template / IMPORT SET MAX MIN / IMPORT FORECAST & ORDER / CALCULATE NOW | ✅ |
