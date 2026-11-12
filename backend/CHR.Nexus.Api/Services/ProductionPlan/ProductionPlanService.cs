@@ -233,6 +233,19 @@ public sealed class ProductionPlanService
         return label;
     }
 
+    // 📄 PCS TEMPLATE / IMPORT: ทุกแถว Product ของหน่วยงาน (เครื่องที่ใช้งาน) + PCS ของเดือน (AUTO / กำหนดเอง)
+    public List<(PpMachine Machine, PpPart Part)> DeptParts(string dept, DateTime month)
+    {
+        var ms = Machines(dept, activeOnly: true);
+        var ids = ms.Select(x => x.Id).ToArray();
+        if (ids.Length == 0) return new();
+        var m = new DateTime(month.Year, month.Month, 1);
+        using var c = Conn();
+        var parts = c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).ToList();
+        FillPcs(parts, Demand(c, m), Overrides(c, m));
+        return ms.SelectMany(mc => parts.Where(p => p.MachineId == mc.Id).Select(p => (mc, p))).ToList();
+    }
+
     public List<PpPart> Parts(int machineId, DateTime month)
     {
         using var c = Conn();

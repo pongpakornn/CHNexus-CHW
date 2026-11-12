@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
-import { api } from "@/lib/api";
+import { api, download, upload } from "@/lib/api";
 import { EASE, fadeOnly, panelIn, springSoft } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
 import { DOW, calcMachine, deptOf, type Calc, dowOf, f0, f1, f2, mcHrOf, monthLabel, pc, sphOf, strokeOf, thisMonth, type PpActual, type PpMachine, type PpPart } from "@/lib/pp";
@@ -47,6 +47,23 @@ export default function Capacity({ dept }: { dept: string }) {
   const mid = Number(params.get("m")) || 0;
   const machine = data?.machines.find((m) => m.id === mid) ?? data?.machines[0] ?? null;
   const canEdit = !!res?.can.actual;
+  // 📥 IMPORT PCS (Template) -> สรุป -> ยืนยัน
+  const pcsFile = useRef<HTMLInputElement>(null);
+  const [pcsBusy, setPcsBusy] = useState(false);
+  async function importPcs(f: File) {
+    setPcsBusy(true);
+    try {
+      const pv = await upload<{ id: string; summary: string; count: number }>("/pp/pcs/import", f);
+      if (!(await dlg.confirm({ title: "IMPORT PCS", message: pv.summary, ok: pv.count ? "IMPORT" : "OK" })) || !pv.count) return;
+      const r = await api<{ message: string }>("/pp/pcs/import/apply", { method: "POST", body: pv.id });
+      toast.show("IMPORTED", r.message, "ok");
+      await reload(true);
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setPcsBusy(false);
+    }
+  }
 
   // ค่าที่กำลังแก้ (ยังไม่ SAVE) ผสมกับค่าที่บันทึกไว้ -> คำนวณใหม่ทันที
   const live = useMemo((): PpMachine | null => {
@@ -145,7 +162,38 @@ export default function Capacity({ dept }: { dept: string }) {
       icon="/icons/Capacity.png"
       title={`CAPACITY • ${deptOf(D).name}`}
       subtitle={machine ? `${machine.code} · ${machine.subGroup ?? machine.group} · ${monthLabel(month).toUpperCase()}` : "CAPACITY PLANNING"}
-      actions={<MonthPicker value={month} onChange={changeMonth} />}
+      actions={
+        <>
+          {/* 📄 PCS ของเดือนตามไฟล์ Capacity ของหน่วยงาน: TEMPLATE (ทุกแถว Product) -> กรอก PCS -> IMPORT = ตั้ง PCS (M) */}
+          <button
+            type="button"
+            className="fill-btn"
+            onClick={() => download("/pp/pcs/template", { dept: D, month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))}
+            title="ดาวน์โหลด Template PCS ของเดือนนี้ (ทุกแถว Product ของหน่วยงาน) กรอก PCS ตามไฟล์ Capacity แล้ว IMPORT กลับ"
+          >
+            📄 TEMPLATE
+          </button>
+          {res?.can.pcs && (
+            <>
+              <button type="button" className="fill-btn" disabled={pcsBusy} onClick={() => pcsFile.current?.click()} title="นำเข้า PCS ของเดือนจากไฟล์ Template (ว่าง / เท่ายอด AUTO = ใช้ Order / Forecast)">
+                {pcsBusy ? "…" : "📥 IMPORT PCS"}
+              </button>
+              <input
+                ref={pcsFile}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) importPcs(f);
+                }}
+              />
+            </>
+          )}
+          <MonthPicker value={month} onChange={changeMonth} />
+        </>
+      }
     />
   );
   if (!data) return <PageBody className="pp-page">{header}<Loading /></PageBody>;

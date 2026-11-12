@@ -9,6 +9,7 @@ import { DOW, deptOf, dowOf, f0, f1, monthLabel, pc, thisMonth, type Calc } from
 import { PpChart, type Series } from "../PpChart";
 import { ConditionMatrix, DeptPicker, EffPill, Kpi, MonthPicker, PpIcon, usePpMonth, type DeptTab } from "../shared";
 import { WorkloadDash } from "./WorkloadDash";
+import { ForecastSection, WorkloadSection } from "./DashSections";
 import { Seg } from "../Seg";
 import "../pp.css";
 
@@ -128,6 +129,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
     return (
       <PageBody className="pp-page">
         <PageHeader icon="/icons/Dashboard.png" title="PRODUCTION PLAN • DASHBOARD" subtitle={`${D.name} · CAPACITY PLANNING`} actions={<MonthPicker value={month} onChange={setMonth} />} />
+        <ForecastSection />
         {picker}
         <Loading />
       </PageBody>
@@ -144,6 +146,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
         subtitle={`${D.name} (${D.th}) · CAPACITY PLANNING · ${monthLabel(month).toUpperCase()} · ${list.length} M/C`}
         actions={<MonthPicker value={month} onChange={setMonth} />}
       />
+      <ForecastSection />
       {picker}
       {data.workdaySource === "DEFAULT" && (
         <div className="pp-note">
@@ -250,6 +253,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
           <ConditionMatrix data={data} calcs={calcs} dept={D.slug} />
         </Card>
       </motion.div>
+      <WorkloadSection month={month} />
     </PageBody>
   );
 }

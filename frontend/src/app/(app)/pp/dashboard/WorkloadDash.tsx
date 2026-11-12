@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -10,7 +10,8 @@ import { f0, f1 } from "@/lib/pp";
 import { PpChart, type Series } from "../PpChart";
 import { Kpi, MonthPicker, PpIcon } from "../shared";
 import { Seg } from "../Seg";
-import { EN, ENS, WL_ROWS, buildTable, deptTotals, savedHeads, signed, updOf, useWorkload, type WlTableRow } from "../capacity/workload/wl";
+import { EN, ENS, WL_ROWS, signed, useWorkload, type WlTableRow } from "../capacity/workload/wl";
+import { ForecastSection, WlTableCard, useWlTable } from "./DashSections";
 
 // 👥 PRODUCTION PLAN › DASHBOARD › WORKLOAD: ภาพรวมอัตรากำลังคน (ข้อมูล / สูตรเดียวกับ CAPACITY › WORKLOAD)
 //   KPI · กราฟ Plan vs คนที่มีจริง รายแถว (เลือก N…N+3 · Direct / Total) · แนวโน้ม N-1 → N+3 · แถวที่คน Direct ขาด / เกิน
@@ -28,17 +29,8 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
   const data = res?.data;
   const ms = data?.months ?? [];
   const curM = ms[1]?.month ?? "";
-  const totals = useMemo(() => (data ? data.months.map((m) => deptTotals(m, data.shifts, data.settings)) : []), [data]);
-  const saved = useMemo(() => savedHeads(data?.heads ?? []), [data]);
-  const headOf = useCallback(
-    (m: string, row: string) => {
-      const h = saved.get(`${m}|${row}`);
-      return { direct: h?.direct ?? 0, ind1: h?.ind1 ?? 0, ind2: h?.ind2 ?? 0 };
-    },
-    [saved],
-  );
-  const table = useMemo(() => (data ? buildTable(data, totals, headOf) : null), [data, totals, headOf]);
-  const upd = useMemo(() => updOf(data?.heads ?? [], curM), [data, curM]);
+  // ยอดตามไฟล์ Excel Work load (ที่ Import) · เดือนที่ยังไม่ได้ Import = ยอดที่ระบบคำนวณ
+  const { table, upd } = useWlTable(res);
 
   const header = (
     <PageHeader
@@ -52,6 +44,7 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
     return (
       <PageBody className="pp-page">
         {header}
+        <ForecastSection />
         {picker}
         {err ? <div className="pp-note">⚠ {err}</div> : <Loading />}
       </PageBody>
@@ -109,6 +102,7 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
   return (
     <PageBody className="pp-page">
       {header}
+      <ForecastSection />
       {picker}
       {ms.some((m) => m.workdaySource === "DEFAULT") && (
         <div className="pp-note">
@@ -287,6 +281,11 @@ export function WorkloadDash({ month, setMonth, picker }: { month: string; setMo
             </table>
           </div>
         </Card>
+      </motion.div>
+
+      {/* ตาราง WORKLOAD ทั้งหมด (ดูอย่างเดียว · ยอดตามไฟล์ Excel) */}
+      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.05 }} custom={0}>
+        <WlTableCard table={table} ms={ms} upd={upd} curM={curM} />
       </motion.div>
     </PageBody>
   );

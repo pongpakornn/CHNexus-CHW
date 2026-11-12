@@ -111,7 +111,11 @@ public sealed class WorkloadExcelService
             }
             if (pdt == 0) continue;
             foreach (var (r, key) in rows)
-                list.Add(new RefRow(bk.Month, key, Num(ws.Cell(r, pdt)) ?? 0, dir > 0 ? Num(ws.Cell(r, dir)) ?? 0 : null, prod > 0 ? Num(ws.Cell(r, prod)) : null));
+            {
+                decimal? vp = Num(ws.Cell(r, pdt)), vd = dir > 0 ? Num(ws.Cell(r, dir)) : null, vr = prod > 0 ? Num(ws.Cell(r, prod)) : null;
+                if (vp == null && vd == null && vr == null) continue;   // ช่องว่างทั้งแถว (เช่น Template ที่ยังไม่กรอก) = ไม่แตะยอดเดิม
+                list.Add(new RefRow(bk.Month, key, vp ?? 0, dir > 0 ? vd ?? 0 : null, vr));
+            }
         }
         return new Parsed(ws.Name, fileMonth, list);
     }

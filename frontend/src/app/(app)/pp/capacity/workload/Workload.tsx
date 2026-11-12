@@ -6,20 +6,19 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
-import { api, upload } from "@/lib/api";
-import { PillSwitch } from "@/components/charts/ChartHeader";
+import { api, download, upload } from "@/lib/api";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { f0, f1, thisMonth } from "@/lib/pp";
 import { Kpi, MonthPicker, PpIcon } from "../../shared";
-import { EN, WL_FIELDS, WL_GROUPS, buildTable, deptTotals, refMap, savedHeads, signed, updOf, useWorkload, type WlCase, type WlField, type WlPlan } from "./wl";
-import { WlCompare } from "./WlCompare";
+import { EN, buildTable, deptTotals, refMap, savedHeads, signed, updOf, useWorkload, type WlField } from "./wl";
+import { WlGrid, WlLegend } from "./WlGrid";
 import "../../pp.css";
 
 // 👥 PRODUCTION PLAN › CAPACITY › WORKLOAD : สรุปอัตรากำลังคน แผน, ผล ประจำเดือน (Monthly man-power Plan & Actual) · แทนชีท "9. ManPower" ของ Excel Work load
 //   สูตร / ข้อมูลอยู่ที่ ./wl.ts (ใช้ร่วมกับ DASHBOARD › WORKLOAD)
 //   คนที่มีจริง (Current ของเดือน N · Actual ของเดือน N-1) = กรอกที่หน้านี้ แล้วกด SAVE · Capacity / Forecast / วันทำงานเปลี่ยน = อัพเดทเอง
-//   📊 CASE 1 ตาม EXCEL = PDT / Direct / Production จากไฟล์ Work load (IMPORT WORK LOAD EXCEL) · ⚙ CASE 2 ตามระบบ = คำนวณจาก Forecast / Order ในระบบ
-//   การ์ดเปรียบเทียบ (WlCompare) = ยอดทั้งสองแบบทีละหน่วยงาน + เหตุผลที่ตรง / ไม่ตรง
+//   PDT / Direct / Production = ยอดตามไฟล์ Excel Work load (ตัดสินใจใช้ตาม Excel) · IMPORT WORK LOAD EXCEL / TEMPLATE
+//   เดือนที่ยังไม่ได้ Import = ใช้ยอดที่ระบบคำนวณจาก Capacity ไปก่อน (มีแถบแจ้ง)
 type Draft = Record<string, string>; // `${month}|${row}|${field}` -> ข้อความที่พิมพ์
 
 const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(/,/g, "")));
@@ -36,22 +35,6 @@ export default function Workload() {
   const [saving, setSaving] = useState(false);
   const dirty = Object.keys(draft).length;
   const { res, err, load } = useWorkload(month, dirty > 0);
-  // 📊 CASE 1 / ⚙ CASE 2 (จำไว้ในเครื่อง)
-  const [cs, setCs] = useState<WlCase>(() => {
-    try {
-      return (localStorage.getItem("wl-case") as WlCase) || "EXCEL";
-    } catch {
-      return "EXCEL";
-    }
-  });
-  const pickCase = (v: WlCase) => {
-    setCs(v);
-    try {
-      localStorage.setItem("wl-case", v);
-    } catch {
-      /* ไม่เป็นไร */
-    }
-  };
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -74,7 +57,6 @@ export default function Workload() {
   const data = res?.data;
   const canEdit = !!res?.can.edit;
   const ms = data?.months ?? [];
-  const prevM = ms[0]?.month ?? "";
   const curM = ms[1]?.month ?? "";
 
   const totals = useMemo(() => (data ? data.months.map((m) => deptTotals(m, data.shifts, data.settings)) : []), [data]);
@@ -92,10 +74,9 @@ export default function Workload() {
     [saved, draft],
   );
   const refs = useMemo(() => refMap(res?.refs), [res]);
-  const hasRef = ms.some((m) => [...refs.keys()].some((k) => k.startsWith(m.month + "|")));
-  const useXl = cs === "EXCEL" && hasRef;
+  const missing = ms.filter((m) => ![...refs.keys()].some((k) => k.startsWith(m.month + "|"))).map((m) => m.month);
   const refOf = useCallback((m: string, row: string) => refs.get(`${m}|${row}`), [refs]);
-  const table = useMemo(() => (data ? buildTable(data, totals, headOf, useXl ? refOf : undefined) : null), [data, totals, headOf, useXl, refOf]);
+  const table = useMemo(() => (data ? buildTable(data, totals, headOf, refOf) : null), [data, totals, headOf, refOf]);
 
   // 📥 IMPORT WORK LOAD EXCEL -> สรุป -> ยืนยัน
   async function importExcel(f: File) {
@@ -179,7 +160,15 @@ export default function Workload() {
         <>
           {res?.can.excel && (
             <>
-              <button type="button" className="fill-btn" disabled={importing} onClick={() => fileRef.current?.click()} title="นำเข้ายอด PDT / Direct จากไฟล์ Work load (ชีท 9. ManPower) เป็น CASE 1 ตาม EXCEL">
+              <button
+                type="button"
+                className="fill-btn"
+                onClick={() => download("/pp/workload/template", { month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))}
+                title="ดาวน์โหลด Template (ชีท 9. ManPower) ของเดือน N-1 ถึง N+3 · กรอก PDT / Direct แล้ว IMPORT กลับ"
+              >
+                📄 TEMPLATE
+              </button>
+              <button type="button" className="fill-btn" disabled={importing} onClick={() => fileRef.current?.click()} title="นำเข้ายอด PDT / Direct / Production จากไฟล์ Work load (ชีท 9. ManPower) หรือไฟล์ Template">
                 {importing ? "…" : "📥 IMPORT WORK LOAD EXCEL"}
               </button>
               <input
@@ -211,8 +200,7 @@ export default function Workload() {
   const N = table.tot.plans[0];
   const C = table.tot.cur;
   const gap = C.direct - N.direct;
-  const edit = (m: string, row: string, f: WlField, label: string) =>
-    canEdit ? (
+  const edit = (m: string, row: string, f: WlField, label: string) => (
       <input
         className={`pp-in wl-in ${`${m}|${row}|${f}` in draft ? "is-dirty" : ""}`}
         inputMode="decimal"
@@ -230,8 +218,6 @@ export default function Workload() {
         }}
         data-col={`${m}-${f}`}
       />
-    ) : (
-      f0(headOf(m, row)[f])
     );
 
   return (
@@ -243,25 +229,11 @@ export default function Workload() {
         </div>
       )}
 
-      {/* 📊 CASE 1 / ⚙ CASE 2: ที่มาของ PDT / Direct ในตาราง */}
-      <div className={`wl-case ${useXl ? "is-xl" : "is-sys"}`}>
-        <PillSwitch
-          label="ที่มาของยอด"
-          value={useXl ? "EXCEL" : "SYSTEM"}
-          onChange={(v) => pickCase(v as WlCase)}
-          options={[
-            { v: "EXCEL", l: "📊 CASE 1 • ตาม EXCEL", title: hasRef ? "PDT / Direct / Production จากไฟล์ Work load" : "ยังไม่มียอด EXCEL ของเดือนนี้ (IMPORT WORK LOAD EXCEL)" },
-            { v: "SYSTEM", l: "⚙ CASE 2 • ตามระบบ", title: "คำนวณจาก Forecast / Order ที่มีในระบบ + STD ของ Capacity" },
-          ]}
-        />
-        <span>
-          {useXl
-            ? "PDT / Direct / Production = ยอดจากไฟล์ Work load ที่ Import (ตรงกับ Excel) · เดือน / หน่วยงานที่ไม่มีในไฟล์ใช้ยอดของระบบ"
-            : cs === "EXCEL" && !hasRef
-              ? "ยังไม่มียอด EXCEL ของเดือนเหล่านี้ · แสดงยอดของระบบ (กด IMPORT WORK LOAD EXCEL)"
-              : "PDT / Direct = ระบบคำนวณจาก Forecast / Order ที่มีในระบบจริง + STD ของ Capacity (สูตรเดียวกับ Excel)"}
-        </span>
-      </div>
+      {missing.length > 0 && (
+        <div className="pp-note">
+          ⚠ ยังไม่ได้ Import ยอดไฟล์ Work load ของ {missing.map((m) => EN(m)).join(", ")} · เดือนนั้นใช้ยอดที่ระบบคำนวณจาก Capacity ไปก่อน · กด IMPORT WORK LOAD EXCEL
+        </div>
+      )}
 
       <div className="pp-kpis">
         <Kpi i={0} tone="plan" icon={<PpIcon k="plan" />} label={`PLAN MAN • ${EN(curM).toUpperCase()}`} value={N.total} fmt={f1} unit=" คน" sub={`Direct ${f1(N.direct)} · Ind1 ${f0(N.ind1)} · Ind2 ${f0(N.ind2)}`} />
@@ -281,140 +253,13 @@ export default function Workload() {
 
       <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={2}>
         <Card
-          title={`9. MONTHLY MAN-POWER PLAN & ACTUAL • ${useXl ? "CASE 1 ตาม EXCEL" : "CASE 2 ตามระบบ"}`}
+          title="9. MONTHLY MAN-POWER PLAN & ACTUAL"
           actions={<span className="pp-hint m-0">{canEdit ? "กรอกจำนวนคนที่มีจริงในช่อง CURRENT / ACTUAL แล้วกด SAVE · Plan คำนวณจาก Capacity เอง" : "ดูอย่างเดียว (ไม่มีสิทธิ์แก้จำนวนคน)"}</span>}
           bodyClass="p-0"
         >
-          <div className="pp-scroll wl-scroll">
-            <table className="wl-table">
-              <thead>
-                <tr className="wl-h1">
-                  <th className="wl-stick wl-year" rowSpan={3} colSpan={2}>
-                    <span>YEAR</span>
-                    {curM.slice(0, 4)}
-                  </th>
-                  <th colSpan={11} className="wl-mon is-prev">
-                    {EN(prevM)} <span>N-1</span>
-                  </th>
-                  <th rowSpan={2} colSpan={4} className="wl-mon is-cur">
-                    Current ({EN(curM).slice(0, 3)})<span>Update {upd}</span>
-                  </th>
-                  {ms.slice(1).map((m, i) => (
-                    <th key={m.month} colSpan={6} className={`wl-mon ${i === 0 ? "is-n" : ""}`}>
-                      {EN(m.month)} <span>N{i ? `+${i}` : ""}</span>
-                    </th>
-                  ))}
-                </tr>
-                <tr className="wl-h2">
-                  <th colSpan={4} className="wl-blk">
-                    Plan
-                  </th>
-                  <th className="is-day">{ms[0].workdays.length} Day</th>
-                  <th>Actual</th>
-                  <th colSpan={5} className="wl-blk">
-                    Actual
-                  </th>
-                  {ms.slice(1).map((m) => (
-                    <FragmentHead key={m.month} days={m.workdays.length} />
-                  ))}
-                </tr>
-                <tr className="wl-h3">
-                  <th className="wl-blk">PDT</th>
-                  <th>Direct</th>
-                  <th>Ind1</th>
-                  <th>Ind2</th>
-                  <th className="is-day">Total</th>
-                  <th>Total</th>
-                  <th className="wl-blk">Production</th>
-                  <th>Direct</th>
-                  <th>Ind1</th>
-                  <th>Ind2</th>
-                  <th className="is-cur">Total</th>
-                  <th className="wl-blk">Direct</th>
-                  <th>Ind1</th>
-                  <th>Ind2</th>
-                  <th className="is-cur">Total</th>
-                  {ms.slice(1).map((m) => (
-                    <SubHead key={m.month} />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {table.rows.map((x, i) => {
-                  const g = WL_GROUPS.find((g) => g.grp === x.r.grp)!;
-                  const first = i === 0 || table.rows[i - 1].r.grp !== x.r.grp;
-                  return (
-                    <tr key={x.r.key} className={`wl-row ${first ? "is-first" : ""}`} style={{ "--i": Math.min(i, 12) } as React.CSSProperties}>
-                      {first && (
-                        <td rowSpan={g.n} className="wl-stick wl-grp">
-                          {x.r.grp}
-                        </td>
-                      )}
-                      <td className="wl-stick wl-name">
-                        <span>{x.r.name}</span>
-                        {x.r.dept && <i title="ดึง PDT / Direct จาก Capacity">CAP</i>}
-                      </td>
-                      <PlanCells p={x.prevPlan} />
-                      <td className="wl-blk">{f0(x.prevAct.prod)}</td>
-                      {WL_FIELDS.map((f) => (
-                        <td key={f} className="wl-edit">
-                          {edit(prevM, x.r.key, f, `${x.r.name} ${f} ${EN(prevM)}`)}
-                        </td>
-                      ))}
-                      <td className="is-cur">{f0(x.prevAct.total)}</td>
-                      {WL_FIELDS.map((f, j) => (
-                        <td key={f} className={`wl-edit ${j === 0 ? "wl-blk" : ""}`}>
-                          {edit(curM, x.r.key, f, `${x.r.name} ${f} current`)}
-                        </td>
-                      ))}
-                      <td className="is-cur">{f0(x.cur.total)}</td>
-                      {x.plans.map((p, j) => (
-                        <PlanCells key={j} p={p} />
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="wl-tot">
-                  <td className="wl-stick wl-totlab" colSpan={2}>
-                    TOTAL
-                  </td>
-                  <PlanCells p={table.tot.prevPlan} total />
-                  <td className="wl-blk">{f0(table.tot.prevAct.prod)}</td>
-                  <td>{f0(table.tot.prevAct.direct)}</td>
-                  <td>{f0(table.tot.prevAct.ind1)}</td>
-                  <td>{f0(table.tot.prevAct.ind2)}</td>
-                  <td className="is-sum">{f1(table.tot.prevAct.total)}</td>
-                  <td className="wl-blk">{f0(C.direct)}</td>
-                  <td>{f0(C.ind1)}</td>
-                  <td>{f0(C.ind2)}</td>
-                  <td className="is-sum">{f1(C.total)}</td>
-                  {table.tot.plans.map((p, j) => (
-                    <PlanCells key={j} p={p} total />
-                  ))}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <div className="wl-legend">
-            <span>
-              <i className="is-day" /> Total แผน (Direct + Ind1 + Ind2)
-            </span>
-            <span>
-              <i className="is-cur" /> คนที่มีจริง
-            </span>
-            <span>
-              <b className="wl-pos">+n</b> / <b className="wl-neg">−n</b> Actual = คนที่มีจริง (Direct) − แผน (Direct) · ติดลบ = คนขาด
-            </span>
-            <span>{useXl ? "PDT / Direct / Production = ยอดในไฟล์ Work load (CASE 1)" : "PDT / Direct = Total P1 / P9 ของ Capacity · Production = Total A1 ของเดือนก่อน"}</span>
-          </div>
+          <WlGrid table={table} ms={ms} upd={upd} cell={canEdit ? edit : undefined} />
+          <WlLegend />
         </Card>
-      </motion.div>
-
-      {/* 🔍 เปรียบเทียบ CASE 1 vs CASE 2 + เหตุผล */}
-      <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={3}>
-        <WlCompare months={ms} totals={totals} refs={refs} notes={res?.notes ?? []} canEdit={!!res?.can.excel} onSaved={() => load(true)} />
       </motion.div>
 
       {/* แถบ SAVE ลอยล่าง: แสดงเมื่อมีการแก้ไข */}
@@ -437,39 +282,3 @@ export default function Workload() {
   );
 }
 
-function FragmentHead({ days }: { days: number }) {
-  return (
-    <>
-      <th colSpan={4} className="wl-blk">
-        Plan
-      </th>
-      <th className="is-day">{days} Day</th>
-      <th>Actual</th>
-    </>
-  );
-}
-function SubHead() {
-  return (
-    <>
-      <th className="wl-blk">PDT</th>
-      <th>Direct</th>
-      <th>Ind1</th>
-      <th>Ind2</th>
-      <th className="is-day">Total</th>
-      <th>Total</th>
-    </>
-  );
-}
-function PlanCells({ p, total }: { p: WlPlan; total?: boolean }) {
-  const d = Math.round(p.diff);
-  return (
-    <>
-      <td className="wl-blk">{f0(p.pdt)}</td>
-      <td>{f1(p.direct)}</td>
-      <td>{total ? f0(p.ind1) : f1(p.ind1)}</td>
-      <td>{total ? f0(p.ind2) : f1(p.ind2)}</td>
-      <td className={total ? "is-sum" : "is-day"}>{f1(p.total)}</td>
-      <td className={total ? "" : d > 0 ? "wl-pos" : d < 0 ? "wl-neg" : "wl-zero"}>{total ? "" : signed(d)}</td>
-    </>
-  );
-}

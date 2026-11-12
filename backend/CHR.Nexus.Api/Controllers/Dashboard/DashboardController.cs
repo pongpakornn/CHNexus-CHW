@@ -29,7 +29,8 @@ public sealed class DashboardController : AppController
     [HttpGet("charts")]
     public IActionResult Charts()
     {
-        if (Me?.CanViewDashboard != true) return Deny();
+        // ใช้ร่วมกับ PRODUCTION PLAN › DASHBOARD (กราฟ Forecast / Order ด้านบน) -> ผู้ที่ดู Capacity ได้ก็ดูได้
+        if (Me?.CanViewDashboard != true && Me?.CanViewPpCapacity != true) return Deny();
         var pie = _svc.GetMonthlyCustomerOrders();
         var bar = _svc.GetYearlyForecastOrder();
         return Ok(new
