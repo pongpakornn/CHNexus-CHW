@@ -161,6 +161,17 @@ public sealed class EdpService
     }
 
     // ชิ้นงานที่ EDP ใช้ (มีค่า HG) - ปุ่ม FILTER EDP ที่ Product Control
+    // 🏭 ค่าที่ระบบ EDP ใช้ของชิ้นงาน (คอลัมน์แบบหน้า Product Control ของ EDP Systems .exe): HG TYPE · PCS/HG · HG QTY · CT(S) · STD(M) · WEIGHT
+    public sealed record PartEdp(int PT_ID, string HG_TYPE, int? PCS_HG, int? QTY_HG, decimal? STD_CT, decimal? STD_TIME_HG, decimal? STD_WT);
+    public Dictionary<int, PartEdp> PartInfo(IEnumerable<int> ids)
+    {
+        var list = ids.Distinct().ToArray();
+        if (list.Length == 0) return new();
+        using var c = Conn();
+        return c.Query<PartEdp>("SELECT PT_ID, HG_TYPE, PCS_HG, QTY_HG, STD_CT, STD_TIME_HG, STD_WT FROM EDP.vw_Parts WHERE PT_ID IN @list", new { list })
+                .GroupBy(x => x.PT_ID).ToDictionary(g => g.Key, g => g.First());
+    }
+
     public HashSet<int> PartIds()
     {
         using var c = Conn();

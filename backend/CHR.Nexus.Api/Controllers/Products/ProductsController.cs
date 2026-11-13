@@ -133,6 +133,26 @@ public sealed class ProductsController : AppController
                 masters[p.PtId] = c.Mothers.Count;
             }
         }
+        // 🏭 FILTER EDP: ตารางแบบหน้า Product Control ของ EDP Systems (.exe) -> ค่าของ EDP ส่งเป็นคอลัมน์ EDP_* ทุกแถว
+        if (edp && DbSchema.HasEdp)
+        {
+            var info = new EdpService().PartInfo(rows.Select(p => p.PtId));
+            string N(decimal? v) => v == null ? "" : v.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            return Ok(new
+            {
+                total = all.Count, layout, coilStkId = coilStk, groups = groupCounts,
+                rows = rows.Select(p =>
+                {
+                    info.TryGetValue(p.PtId, out var x);
+                    var cf = new Dictionary<string, string>
+                    {
+                        ["EDP_HGTYPE"] = x?.HG_TYPE ?? "", ["EDP_PCSHG"] = x?.PCS_HG?.ToString() ?? "", ["EDP_QTYHG"] = x?.QTY_HG?.ToString() ?? "",
+                        ["EDP_CT"] = N(x?.STD_CT), ["EDP_STD"] = N(x?.STD_TIME_HG), ["EDP_WT"] = N(x?.STD_WT),
+                    };
+                    return MergeCf(Row(p, masters.TryGetValue(p.PtId, out int n) ? n : 0), cf);
+                })
+            });
+        }
         // ➕ ช่องกรอกเพิ่มเองที่อยู่ในคอลัมน์ของตาราง
         var cfIds = layout.Columns.Where(CustomFields.IsKey).Select(CustomFields.IdOf).ToList();
         if (cfIds.Count == 0)

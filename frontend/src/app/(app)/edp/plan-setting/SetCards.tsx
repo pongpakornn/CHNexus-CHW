@@ -123,7 +123,9 @@ const CardBody = memo(function CardBody({
   lifted?: boolean;
 }) {
   const part = parts.find((p) => p.partId === e.partId);
-  const list = e.customer ? parts.filter((p) => p.customer === e.customer) : parts;
+  // ตัวเลือก PART NO แบบ .exe: เฉพาะชิ้นงานที่ EDP ใช้ (มี HG QTY / PCS/HG = 339 รายการเท่า MST_PART) ของลูกค้าที่เลือก
+  //   STORE-PC มี PART NO ซ้ำได้ (เช่น 47781-0K340 ของ CHA มี 2 รหัส ตัวหนึ่งไม่มีค่า EDP) -> เลือกตัวที่ไม่มีค่าแล้ว QTY ไม่ขึ้น
+  const list = parts.filter((p) => (p.qtyHg > 0 || p.pcsHg > 0) && (!e.customer || p.customer === e.customer));
   return (
     <article className={`edp-card is-set ${e.visible ? "" : "is-hidden"} ${e.done ? "is-done" : ""} ${lifted ? "is-lifted" : ""}`}>
       <header className={ro ? "" : "edp-handle"} {...(ro ? {} : handle)} title={ro ? undefined : "ลากเพื่อสลับเวลากับการ์ดอื่น"}>
@@ -179,7 +181,7 @@ const CardBody = memo(function CardBody({
                 const p = parts.find((x) => x.partId === +v);
                 if (p) actions.pickPart(e, p);
               }}
-              options={list.map((p) => ({ value: String(p.partId), label: p.partNo, sub: [e.customer ? "" : p.customer, p.partName].filter(Boolean).join(" · ") }))}
+              options={list.map((p) => ({ value: String(p.partId), label: p.partNo, sub: [e.customer ? "" : p.customer, p.partCode, p.partName, `${p.qtyHg} PCS/HG`].filter(Boolean).join(" · ") }))}
               placeholder="พิมพ์ค้นหา PART NO / ชื่อ"
               ariaLabel="PART NO"
             />

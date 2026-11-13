@@ -174,7 +174,8 @@ export default function PlanSetting() {
   const shown = useMemo(() => (eds ? sorted(eds) : null), [eds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const can = meta?.can ?? { add: false, edit: false, delete: false, submit: false, planning: false };
-  const custs = useMemo(() => [...new Set(parts.map((p) => p.customer))].filter(Boolean), [parts]);
+  // ลูกค้าแบบ .exe: เฉพาะลูกค้าที่มีชิ้นงาน EDP (มี HG QTY / PCS/HG)
+  const custs = useMemo(() => [...new Set(parts.filter((p) => p.qtyHg > 0 || p.pcsHg > 0).map((p) => p.customer))].filter(Boolean), [parts]);
   const ro = !can.add;
 
   if (!meta) return <Loading />;

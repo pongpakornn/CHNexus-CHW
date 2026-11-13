@@ -43,6 +43,20 @@ const ALL_FIELDS = ["IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "CODE"
 // 🏷️ MASTER DATA › PRODUCT CONTROL (เดิม INVENTORY REGISTRATION) - ฟอร์มลงทะเบียน / แก้ไข + ตารางสินค้าตามคลัง
 //   type = ประเภทคลังจากเมนู (PRODUCT = Part Information / MATERIAL / COMPONENT …) -> เห็น / ลงทะเบียนเฉพาะคลังประเภทนั้น
 //   stk  = คลังที่เลือกจากเมนูย่อย (เช่น STORE-PC) · ไม่ส่งทั้งคู่ = ทุกคลังแบบเดิม
+// 🏭 คอลัมน์ตอนกด EDP (ตรงกับตารางหน้า Product Control ของ EDP Systems .exe) · ค่ามาจาก EDP.vw_Parts
+const EDP_COLS: [string, string][] = [
+  ["IMAGE", "IMAGE"],
+  ["PARTA", "PART CODE"],
+  ["PARTNO", "PART NO"],
+  ["NAME", "PRODUCT NAME"],
+  ["EDP_HGTYPE", "HG TYPE"],
+  ["EDP_PCSHG", "PCS/HG"],
+  ["EDP_QTYHG", "HG QTY"],
+  ["EDP_CT", "CT(S)"],
+  ["EDP_STD", "STD(M)"],
+  ["EDP_WT", "WEIGHT"],
+];
+
 export default function InventoryPage({ type, stk, title }: { type?: string; stk?: number; title?: string }) {
   const toast = useToast();
   const dlg = useDialogs();
@@ -244,7 +258,8 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
     delete: meta.can.delete && inScope("canDelete"),
     admin: meta.can.admin,
   };
-  const cols = layout?.columns ?? [];
+  // 🏭 กด EDP = ตารางแบบหน้า Product Control ของ EDP Systems (.exe): IMAGE · PART CODE · PART NO · PRODUCT NAME · HG TYPE · PCS/HG · HG QTY · CT(S) · STD(M) · WEIGHT
+  const cols = edpOnly ? EDP_COLS.map((c) => c[0]) : (layout?.columns ?? []);
   // ช่องกรอกของคลังที่เลือกในหัว REGISTER PRODUCT
   const formStock = meta.stocks.find((s) => s.stkId === formStk) ?? null;
   const formCols = formStk == null ? null : (meta.layouts.find((l) => l.stkId === formStk)?.layout.formFields ?? null);
@@ -254,7 +269,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const coilForm = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
   const showPartWeight = !!formStock && !formStock.countCoil && fieldKeys.includes("WEIGHT");
   const cfDefs = meta.customFields ?? [];
-  const label = (k: string) => meta.columns.find((c) => c.key === k)?.label ?? cfDefs.find((f) => f.key === k)?.label ?? k;
+  const label = (k: string) => (edpOnly ? EDP_COLS.find((c) => c[0] === k)?.[1] : undefined) ?? meta.columns.find((c) => c.key === k)?.label ?? cfDefs.find((f) => f.key === k)?.label ?? k;
   // ➕ ช่องกรอกเพิ่มเอง: TEXT / NUMBER / DATE
   const cfInput = (k: string) => {
     const d = cfDefs.find((f) => f.key === k);
@@ -572,6 +587,12 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
       case "QRCODE":
         return <td key={c} className="max-w-[160px] truncate font-mono text-xs" title={p.qrCodeData}>{p.qrCodeData}</td>;
       default:
+        if (c.startsWith("EDP_"))
+          return (
+            <td key={c} className="font-bold tabular-nums">
+              {p.cf?.[c] || "-"}
+            </td>
+          );
         return c.startsWith("CF") ? (
           <td key={c} className="max-w-[200px] break-words text-sm font-semibold">
             {p.cf?.[c] || "-"}
