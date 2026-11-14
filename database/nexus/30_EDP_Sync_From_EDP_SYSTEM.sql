@@ -69,7 +69,10 @@ WHERE NOT EXISTS (SELECT 1 FROM EDP.PlanCards N WHERE N.PLD_ID = E.PLD_ID);
 INSERT INTO @r VALUES ('cards_added', @@ROWCOUNT);
 SET IDENTITY_INSERT EDP.PlanCards OFF;
 
--- 5) Log แก้ไขการ์ด
+-- 5) Log แก้ไขการ์ด: ให้ตรงกับ EDP_SYSTEM ทุกแถว (HG ก่อนแก้ครั้งแรก = ฐานคิดเวลาของการ์ด) · แถวที่ทำจากเว็บ = เอาออก
+DELETE N FROM EDP.PlanEditLogs N
+WHERE NOT EXISTS (SELECT 1 FROM EDP_SYSTEM.dbo.TRN_PLAN_EDIT_LOG E WHERE E.LOG_ID = N.LOG_ID AND E.PLD_ID = N.PLD_ID);
+INSERT INTO @r VALUES ('edit_logs_removed', @@ROWCOUNT);
 SET IDENTITY_INSERT EDP.PlanEditLogs ON;
 INSERT INTO EDP.PlanEditLogs (LOG_ID, PLD_ID, OLD_CUST, OLD_PT_NO, OLD_QTY_PLAN, OLD_HG_PLAN, NEW_CUST, NEW_PT_NO, NEW_QTY_PLAN, NEW_HG_PLAN, IS_PROBLEM, REMARK, EDIT_BY, EDIT_DATE)
 SELECT E.LOG_ID, E.PLD_ID, E.OLD_CUST, E.OLD_PT_NO, E.OLD_QTY_PLAN, E.OLD_HG_PLAN, E.NEW_CUST, E.NEW_PT_NO, E.NEW_QTY_PLAN, E.NEW_HG_PLAN, E.IS_PROBLEM, E.REMARK, E.EDIT_BY, E.EDIT_DATE
@@ -90,10 +93,42 @@ WHERE NOT EXISTS (SELECT 1 FROM EDP.PlanTimeFixLogs N WHERE N.FIX_ID = E.FIX_ID)
 INSERT INTO @r VALUES ('timefix_added', @@ROWCOUNT);
 SET IDENTITY_INSERT EDP.PlanTimeFixLogs OFF;
 
+-- 7) ค่า HG ของชิ้นงาน (MST_PART -> ช่องเพิ่มเองของ STORE-PC) ให้ตรงกับ .exe : HG TYPE · PCS/HG · HG QTY · CT (SEC) · STD TIME (MIN.)
+--    ค่าไม่ตรง = HG <-> PCS และเวลาที่ยืด / หดตาม HG บนเว็บไม่ตรงกับ .exe · จับคู่ชิ้นงานด้วย PT_CODE = PART A ของ STORE-PC
+--    แก้เฉพาะค่าที่ต่างจริง (ตัวเลขเทียบเป็นตัวเลข ไม่สนรูปแบบ เช่น 3 กับ 3.00) · เขียนเฉพาะ Nexus.PartFieldValues (CHR-Nexus)
+DECLARE @pv TABLE (PartID INT, FieldID INT, Val NVARCHAR(100), Num BIT);
+INSERT INTO @pv (PartID, FieldID, Val, Num)
+SELECT X.PartID, D.FieldID, V.Val, V.Num
+FROM @map X
+JOIN EDP_SYSTEM.dbo.MST_PART M ON M.PT_ID = X.OLD_ID
+CROSS APPLY (VALUES (N'HG TYPE', NULLIF(LTRIM(RTRIM(M.HG_TYPE)), N''), CAST(0 AS BIT)),
+                    (N'PCS/HG', CONVERT(NVARCHAR(100), M.PCS_HG), CAST(1 AS BIT)),
+                    (N'HG QTY', CONVERT(NVARCHAR(100), M.QTY_HG), CAST(1 AS BIT)),
+                    (N'CT (SEC)', CONVERT(NVARCHAR(100), M.STD_CT), CAST(1 AS BIT)),
+                    (N'STD TIME (MIN.)', CONVERT(NVARCHAR(100), M.STD_TIME_HG), CAST(1 AS BIT))) V(Label, Val, Num)
+JOIN Nexus.PartFieldDefs D ON D.StockID = @pc AND D.Label = V.Label
+WHERE V.Val IS NOT NULL;
+
+UPDATE F SET F.Value = P.Val, F.UpdatedAt = SYSDATETIME(), F.UpdatedBy = N'EDP_SYNC'
+FROM Nexus.PartFieldValues F JOIN @pv P ON P.PartID = F.PartID AND P.FieldID = F.FieldID
+WHERE (P.Num = 1 AND ISNULL(TRY_CAST(F.Value AS DECIMAL(18, 4)), -999999) <> TRY_CAST(P.Val AS DECIMAL(18, 4)))
+   OR (P.Num = 0 AND ISNULL(F.Value, N'') <> P.Val);
+INSERT INTO @r VALUES ('part_hg_updated', @@ROWCOUNT);
+
+INSERT INTO Nexus.PartFieldValues (FieldID, PartID, Value, UpdatedAt, UpdatedBy)
+SELECT P.FieldID, P.PartID, P.Val, SYSDATETIME(), N'EDP_SYNC'
+FROM @pv P
+WHERE NOT EXISTS (SELECT 1 FROM Nexus.PartFieldValues F WHERE F.PartID = P.PartID AND F.FieldID = P.FieldID);
+INSERT INTO @r VALUES ('part_hg_added', @@ROWCOUNT);
+
 COMMIT;
 
 SELECT Step, N FROM @r;
 SELECT (SELECT COUNT(*) FROM EDP.PlanCards) AS NexusCards, (SELECT COUNT(*) FROM EDP_SYSTEM.dbo.TRN_PLAN_D) AS ExeCards,
        (SELECT COUNT(*) FROM EDP.PlanCards N WHERE NOT EXISTS (SELECT 1 FROM EDP_SYSTEM.dbo.TRN_PLAN_D E WHERE E.PLD_ID = N.PLD_ID)) AS OnlyNexus,
        (SELECT COUNT(*) FROM EDP_SYSTEM.dbo.TRN_PLAN_D E WHERE NOT EXISTS (SELECT 1 FROM EDP.PlanCards N WHERE N.PLD_ID = E.PLD_ID)) AS OnlyExe;
+-- ค่า HG ของชิ้นงานที่ยังไม่ตรงกับ MST_PART (ควรเป็น 0)
+SELECT COUNT(*) AS PartHgDiff FROM EDP_SYSTEM.dbo.MST_PART M JOIN EDP.vw_Parts V ON LTRIM(RTRIM(V.PT_CODE)) = LTRIM(RTRIM(M.PT_CODE))
+WHERE ISNULL(V.QTY_HG, -1) <> ISNULL(M.QTY_HG, -1) OR ISNULL(V.PCS_HG, -1) <> ISNULL(M.PCS_HG, -1)
+   OR ISNULL(V.STD_CT, -1) <> ISNULL(M.STD_CT, -1) OR ISNULL(V.STD_TIME_HG, 3.25) <> ISNULL(M.STD_TIME_HG, 3.25);
 GO
