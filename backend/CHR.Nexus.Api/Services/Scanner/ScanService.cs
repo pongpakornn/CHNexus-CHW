@@ -322,6 +322,7 @@ namespace Nexus.Services
                             cmd.ExecuteNonQuery();
                         }
                     tr.Commit();
+                    StockService.InvalidateStocks();
                 }
             }
         }
@@ -1268,6 +1269,35 @@ namespace Nexus.Services
                     while (rdr.Read()) ids.Add(Convert.ToInt32(rdr[0]));
             }
             return ids;
+        }
+
+        // ยอดคงเหลือของหลายสินค้าในคลังเดียว (1 คำสั่งต่อ 500 สินค้า · ค่าเดียวกับ GetInventoryBalance) - ไม่มีแถว = 0 · ฐานข้อมูลผิดพลาด = โยน Exception (ไม่แสดง 0 หลอก)
+        public Dictionary<int, decimal> GetInventoryBalances(IEnumerable<int> ptIds, StockModel stock)
+        {
+            var result = new Dictionary<int, decimal>();
+            var ids = ptIds.Distinct().ToList();
+            if (ids.Count == 0) return result;
+            bool isOther = stock != null && !stock.IsMain;
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                conn.Open();
+                for (int i = 0; i < ids.Count; i += 500)
+                {
+                    var chunk = ids.Skip(i).Take(500).ToList();
+                    var names = chunk.Select((_, k) => "@p" + k).ToList();
+                    string sql = isOther
+                        ? $"SELECT PartID, ISNULL(Quantity, 0) FROM Nexus.PartStocks WHERE StockID = @StkId AND PartID IN ({string.Join(",", names)})"
+                        : $"SELECT PartID, ISNULL(StockQuantity, 0) FROM Nexus.Parts WHERE PartID IN ({string.Join(",", names)})";
+                    using (var cmd = new SqlCommand(sql, conn))
+                    {
+                        for (int k = 0; k < chunk.Count; k++) cmd.Parameters.AddWithValue(names[k], chunk[k]);
+                        if (isOther) cmd.Parameters.AddWithValue("@StkId", stock.StkId);
+                        using (var r = cmd.ExecuteReader())
+                            while (r.Read()) result.TryAdd(Convert.ToInt32(r[0]), Nexus.Helpers.Qty.Read(r[1]));
+                    }
+                }
+            }
+            return result;
         }
 
         public decimal GetInventoryBalance(int ptId, StockModel stock = null)

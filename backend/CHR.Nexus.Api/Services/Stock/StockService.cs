@@ -39,7 +39,36 @@ namespace Nexus.Services
             + (Nexus.Helpers.DbSchema.HasStockType ? ", s.StockType" : ", CAST(NULL AS NVARCHAR(20)) AS StockType");
 
         // คลังทั้งหมด (คลังหลักอยู่บนสุด) พร้อมจำนวนรายการสินค้าในแต่ละคลัง
+        // ⚡ แคชรายการคลังร่วมกันทุกคน (อายุสูงสุด 5 วินาที) · ทุกจุดที่บันทึก / แก้ / ลบคลังเรียก InvalidateStocks() ทันที
+        //    ส่งสำเนาให้ผู้เรียกเสมอ (ผู้เรียกแก้ค่าในรายการได้โดยไม่กระทบแคช) · _stkVer กันโหลดเก่าที่ค้างอยู่เขียนทับหลังล้างแคช
+        private static readonly object _stkLock = new object();
+        private static List<StockModel> _stkCache;
+        private static DateTime _stkAt;
+        private static int _stkVer;
+        private static readonly TimeSpan StkMaxAge = TimeSpan.FromSeconds(5);
+
+        public static void InvalidateStocks()
+        {
+            lock (_stkLock) { _stkVer++; _stkCache = null; }
+        }
+
         public List<StockModel> GetStocks()
+        {
+            int ver;
+            lock (_stkLock)
+            {
+                if (_stkCache != null && DateTime.UtcNow - _stkAt < StkMaxAge) return _stkCache.Select(s => s.Clone()).ToList();
+                ver = _stkVer;
+            }
+            var list = LoadStocks();
+            lock (_stkLock)
+            {
+                if (ver == _stkVer) { _stkCache = list.Select(s => s.Clone()).ToList(); _stkAt = DateTime.UtcNow; }
+            }
+            return list;
+        }
+
+        private List<StockModel> LoadStocks()
         {
             var list = new List<StockModel>();
             using (var conn = new SqlConnection(_connectionString))
@@ -102,6 +131,7 @@ namespace Nexus.Services
                         }
                     }
                     trans.Commit();
+                    InvalidateStocks();
                 }
             }
         }
@@ -146,6 +176,7 @@ namespace Nexus.Services
                 cmd.Parameters.AddWithValue("@id", l.StockId);
                 conn.Open();
                 cmd.ExecuteNonQuery();
+                InvalidateStocks();
             }
         }
 
@@ -278,6 +309,7 @@ namespace Nexus.Services
                     }
 
                     trans.Commit();
+                    InvalidateStocks();
                     s.StkId = newId;
                     // โฟลเดอร์รูปของคลังใหม่ (1. Image Stock\<รหัสคลัง>) - Network ไม่พร้อมก็ไม่กระทบการสร้างคลัง (สร้างอีกทีตอนอัปโหลดรูป)
                     try { Nexus.Helpers.ImagePaths.EnsureStockFolder(s.Code); }
@@ -350,6 +382,7 @@ namespace Nexus.Services
                     SaveFormatLinks(conn, trans, s.StkId, s.FormatIds);
 
                     trans.Commit();
+                    InvalidateStocks();
                 }
             }
         }
@@ -418,6 +451,7 @@ namespace Nexus.Services
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 conn.Open();
                 cmd.ExecuteNonQuery();
+                InvalidateStocks();
             }
         }
 
@@ -533,6 +567,7 @@ namespace Nexus.Services
                 cmd.Parameters.AddWithValue("@id", fmtId);
                 conn.Open();
                 cmd.ExecuteNonQuery();
+                InvalidateStocks();
             }
         }
 
@@ -679,6 +714,7 @@ namespace Nexus.Services
                         }
                     }
                     trans.Commit();
+                    InvalidateStocks();   // จำนวนรายการสินค้าในคลังเปลี่ยน
                 }
             }
             return (valid.Count, valid.Sum(v => v.Qty));

@@ -374,15 +374,31 @@ public sealed class MinReportService
                   FROM Nexus.vw_StockMonitoring
                   WHERE StkId = @stk AND StockStatus IN ('UNDER_MIN', 'OUT_OF_STOCK') AND ISNULL([Min], 0) > 0
                   OPTION (MAX_GRANT_PERCENT = 5)", new { stk }, commandTimeout: 120).ToList();
-            var open = c.Query<(int WatchID, int PartID)>("SELECT WatchID, PartID FROM Nexus.MinWatch WHERE StockID = @stk AND ResolvedAt IS NULL", new { stk }).ToDictionary(x => x.PartID, x => x.WatchID);
+            var openRows = c.Query<(int WatchID, int PartID, DateTime LastSeen, decimal? Qty, string StockBox, decimal? MinQty, decimal? MaxQty, string PartCode, string PartName)>(
+                "SELECT WatchID, PartID, LastSeen, Qty, StockBox, MinQty, MaxQty, PartCode, PartName FROM Nexus.MinWatch WHERE StockID = @stk AND ResolvedAt IS NULL", new { stk }).ToList();
+            var open = openRows.ToDictionary(x => x.PartID, x => x.WatchID);
+            var openById = openRows.ToDictionary(x => x.WatchID);
+            // ยอดรายวันของวันนี้ของช่วงที่ยังเปิด (อ่านครั้งเดียวต่อคลัง) -> ไม่ยิง MERGE ซ้ำเมื่อไม่มีอะไรเปลี่ยน (เงื่อนไขเดียวกับ MERGE)
+            var today = open.Count > 0 && DbSchema.HasMinTracking
+                ? c.Query<(int WatchID, decimal? LastQty, decimal? MinQty, decimal? MaxQty)>(
+                    "SELECT WatchID, LastQty, MinQty, MaxQty FROM Nexus.MinWatchDays WHERE [Day] = CAST(GETDATE() AS DATE) AND WatchID IN @ids", new { ids = open.Values.ToList() }).ToDictionary(x => x.WatchID)
+                : new Dictionary<int, (int WatchID, decimal? LastQty, decimal? MinQty, decimal? MaxQty)>();
             var now = DateTime.Now;
             foreach (var b in below)
             {
-                if (open.Remove(b.PartID, out int wid))
-                    // ยอดต่างจากรอบก่อน = มีการเคลื่อนไหว (LastMoveAt) -> นับ StuckDays ใหม่สำหรับรายการที่รายงานแล้ว
-                    c.Execute("UPDATE Nexus.MinWatch SET LastSeen = @now, Qty = @Qty, StockBox = @StockBox, MinQty = @Min, MaxQty = @Max, PartCode = @PartCode, PartName = @PartName" +
-                              (DbSchema.HasMinMove ? ", LastMoveAt = CASE WHEN ISNULL(Qty, -1) <> @Qty THEN @now ELSE LastMoveAt END" : "") + " WHERE WatchID = @wid",
-                              new { now, b.Qty, b.StockBox, b.Min, b.Max, b.PartCode, b.PartName, wid });
+                bool known = open.Remove(b.PartID, out int wid);
+                if (known)
+                {
+                    var o = openById[wid];
+                    // ยอด / กล่อง / MIN / MAX / ชื่อ เท่าเดิมทุกค่า และ LastSeen ยังใหม่ (< 60 วินาที) = ไม่เขียนซ้ำ · ต่างแม้นิดเดียว หรือ LastSeen เก่ากว่านั้น = เขียนเหมือนเดิม
+                    bool quiet = o.Qty == b.Qty && o.StockBox == b.StockBox && o.MinQty == b.Min && o.MaxQty == b.Max && o.PartCode == b.PartCode && o.PartName == b.PartName
+                                 && now >= o.LastSeen && now - o.LastSeen < TimeSpan.FromSeconds(60);
+                    if (!quiet)
+                        // ยอดต่างจากรอบก่อน = มีการเคลื่อนไหว (LastMoveAt) -> นับ StuckDays ใหม่สำหรับรายการที่รายงานแล้ว
+                        c.Execute("UPDATE Nexus.MinWatch SET LastSeen = @now, Qty = @Qty, StockBox = @StockBox, MinQty = @Min, MaxQty = @Max, PartCode = @PartCode, PartName = @PartName" +
+                                  (DbSchema.HasMinMove ? ", LastMoveAt = CASE WHEN ISNULL(Qty, -1) <> @Qty THEN @now ELSE LastMoveAt END" : "") + " WHERE WatchID = @wid",
+                                  new { now, b.Qty, b.StockBox, b.Min, b.Max, b.PartCode, b.PartName, wid });
+                }
                 else
                 {
                     wid = c.QuerySingle<int>(@"INSERT INTO Nexus.MinWatch (StockID, PartID, PartCode, PartName, BelowSince, LastSeen, Qty, StockBox, MinQty, MaxQty)
@@ -391,7 +407,10 @@ public sealed class MinReportService
                                              new { stk, b.PartID, b.PartCode, b.PartName, now, b.Qty, b.StockBox, b.Min, b.Max });
                     changed++;
                 }
-                if (DbSchema.HasMinTracking) Snapshot(c, wid, b.Qty, b.Min, b.Max);
+                // MERGE เฉพาะเมื่อวันนี้ยังไม่มีแถว หรือยอด / MIN / MAX ต่างจากที่บันทึกไว้ (เงื่อนไขเดียวกับ MERGE ข้างใน) - ไม่ยิงซ้ำทุกรอบ
+                if (DbSchema.HasMinTracking && (!known || !today.TryGetValue(wid, out var d)
+                        || (d.LastQty ?? -1) != b.Qty || (d.MinQty ?? -1) != b.Min || (d.MaxQty ?? -1) != b.Max))
+                    Snapshot(c, wid, b.Qty, b.Min, b.Max);
             }
             // ที่เหลือ = พ้น MIN แล้ว (หรือถูกซ่อน / ลบ) -> ปิดช่วง + เก็บยอดตอนกลับเป็นเขียว · แถวทดสอบ (TEST) ไม่ปิดเอง
             var nowQty = open.Count > 0 && DbSchema.HasMinTracking

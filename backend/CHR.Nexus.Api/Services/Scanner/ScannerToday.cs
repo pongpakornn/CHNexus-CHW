@@ -46,8 +46,13 @@ public static class ScannerToday
             .OrderBy(t => t.UpdateTime).ToList();
 
         var balances = new Dictionary<(int, int), decimal>();
-        foreach (var k in rows.Select(r => (r.StkId, r.PartId)).Distinct())
-            balances[k] = svc.GetInventoryBalance(k.PartId, stocks.FirstOrDefault(s => s.StkId == k.StkId));
+        // ยอดคงเหลือ: 1 คำสั่งต่อคลัง (เดิม 1 การเชื่อมต่อต่อสินค้า) · ฐานข้อมูลผิดพลาด = Error ถึงหน้าจอ (ไม่แสดงยอด 0 หลอก)
+        foreach (var g in rows.GroupBy(r => r.StkId))
+        {
+            var found = svc.GetInventoryBalances(g.Select(r => r.PartId), stocks.FirstOrDefault(s => s.StkId == g.Key));
+            foreach (int pid in g.Select(r => r.PartId).Distinct())
+                balances[(g.Key, pid)] = found.TryGetValue(pid, out decimal q) ? q : 0m;
+        }
 
         dto.Signature = string.Join(",", stocks.Select(s => s.StkId)) + "|" + rows.Count + "|" + rows.Sum(d => d.Qty) + "|" +
                         (rows.Count > 0 ? rows.Max(d => d.UpdateTime).Ticks : 0);

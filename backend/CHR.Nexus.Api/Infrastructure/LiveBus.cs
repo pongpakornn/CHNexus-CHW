@@ -59,13 +59,21 @@ public sealed class LiveWatcher : BackgroundService
     // มีการบันทึก -> เช็คเดี๋ยวนี้ (ไม่ต้องรอรอบ 1 วินาที)
     public static void Poke() => Interlocked.Exchange(ref _poke, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
 
+    // คลังที่แสดงสดจาก StorePC (อ่านผ่าน View ข้ามฐาน): เช็คไม่ถี่กว่าทุก 5 วินาที · เวลาที่เช็คล่าสุดต่อคลัง
+    private static readonly ConcurrentDictionary<int, DateTime> LiveViewChecked = new();
+    private static readonly ConcurrentDictionary<int, DateTime> WarnedAt = new();
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        var lastRun = DateTime.MinValue;
         while (!ct.IsCancellationRequested)
         {
             try { await Task.WhenAny(Task.Delay(1000, ct), _poke.Task); }
             catch (OperationCanceledException) { break; }
-            await Task.Delay(60, ct).ContinueWith(_ => { }, CancellationToken.None); // รวมการบันทึกที่มาติด ๆ กันเป็นรอบเดียว
+            // รวมการบันทึกที่มาติด ๆ กันเป็นรอบเดียว · และเว้นอย่างน้อย 300 มิลลิวินาทีจากรอบก่อน (ถูก Poke รัว ๆ ก็ไม่ถล่มฐานข้อมูล)
+            int wait = (int)Math.Max(60, 300 - (DateTime.UtcNow - lastRun).TotalMilliseconds);
+            await Task.Delay(wait, ct).ContinueWith(_ => { }, CancellationToken.None);
+            lastRun = DateTime.UtcNow;
 
             var stale = DateTime.UtcNow.AddSeconds(-60);
             foreach (var (id, seen) in Watched)
@@ -79,12 +87,19 @@ public sealed class LiveWatcher : BackgroundService
                 try
                 {
                     string now = Token(id);
+                    if (now == null) continue;   // คลัง StorePC ยังไม่ถึงรอบเช็ค (5 วินาที) · ใช้ Token เดิม
                     if (Last.TryGetValue(id, out var was) && was != now) LiveBus.Publish("store:" + id, "store");
                     Last[id] = now;
                 }
                 catch (Exception ex)
                 {
-                    _log.LogDebug(ex, "LiveWatcher stock {Stock}", id); // รอบหน้าลองใหม่
+                    // รอบหน้าลองใหม่ · บันทึกเป็น Warning (ไม่เกินคลังละ 1 ครั้ง / นาที) เพื่อให้เห็นว่าเรียลไทม์ของคลังนี้สะดุด
+                    var t = DateTime.UtcNow;
+                    if (!WarnedAt.TryGetValue(id, out var w) || t - w > TimeSpan.FromMinutes(1))
+                    {
+                        WarnedAt[id] = t;
+                        _log.LogWarning(ex, "LiveWatcher stock {Stock}", id);
+                    }
                 }
             }
         }
@@ -95,6 +110,12 @@ public sealed class LiveWatcher : BackgroundService
     {
         var s = new StockService().GetStock(stkId);
         if (s == null) return "-";
+        if (s.IsLiveView)
+        {
+            var t = DateTime.UtcNow;
+            if (LiveViewChecked.TryGetValue(stkId, out var at) && t - at < TimeSpan.FromSeconds(5) && Last.ContainsKey(stkId)) return null;
+            LiveViewChecked[stkId] = t;
+        }
         return string.Join("|", new StoreProductService().GetChangeToken(s), StoreLive.Settings(stkId), StoreLive.Structure(s), StoreLive.Coils(s));
     }
 }
@@ -133,6 +154,14 @@ public static class LiveCache
 {
     private sealed record Entry(long Ver, DateTime At, Lazy<object> Value);
     private static readonly ConcurrentDictionary<string, Entry> Items = new();
+    private static int _calls;
+    private const int MaxItems = 500;   // กุญแจบางตัวมาจากคำขอของผู้ใช้ (เดือน / วันที่) -> จำกัดจำนวน ไม่ให้หน่วยความจำโตไม่หยุด
+
+    // เกินจำนวน: เก็บ 400 รายการที่ใหม่ที่สุดไว้ ที่เหลือทิ้ง (ถูกขอใหม่ = คำนวณใหม่ตามปกติ)
+    private static void Trim()
+    {
+        foreach (var kv in Items.OrderByDescending(x => x.Value.At).Skip(400).ToList()) Items.TryRemove(kv.Key, out _);
+    }
 
     public static T Get<T>(string key, TimeSpan maxAge, Func<T> make) where T : class
     {
@@ -140,6 +169,7 @@ public static class LiveCache
         var e = Items.AddOrUpdate(key,
             _ => new Entry(v, DateTime.UtcNow, new Lazy<object>(() => make())),
             (_, old) => old.Ver == v && DateTime.UtcNow - old.At < maxAge ? old : new Entry(v, DateTime.UtcNow, new Lazy<object>(() => make())));
+        if ((Interlocked.Increment(ref _calls) & 31) == 0 && Items.Count > MaxItems) Trim();   // นับจำนวนทุก 32 ครั้ง (Count ล็อกทั้งตาราง)
         try { return (T)e.Value.Value; }
         catch { Items.TryRemove(new KeyValuePair<string, Entry>(key, e)); throw; } // คำนวณพลาด = ไม่จำค่าเสีย รอบหน้าลองใหม่
     }

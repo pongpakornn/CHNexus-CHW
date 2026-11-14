@@ -14,6 +14,9 @@ public static class BugLog
     private static bool _off;
     private static DateTime _lastPrune = DateTime.MinValue;
     private static readonly ConcurrentDictionary<string, DateTime> Recent = new();
+    private static readonly SemaphoreSlim Slots = new(4);
+    private static int _pending;
+    private const int MaxPending = 500;
 
     public static bool Ready => !_off;
 
@@ -28,8 +31,11 @@ public static class BugLog
         Recent[hash] = now;
         if (Recent.Count > 2000) foreach (var k in Recent.Where(x => now - x.Value > TimeSpan.FromMinutes(1)).Select(x => x.Key).ToList()) Recent.TryRemove(k, out _);
 
-        Task.Run(() =>
+        // ฐานข้อมูลสะดุด = งานเขียน Log ไม่ทับถมจนกิน Connection Pool: เขียนพร้อมกันไม่เกิน 4 · คิวรอเกิน 500 = ทิ้ง (Log วินิจฉัยเท่านั้น)
+        if (Interlocked.Increment(ref _pending) > MaxPending) { Interlocked.Decrement(ref _pending); return; }
+        Task.Run(async () =>
         {
+            await Slots.WaitAsync();
             try
             {
                 using var conn = new SqlConnection(GlobalConfig.ConnStr);
@@ -65,6 +71,7 @@ public static class BugLog
             }
             catch (SqlException ex) when (ex.Number == 208) { _off = true; }   // ยังไม่มีตาราง (ยังไม่รัน 10_BugLog.sql)
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("BugLog: " + ex.Message); }
+            finally { Slots.Release(); Interlocked.Decrement(ref _pending); }
         });
     }
 
