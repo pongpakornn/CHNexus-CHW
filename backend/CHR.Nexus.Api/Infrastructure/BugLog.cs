@@ -92,6 +92,14 @@ public sealed class BugLogMiddleware
         {
             // ผู้ใช้ปิดหน้า / เปลี่ยนหน้าระหว่างโหลด - ไม่ใช่ Bug
         }
+        catch (BadHttpRequestException ex)
+        {
+            // คำขอไม่ครบ (เน็ตหลุด / ปิดหน้าระหว่างส่งไฟล์) หรือใหญ่เกินกำหนด = ฝั่งผู้ใช้ ไม่ใช่ Bug ของระบบ
+            if (ctx.Response.HasStarted) return;
+            ctx.Response.Clear();
+            ctx.Response.StatusCode = ex.StatusCode;
+            await ctx.Response.WriteAsJsonAsync(new { message = ex.StatusCode == 413 ? "ไฟล์ / ข้อมูลใหญ่เกินกำหนด" : "ส่งข้อมูลไม่ครบ (การเชื่อมต่อหลุด) กรุณาลองใหม่อีกครั้ง" });
+        }
         catch (Exception ex)
         {
             string uid = ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? ctx.User?.Identity?.Name;

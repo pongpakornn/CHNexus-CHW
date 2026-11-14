@@ -14151,3 +14151,17 @@ html:has(#chr-splash.cs-hold) [data-ri] {
     opacity: 0;
   }
 }
+
+/* 📱 Every screen size: safety net for narrow screens (phone / small tablet / split-screen window)
+   1) boxes with a fixed pixel width (search box, dropdown, date field w-[220px] …) never push past the screen edge
+   2) a long word / code / file name without spaces wraps instead of widening the page
+   Tables that scroll sideways on purpose (min-w-[…]) are not touched. */
+@media (max-width: 640px) {
+  main [class^="w-["],
+  main [class*=" w-["] {
+    max-width: 100%;
+  }
+}
+main {
+  overflow-wrap: break-word;
+}

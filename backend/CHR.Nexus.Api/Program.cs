@@ -31,6 +31,10 @@ if (!string.IsNullOrWhiteSpace(erpConn))
     erpDb.ApplicationName = "CHR-Nexus (read-only)";
     erpConn = erpDb.ConnectionString;
 }
+// 🔌 Network blip between web server and DB: a dropped pooled connection reconnects by itself instead of failing the request
+if (mainDb.ConnectRetryCount <= 1) { mainDb.ConnectRetryCount = 3; mainDb.ConnectRetryInterval = 2; }
+if (string.IsNullOrEmpty(mainDb.ApplicationName) || mainDb.ApplicationName == "Core Microsoft SqlClient Data Provider") mainDb.ApplicationName = "CHR-Nexus";
+if (!string.IsNullOrEmpty(mainConn)) mainConn = mainDb.ConnectionString;
 GlobalConfig.Init(mainConn, erpConn);
 Storage.Init(builder.Configuration["Storage:Root"] ?? Path.Combine(builder.Environment.ContentRootPath, "..", "..", "storage"),
              builder.Configuration.GetSection("Storage:DirectExcelRoots").Get<string[]>(),
