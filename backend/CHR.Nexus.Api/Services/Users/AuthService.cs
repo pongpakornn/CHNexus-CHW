@@ -154,9 +154,9 @@ namespace Nexus.Services
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                throw ex;
+                throw;
             }
             return null;
         }

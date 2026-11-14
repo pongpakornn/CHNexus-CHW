@@ -80,7 +80,7 @@ public sealed class ChatController : AppController
         var f = _svc.GetFile(Uid, id);
         string full = f == null ? null : ChatFiles.FullPath(f.Kind, f.Path);
         if (full == null) return NotFound(new { message = "ไม่พบไฟล์" });
-        return download ? PhysicalFile(full, ChatFiles.ContentType(f.Name), f.Name) : PhysicalFile(full, ChatFiles.ContentType(f.Name));
+        return ServeAttachment(f.Kind, full, f.Name, download);
     }
 
     // 😊 กดอีโมจิตอบข้อความ (กดอันเดิมซ้ำ = ยกเลิก)

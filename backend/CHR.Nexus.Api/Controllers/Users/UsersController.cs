@@ -85,11 +85,17 @@ public sealed class UsersController : AppController
         Section = (f.Section ?? "").Trim(), Division = (f.Division ?? "").Trim(), Level = Math.Clamp(f.Level, 1, 3), IsLocked = f.IsLocked
     };
 
+    // 🔐 กันยกระดับสิทธิ์: Master Admin / Level 1 ทำได้ทุกคน · คนอื่นแตะบัญชี Master Admin หรือ Level สูงกว่า (เลขน้อยกว่า) ไม่ได้
+    private bool IsAdminCaller => Me != null && (Me.IsMasterAdmin || Me.UserLevel == 1);
+    private bool CannotManage(UserAccount target) => !IsAdminCaller && (target.IsMasterAdmin || target.Level < Me.UserLevel);
+    private const string DenyHigher = "คุณไม่มีสิทธิ์จัดการบัญชีผู้ดูแลระบบ หรือผู้ใช้ที่มี Level สูงกว่าคุณ";
+
     [HttpPost]
     public IActionResult Add([FromBody] UserForm f)
     {
         if (Me?.CanAddUser != true) return Deny();
         var u = Account(f);
+        if (!IsAdminCaller && u.Level < Me.UserLevel) return Deny("คุณสร้างผู้ใช้ที่มี Level สูงกว่า Level ของคุณไม่ได้");
         if (u.UserId.Length == 0) return Fail("กรุณากรอก USER ID");
         if (u.UserId.Contains(' ')) return Fail("USER ID ห้ามมีช่องว่าง");
         if (u.Name.Length == 0) return Fail("กรุณากรอก NAME");
@@ -110,8 +116,10 @@ public sealed class UsersController : AppController
         if (Me?.CanEditUser != true) return Deny();
         var old = _svc.GetUsers().FirstOrDefault(x => string.Equals(x.UserId, userId, StringComparison.OrdinalIgnoreCase));
         if (old == null) return NotFound(new { message = "ไม่พบผู้ใช้" });
+        if (CannotManage(old)) return Deny(DenyHigher);
         f.UserId = old.UserId;
         var u = Account(f);
+        if (!IsAdminCaller && u.Level < Me.UserLevel) return Deny("คุณกำหนด Level สูงกว่า Level ของคุณไม่ได้");
         if (u.Name.Length == 0) return Fail("กรุณากรอก NAME");
         // ล็อก / ลดระดับบัญชีของตัวเองไม่ได้ (กันล็อกตัวเองออกจากระบบ)
         if (string.Equals(old.UserId, Uid, StringComparison.OrdinalIgnoreCase)) { u.Level = old.Level; u.IsLocked = old.IsLocked; }
@@ -246,6 +254,8 @@ public sealed class UsersController : AppController
         if (Me?.CanSetPermissions != true) return Deny();
         var u = _svc.GetUsers().FirstOrDefault(x => string.Equals(x.UserId, userId, StringComparison.OrdinalIgnoreCase));
         if (u == null) return NotFound(new { message = "ไม่พบผู้ใช้" });
+        if (string.Equals(u.UserId, Uid, StringComparison.OrdinalIgnoreCase)) return Deny("แก้สิทธิ์ของตัวเองไม่ได้ กรุณาให้ Admin คนอื่นแก้ให้");
+        if (CannotManage(u)) return Deny(DenyHigher);
         var current = _svc.GetPermissions(u.UserId);
         var before = current.ToDictionary(p => p.SysId, p => $"{p.View}{p.Add}{p.Edit}{p.Delete}{p.Approve}", StringComparer.OrdinalIgnoreCase);
         var wanted = (req.Rows ?? new()).ToDictionary(r => r.SysId ?? "", r => r, StringComparer.OrdinalIgnoreCase);
@@ -377,6 +387,25 @@ public sealed class UsersController : AppController
         {
             bool allowMaster = Me.UserLevel == 1 || Me.IsMasterAdmin;
             var f = _svc.ReadImport(path, allowMaster);
+            if (!allowMaster)
+            {
+                // 🔐 นำเข้า Excel ต้องไม่เป็นช่องทางเลี่ยงกฎเดียวกับ ADD / EDIT / PERMISSION
+                var known = _svc.GetUsers().ToDictionary(x => x.UserId, x => x, StringComparer.OrdinalIgnoreCase);
+                foreach (var r in f.Users.Where(r => r.IsValid))
+                {
+                    known.TryGetValue(r.User.UserId, out var ex);
+                    int lv = r.LevelGiven ? r.User.Level : ex?.Level ?? 2;
+                    if (ex != null && CannotManage(ex)) r.Error = "ไม่มีสิทธิ์แก้ผู้ใช้ที่เป็นผู้ดูแลระบบ หรือ Level สูงกว่าคุณ";
+                    else if (lv < Me.UserLevel) r.Error = "กำหนด Level สูงกว่า Level ของคุณไม่ได้";
+                }
+                foreach (var p in f.Perms.Where(p => p.IsValid))
+                {
+                    known.TryGetValue(p.UserId, out var ex);
+                    if (ex == null && !f.Users.Any(r => r.IsValid && r.IsNew && string.Equals(r.User.UserId, p.UserId, StringComparison.OrdinalIgnoreCase))) p.Error = "ไม่พบผู้ใช้นี้ (แถวผู้ใช้ถูกข้าม)";
+                    if (string.Equals(p.UserId, Uid, StringComparison.OrdinalIgnoreCase)) p.Error = "แก้สิทธิ์ของตัวเองไม่ได้";
+                    else if (ex != null && CannotManage(ex)) p.Error = "ไม่มีสิทธิ์แก้สิทธิ์ของผู้ดูแลระบบ หรือผู้ใช้ Level สูงกว่าคุณ";
+                }
+            }
             if (f.Perms.Count > 0 && !Me.CanSetPermissions)
                 foreach (var p in f.Perms.Where(p => p.IsValid)) p.Error = "ไม่มีสิทธิ์กำหนดสิทธิ์ผู้ใช้ (APPROVE ของ UserManagement)";
             var users = f.Users.Where(r => r.IsValid).ToList();

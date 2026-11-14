@@ -129,7 +129,7 @@ public sealed class SupportController : AppController
         if (t == null || (t.UserId != Uid && !IsAdmin)) return Deny();
         string full = ChatFiles.FullPath(f.Kind, f.Path);
         if (full == null) return NotFound(new { message = "ไม่พบไฟล์" });
-        return download ? PhysicalFile(full, ChatFiles.ContentType(f.Name), f.Name) : PhysicalFile(full, ChatFiles.ContentType(f.Name));
+        return ServeAttachment(f.Kind, full, f.Name, download);
     }
 
     // 😊 กดอีโมจิตอบข้อความ

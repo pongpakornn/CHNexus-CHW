@@ -177,6 +177,7 @@ public sealed class ProductsController : AppController
     public IActionResult Detail(int ptId, [FromQuery] string code, [FromQuery] int? stkId)
     {
         if (Me?.CanViewProductControl != true) return Deny();
+        if (stkId.HasValue && StockDenied(stkId) is { } denied) return denied;   // 🔒 เหมือน List: ดูได้เฉพาะคลังที่มีสิทธิ์
         var ids = _svc.GetPartStockIds(code ?? "", ptId);
         string coilText = null;
         var map = new ProductControlLayoutService().GetCoils(stkId, ptId);
@@ -192,6 +193,7 @@ public sealed class ProductsController : AppController
     public IActionResult Coils(int ptId, [FromQuery] int stkId)
     {
         if (Me?.CanViewProductControl != true) return Deny();
+        if (StockDenied(stkId) is { } denied) return denied;
         return Ok(new CoilService().GetCoilRows(stkId, ptId).Select(c => new { c.CoilId, c.IsMother, c.No, c.CoilNo, c.MotherCoil, c.WeightKG, ton = c.WeightKG / 1000m, received = c.DateText }));
     }
 
