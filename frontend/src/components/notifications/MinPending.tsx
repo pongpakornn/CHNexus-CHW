@@ -148,6 +148,12 @@ export function PendingRow({
             {it.customer && <i>CUSTOMER : {it.customer}</i>}
             {it.supplier && <i>SUPPLIER : {it.supplier}</i>}
             {it.test && <i className="is-test">TEST</i>}
+            {!!it.reportCount && (
+              <i className="is-follow" title={it.lastReason ?? undefined}>
+                🔁 ติดตามครั้งที่ {it.reportCount + 1} · รายงานล่าสุด {dt(it.lastReportAt)} · ยังไม่กลับเป็นเขียว
+                {it.qty != null && it.min != null && it.min > it.qty ? ` (ขาดอีก ${n0(it.min - it.qty)})` : ""}
+              </i>
+            )}
           </div>
           </div>
         </div>

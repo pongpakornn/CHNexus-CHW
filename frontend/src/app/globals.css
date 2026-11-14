@@ -14087,3 +14087,29 @@ table.lqp code {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* 📈 MIN TRACKING (ปุ่ม MIN REPORT ของคลัง) + 🔁 ป้ายรายงานติดตาม */
+.mrp-tags i.is-follow { color: #9a3412; background: #ffedd5; box-shadow: inset 0 0 0 1px #fed7aa; white-space: normal; }
+.mtk-seg { display: inline-flex; flex-wrap: wrap; gap: 4px; border-radius: 12px; padding: 3px; background: #f1f1f4; }
+.mtk-seg button { min-height: 32px; border-radius: 9px; padding: 0 10px; font-size: 12px; font-weight: 700; color: #52525b; transition: background 0.25s var(--ease-drop), color 0.25s var(--ease-drop), box-shadow 0.25s var(--ease-drop); }
+.mtk-seg button:hover:not(.is-on) { color: #18181b; background: #fff; }
+.mtk-seg button.is-on { color: #fff; background: #2563eb; box-shadow: 0 6px 14px -8px rgb(37 99 235 / 0.9); }
+.mtk-seg button:focus-visible { outline: 2px solid #6750a4; outline-offset: 2px; }
+.mtk-note { margin: 8px 0 0; font-size: 12px; color: #71717a; }
+.mtk-head { width: 100%; text-align: left; cursor: pointer; border-radius: 12px; transition: background 0.25s var(--ease-drop); }
+.mtk-head:hover { background: rgb(37 99 235 / 0.04); }
+.mtk-head:focus-visible { outline: 2px solid #6750a4; outline-offset: 2px; }
+.mtk-why { margin: 6px 0 0; border-radius: 10px; padding: 7px 11px; font-size: 12.5px; line-height: 1.5; }
+.mtk-why.is-bad { color: #991b1b; background: #fef2f2; box-shadow: inset 0 0 0 1px #fecaca; }
+.mtk-why.is-ok { color: #166534; background: #f0fdf4; box-shadow: inset 0 0 0 1px #bbf7d0; }
+.mtk-why.is-wait { color: #854d0e; background: #fefce8; box-shadow: inset 0 0 0 1px #fde68a; }
+.mtk-up { color: #15803d; }
+.mtk-down { color: #b91c1c; }
+.mtk-days { margin-top: 8px; display: grid; gap: 2px; font-size: 12.5px; }
+.mtk-d { display: grid; grid-template-columns: 1.1fr repeat(7, minmax(0, 1fr)); gap: 8px; align-items: center; border-radius: 8px; padding: 6px 10px; background: #fafafa; font-variant-numeric: tabular-nums; }
+.mtk-d.is-head { background: transparent; font-size: 11px; font-weight: 800; color: #71717a; text-transform: uppercase; }
+@media (max-width: 720px) {
+  .mtk-d { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mtk-d.is-head { display: none; }
+  .mtk-d > span::before { content: attr(data-l) " : "; color: #71717a; font-size: 11px; }
+}

@@ -41,7 +41,8 @@ public sealed class MinReportController : AppController
     private static object Row(MinWatchRow x) => new
     {
         x.WatchId, stkId = x.StockId, x.StockCode, x.PartId, x.PartCode, x.PartName, x.Title, x.Sub, x.Qty, x.StockBox, min = x.MinQty, max = x.MaxQty,
-        x.BelowSince, x.LastSeen, x.Days, test = x.Source == "TEST", x.Customer, x.Supplier
+        x.BelowSince, x.LastSeen, x.Days, test = x.Source == "TEST", x.Customer, x.Supplier,
+        x.ReportCount, x.LastReportAt, x.LastReason
     };
 
     // ---------------------------------------------------------------- หน้าต่างแจ้งเตือนกลางจอ (ทุกหน้า)
@@ -134,6 +135,28 @@ public sealed class MinReportController : AppController
         if (!Ready) return Ok(Array.Empty<object>());
         var (f, t) = Range(from, to);
         return Ok(_svc.History(new[] { stkId }, f, t, key));
+    }
+
+    // 📈 MIN TRACKING: ทุกช่วงที่สินค้าใต้ MIN ในช่วงวันที่ (ยังค้าง / กลับเป็นเขียวแล้ว) + ยอดรายวัน · รายงานกี่ครั้ง · ทำไมยังไม่เขียว
+    [HttpGet("stock/{stkId:int}/tracking")]
+    public IActionResult Tracking(int stkId, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string key)
+    {
+        var s = Visible(stkId);
+        if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        if (!Ready) return Ok(new { tracking = false, rows = Array.Empty<object>() });
+        var (f, t) = Range(from, to);
+        var rows = _svc.Tracking(stkId, f, t, key);
+        return Ok(new
+        {
+            tracking = DbSchema.HasMinTracking,
+            stuckDays = _svc.GetSettings().StuckDays,
+            rows = rows.Select(r => new
+            {
+                r.WatchId, r.PartCode, r.PartName, r.Title, r.Sub, r.Customer, r.Qty, r.NowQty, r.NowStatus, min = r.MinQty, max = r.MaxQty,
+                r.StartQty, r.ResolvedQty, r.BelowSince, r.LastSeen, r.ResolvedAt, r.Days, r.ReportCount, r.LastReportAt, r.LastReason, r.LastReporter, r.Moves,
+                daily = r.Daily.Select(d => new { day = d.Day.ToString("yyyy-MM-dd"), d.FirstQty, d.LastQty, min = d.MinQty, max = d.MaxQty, d.Moves, d.UpdatedAt })
+            })
+        });
     }
 
     [HttpGet("stock/{stkId:int}/export")]

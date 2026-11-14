@@ -9,7 +9,37 @@ import { shortN } from "@/lib/pp";
 //   แท่ง = ไล่สี + มุมบนมน โตขึ้นจากฐานทีละแท่ง · เส้น = ลากจากซ้ายไปขวา + เงาเรือง + พื้นไล่สีใต้เส้น (area)
 //   วันหยุด = ลายเส้นทแยงจาง ๆ · วันนี้ = เส้นประ TODAY · ชี้ / แตะ = เส้น crosshair + จุดขยาย + กล่องค่าลอยแบบกระจกฝ้า
 //   เปลี่ยนโหมด / ข้อมูล = แท่ง / เส้น / แกน Y เลื่อนไปค่าใหม่นุ่ม ๆ · กด Legend = ซ่อน / แสดง · ลดการเคลื่อนไหว = ไม่มีแอนิเมชัน
-export type Series = { key: string; label: string; kind: "bar" | "line"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string };
+export type Series = { key: string; label: string; kind: "bar" | "line"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string; unit?: string };
+
+// ป้ายแกน X ยาว (เช่น "Group 1.7.2- POLISH(PL21) Auto") = ตัดเป็นหลายบรรทัดตามความกว้างของแท่ง ไม่ซ้อนกัน · ยาวเกิน = … (ชื่อเต็มอยู่ในป้ายตอนชี้)
+const CH = 6.2; // ความกว้างโดยประมาณต่อ 1 ตัวอักษร (ตัว 11px)
+function wrapText(t: string, max: number, maxLines: number): string[] {
+  const words = t.replace(/-\s*/g, "- ").split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  let cur = "";
+  for (let w of words) {
+    while (w.length > max) {
+      if (cur) {
+        out.push(cur);
+        cur = "";
+      }
+      out.push(w.slice(0, max));
+      w = w.slice(max);
+    }
+    if (!w) continue;
+    if (!cur) cur = w;
+    else if ((cur + " " + w).length <= max) cur += " " + w;
+    else {
+      out.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) out.push(cur);
+  if (out.length <= maxLines) return out;
+  const keep = out.slice(0, maxLines);
+  keep[maxLines - 1] = keep[maxLines - 1].slice(0, Math.max(1, max - 1)) + "…";
+  return keep;
+}
 
 type Props = {
   cats: string[];
@@ -73,22 +103,31 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
     return () => ro.disconnect();
   }, []);
 
-  const H = height ?? (W && W < 560 ? 260 : 340);
-  const m = { t: 18, r: 12, b: sub ? 42 : 32, l: W && W < 560 ? 40 : 54 };
+  const n = cats.length;
+  const ml = W && W < 560 ? 40 : 54;
+  const iw = Math.max(0, W - ml - 12);
+  const band = n ? iw / n : 0;
+  // ป้ายแกน X: พอดีแท่ง = บรรทัดเดียว · ยาวกว่าแท่ง = ตัดหลายบรรทัด (ไม่เกิน 3) · แท่งแคบมาก = เว้นป้ายเป็นช่วง ๆ + ตัดท้าย
+  const longest = Math.max(0, ...cats.map((c) => c.length));
+  const fit = Math.floor((band * 0.94) / CH);
+  const wrap = !sub && n > 0 && longest > fit && fit >= 5;
+  const labels = useMemo(() => (wrap ? cats.map((c) => wrapText(c, fit, 3)) : null), [wrap, cats, fit]);
+  const nl = labels ? Math.max(1, ...labels.map((l) => l.length)) : 1;
+  const H = (height ?? (W && W < 560 ? 260 : 340)) + (nl - 1) * 12;
+  const m = { t: 18, r: 12, b: sub ? 42 : 20 + nl * 12, l: ml };
   const shown = series.filter((s) => !hide[s.key]);
   const max = Math.max(0, ...shown.flatMap((s) => s.values.map((v) => v ?? 0)));
   const hasData = series.some((s) => s.values.some((v) => (v ?? 0) > 0));
   const { step, top } = nice(max);
-  const n = cats.length;
-  const iw = Math.max(0, W - m.l - m.r);
-  const band = n ? iw / n : 0;
   const sx = (i: number) => m.l + (i + 0.5) * band;
   const sy = (v: number) => m.t + (H - m.t - m.b) * (1 - v / top);
   const base = H - m.b;
   const bars = shown.filter((s) => s.kind === "bar");
   const lines = shown.filter((s) => s.kind === "line");
   const bw = Math.max(2, Math.min(28, (band * 0.72) / Math.max(1, bars.length)));
-  const labelEvery = Math.max(1, Math.ceil((n * (sub ? 30 : 40)) / Math.max(1, iw)));
+  const short = 14; // แท่งแคบมาก: ป้ายตัดเหลือ 14 ตัวอักษร แล้วเว้นป้ายเป็นช่วงให้ไม่ชนกัน
+  const labelEvery = wrap ? 1 : Math.max(1, Math.ceil((n * (sub ? 30 : Math.max(40, Math.min(longest, short) * CH + 10))) / Math.max(1, iw)));
+  const cut = (c: string) => (sub || c.length <= short || longest * CH <= band * 0.94 ? c : c.slice(0, short - 1) + "…");
   const ticks = useMemo(() => Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step), [top, step]);
   const dl = (i: number) => (reduce ? 0 : Math.min(i * 0.02, 0.5));
   const T = (d: number, delay = 0) => ({ duration: reduce ? 0 : d, ease: EASE, delay });
@@ -197,7 +236,14 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
             {cats.map((c, i) =>
               i % labelEvery === 0 || hover === i ? (
                 <text key={"x" + i} x={sx(i)} y={base + 15} textAnchor="middle" className={`pp-ax ${hover === i ? "is-on" : ""} ${off?.[i] ? "is-off" : ""} ${today === i ? "is-today" : ""}`}>
-                  {c}
+                  <title>{c}</title>
+                  {labels
+                    ? labels[i].map((l, k) => (
+                        <tspan key={k} x={sx(i)} dy={k ? 12 : 0}>
+                          {l}
+                        </tspan>
+                      ))
+                    : cut(c)}
                   {sub && (
                     <tspan x={sx(i)} dy="12" className="pp-ax-sub">
                       {sub[i]}
@@ -293,7 +339,10 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
                   <div key={s.key} className={`r ${hide[s.key] ? "is-hidden" : ""}`}>
                     <i style={{ background: s.color }} />
                     <span>{s.label}</span>
-                    <b>{v == null ? "–" : s.fmt ? s.fmt(v) : v.toLocaleString(undefined, { maximumFractionDigits: 1 })}</b>
+                    <b>
+                      {v == null ? "–" : s.fmt ? s.fmt(v) : v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                      {v != null && s.unit ? <small className="u"> {s.unit}</small> : null}
+                    </b>
                   </div>
                 );
               })}

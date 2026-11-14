@@ -97,12 +97,13 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
     if (!data || !daily) return null;
     const isHr = metric === "hr";
     const fmt = isHr ? f1 : f0;
+    const unit = isHr ? "hr" : "stroke"; // หน่วยในป้ายตอนชี้กราฟ
     if (view === "machine")
       return {
         cats: list.map((x) => x.m.code.replace(/^PROG /, "")),
         series: [
-          { key: "plan", label: isHr ? "PLAN HR. (P4)" : "PLAN STROKE (P1)", kind: "bar", color: C.plan, color2: C.plan2, values: list.map((x) => (isHr ? x.c.P4 : x.c.P1)), fmt },
-          { key: "act", label: isHr ? "ACTUAL HR. (A2)" : "ACTUAL STROKE (A1)", kind: "bar", color: C.act, color2: C.act2, values: list.map((x) => (isHr ? x.c.A2 : x.c.A1)), fmt },
+          { key: "plan", label: isHr ? "PLAN HR. (P4)" : "PLAN STROKE (P1)", kind: "bar", color: C.plan, color2: C.plan2, values: list.map((x) => (isHr ? x.c.P4 : x.c.P1)), fmt, unit },
+          { key: "act", label: isHr ? "ACTUAL HR. (A2)" : "ACTUAL STROKE (A1)", kind: "bar", color: C.act, color2: C.act2, values: list.map((x) => (isHr ? x.c.A2 : x.c.A1)), fmt, unit },
         ],
       };
     const wd = new Set(data.workdays);
@@ -112,15 +113,15 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
       return {
         ...base,
         series: [
-          { key: "pacc", label: "PLAN ACC", kind: "line", color: C.plan, area: true, values: isHr ? daily.planHrAcc : daily.planAcc, fmt },
-          { key: "aacc", label: "ACTUAL ACC", kind: "line", color: C.act, area: true, values: isHr ? daily.actHrAcc : daily.actAcc, fmt },
+          { key: "pacc", label: isHr ? "PLAN HR. ACC" : "PLAN STROKE ACC", kind: "line", color: C.plan, area: true, values: isHr ? daily.planHrAcc : daily.planAcc, fmt, unit },
+          { key: "aacc", label: isHr ? "ACTUAL HR. ACC" : "ACTUAL STROKE ACC", kind: "line", color: C.act, area: true, values: isHr ? daily.actHrAcc : daily.actAcc, fmt, unit },
         ],
       };
     return {
       ...base,
       series: [
-        { key: "act", label: isHr ? "ACTUAL HR." : "ACTUAL STROKE", kind: "bar", color: C.act, color2: C.act2, values: isHr ? daily.actHr : daily.act, fmt },
-        { key: "plan", label: isHr ? "PLAN HR. / DAY" : "PLAN STROKE / DAY", kind: "line", color: C.plan, dashed: true, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.planHr[i] : daily.plan[i]) : null)), fmt },
+        { key: "act", label: isHr ? "ACTUAL HR." : "ACTUAL STROKE", kind: "bar", color: C.act, color2: C.act2, values: isHr ? daily.actHr : daily.act, fmt, unit },
+        { key: "plan", label: isHr ? "PLAN HR. / DAY" : "PLAN STROKE / DAY", kind: "line", color: C.plan, dashed: true, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.planHr[i] : daily.plan[i]) : null)), fmt, unit },
       ],
     };
   }, [data, daily, list, view, metric, acc, nd]);
@@ -226,14 +227,16 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
                 return (
                   <button key={m.id} type="button" className={`pp-eff-row is-${tone}`} onClick={() => router.push(`/pp/capacity/${D.slug}?m=${m.id}&month=${month}`)} title="ดูรายละเอียด / บันทึก Actual">
                     <span className="n">
-                      <b>{m.code}</b>
+                      <b title={m.code}>{m.code}</b>
                       <small>{m.group}</small>
                     </span>
                     <span className="bar">
                       <motion.i initial={{ scaleX: 0 }} animate={{ scaleX: Math.min(1, c.A4 / effMax) }} transition={{ duration: reduce ? 0 : 0.8, ease: EASE, delay: Math.min(i * 0.04, 0.5) }} />
                       <em style={{ left: `${(c.C4 / effMax) * 100}%` }} title={`Target ${pc(c.C4)}`} />
                     </span>
-                    <span className="v">{c.A2 ? pc(c.A4) : "–"}</span>
+                    <span className="v" title={c.A2 ? `Actual ${f1(c.A2)} hr · ${f0(c.A1)} stroke` : "ยังไม่มี Actual ของเดือนนี้"}>
+                      {c.A2 ? pc(c.A4) : "–"}
+                    </span>
                   </button>
                 );
               })}

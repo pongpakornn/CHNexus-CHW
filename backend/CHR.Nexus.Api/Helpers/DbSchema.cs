@@ -197,6 +197,10 @@ namespace Nexus.Helpers
         private static bool _minReport;
         public static bool HasMinReport => _minReport || (_minReport = TableExists("Nexus.MinReports") == true && TableExists("Nexus.MinWatch") == true && TableExists("Nexus.MinReportSettings") == true);
 
+        // 📈 MIN TRACKING (47_Min_Tracking.sql): Nexus.MinWatchDays (ยอดรายวันช่วงใต้ MIN) · MinWatch.ResolvedQty
+        private static bool _minTrack;
+        public static bool HasMinTracking => _minTrack || (_minTrack = HasMinReport && TableExists("Nexus.MinWatchDays") == true && ColumnIn("Nexus.MinWatch", "ResolvedQty") == true);
+
         // ✍ MIN REPORT (21_Min_Report_Sign.sql): รูปแบบการแสดงสินค้าต่อคลัง + FLOW ลายเซ็น Prepared / Checked / Checked / Approved
         private static bool _minSign;
         public static bool HasMinSign => _minSign || (_minSign = HasMinReport && TableExists("Nexus.MinReportDisplay") == true && TableExists("Nexus.MinReportFlow") == true

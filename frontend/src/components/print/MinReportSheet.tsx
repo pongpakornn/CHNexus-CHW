@@ -28,6 +28,10 @@ export type MinItem = {
   test?: boolean;
   customer?: string | null;
   supplier?: string | null;
+  /** 🔁 รายงานไปแล้วกี่ครั้ง (ยังใต้ MIN ครบอีกรอบ = ต้องรายงานติดตาม) */
+  reportCount?: number;
+  lastReportAt?: string | null;
+  lastReason?: string | null;
 };
 
 export type MinSign = { slot: number; userId: string; userName: string | null; signedAt: string };

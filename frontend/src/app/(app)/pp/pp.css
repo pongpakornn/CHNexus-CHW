@@ -353,7 +353,7 @@
   top: 0;
   z-index: 5;
   pointer-events: none;
-  width: 220px;
+  width: 236px;
   /* ทึบแทนกระจกเบลอ: ป้ายขยับตามเมาส์ทุกเฟรม เบลอ = วาดพื้นหลังใหม่ทุกเฟรม (กระตุก) */
   background: rgb(17 24 39 / 0.94);
   color: #f8fafc;
@@ -442,13 +442,16 @@
   --t: var(--pp-low);
 }
 .pp-eff-row .n b {
-  display: block;
+  display: -webkit-box;
   font-size: 12.5px;
   font-weight: 800;
+  line-height: 1.3;
   color: var(--ink);
-  white-space: nowrap;
+  /* ชื่อกลุ่ม / เครื่องยาว = ขึ้นบรรทัดใหม่ (ไม่เกิน 2 บรรทัด) แทนการตัด ... */
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .pp-eff-row .n small {
   font-size: 10.5px;
@@ -2862,3 +2865,9 @@ thead .pp-stick {
   font-size: 10px;
   font-weight: 800;
 }
+
+/* ป้ายตอนชี้กราฟ: ชื่อยาว (กลุ่ม / เครื่อง / ชุดข้อมูล) ขึ้นบรรทัดใหม่ ไม่ตัด · หน่วยต่อท้ายตัวเลข */
+.pp-tip h4 { overflow-wrap: anywhere; line-height: 1.35; }
+.pp-tip .r span { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.pp-tip .r b { flex: none; white-space: nowrap; }
+.pp-tip .r b .u { font-size: 10.5px; font-weight: 700; opacity: 0.7; }

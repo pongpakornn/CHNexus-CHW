@@ -18,6 +18,7 @@ import { daysAgo, today } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { useDebounced } from "@/lib/useDebounced";
 import type { Stock } from "./types";
+import { TrackingModal } from "./MinTracking";
 
 // 📋 ปุ่ม MIN REPORT ในหน้าคลัง (ทุกคลัง): PENDING REPORT (รอระบุสาเหตุ + กำลังเฝ้าดู) · REPORT HISTORY
 //   ทุกแถว: 👁 PREVIEW (เอกสาร FM-EN-04-22 รายการเดียว) · ✎ REPORT (เลือกหมายเหตุ + รายละเอียด) · PREVIEW ทั้งหมด -> PDF / EXCEL
@@ -28,7 +29,7 @@ type Pending = { ready: boolean; enabled: boolean; stuckDays: number; reasons?: 
 export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; autoOpen?: boolean }) {
   const toast = useToast();
   const [pend, setPend] = useState<Pending | null>(null);
-  const [open, setOpen] = useState<"" | "pending" | "history">(autoOpen ? "pending" : ""); // จากกระดิ่ง (?mr=pending) = เปิดรายการรอรายงานให้เลย
+  const [open, setOpen] = useState<"" | "pending" | "history" | "tracking">(autoOpen ? "pending" : ""); // จากกระดิ่ง (?mr=pending) = เปิดรายการรอรายงานให้เลย
 
   const load = useCallback(() => {
     api<Pending>(`/minreport/stock/${s.stkId}/pending`)
@@ -61,6 +62,14 @@ export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; au
       icon: "calendar",
       onClick: () => setOpen("history"),
     },
+    {
+      key: "tracking",
+      title: "MIN TRACKING",
+      detail: `ติดตามสินค้าที่ใต้ MIN ของคลัง ${s.code}: ค้างตั้งแต่วันไหน · ยอดเริ่ม -> ตอนนี้ อัพเดทแล้วเท่าไร · ยอดรายวัน · รายงานกี่ครั้ง · ทำไมยังไม่กลับเป็นเขียว`,
+      color: "#0891b2",
+      icon: "formula",
+      onClick: () => setOpen("tracking"),
+    },
   ];
 
   return (
@@ -85,6 +94,8 @@ export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; au
         createPortal(
           open === "pending" ? (
             <PendingModal stock={s} data={pend} reload={load} onClose={() => setOpen("")} />
+          ) : open === "tracking" ? (
+            <TrackingModal stock={s} onClose={() => setOpen("")} toastErr={(m) => toast.show("ERROR", m, "error")} />
           ) : (
             <HistoryModal stock={s} onClose={() => setOpen("")} toastErr={(m) => toast.show("ERROR", m, "error")} />
           ),
