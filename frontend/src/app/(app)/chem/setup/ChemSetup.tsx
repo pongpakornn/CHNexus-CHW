@@ -307,7 +307,7 @@ export default function ChemSetup() {
                 <Empty>ไม่พบรายการ</Empty>
               ) : (
                 <div className="ch-scroll">
-                  <table className="ch-table is-list">
+                  <table className="ch-table is-list" data-stack>
                     <thead>
                       <tr>
                         <th>NO.</th>

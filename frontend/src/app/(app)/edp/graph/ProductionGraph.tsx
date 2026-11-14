@@ -167,7 +167,7 @@ export default function ProductionGraph() {
   if (!g)
     return (
       <PageBody>
-        <div className="edp-skel" style={{ height: 56, width: 360 }} />
+        <div className="edp-skel" style={{ height: 56, width: "min(360px, 100%)" }} />
         <div className="edp-kpis">
           {[0, 1, 2].map((i) => (
             <div key={i} className="edp-skel" style={{ height: 112 }} />

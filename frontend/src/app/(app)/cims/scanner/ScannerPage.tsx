@@ -686,7 +686,7 @@ export default function ScannerPage() {
             </h3>
             <span className="sc-count">{(modes.test ? testRows : rows).length.toLocaleString()} รายการ</span>
           </div>
-          <div className="max-h-[520px] overflow-auto">
+          <div className="max-h-[min(520px,60dvh)] overflow-auto">
             <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
@@ -745,7 +745,7 @@ export default function ScannerPage() {
               />
             )}
           </div>
-          <div className="max-h-[520px] overflow-auto">
+          <div className="max-h-[min(520px,60dvh)] overflow-auto">
             <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>

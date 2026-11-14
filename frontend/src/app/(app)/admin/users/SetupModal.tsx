@@ -422,7 +422,7 @@ function ExcelPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
         <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
           <div>
             <span className={L}>1. STOCK</span>
-            <div className="st-grid is-col max-h-[62vh] overflow-auto p-1">
+            <div className="st-grid is-col max-h-[62dvh] overflow-auto p-1">
               {rows.map((r, i) => (
                 <StockTile
                   key={r.stkId}

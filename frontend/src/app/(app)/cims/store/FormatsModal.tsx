@@ -215,7 +215,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
             <div className="fm-list-head">
               FORMATS <span>{data.formats.length}</span>
             </div>
-            <div className="flex max-h-[30vh] flex-col gap-1 overflow-auto p-1.5 lg:max-h-[62vh]">
+            <div className="flex max-h-[30dvh] flex-col gap-1 overflow-auto p-1.5 lg:max-h-[62dvh]">
               {data.formats.map((x, i) => (
                 <button
                   key={x.fmtId}

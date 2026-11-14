@@ -257,7 +257,7 @@ html {
 
 /* 📐 ตารางที่ล้นพื้นที่ (FitTables ใส่ .is-tight): กระชับก่อนเปลี่ยนเป็นการ์ด - ช่องแคบลง · หัวคอลัมน์ขึ้นบรรทัดใหม่ได้ (MAX / (DAYS))
    ข้อความยาวตัดบรรทัดในช่อง · ปุ่มในช่องเรียงลงได้ */
-.data-table.is-tight th {
+:is(.data-table, [data-stack]).is-tight th {
   height: 46px;
   padding: 4px 5px;
   font-size: 11.5px;
@@ -265,38 +265,38 @@ html {
   line-height: 1.2;
   white-space: normal;
 }
-.data-table.is-tight td {
+:is(.data-table, [data-stack]).is-tight td {
   padding: 8px 5px;
   font-size: 13px;
   white-space: normal;
 }
-.data-table.is-tight td > .flex,
-.data-table.is-tight td > .inline-flex {
+:is(.data-table, [data-stack]).is-tight td > .flex,
+:is(.data-table, [data-stack]).is-tight td > .inline-flex {
   flex-wrap: wrap;
 }
-.data-table.is-tight td [class*="min-w-["] {
+:is(.data-table, [data-stack]).is-tight td [class*="min-w-["] {
   min-width: 0;
 }
-.data-table.is-tight td[class*="min-w-["] {
+:is(.data-table, [data-stack]).is-tight td[class*="min-w-["] {
   min-width: 120px;
 }
 
 /* 📱 ตารางที่แสดงไม่ครบคอลัมน์ (FitTables ใส่ .is-stacked): แถวละ 1 การ์ด · ซ้าย = ชื่อคอลัมน์ ขวา = ค่า */
-.data-table.is-stacked {
+:is(.data-table, [data-stack]).is-stacked {
   display: block;
   width: 100% !important;
   min-width: 0 !important;
 }
-.data-table.is-stacked > thead {
+:is(.data-table, [data-stack]).is-stacked > thead {
   display: none;
 }
-.data-table.is-stacked > tbody {
+:is(.data-table, [data-stack]).is-stacked > tbody {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 10px;
   padding: 10px;
 }
-.data-table.is-stacked > tbody > tr {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr {
   display: block;
   position: relative;
   overflow: hidden;
@@ -306,17 +306,17 @@ html {
   background: #fff;
   box-shadow: 0 1px 2px rgb(20 25 60 / 0.04), 0 10px 24px -20px rgb(40 45 110 / 0.35);
 }
-.data-table.is-stacked > tbody > tr::before {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr::before {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
   background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 35%, white));
 }
-.data-table.is-stacked > tbody > tr:hover {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr:hover {
   background: #fff;
 }
-.data-table.is-stacked > tbody > tr > td {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td {
   display: flex;
   min-height: 34px;
   align-items: center;
@@ -331,10 +331,10 @@ html {
   white-space: normal !important;
   overflow-wrap: anywhere;
 }
-.data-table.is-stacked > tbody > tr > td:last-child {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td:last-child {
   border-bottom: 0;
 }
-.data-table.is-stacked > tbody > tr > td::before {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td::before {
   content: attr(data-label);
   flex-shrink: 0;
   max-width: 45%;
@@ -346,33 +346,33 @@ html {
   text-transform: uppercase;
   color: var(--ink-soft, #7a7492);
 }
-.data-table.is-stacked > tbody > tr > td[data-label=""]::before,
-.data-table.is-stacked > tbody > tr > td:not([data-label])::before {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td[data-label=""]::before,
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td:not([data-label])::before {
   display: none;
 }
-.data-table.is-stacked > tbody > tr > td[data-label=""] {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td[data-label=""] {
   justify-content: center;
 }
 /* แถวเต็มความกว้าง (ข้อความว่าง / โหลด / หัวกลุ่ม) */
-.data-table.is-stacked > tbody > tr:has(> td[colspan]) {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr:has(> td[colspan]) {
   grid-column: 1 / -1;
 }
-.data-table.is-stacked > tbody > tr > td[colspan] {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr > td[colspan] {
   display: block;
   text-align: center !important;
   border: 0;
 }
-.data-table.is-stacked > tbody > tr:has(> td[colspan]) {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr:has(> td[colspan]) {
   border: 0;
   padding: 0;
   background: transparent;
   box-shadow: none;
 }
-.data-table.is-stacked > tbody > tr:has(> td[colspan])::before {
+:is(.data-table, [data-stack]).is-stacked > tbody > tr:has(> td[colspan])::before {
   display: none;
 }
 /* หน้าหลัก: การ์ดเลื่อนไปพร้อมทั้งหน้า (ไม่ซ้อนกล่องเลื่อนในกล่องเลื่อนบนมือถือ) */
-main :has(> .data-table.is-stacked) {
+main :has(> :is(.data-table, [data-stack]).is-stacked) {
   max-height: none !important;
   min-height: 0 !important;
   overflow: visible !important;
@@ -5555,7 +5555,7 @@ html:has(#chr-splash.cs-hold) .page-in > * {
   position: relative;
   display: flex;
   width: 100%;
-  height: min(84vh, 920px);
+  height: min(84dvh, 920px);
 }
 .adm-nav {
   display: flex;
@@ -5653,7 +5653,7 @@ html:has(#chr-splash.cs-hold) .page-in > * {
 }
 @media (max-width: 767px) {
   .adm-shell {
-    height: 84vh;
+    height: 84dvh;
   }
   .adm-nav {
     position: absolute;
@@ -6508,7 +6508,7 @@ html:has(#chr-splash.cs-hold) .page-in > * {
   color: var(--accent);
 }
 .pk-pv-pages {
-  max-height: min(64vh, 900px);
+  max-height: min(64dvh, 900px);
   overflow: auto;
   padding: 14px;
 }
@@ -8374,7 +8374,7 @@ body:has(.modal-bg) .bug-fab {
 }
 /* แผ่นรายงาน A4 แนวนอน */
 .mr-preview {
-  max-height: min(66vh, 900px);
+  max-height: min(66dvh, 900px);
   overflow: auto;
   padding: 4px;
   background: #ece9f3;
@@ -9593,7 +9593,7 @@ button.mrp-stat:hover {
 /* 🖨 PREVIEW: เห็นทั้งแผ่น (พอดีหน้าต่างทั้งกว้างและสูง) */
 .mr-preview.is-fit,
 .mr-preview {
-  height: calc(92vh - 150px);
+  height: calc(92dvh - 150px);
   max-height: none;
 }
 .mr-preview.is-fit .mr-stack {
@@ -10321,7 +10321,7 @@ button.mrp-stat:hover {
 }
 /* ▣ Product Control › EXPORT QR CODE LAYOUT : ตาราง Locations */
 .lqp-wrap {
-  max-height: min(60vh, 560px);
+  max-height: min(60dvh, 560px);
   overflow: auto;
   border: 1px solid #ebe7f6;
   border-radius: 14px;
@@ -13244,11 +13244,11 @@ table.lqp code {
   white-space: pre-line;
 }
 .ff-table-wrap {
-  max-height: 64vh;
+  max-height: 64dvh;
   overflow: auto;
 }
 .ff-table-wrap.is-modal {
-  max-height: 56vh;
+  max-height: 56dvh;
   border: 1px solid #ece9f3;
   border-radius: 14px;
 }
@@ -14202,12 +14202,38 @@ html:has(#chr-splash.cs-hold) [data-ri] {
    Tables that scroll sideways on purpose (min-w-[…]) are not touched. */
 @media (max-width: 640px) {
   main [class^="w-["],
-  main [class*=" w-["] {
+  main [class*=" w-["],
+  main [class*="!w-["] {
     max-width: 100%;
   }
 }
 main {
   overflow-wrap: break-word;
+}
+
+/* 📱 Wide tables that scroll sideways on a phone / small tablet (PP capacity, workload, CHEM chart): the right edge fades
+   while there is more to scroll, and the fade is gone once the end is reached. Scroll-driven (no JS); browsers without
+   animation-timeline simply show no fade. Tables that fit have no scroll range, so nothing fades. */
+@property --sf-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes sf-r {
+  from { --sf-r: 30px; }
+  to { --sf-r: 0px; }
+}
+@media (max-width: 1023px) and (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll(self x)) {
+    .pp-scroll,
+    .ch-scroll {
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--sf-r)), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - var(--sf-r)), transparent);
+      animation: sf-r linear both;
+      animation-timeline: scroll(self x);
+      animation-range: calc(100% - 48px) 100%;
+    }
+  }
 }
 
 /* ⌨ One focus ring for keyboard users (zero specificity: any component's own focus style still wins).

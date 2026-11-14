@@ -127,7 +127,7 @@ export default function ActivityLogPage({ embedded = false }: { embedded?: boole
       >
         {/* ค้นหา + ช่วงวันที่ บรรทัดเดียวกัน (จอแคบ = ขึ้นบรรทัดใหม่เอง) */}
         <div className="flex flex-wrap items-center gap-3 border-b border-line/60 p-3 xl:flex-nowrap">
-          <SearchBox className="min-w-[240px] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา ประเภท / รายละเอียด / อ้างอิง / ผู้ใช้ / เครื่อง" />
+          <SearchBox className="min-w-[min(240px,100%)] flex-1" fancy value={key} onChange={setKey} placeholder="ค้นหา ประเภท / รายละเอียด / อ้างอิง / ผู้ใช้ / เครื่อง" />
           <DateRange from={from} to={to} onChange={(f, t) => (setFrom(f), setTo(t))} />
         </div>
         <div ref={scrollRef} className={`${embedded ? "max-h-[calc(92dvh-330px)]" : "max-h-[calc(100dvh-300px)]"} min-h-[360px] overflow-auto`}>
@@ -175,7 +175,7 @@ export default function ActivityLogPage({ embedded = false }: { embedded?: boole
                     <td>
                       <Badge color={actionColor(r.action)}>{r.action}</Badge>
                     </td>
-                    <td className="min-w-[240px] break-words text-xs font-medium xl:min-w-[320px]">{r.detail}</td>
+                    <td className="min-w-[min(240px,100%)] break-words text-xs font-medium xl:min-w-[320px]">{r.detail}</td>
                     <td className="max-w-[200px] break-all text-xs">{r.refCode}</td>
                     <td className="whitespace-nowrap text-xs text-ink-soft">{r.computer}</td>
                   </tr>

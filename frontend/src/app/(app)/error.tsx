@@ -10,7 +10,7 @@ export default function PageError({ error, reset }: { error: Error & { digest?: 
   }, [error]);
 
   return (
-    <div className="page-in grid min-h-[60vh] place-items-center p-6">
+    <div className="page-in grid min-h-[60dvh] place-items-center p-6">
       <div className="max-w-md rounded-[26px] bg-surface p-7 text-center shadow-[0_30px_70px_-30px_rgb(20_20_50/0.45)]">
         <div className="mx-auto grid size-14 place-items-center rounded-full bg-[#ffebee] text-2xl">🐞</div>
         <h2 className="mt-4 text-lg font-extrabold uppercase tracking-wide text-primary">หน้านี้ขัดข้องชั่วคราว</h2>

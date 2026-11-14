@@ -49,12 +49,12 @@ function fit(table: HTMLTableElement) {
 export function FitTables() {
   useEffect(() => {
     const seen = new Set<HTMLTableElement>();
-    const ro = new ResizeObserver((list) => list.forEach((e) => e.target.querySelectorAll<HTMLTableElement>(":scope > table.data-table").forEach(fit)));
+    const ro = new ResizeObserver((list) => list.forEach((e) => e.target.querySelectorAll<HTMLTableElement>(":scope > table.data-table, :scope > table[data-stack]").forEach(fit)));
     let raf = 0;
     const scan = () => {
       raf = 0;
       const now = new Set<HTMLTableElement>();
-      document.querySelectorAll<HTMLTableElement>("table.data-table").forEach((t) => {
+      document.querySelectorAll<HTMLTableElement>("table.data-table, table[data-stack]").forEach((t) => {
         if (t.matches(SKIP) || t.closest(".store-table") || !t.parentElement) return;
         now.add(t);
         label(t);

@@ -628,6 +628,14 @@ thead .pp-stick {
   min-width: 210px;
   font-weight: 600;
 }
+/* phone: the sticky name column no longer takes ~58% of a 360px screen (names wrap, numbers keep room) */
+@media (max-width: 767px) {
+  .pp-matrix td.pp-stick {
+    min-width: 130px;
+    max-width: 42vw;
+    white-space: normal;
+  }
+}
 .pp-matrix td.pp-stick b,
 .pp-cp td.code {
   display: inline-block;
@@ -712,7 +720,7 @@ td.pp-tone-low {
   max-height: 560px;
 }
 .pp-prod.is-tall {
-  max-height: 70vh;
+  max-height: 70dvh;
 }
 .pp-table td.n {
   color: var(--ink-soft);
@@ -946,6 +954,7 @@ td.pp-tone-low {
 }
 .pp-chipsearch {
   width: 220px;
+  max-width: 100%;
   flex: none;
 }
 .pp-hero {
@@ -1953,7 +1962,7 @@ td.pp-tone-low {
 @media (max-width: 1280px) {
   .pp-prod-box {
     flex: none;
-    height: 70vh;
+    height: 70dvh;
   }
 }
 
