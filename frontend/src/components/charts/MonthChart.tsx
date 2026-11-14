@@ -146,13 +146,22 @@ export function MonthChart({
   }, []);
 
   // ---- ขนาดตามกล่อง (Responsive)
+  //   วัดเมื่อกล่องกราฟ "ถูกวางลงหน้าจอจริง" (callback ref) · เดิมผูกกับ view: กด TABLE -> CHART แล้วกล่องกราฟมาหลังตารางเลื่อนออกเสร็จ
+  //   ตัววัดเลยไม่ได้ผูก กราฟค้างขนาดสำรอง (แคบ + ชี้เมาส์ไม่ตรงแท่ง)
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
+  const setStage = useCallback((el: HTMLDivElement | null) => {
+    stage.current = el;
+    setStageEl(el);
+  }, []);
   useEffect(() => {
-    const el = stage.current;
+    const el = stageEl;
     if (!el) return;
-    const ro = new ResizeObserver(() => (setWidth(el.clientWidth), setHeight(el.clientHeight)));
+    const measure = () => (setWidth(el.clientWidth), setHeight(el.clientHeight));
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [view]);
+  }, [stageEl]);
 
   const W = Math.max(300, width || 760);
   const narrow = W / Math.max(1, data.length) < 44; // ช่องต่อเดือนแคบกว่า 44px
@@ -352,7 +361,7 @@ export function MonthChart({
         </div>
         </>
       ) : (
-        <div ref={stage} className={`fc-chart relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
+        <div ref={setStage} className={`fc-chart relative ${fill ? "min-h-[300px] flex-1" : ""}`}>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             width="100%"
