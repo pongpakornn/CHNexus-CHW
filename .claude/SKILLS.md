@@ -21,3 +21,4 @@ Review a skill's files before installing: skills run with full agent permissions
 | frontend | threejs, react-three-fiber, react-spring, mojs | written for this repo (pinned versions: three 0.180.0, @react-three/fiber 9.8.2, @react-spring/web 10.1.2, @mojs/core 1.7.1) |
 | frontend, designer | motion | github.com/motiondivision/ai-kit (MIT), official Motion skill |
 | designer, frontend, reviewer | baseline-ui, improve-ui, fixing-accessibility, fixing-motion-performance, fixing-metadata, create-design-md, create-canvas, component-canvas, ui-skills-root | github.com/ibelick/ui-skills (MIT) |
+| frontend, designer | magic-ui | github.com/magicuidesign/magicui (MIT), official skill + references/chr-nexus.md written for this repo |

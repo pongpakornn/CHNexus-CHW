@@ -16,13 +16,16 @@
     "@mojs/core": "1.7.1",
     "@react-spring/web": "10.1.2",
     "@react-three/fiber": "9.8.2",
+    "clsx": "2.1.1",
     "framer-motion": "12.23.12",
     "html-to-image": "^1.11.11",
     "jspdf": "^2.5.2",
+    "motion": "12.23.12",
     "next": "16.4.2",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "tailwind-merge": "3.7.0",
     "three": "0.180.0"
   },
   "devDependencies": {
