@@ -2884,3 +2884,5 @@ thead .pp-stick {
 .pp-page > *:has(.pp-stage:hover), .pp-page > *:has(.pp-tip) { position: relative; z-index: 20; }
 .pp-tip { background: rgb(17 24 39 / 0.98); will-change: transform, opacity; }
 .pp-stage svg .pp-bar, .pp-stage svg .pp-mark { will-change: opacity; }
+/* 📸 แผนของเดือนตาม Excel (เดือนย้อนหลัง) */
+.pp-note.is-snap { color: #3730a3; background: #eef2ff; border-color: #c7d2fe; }

@@ -137,7 +137,8 @@ export default function Capacity({ dept }: { dept: string }) {
     if (!machine || !dirty) return;
     const cells = Object.entries(draft).map(([d, v]) => ({ day: Number(d), hr: num(v.hr), stroke: num(v.stroke), man: num(v.man) }));
     if (cells.some((x) => [x.hr, x.stroke, x.man].some((n) => n != null && !isFinite(n)))) return toast.show("WARNING", "ตัวเลขไม่ถูกต้อง", "warn");
-    if (cells.some((x) => x.hr != null && x.hr > 24)) return toast.show("WARNING", "Working hour ต้องไม่เกิน 24 ชม.", "warn");
+    const maxHr = 24 * Math.max(1, machine.qty);
+    if (cells.some((x) => x.hr != null && x.hr > maxHr)) return toast.show("WARNING", `Working hour ต้องไม่เกิน ${maxHr} ชม. (24 × Q'ty Line ${machine.qty})`, "warn");
     setSaving(true);
     try {
       const r = await api<{ message: string }>("/pp/actual", { method: "POST", body: { machineId: machine.id, month, cells } });
@@ -317,6 +318,13 @@ export default function Capacity({ dept }: { dept: string }) {
       {data.workdaySource === "DEFAULT" && (
         <div className="pp-note">
           ⚠ ยังไม่ได้ตั้ง <b>Company Workdays</b> ของเดือนนี้ · ใช้ จันทร์–เสาร์ ({data.workdays.length} วัน) ไปก่อน
+        </div>
+      )}
+
+      {data.machines.some((m) => m.snap) && (
+        <div className="pp-note is-snap">
+          📸 แผน (P1 · SPH · Q&apos;ty · Target Eff · STD Man) ของเดือนนี้ = ยอดตามไฟล์ Excel Capacity ของหน่วยงาน
+          {data.machines.find((m) => m.snap?.source)?.snap?.source ? ` (${data.machines.find((m) => m.snap?.source)?.snap?.source})` : ""} · Actual = ที่บันทึกรายวัน
         </div>
       )}
 

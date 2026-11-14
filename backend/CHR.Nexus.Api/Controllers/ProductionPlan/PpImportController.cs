@@ -122,7 +122,7 @@ public sealed class PpImportController : AppController
         var m = Mon(month);
         try
         {
-            var mcs = _svc.Machines(d, true);
+            var mcs = _svc.Machines(d, true, m);
             var act = _svc.Actuals(mcs.Select(x => x.Id), m).GroupBy(a => (a.MachineId, a.Day)).ToDictionary(g => g.Key, g => g.First());
             var wd = _svc.Workdays(m).ToHashSet();
             int nd = DateTime.DaysInMonth(m.Year, m.Month);
@@ -172,7 +172,7 @@ public sealed class PpImportController : AppController
             ImportTemplateService.Guide(wb, $"CHR-Nexus - PRODUCTION PLAN › CAPACITY › {d} (IMPORT M/C ACTUAL) • {m.ToString("MMMM yyyy", Inv).ToUpperInvariant()}", new[]
             {
                 ("DEPT / MONTH / MACHINE / ITEM", "ใส่ให้แล้ว ห้ามแก้ (ระบบใช้จับคู่เครื่องและเดือน) · MONTH = ปี-เดือน เช่น " + mk),
-                ("ITEM", "WORKING HOUR (0 - 24 ชม.) / STROKE / MAN (คน) · 1 เครื่อง = 3 แถว"),
+                ("ITEM", "WORKING HOUR (ชั่วโมงเครื่องรวมทุกไลน์ ไม่เกิน 24 × Q'ty Line) / STROKE / MAN (คน) · 1 เครื่อง = 3 แถว"),
                 ("1 - " + nd, "ยอดของวันที่นั้น (ช่องสีเหลือง) · คอลัมน์สีเทา = วันหยุดตามปฏิทินบริษัท · ทศนิยมได้ 2 ตำแหน่ง (เกินจะปัด)"),
                 ("ยอดเท่าเดิม", "ไม่แตะ"),
                 ("ยอดต่างจากในระบบ", "อัพเดทเป็นยอดใหม่ (หน้าพรีวิวแสดงยอดเดิม → ยอดใหม่ ก่อนกด IMPORT)"),
@@ -241,7 +241,7 @@ public sealed class PpImportController : AppController
                             var rv = Math.Round(v, 2, MidpointRounding.AwayFromZero);
                             if (rv != v) rounded++;
                             v = rv;
-                            string bad = f == 0 ? (v is < 0 or > 24 ? "Working hour ต้องอยู่ระหว่าง 0 - 24" : null)
+                            string bad = f == 0 ? (v is < 0 or > 999 ? "Working hour ไม่ถูกต้อง (เพดานจริง = 24 × Q'ty Line ตรวจตอน IMPORT)" : null)
                                        : f == 1 ? (v is < 0 or > 9_999_999_999m ? "Stroke ไม่ถูกต้อง" : null)
                                        : (v is < 0 or > 999 ? "Man ต้องอยู่ระหว่าง 0 - 999" : null);
                             if (bad != null) { errors.Add(new(at, $"{code} · วันที่ {day}: {bad} ({N(v)})")); continue; }

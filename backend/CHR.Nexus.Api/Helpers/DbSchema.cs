@@ -228,6 +228,15 @@ namespace Nexus.Helpers
                                                              && TableExists("ProductionPlan.DailyActuals") == true && TableExists("ProductionPlan.ShiftHours") == true
                                                              && ColumnIn("ProductionPlan.Machines", "StrokeByPcs") == true);
 
+        // 📅 ช่วงเดือนที่เครื่อง / ไลน์ใช้งาน (50_Production_Plan_History_2026.sql): ProductionPlan.Machines.FromMonth / ToMonth
+        private static bool _ppRange;
+        public static bool HasPpMachineRange => _ppRange || (_ppRange = HasProductionPlan && ColumnIn("ProductionPlan.Machines", "FromMonth") == true
+                                                                               && ColumnIn("ProductionPlan.MachineParts", "FromMonth") == true);
+
+        // 📸 แผนรายเดือนตาม Excel ของหน่วยงาน (50_Production_Plan_History_2026.sql): ProductionPlan.MonthPlans (P1 / C3 / C2 / C4 / P7 ต่อเครื่อง × เดือน)
+        private static bool _ppSnap;
+        public static bool HasPpMonthPlan => _ppSnap || (_ppSnap = HasProductionPlan && TableExists("ProductionPlan.MonthPlans") == true);
+
         // 👥 PRODUCTION PLAN › WORKLOAD (38_Production_Plan_Workload.sql): คนที่มีจริงต่อเดือน (Direct / Ind1 / Ind2)
         private static bool _ppWl;
         public static bool HasPpWorkload => _ppWl || (_ppWl = HasProductionPlan && TableExists("ProductionPlan.WorkloadHeads") == true);

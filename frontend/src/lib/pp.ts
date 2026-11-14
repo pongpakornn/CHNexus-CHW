@@ -26,7 +26,9 @@ export type PpPart = {
   pcsAuto?: number | null; // ยอด Order / Forecast เมื่อกำหนด PCS เองของเดือน (MANUAL)
 };
 export type PpActual = { day: number; hr: number | null; stroke: number | null; man: number | null };
-export type PpMachine = { id: number; code: string; group: string; subGroup: string | null; sort: number; qty: number; eff: number; man: number; sph: number | null; byPcs: boolean; parts: PpPart[]; actual: PpActual[] };
+/** 📸 แผนของเดือนที่ปิดแล้วตามไฟล์ Excel ของหน่วยงาน (มี = ใช้ P1 / C3 / C2 / C4 / P7 นี้แทนการคำนวณจากตาราง Product) */
+export type PpSnap = { p1: number; c3: number | null; qty: number | null; eff: number | null; man: number | null; source: string | null };
+export type PpMachine = { id: number; code: string; group: string; subGroup: string | null; sort: number; qty: number; eff: number; man: number; sph: number | null; byPcs: boolean; parts: PpPart[]; actual: PpActual[]; snap?: PpSnap | null };
 export type PpShift = { id: number; name: string; hours: number; sort: number };
 export type PpMonth = {
   dept: string;
@@ -114,17 +116,18 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
   }
   // SPH 100%: กำหนดเองที่ STD > ΣStroke ÷ ΣMC Hr > ยังไม่มี PCS เลย = SPH เฉลี่ยของตาราง Product
   const avgSph = m.parts.length ? m.parts.reduce((a, p) => a + sphOf(p), 0) / m.parts.length : 0;
-  const C3 = m.sph && m.sph > 0 ? m.sph : H > 0 ? S / H : avgSph;
+  const snap = m.snap;
+  const C3 = snap?.c3 != null && snap.c3 > 0 ? snap.c3 : m.sph && m.sph > 0 ? m.sph : H > 0 ? S / H : avgSph;
   const C1 = wd.size,
-    C2 = m.qty,
-    C4 = m.eff;
-  const P1 = S,
+    C2 = snap?.qty != null && snap.qty > 0 ? snap.qty : m.qty,
+    C4 = snap?.eff != null && snap.eff > 0 ? snap.eff : m.eff;
+  const P1 = snap ? snap.p1 : S,
     P2 = div(P1, C1),
     P3 = div(P1, C3),
     P4 = div(P3, C4),
     P5 = div(P4, C1),
     P6 = div(P5, C2),
-    P7 = m.man,
+    P7 = snap?.man != null ? snap.man : m.man,
     P8 = P6 * P7 * C2 * factor,
     P9 = div(P8, perDay);
   const base = C1 * C2 * C3 * C4;

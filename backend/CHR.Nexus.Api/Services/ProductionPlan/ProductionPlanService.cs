@@ -25,6 +25,9 @@ public sealed class PpMachine
     public bool ByPcs { get; set; }       // Stroke = PCS ÷ Pcs./Stroke (เครื่อง Transfer)
     public bool Active { get; set; }
     public int Parts { get; set; }
+    public DateTime? FromMonth { get; set; }   // ใช้ตั้งแต่เดือน (ว่าง = ทุกเดือน) · เช่น เครื่องที่ย้าย / เลิกใช้กลางปี
+    public DateTime? ToMonth { get; set; }     // ใช้ถึงเดือน (ว่าง = ปัจจุบัน)
+    public bool InMonth(DateTime m) => (FromMonth == null || FromMonth <= m) && (ToMonth == null || ToMonth >= m);
     public string UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -50,6 +53,9 @@ public sealed class PpPart
     public decimal Pcs { get; set; }
     public string PcsFrom { get; set; }      // ORDER / FORECAST / MANUAL / ""
     public decimal? PcsAuto { get; set; }    // PCS จาก Order / Forecast (เมื่อกำหนดเองที่เดือนนั้น = MANUAL)
+    public DateTime? FromMonth { get; set; } // แถว Product ใช้ตั้งแต่เดือน / ถึงเดือน (ว่าง = ทุกเดือน) เช่น ชิ้นงานที่ย้ายเครื่อง / เลิกผลิต
+    public DateTime? ToMonth { get; set; }
+    public bool InMonth(DateTime m) => (FromMonth == null || FromMonth <= m) && (ToMonth == null || ToMonth >= m);
 }
 
 public sealed class PpActual
@@ -59,6 +65,18 @@ public sealed class PpActual
     public decimal? Hr { get; set; }
     public decimal? Stroke { get; set; }
     public decimal? Man { get; set; }
+}
+
+// 📸 แผนของเดือนที่ปิดแล้วตามไฟล์ Excel ของหน่วยงาน (มี = หน้าเว็บใช้ค่านี้แทนการคำนวณจาก PCS × ตาราง Product)
+public sealed class PpSnap
+{
+    public int MachineId { get; set; }
+    public decimal P1 { get; set; }       // Stroke/Month ตาม Excel
+    public decimal? C3 { get; set; }      // SPH 100%
+    public decimal? Qty { get; set; }     // C2
+    public decimal? Eff { get; set; }     // C4
+    public decimal? Man { get; set; }     // P7
+    public string Source { get; set; }    // ชื่อไฟล์ Excel
 }
 
 public sealed class PpShift
@@ -77,16 +95,20 @@ public sealed class ProductionPlanService
     public static string Dept(string d) => string.IsNullOrWhiteSpace(d) ? DefaultDept : d.Trim().ToUpperInvariant();
 
     // ---------------------------------------------------------------- ค่า STD
-    public List<PpMachine> Machines(string dept, bool activeOnly)
+    //   month = เฉพาะเครื่องที่ใช้งานในเดือนนั้น (FromMonth ≤ เดือน ≤ ToMonth) เช่น Dashboard / Capacity ของเดือนย้อนหลัง
+    public List<PpMachine> Machines(string dept, bool activeOnly, DateTime? month = null)
     {
+        string range = DbSchema.HasPpMachineRange ? "m.FromMonth, m.ToMonth," : "";
         using var c = Conn();
-        return c.Query<PpMachine>(@"
+        var list = c.Query<PpMachine>($@"
             SELECT m.MachineID AS Id, m.Dept, m.MachineCode AS Code, m.GroupName AS [Group], m.SubGroup, m.SortNo AS Sort, m.QtyLine AS Qty,
-                   m.TargetEff AS Eff, m.ManPower AS Man, m.SphOverride AS Sph, m.StrokeByPcs AS ByPcs, m.IsActive AS Active, m.UpdatedBy, m.UpdatedAt,
+                   m.TargetEff AS Eff, m.ManPower AS Man, m.SphOverride AS Sph, m.StrokeByPcs AS ByPcs, m.IsActive AS Active, {range} m.UpdatedBy, m.UpdatedAt,
                    (SELECT COUNT(*) FROM ProductionPlan.MachineParts p WHERE p.MachineID = m.MachineID AND p.IsActive = 1) AS Parts
             FROM ProductionPlan.Machines m
             WHERE m.Dept = @dept AND (@all = 1 OR m.IsActive = 1)
             ORDER BY m.SortNo, m.MachineCode", new { dept, all = activeOnly ? 0 : 1 }).ToList();
+        if (month is DateTime mm) { var m1 = new DateTime(mm.Year, mm.Month, 1); list = list.Where(x => x.InMonth(m1)).ToList(); }
+        return list;
     }
 
     public List<PpShift> Shifts()
@@ -104,7 +126,12 @@ public sealed class ProductionPlanService
         return d;
     }
 
-    public sealed record MachineForm(int Id, string Dept, string Code, string Group, string SubGroup, int Sort, decimal Qty, decimal Eff, decimal Man, decimal? Sph, bool ByPcs, bool Active);
+    public sealed record MachineForm(int Id, string Dept, string Code, string Group, string SubGroup, int Sort, decimal Qty, decimal Eff, decimal Man, decimal? Sph, bool ByPcs, bool Active,
+                                     string From = null, string To = null);
+
+    // "2026-01" -> 1 ม.ค. 2026 · ว่าง = null
+    private static DateTime? MonthKey(string s) =>
+        DateTime.TryParseExact((s ?? "").Trim() + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
 
     public int SaveMachine(MachineForm f, string uid)
     {
@@ -115,15 +142,20 @@ public sealed class ProductionPlanService
         if (f.Eff <= 0 || f.Eff > 1.5m) throw new InvalidOperationException("Target Eff ต้องอยู่ระหว่าง 1 - 150 %");
         if (f.Man < 0) throw new InvalidOperationException("STD Man Power ติดลบไม่ได้");
         if (f.Sph is <= 0) throw new InvalidOperationException("SPH 100% ต้องมากกว่า 0 (เว้นว่าง = คำนวณจากตาราง Product)");
+        DateTime? from = MonthKey(f.From), to = MonthKey(f.To);
+        if (from != null && to != null && to < from) throw new InvalidOperationException("ใช้ถึงเดือน ต้องไม่ก่อน ใช้ตั้งแต่เดือน");
         using var c = Conn();
         var p = new { id = f.Id, dept = Dept(f.Dept), code, grp, sub = string.IsNullOrWhiteSpace(f.SubGroup) ? null : f.SubGroup.Trim(), sort = f.Sort, qty = f.Qty, eff = f.Eff, man = f.Man, sph = f.Sph, pcs = f.ByPcs, act = f.Active, uid };
         if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM ProductionPlan.Machines WHERE Dept = @dept AND MachineCode = @code AND MachineID <> @id", p) > 0)
             throw new InvalidOperationException($"มีเครื่องจักร {code} อยู่แล้ว");
-        return f.Id > 0
+        int id = f.Id > 0
             ? c.ExecuteScalar<int>(@"UPDATE ProductionPlan.Machines SET MachineCode = @code, GroupName = @grp, SubGroup = @sub, SortNo = @sort, QtyLine = @qty, TargetEff = @eff,
                                          ManPower = @man, SphOverride = @sph, StrokeByPcs = @pcs, IsActive = @act, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE MachineID = @id; SELECT @id;", p)
             : c.ExecuteScalar<int>(@"INSERT INTO ProductionPlan.Machines (Dept, MachineCode, GroupName, SubGroup, SortNo, QtyLine, TargetEff, ManPower, SphOverride, StrokeByPcs, IsActive, CreatedBy, UpdatedBy)
                                      VALUES (@dept, @code, @grp, @sub, @sort, @qty, @eff, @man, @sph, @pcs, 1, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p);
+        if (DbSchema.HasPpMachineRange)
+            c.Execute("UPDATE ProductionPlan.Machines SET FromMonth = @from, ToMonth = @to WHERE MachineID = @id", new { id, from, to });
+        return id;
     }
 
     // ลบเครื่อง: มี Actual ที่บันทึกแล้ว = ลบไม่ได้ (เปลี่ยนเป็น INACTIVE แทน)
@@ -169,8 +201,8 @@ public sealed class ProductionPlanService
     }
 
     // ---------------------------------------------------------------- ตาราง Product ของเครื่อง
-    private const string PartSql = @"
-        SELECT x.ItemID AS Id, x.MachineID AS MachineId, x.SortNo AS Sort, x.PartAID AS PartAId, LTRIM(RTRIM(ISNULL(a.PartA, ''))) AS PartA, a.PartCode AS PdCode,
+    private static string PartSql => @"
+        SELECT " + (DbSchema.HasPpMachineRange ? "x.FromMonth, x.ToMonth, " : "") + @"x.ItemID AS Id, x.MachineID AS MachineId, x.SortNo AS Sort, x.PartAID AS PartAId, LTRIM(RTRIM(ISNULL(a.PartA, ''))) AS PartA, a.PartCode AS PdCode,
                ISNULL(a.Customer, '') AS Customer, x.PartBID AS PartBId,
                COALESCE(NULLIF(LTRIM(RTRIM(b.PartB)), ''), NULLIF(LTRIM(RTRIM(b.PartA)), ''), b.PartCode) AS PartB,
                COALESCE(NULLIF(LTRIM(RTRIM(b.Description)), ''), a.Description) AS Name,
@@ -178,6 +210,16 @@ public sealed class ProductionPlanService
         FROM ProductionPlan.MachineParts x
         JOIN Nexus.Parts a ON a.PartID = x.PartAID
         LEFT JOIN Nexus.Parts b ON b.PartID = x.PartBID";
+
+    // 📸 แผนตาม Excel ของเดือน (MachineID -> P1 / C3 / C2 / C4 / P7)
+    private static Dictionary<int, PpSnap> Snaps(SqlConnection c, DateTime month, int[] ids)
+    {
+        if (!DbSchema.HasPpMonthPlan || ids.Length == 0) return new();
+        var m = new DateTime(month.Year, month.Month, 1);
+        return c.Query<PpSnap>(@"SELECT MachineID AS MachineId, P1, C3, QtyLine AS Qty, TargetEff AS Eff, ManPower AS Man, Source
+                                 FROM ProductionPlan.MonthPlans WHERE MonthStart = @m AND MachineID IN @ids", new { m, ids })
+                .ToDictionary(x => x.MachineId);
+    }
 
     // PCS ของเดือน ตาม PART A: มี Order = Order · ไม่มี = Forecast (รวมทุกลูกค้า)
     private static Dictionary<string, (decimal F, decimal O)> Demand(SqlConnection c, DateTime month)
@@ -236,12 +278,12 @@ public sealed class ProductionPlanService
     // 📄 PCS TEMPLATE / IMPORT: ทุกแถว Product ของหน่วยงาน (เครื่องที่ใช้งาน) + PCS ของเดือน (AUTO / กำหนดเอง)
     public List<(PpMachine Machine, PpPart Part)> DeptParts(string dept, DateTime month)
     {
-        var ms = Machines(dept, activeOnly: true);
+        var ms = Machines(dept, activeOnly: true, month);
         var ids = ms.Select(x => x.Id).ToArray();
         if (ids.Length == 0) return new();
         var m = new DateTime(month.Year, month.Month, 1);
         using var c = Conn();
-        var parts = c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).ToList();
+        var parts = c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).Where(p => p.InMonth(m)).ToList();
         FillPcs(parts, Demand(c, m), Overrides(c, m));
         return ms.SelectMany(mc => parts.Where(p => p.MachineId == mc.Id).Select(p => (mc, p))).ToList();
     }
@@ -249,7 +291,9 @@ public sealed class ProductionPlanService
     public List<PpPart> Parts(int machineId, DateTime month)
     {
         using var c = Conn();
-        var list = c.Query<PpPart>(PartSql + " WHERE x.MachineID = @machineId ORDER BY x.SortNo, x.ItemID", new { machineId }).ToList();
+        var m = new DateTime(month.Year, month.Month, 1);
+        // เฉพาะแถวที่ใช้ในเดือนที่เลือก (แถวของเดือนเก่าจาก Excel มี FromMonth / ToMonth)
+        var list = c.Query<PpPart>(PartSql + " WHERE x.MachineID = @machineId ORDER BY x.SortNo, x.ItemID", new { machineId }).Where(p => p.InMonth(m)).ToList();
         FillPcs(list, Demand(c, month), Overrides(c, month));
         return list;
     }
@@ -323,11 +367,11 @@ public sealed class ProductionPlanService
     {
         var m = new DateTime(month.Year, month.Month, 1);
         int nd = DateTime.DaysInMonth(m.Year, m.Month);
-        var machines = Machines(dept, activeOnly: true);
+        var machines = Machines(dept, activeOnly: true, m);
         using var c = Conn();
         var ids = machines.Select(x => x.Id).ToArray();
         var parts = ids.Length == 0 ? new List<PpPart>()
-            : c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).ToList();
+            : c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @ids AND x.IsActive = 1 ORDER BY x.MachineID, x.SortNo, x.ItemID", new { ids }).Where(p => p.InMonth(m)).ToList();
         FillPcs(parts, Demand(c, m), Overrides(c, m));
         var actual = ids.Length == 0 ? new List<PpActual>()
             : c.Query<PpActual>(@"SELECT MachineID AS MachineId, DAY(WorkDate) AS Day, WorkHours AS Hr, Stroke, Man FROM ProductionPlan.DailyActuals
@@ -338,6 +382,7 @@ public sealed class ProductionPlanService
         if (!company) wd = Enumerable.Range(1, nd).Where(d => new DateTime(m.Year, m.Month, d).DayOfWeek != DayOfWeek.Sunday).ToList();
         var byM = parts.GroupBy(p => p.MachineId).ToDictionary(g => g.Key, g => g.ToList());
         var acM = actual.GroupBy(a => a.MachineId).ToDictionary(g => g.Key, g => g.Select(a => new { day = a.Day, hr = a.Hr, stroke = a.Stroke, man = a.Man }).ToList());
+        var snaps = Snaps(c, m, ids);
         return new
         {
             dept = Dept(dept),
@@ -351,7 +396,8 @@ public sealed class ProductionPlanService
             {
                 x.Id, x.Code, x.Group, x.SubGroup, x.Sort, x.Qty, x.Eff, x.Man, x.Sph, x.ByPcs,
                 parts = byM.TryGetValue(x.Id, out var l) ? l : new List<PpPart>(),
-                actual = acM.TryGetValue(x.Id, out var a) ? (object)a : Array.Empty<object>()
+                actual = acM.TryGetValue(x.Id, out var a) ? (object)a : Array.Empty<object>(),
+                snap = snaps.TryGetValue(x.Id, out var sn) ? sn : null
             })
         };
     }
@@ -378,9 +424,9 @@ public sealed class ProductionPlanService
         var shifts = Shifts();
         var settings = Settings();
         using var c = Conn();
-        var machines = c.Query<PpMachine>(@"
+        var machines = c.Query<PpMachine>($@"
             SELECT MachineID AS Id, Dept, MachineCode AS Code, GroupName AS [Group], SubGroup, SortNo AS Sort, QtyLine AS Qty,
-                   TargetEff AS Eff, ManPower AS Man, SphOverride AS Sph, StrokeByPcs AS ByPcs, IsActive AS Active
+                   TargetEff AS Eff, ManPower AS Man, SphOverride AS Sph, StrokeByPcs AS ByPcs, IsActive AS Active{(DbSchema.HasPpMachineRange ? ", FromMonth, ToMonth" : "")}
             FROM ProductionPlan.Machines WHERE IsActive = 1 ORDER BY Dept, SortNo, MachineCode").ToList();
         var ids = machines.Select(x => x.Id).ToArray();
         var parts = ids.Length == 0 ? new List<PpPart>()
@@ -397,7 +443,7 @@ public sealed class ProductionPlanService
         {
             int nd = DateTime.DaysInMonth(m.Year, m.Month);
             // PCS ของเดือนนั้น: คัดลอก Product แล้วเติม PCS (ไม่แก้รายการต้นฉบับ)
-            var mp = parts.Select(p => new PpPart { Id = p.Id, MachineId = p.MachineId, Sort = p.Sort, PartAId = p.PartAId, PartA = p.PartA, PdCode = p.PdCode, Customer = p.Customer,
+            var mp = parts.Where(p => p.InMonth(m)).Select(p => new PpPart { Id = p.Id, MachineId = p.MachineId, Sort = p.Sort, PartAId = p.PartAId, PartA = p.PartA, PdCode = p.PdCode, Customer = p.Customer,
                                                     PartBId = p.PartBId, PartB = p.PartB, Name = p.Name, Process = p.Process, Tp = p.Tp, Col = p.Col, Ct = p.Ct, Man = p.Man, Active = p.Active }).ToList();
             FillPcs(mp, Demand(c, m), Overrides(c, m));
             var byM = mp.GroupBy(p => p.MachineId).ToDictionary(g => g.Key, g => g.ToList());
@@ -406,17 +452,19 @@ public sealed class ProductionPlanService
             bool company = wd.Count > 0;
             if (!company) wd = Enumerable.Range(1, nd).Where(d => new DateTime(m.Year, m.Month, d).DayOfWeek != DayOfWeek.Sunday).ToList();
             bool isPrev = m == prev;
+            var snaps = Snaps(c, m, ids);
             outMonths.Add(new
             {
                 month = m.ToString("yyyy-MM"),
                 days = nd,
                 workdays = wd,
                 workdaySource = company ? "COMPANY" : "DEFAULT",
-                depts = machines.GroupBy(x => x.Dept).ToDictionary(g => g.Key, g => g.Select(x => new
+                depts = machines.Where(x => x.InMonth(m)).GroupBy(x => x.Dept).ToDictionary(g => g.Key, g => g.Select(x => new
                 {
                     x.Id, x.Code, x.Group, x.SubGroup, x.Sort, x.Qty, x.Eff, x.Man, x.Sph, x.ByPcs,
                     parts = byM.TryGetValue(x.Id, out var l) ? l : new List<PpPart>(),
-                    actual = isPrev && acM.TryGetValue(x.Id, out var a) ? (object)a : Array.Empty<object>()
+                    actual = isPrev && acM.TryGetValue(x.Id, out var a) ? (object)a : Array.Empty<object>(),
+                    snap = snaps.TryGetValue(x.Id, out var sn) ? sn : null
                 }).ToList())
             });
         }
@@ -467,15 +515,18 @@ public sealed class ProductionPlanService
         var m = new DateTime(month.Year, month.Month, 1);
         int nd = DateTime.DaysInMonth(m.Year, m.Month);
         var list = cells.ToList();
+        using var c = Conn();
+        // Working hour = ชั่วโมงเครื่องรวมทุกไลน์ของวัน -> เพดาน 24 × Q'ty Line (เช่น 2 ไลน์ = 48 ชม. ตาม Excel)
+        decimal? qty = c.ExecuteScalar<decimal?>("SELECT QtyLine FROM ProductionPlan.Machines WHERE MachineID = @machineId", new { machineId });
+        if (qty == null) throw new InvalidOperationException("ไม่พบเครื่องจักร");
+        decimal maxHr = 24 * Math.Max(1, qty.Value);
         foreach (var x in list)
         {
             if (x.Day < 1 || x.Day > nd) throw new InvalidOperationException($"วันที่ {x.Day} ไม่อยู่ในเดือนนี้");
-            if (x.Hr is < 0 or > 24) throw new InvalidOperationException($"วันที่ {x.Day}: Working hour ต้องอยู่ระหว่าง 0 - 24");
+            if (x.Hr < 0 || x.Hr > maxHr) throw new InvalidOperationException($"วันที่ {x.Day}: Working hour ต้องอยู่ระหว่าง 0 - {maxHr:0.##} (24 × Q'ty Line)");
             if (x.Stroke is < 0) throw new InvalidOperationException($"วันที่ {x.Day}: Stroke ติดลบไม่ได้");
             if (x.Man is < 0 or > 999) throw new InvalidOperationException($"วันที่ {x.Day}: Man ไม่ถูกต้อง");
         }
-        using var c = Conn();
-        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM ProductionPlan.Machines WHERE MachineID = @machineId", new { machineId }) == 0) throw new InvalidOperationException("ไม่พบเครื่องจักร");
         c.Open();
         using var t = c.BeginTransaction();
         foreach (var x in list)

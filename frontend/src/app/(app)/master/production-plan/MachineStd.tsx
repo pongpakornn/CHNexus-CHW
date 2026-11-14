@@ -20,10 +20,14 @@ import "../../pp/pp.css";
 // 📈 MASTER DATA › PRODUCTION PLAN › MACHINE STD
 //   เครื่องจักรของหน่วยงาน (PRESS 1) + ค่า STD ที่ใช้คำนวณ: C2 Q'ty Line · C4 Target Eff · P7 STD Man Power/Line · C3 SPH 100% (เว้นว่าง = คำนวณจากตาราง Product)
 //   PLAN SPH (C5-C9): ชั่วโมงต่อกะ · ค่ากลางของสูตร P8 (×1.023) / P9 (÷11) · ทุกการบันทึกลง Activity Log · จออื่นอัพเดทเอง
-type Machine = { id: number; dept: string; code: string; group: string; subGroup: string | null; sort: number; qty: number; eff: number; man: number; sph: number | null; byPcs: boolean; active: boolean; parts: number; updatedBy: string | null; updatedAt: string };
+type Machine = { id: number; dept: string; code: string; group: string; subGroup: string | null; sort: number; qty: number; eff: number; man: number; sph: number | null; byPcs: boolean; active: boolean; parts: number; fromMonth?: string | null; toMonth?: string | null; updatedBy: string | null; updatedAt: string };
 type Data = { machines: Machine[]; shifts: PpShift[]; settings: Record<string, number>; can: { add: boolean; edit: boolean; delete: boolean } };
-type Form = { code: string; group: string; subGroup: string; sort: string; qty: string; eff: string; man: string; sph: string; byPcs: boolean; active: boolean };
-const EMPTY: Form = { code: "", group: "", subGroup: "", sort: "", qty: "1", eff: "85", man: "1", sph: "", byPcs: false, active: true };
+type Form = { code: string; group: string; subGroup: string; sort: string; qty: string; eff: string; man: string; sph: string; byPcs: boolean; active: boolean; from: string; to: string };
+const EMPTY: Form = { code: "", group: "", subGroup: "", sort: "", qty: "1", eff: "85", man: "1", sph: "", byPcs: false, active: true, from: "", to: "" };
+/** "2026-01-01T00:00:00" -> "2026-01" */
+const ym = (d?: string | null) => (d ? d.slice(0, 7) : "");
+const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const ymLabel = (v: string) => (v ? `${MON[+v.slice(5, 7) - 1]} ${v.slice(2, 4)}` : "");
 
 export default function MachineStd() {
   const router = useRouter();
@@ -90,7 +94,7 @@ export default function MachineStd() {
   function open(m: Machine, v: boolean) {
     setRow(m);
     setView(v);
-    setF({ code: m.code, group: m.group, subGroup: m.subGroup ?? "", sort: String(m.sort), qty: String(m.qty), eff: String(+(m.eff * 100).toFixed(2)), man: String(m.man), sph: m.sph == null ? "" : String(m.sph), byPcs: m.byPcs, active: m.active });
+    setF({ code: m.code, group: m.group, subGroup: m.subGroup ?? "", sort: String(m.sort), qty: String(m.qty), eff: String(+(m.eff * 100).toFixed(2)), man: String(m.man), sph: m.sph == null ? "" : String(m.sph), byPcs: m.byPcs, active: m.active, from: ym(m.fromMonth), to: ym(m.toMonth) });
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   async function save() {
@@ -104,6 +108,7 @@ export default function MachineStd() {
     ] as const)
       if (!isFinite(n(v)) || v.trim() === "") return toast.show("WARNING", `${l} ไม่ถูกต้อง`, "warn");
     if (f.sph.trim() && !(n(f.sph) > 0)) return toast.show("WARNING", "SPH 100% ต้องมากกว่า 0 (เว้นว่าง = คำนวณเอง)", "warn");
+    if (f.from && f.to && f.to < f.from) return toast.show("WARNING", "ใช้ถึงเดือน ต้องไม่ก่อน ใช้ตั้งแต่เดือน", "warn");
     setBusy(true);
     try {
       const body = {
@@ -119,6 +124,8 @@ export default function MachineStd() {
         sph: f.sph.trim() ? n(f.sph) : null,
         byPcs: f.byPcs,
         active: f.active,
+        from: f.from || null,
+        to: f.to || null,
       };
       const r = await api<{ message: string }>("/pp/machines", { method: "POST", body });
       toast.show("SAVED", r.message, "ok");
@@ -234,6 +241,14 @@ export default function MachineStd() {
                       </button>
                     </div>
                   </div>
+                  <label>
+                    <span className={lab}>ใช้ตั้งแต่เดือน</span>
+                    <input type="month" className="field" readOnly={ro} value={f.from} onChange={(e) => set({ from: e.target.value })} title="ว่าง = ทุกเดือน" />
+                  </label>
+                  <label>
+                    <span className={lab}>ใช้ถึงเดือน</span>
+                    <input type="month" className="field" readOnly={ro} value={f.to} onChange={(e) => set({ to: e.target.value })} title="ว่าง = ถึงปัจจุบัน · เครื่องที่ย้าย / เลิกใช้ แสดงเฉพาะเดือนที่ใช้งาน" />
+                  </label>
                   <div>
                     <span className={lab}>STATUS</span>
                     <div className="flex h-10 items-center">
@@ -320,6 +335,11 @@ export default function MachineStd() {
                           </td>
                           <td>
                             <span className={`md-status ${m.active ? "is-on" : ""}`}>{m.active ? "ACTIVE" : "INACTIVE"}</span>
+                            {(m.fromMonth || m.toMonth) && (
+                              <span className="block text-[10px] font-bold text-ink-soft">
+                                {ymLabel(ym(m.fromMonth)) || "…"} – {ymLabel(ym(m.toMonth)) || "NOW"}
+                              </span>
+                            )}
                           </td>
                           <td className="whitespace-nowrap font-mono text-xs" title={m.updatedBy ? `โดย ${m.updatedBy}` : undefined}>
                             {stamp(m.updatedAt)}

@@ -185,6 +185,13 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
         </div>
       )}
 
+      {data.machines.some((m) => m.snap) && (
+        <div className="pp-note is-snap">
+          📸 แผน (P1 · SPH · Q&apos;ty · Target Eff · STD Man) ของเดือนนี้ = ยอดตามไฟล์ Excel Capacity ของหน่วยงาน
+          {data.machines.find((m) => m.snap?.source)?.snap?.source ? ` (${data.machines.find((m) => m.snap?.source)?.snap?.source})` : ""} · Actual = ที่บันทึกรายวัน
+        </div>
+      )}
+
       <div className="pp-kpis">
         <Kpi i={0} tone="day" icon={<PpIcon k="day" />} label="WORKING DAYS • C1" value={data.workdays.length} fmt={f0} unit=" days" sub={`${data.workdaySource === "COMPANY" ? "Company Workdays" : "จันทร์–เสาร์"} · ${data.days} วันในเดือน`} frac={data.workdays.length / data.days} />
         <Kpi i={1} tone="plan" icon={<PpIcon k="plan" />} spark={daily.act} label="PLAN STROKE • P1" value={sum.p1} fmt={f0} sub={`Actual ${f0(sum.a1)} · ${pc(sum.p1 ? sum.a1 / sum.p1 : 0)} ของแผน`} frac={sum.p1 ? sum.a1 / sum.p1 : 0} />
