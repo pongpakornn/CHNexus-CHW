@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Card, Loading, PageBody } from "@/components/layout/Page";
@@ -117,7 +118,7 @@ export default function ChemDashboard() {
         <span className="blob b1" aria-hidden />
         <span className="blob b2" aria-hidden />
         <div className="tx">
-          <small>CURRENT SHIFT · {cur.shift === "D" ? "DAY (กะกลางวัน)" : "NIGHT (กะกลางคืน)"} · {new Date(cur.date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</small>
+          <small>CURRENT SHIFT · {cur.shift === "D" ? "DAY (กะกลางวัน)" : "NIGHT (กะกลางคืน)"} · {fmtDate(cur.date, "th-TH", { day: "numeric", month: "long", year: "numeric" }, "date")}</small>
           <h2>{view.done === view.need ? "ตรวจวัดครบทุกรายการแล้ว" : `ตรวจวัดแล้ว ${view.done} / ${view.need} ค่า`}</h2>
           <div className="stats">
             {(["OK", "WARN", "OUT", "NONE"] as Status[]).map((s, i) => (
@@ -223,7 +224,7 @@ export default function ChemDashboard() {
                 </div>
                 <div className="f">
                   <span className="when">
-                    {x.last ? `ล่าสุด ${new Date(x.last.date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })} ${x.last.shift === "D" ? "กลางวัน" : "กลางคืน"} ${x.last.time ?? ""}` : STATUS_TH.NONE}
+                    {x.last ? `ล่าสุด ${fmtDate(x.last.date, "th-TH", { day: "numeric", month: "short" }, "date")} ${x.last.shift === "D" ? "กลางวัน" : "กลางคืน"} ${x.last.time ?? ""}` : STATUS_TH.NONE}
                   </span>
                   {x.sheet && <span className={`sheet is-${x.sheet.status.toLowerCase()}`}>{x.sheet.status === "APPROVED" ? "✓ APPROVED" : x.sheet.status === "SIGNING" ? "✍ SIGNING" : "DRAFT"}</span>}
                 </div>

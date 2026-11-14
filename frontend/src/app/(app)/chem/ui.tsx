@@ -1,6 +1,7 @@
 "use client";
 
 import { MonthField } from "@/components/forms/MonthField";
+import { fmtDate } from "@/lib/format";
 import { Fragment } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EASE } from "@/lib/motion";
@@ -116,7 +117,7 @@ export function FlowMap({ nodes, started, finished, submittedBy }: { nodes: Flow
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/signature/${encodeURIComponent(n.done.userId)}/image`} alt={n.done.name} />
                   <span className="who is-done">✓ {n.done.name}</span>
-                  <small>{new Date(n.done.at).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
+                  <small>{fmtDate(n.done.at, "th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
                 </>
               ) : (
                 <>

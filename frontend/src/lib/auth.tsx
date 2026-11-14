@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "./api";
+import { ApiError, api } from "./api";
 import { useLive } from "./live";
 import { splashWait } from "./splash";
 
@@ -34,8 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ค่าเหมือนเดิม = ไม่ต้องวาดทั้งแอปใหม่
       setMe((prev) => (prev && JSON.stringify(prev) === JSON.stringify(m) ? prev : m));
       return m;
-    } catch {
-      setMe(null);
+    } catch (e) {
+      // เฉพาะ 401 (Session หมดอายุจริง) = ออกจากระบบ · เครือข่ายสะดุด / Server 5xx = คงหน้าเดิมและข้อมูลที่ยังไม่บันทึกไว้
+      if (e instanceof ApiError && e.status === 401) setMe(null);
       return null;
     } finally {
       setLoading(false);

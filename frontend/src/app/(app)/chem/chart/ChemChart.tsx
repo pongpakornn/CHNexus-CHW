@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Card, Empty, Loading, PageBody } from "@/components/layout/Page";
@@ -38,7 +39,7 @@ type Data = {
 type Meta = { parameters: ChemParam[] };
 type Form = { id: number; date: string; checkTime: string; problem: string; before: string; after: string; correction: string; adjustTime: string; responsible: string };
 
-const th = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+const th = (d: string) => fmtDate(d, "th-TH", { day: "numeric", month: "short", year: "2-digit" }, "date");
 
 export default function ChemChart() {
   const router = useRouter();
@@ -496,7 +497,7 @@ function Approval({ d, busy, onSubmit, onSign, onReturn }: { d: Data; busy: bool
               </button>
             </>
           )}
-          {st === "APPROVED" && <span className="ch-hint is-ok">✓ อนุมัติครบทุกขั้นตอนแล้ว {s?.doneAt ? new Date(s.doneAt).toLocaleString("th-TH") : ""}</span>}
+          {st === "APPROVED" && <span className="ch-hint is-ok">✓ อนุมัติครบทุกขั้นตอนแล้ว {s?.doneAt ? fmtDate(s.doneAt, "th-TH") : ""}</span>}
         </div>
       </div>
     </Card>
@@ -611,7 +612,7 @@ function PrintSheet({ d, st, month, nd, dayT, nightT, byKey, points }: { d: Data
                 {f.signed && <img src={`/api/signature/${encodeURIComponent(f.signed.userId)}/image`} alt="" crossOrigin="anonymous" />}
               </div>
               <b>{f.signed?.name ?? "………………………"}</b>
-              <small>{f.signed ? new Date(f.signed.at).toLocaleDateString("th-TH") : "วันที่ ……/……/……"}</small>
+              <small>{f.signed ? fmtDate(f.signed.at, "th-TH", undefined, "date") : "วันที่ ……/……/……"}</small>
             </div>
           ))}
       </div>

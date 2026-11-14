@@ -29,6 +29,14 @@ let installed = false;
 export function installBugReporter() {
   if (installed || typeof window === "undefined") return;
   installed = true;
+  // The page loaded fine: forget the one-shot reload flag so the NEXT deploy can reload this long-lived tab again
+  setTimeout(() => {
+    try {
+      sessionStorage.removeItem("chr-chunk-reload");
+    } catch {
+      /* no storage */
+    }
+  }, 15_000);
   const chunk = (m: string) => /ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module/i.test(m);
   window.addEventListener("error", (e) => {
     const msg = e.message || String(e.error ?? "");

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { Loading } from "@/components/layout/Page";
@@ -452,7 +453,7 @@ export function PermissionModal({
                   ["DIVISION", u.division],
                   ["LEVEL", u.levelText],
                   ["STATUS", u.statusText],
-                  ["LAST LOGIN", u.lastLogin ? new Date(u.lastLogin).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "-"],
+                  ["LAST LOGIN", fmtDate(u.lastLogin, "en-GB", { dateStyle: "short", timeStyle: "short" })],
                 ] as const
               ).map(([l, v], i) => (
                 <div key={l} className="pm-tile" style={{ animationDelay: `${i * 30}ms` }}>

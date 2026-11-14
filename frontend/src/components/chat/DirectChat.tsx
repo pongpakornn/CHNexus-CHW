@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { pollGuard } from "@/lib/pollGuard";
 import { refreshNotifications } from "@/lib/support";
 import { MIN_TOKEN } from "@/lib/minSign";
 import { useTyping } from "@/lib/useTyping";
@@ -21,6 +22,7 @@ type Msg = { messageId: number; from: string; to: string; body: string; createdA
 const pad = (n: number) => String(n).padStart(2, "0");
 const when = (iso: string) => {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
   return new Date().toDateString() === d.toDateString() ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const initials = (s: string) => s.trim().slice(0, 1).toUpperCase() || "?";
@@ -50,7 +52,27 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   const { typing, notify: notifyTyping } = useTyping(withId ? `/chat/typing/${encodeURIComponent(withId)}` : null);
 
   const loadConvs = useCallback(() => api<Conv[]>("/chat/conversations").then(setConvs).catch(() => {}), []);
-  const loadMsgs = useCallback((id: string) => api<Msg[]>(`/chat/with/${encodeURIComponent(id)}`).then(setMsgs).catch((e) => toast.show("ERROR", e.message, "error")), [toast]);
+  const guard = useRef(pollGuard());
+  const withRef = useRef(withId);
+  useEffect(() => {
+    withRef.current = withId;
+  }, [withId]);
+  // poll = true: timer tick (skips while a request is running / server is down; one notice per outage)
+  const loadMsgs = useCallback(
+    (id: string, poll = false) => {
+      if (poll && !guard.current.shouldRun()) return Promise.resolve();
+      guard.current.begin();
+      return api<Msg[]>(`/chat/with/${encodeURIComponent(id)}`)
+        .then((m) => {
+          guard.current.ok();
+          if (withRef.current === id) setMsgs(m); // late reply of a chat the user already left = ignored
+        })
+        .catch((e) => {
+          if (guard.current.fail()) toast.show("ERROR", e.message, "error");
+        });
+    },
+    [toast],
+  );
 
   useEffect(() => {
     const first = setTimeout(() => {
@@ -64,7 +86,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   useEffect(() => {
     if (!withId) return;
     const first = setTimeout(() => loadMsgs(withId).then(() => (loadConvs(), refreshNotifications())), 0);
-    const t = setInterval(() => document.visibilityState === "visible" && loadMsgs(withId), 4000);
+    const t = setInterval(() => document.visibilityState === "visible" && loadMsgs(withId, true), 4000);
     return () => (clearTimeout(first), clearInterval(t));
   }, [withId, loadMsgs, loadConvs]);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { api, upload } from "@/lib/api";
@@ -179,7 +180,7 @@ export function SignatureModal({ userId, onClose, onSaved }: { userId: string; o
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`/api/signature/${encodeURIComponent(userId)}/image?v=${ver}-${me.updated ?? ""}`} alt="ลายเซ็นปัจจุบัน" draggable={false} />
               <span>
-                {me.file} · อัพเดท {me.updated ? new Date(me.updated).toLocaleString("th-TH") : "-"}
+                {me.file} · อัพเดท {fmtDate(me.updated, "th-TH")}
               </span>
             </>
           ) : (

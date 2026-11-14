@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { pollGuard } from "@/lib/pollGuard";
 import { refreshNotifications, SUPPORT_EVENT, TOPICS, topicOf, type SupportOpen, type SupportTopic } from "@/lib/support";
 import { useTyping } from "@/lib/useTyping";
 import { useBubbleCorner } from "@/lib/profileCorner";
@@ -25,6 +26,7 @@ type ThreadData = { thread: { threadId: number; userId: string; userName: string
 const pad = (n: number) => String(n).padStart(2, "0");
 const when = (iso: string) => {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
   const today = new Date().toDateString() === d.toDateString();
   return today ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
@@ -87,11 +89,25 @@ export function SupportChat() {
   const lastCount = useRef(0);
 
   const loadThreads = useCallback(() => api<ThreadRow[]>("/support/threads").then(setThreads).catch(() => {}), []);
+  const guard = useRef(pollGuard());
+  const activeRef = useRef(active);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+  // poll = true: timer tick (skips while a request is running / server is down; one notice per outage)
   const loadThread = useCallback(
-    (id: number) =>
-      api<ThreadData>(`/support/threads/${id}`)
-        .then(setData)
-        .catch((e) => toast.show("ERROR", e.message, "error")),
+    (id: number, poll = false) => {
+      if (poll && !guard.current.shouldRun()) return Promise.resolve();
+      guard.current.begin();
+      return api<ThreadData>(`/support/threads/${id}`)
+        .then((d) => {
+          guard.current.ok();
+          if (activeRef.current === id) setData(d); // late reply of a thread the user already left = ignored
+        })
+        .catch((e) => {
+          if (guard.current.fail()) toast.show("ERROR", e.message, "error");
+        });
+    },
     [toast],
   );
 
@@ -139,7 +155,7 @@ export function SupportChat() {
   useEffect(() => {
     if (!open || typeof active !== "number") return;
     const first = setTimeout(() => loadThread(active), 0);
-    const t = setInterval(() => document.visibilityState === "visible" && loadThread(active), 4000);
+    const t = setInterval(() => document.visibilityState === "visible" && loadThread(active, true), 4000);
     return () => (clearTimeout(first), clearInterval(t));
   }, [open, active, loadThread]);
 

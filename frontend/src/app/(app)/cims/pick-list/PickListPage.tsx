@@ -12,9 +12,9 @@ import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/
 import { QrImage } from "@/components/print/QrImage";
 import { type CardOpts, type Layout, LAYOUTS, LayoutOption, SheetPreview, Sheets, fitTexts, makePdf } from "@/components/print/PickSheets";
 import { api, download } from "@/lib/api";
-import { isoDate, today } from "@/lib/format";
+import { fmtDate, isoDate, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
-import { useLive } from "@/lib/live";
+import { sameData, useLive } from "@/lib/live";
 
 type PickCard = {
   ticketNo: string;
@@ -49,9 +49,10 @@ const qrText = (c: PickCard) => `${c.ticketNo} | ${c.materialCode} | ${c.workOrd
 const d = (s: string | null) => {
   if (!s) return "";
   const x = new Date(s);
+  if (Number.isNaN(x.getTime())) return "-";
   return `${String(x.getDate()).padStart(2, "0")}-${String(x.getMonth() + 1).padStart(2, "0")}-${x.getFullYear()}`;
 };
-const stamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const stamp = (s: string) => fmtDate(s, "en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const shift = (iso: string, n: number) => {
   const [y, m, dd] = iso.split("-").map(Number);
   return isoDate(new Date(y, m - 1, dd + n));
@@ -102,13 +103,20 @@ export default function PickListPage() {
     }
   }, []);
 
+  const ver = useRef(0); // newest request wins (a slow reply for an old date range is dropped)
+  const lastJson = useRef("");
   const load = useCallback(async () => {
+    const v = ++ver.current;
     try {
       const r = await api<{ source: string; rows: PickCard[] }>("/picklist", { query: { from, to } });
-      setRows(r.rows);
-      setSource(r.source);
+      if (v !== ver.current) return;
+      if (!sameData(lastJson, r)) {
+        setRows(r.rows);
+        setSource(r.source);
+      }
       setError(null);
     } catch (e) {
+      if (v !== ver.current) return;
       setRows((x) => x ?? []);
       setError((e as Error).message);
     }

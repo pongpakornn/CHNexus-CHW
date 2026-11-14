@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { isTopOverlay, pushOverlay } from "@/lib/overlayStack";
 
 // หน้าต่างกลางจอ (แทน Window.ShowDialog ของ WPF) - Esc = ปิด
 //   พื้นหลังเบลอ · การ์ดเด้งเข้า / จางออกตอนปิด · หัวไล่สีเข้ม + เส้นม่วง · มือถือ = แผ่นเลื่อนขึ้นจากล่าง
@@ -37,9 +38,17 @@ export function Modal({
     return () => clearTimeout(t);
   }, [open, shown]);
 
+  // Esc closes only the topmost overlay (a confirm box or a second Modal on top keeps this one open)
+  const ovId = useRef<symbol | null>(null);
   useEffect(() => {
     if (!open) return;
-    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const ov = pushOverlay();
+    ovId.current = ov.id;
+    return () => ov.pop();
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const k = (e: KeyboardEvent) => e.key === "Escape" && ovId.current && isTopOverlay(ovId.current) && onClose();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [open, onClose]);

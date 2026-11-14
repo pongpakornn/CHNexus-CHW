@@ -1,7 +1,7 @@
 "use client";
 
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { DateRange } from "@/components/forms/DateRange";
@@ -39,12 +39,16 @@ export function ApprovedModal({
   const [edit, setEdit] = useState<Pr | null>(null);
   const k = useDebounced(key, 250);
 
+  const ver = useRef(0); // newest request wins (typing fast must not show an older reply)
   const load = useCallback(async () => {
+    const v = ++ver.current;
     try {
       const r = await api<Data>("/pr/approved", { query: { key: k, from, to, stkId: stock?.stkId } });
+      if (v !== ver.current) return;
       setData(r);
       setSel((s) => s.filter((n) => r.rows.some((x) => x.prNumber === n)));
     } catch (e) {
+      if (v !== ver.current) return;
       toast.show("Approved PR", "โหลดรายการไม่สำเร็จ: " + (e as Error).message, "error");
     }
   }, [k, from, to, stock, toast]);
@@ -288,15 +292,20 @@ export function ApprovedModal({
 function EditModal({ pr, onClose, onSaved }: { pr: Pr; onClose: () => void; onSaved: (msg: string) => void }) {
   const toast = useToast();
   const [v, setV] = useState({ qty: String(pr.qty), dept: pr.department ?? "", target: pr.targetDept ?? "", remark: pr.remark ?? "" });
+  const [saving, setSaving] = useState(false);
   async function save() {
+    if (saving) return;
     const q = Number(v.qty);
     if (!Number.isInteger(q) || q <= 0) return toast.show("WARNING", "จำนวนต้องมากกว่า 0", "warn");
     if (!v.dept.trim()) return toast.show("WARNING", "กรุณากรอก Department", "warn");
+    setSaving(true);
     try {
       const r = await api<{ message: string }>(`/pr/${encodeURIComponent(pr.prNumber)}`, { method: "PUT", body: { qty: q, dept: v.dept, target: v.target, remark: v.remark } });
       onSaved(r.message);
     } catch (e) {
       toast.show("ERROR", "แก้ไขไม่สำเร็จ\n" + (e as Error).message, "error");
+    } finally {
+      setSaving(false);
     }
   }
   const field = (label: string, k: keyof typeof v, numeric = false) => (
@@ -315,7 +324,7 @@ function EditModal({ pr, onClose, onSaved }: { pr: Pr; onClose: () => void; onSa
           <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="cta-btn is-purple" onClick={save}>
+          <button className="cta-btn is-purple" onClick={save} disabled={saving}>
             💾 SAVE
           </button>
         </>

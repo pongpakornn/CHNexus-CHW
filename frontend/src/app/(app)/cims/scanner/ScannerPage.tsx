@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
@@ -660,7 +661,7 @@ export default function ScannerPage() {
               {last.stockCode && <span className="sc-tag">🏬 {last.stockCode}</span>}
               {last.layout && <span className="sc-layout-tag">📍 {last.layout}</span>}
               <StatusPill status={last.status} deduct={last.isDeductOut} />
-              <span className="text-[11px] font-bold text-ink-soft">{new Date(last.time).toLocaleTimeString("th-TH")}</span>
+              <span className="text-[11px] font-bold text-ink-soft">{fmtDate(last.time, "th-TH", undefined, "time")}</span>
             </div>
           )}
         </div>
@@ -708,7 +709,7 @@ export default function ScannerPage() {
                     <td>
                       <StatusPill status={r.status} deduct={r.isDeductOut} />
                     </td>
-                    <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{new Date(r.time).toLocaleTimeString("th-TH")}</td>
+                    <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{fmtDate(r.time, "th-TH", undefined, "time")}</td>
                   </tr>
                 ))}
                 {(modes.test ? testRows : rows).length === 0 && (

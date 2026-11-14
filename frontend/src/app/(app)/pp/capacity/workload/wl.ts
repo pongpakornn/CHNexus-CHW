@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
@@ -144,7 +145,7 @@ export function savedHeads(heads: WlHead[]) {
 }
 export const updOf = (heads: WlHead[], m: string) => {
   const t = heads.filter((h) => h.month === m).map((h) => h.updatedAt).sort().pop();
-  return t ? new Date(t).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "–";
+  return t ? fmtDate(t, "en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }, "date") : "–";
 };
 
 // โหลด /pp/workload + เรียลไทม์ (Capacity / Actual / STD / Forecast / วันทำงานเปลี่ยน = โหลดเงียบ ๆ · paused = กำลังแก้อยู่ ไม่ทับ)

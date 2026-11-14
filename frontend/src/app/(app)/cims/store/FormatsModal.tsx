@@ -105,15 +105,19 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
     };
   }, [dF, minTyped]);
 
+  const [saving, setSaving] = useState(false);
   async function save() {
-    if (!f) return;
-    if (f.sampleText && test && !test.ok && !(await dlg.confirm({ title: "CONFIRM SAVE", message: "ตัวอย่างบาร์โค้ดที่ทดสอบไว้ ไม่ตรงกับรูปแบบนี้\nต้องการบันทึกต่อหรือไม่?" }))) return;
+    if (!f || saving) return;
+    setSaving(true); // busy-lock: a double click must not create the format twice
     try {
+      if (f.sampleText && test && !test.ok && !(await dlg.confirm({ title: "CONFIRM SAVE", message: "ตัวอย่างบาร์โค้ดที่ทดสอบไว้ ไม่ตรงกับรูปแบบนี้\nต้องการบันทึกต่อหรือไม่?" }))) return;
       const r = await api<{ id: number; message: string }>("/store/formats", { method: "POST", body: { format: f, typedMinFields: pos(minTyped) } });
       toast.show("Barcode Format", r.message, "ok");
       load(r.id);
     } catch (e) {
       toast.show("WARNING", (e as Error).message, "warn");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -195,7 +199,7 @@ export function FormatsModal({ onClose }: { onClose: () => void }) {
             </button>
           )}
           {canSave && (
-            <button className="cta-btn is-purple" onClick={save}>
+            <button className="cta-btn is-purple" onClick={save} disabled={saving}>
               💾 SAVE
             </button>
           )}

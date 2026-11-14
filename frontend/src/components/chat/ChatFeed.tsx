@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { fmtDate } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { openChat, openSupport, refreshNotifications, topicOf } from "@/lib/support";
@@ -12,7 +13,7 @@ import { minTokenOf, openMinSign } from "@/lib/minSign";
 //   ⚡ ทันที: มีคนส่งแชท / แจ้ง Admin = สัญญาณ Realtime ("chat" / "support") -> ดึงข้อความใหม่เลย (เดิมรอรอบ 8 วินาที) · รอบ 8 วินาทียังอยู่เป็นสำรอง
 //   Toast แชท = ตัวย่อชื่อ + ชื่อ + แผนก · ข้อความ (3 บรรทัด) · ไฟล์แนบ · เวลา
 type Item = { kind: "dm" | "support"; id: number; from: string; fromName: string; body: string; threadId: number | null; topic: string | null; dept?: string; attach?: string | null; at?: string | null };
-const hm = (s?: string | null) => (s ? new Date(s).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : null);
+const hm = (s?: string | null) => (s ? fmtDate(s, "th-TH", { hour: "2-digit", minute: "2-digit" }, "time") : null);
 const attachOf = (m: Item) => (m.attach === "IMAGE" ? "📷 รูปภาพ" : m.attach ? "📎 ไฟล์แนบ" : null);
 type Feed = { dm: number; sup: number; items: Item[] };
 const POLL_MS = 8000;

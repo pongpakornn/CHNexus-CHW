@@ -39,6 +39,10 @@ async function loop() {
       const q = new URLSearchParams({ topics: topicsKey });
       if (version !== null) q.set("v", String(version));
       const res = await fetch(`/api/live/wait?${q}`, { credentials: "same-origin", headers: { "X-Client-Device": deviceName() }, signal: ctrl.signal, cache: "no-store" });
+      if (res.status === 401) {
+        running = false; // Session หมดอายุ: หยุดถาม (AppGate / auth พาออกไปหน้า Login เอง) - ไม่ยิงซ้ำทุก 5 วินาที
+        return;
+      }
       if (!res.ok) throw new Error(String(res.status));
       const r = (await res.json()) as { v: number; changed: string[] };
       const first = version === null;
@@ -49,7 +53,7 @@ async function loop() {
     } catch (e) {
       if ((e as Error).name === "AbortError") continue; // หัวข้อเปลี่ยน -> ถามใหม่ด้วยรายการใหม่
       fails++;
-      await new Promise((ok) => setTimeout(ok, Math.min(5000, 800 * fails)));
+      await new Promise((ok) => setTimeout(ok, Math.min(5000, 800 * fails) * (0.75 + Math.random() * 0.5)));
     }
   }
   running = false;

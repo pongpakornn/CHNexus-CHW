@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Loading, PageBody, SearchBox } from "@/components/layout/Page";
@@ -244,7 +245,7 @@ export default function ChemRecord() {
         {dirty > 0 && (
           <motion.div className="ch-savebar" initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ duration: 0.35, ease: EASE }}>
             <span>
-              แก้ไข <b>{dirty}</b> ค่า · {shift === "D" ? "กะกลางวัน" : "กะกลางคืน"} {new Date(date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+              แก้ไข <b>{dirty}</b> ค่า · {shift === "D" ? "กะกลางวัน" : "กะกลางคืน"} {fmtDate(date, "th-TH", { day: "numeric", month: "short" }, "date")}
             </span>
             <button
               type="button"

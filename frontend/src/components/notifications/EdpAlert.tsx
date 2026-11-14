@@ -65,7 +65,8 @@ function EdpAlertHost({ path }: { path: string }) {
   const load = useCallback(async () => {
     try {
       const c = await api<Cfg>("/edp/alert");
-      if (c.now) setSkew(new Date(c.now).getTime() - Date.now());
+      const sv = c.now ? new Date(c.now).getTime() : NaN;
+      if (Number.isFinite(sv)) setSkew(sv - Date.now()); // bad server time = keep the old skew (NaN would break snooze)
       setCfg(c);
       if (!c.enabled) return setPlan(null);
       meta.current ??= await api<Meta>("/edp/meta");
