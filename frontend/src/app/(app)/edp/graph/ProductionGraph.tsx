@@ -202,7 +202,7 @@ export default function ProductionGraph() {
     eff: 0,
   });
   return (
-    <PageBody>
+    <PageBody className="page-own">
       <motion.div custom={0} variants={V} initial="hidden" animate="show">
         <PageHeader
           icon="/icons/Dashboard.png"

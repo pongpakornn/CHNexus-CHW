@@ -220,9 +220,10 @@ export function MonthChart({
     <div
       className="fc-tip pointer-events-none absolute z-10 min-w-[220px] rounded-2xl border border-white/15 px-3.5 py-3 text-[#f3f7ff] shadow-[0_18px_40px_-10px_rgba(0,5,25,.45)]"
       style={{
-        left: tipLeftSide ? sx(hover) - band / 2 - 8 : sx(hover) + band / 2 + 8,
-        top: clamp(tipY - 80, 8, H - 170),
-        translate: tipLeftSide ? "-100% 0" : "0 0",
+        // moves with translate (compositor) instead of left / top (layout every frame)
+        left: 0,
+        top: 0,
+        translate: `${tipLeftSide ? `calc(${sx(hover) - band / 2 - 8}px - 100%)` : `${sx(hover) + band / 2 + 8}px`} ${clamp(tipY - 80, 8, H - 170)}px`,
       }}
     >
       <div className="mb-2 flex justify-between gap-3 text-[13px] font-extrabold">

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useState, useSyncExternalStore } from "react";
+import { Loading } from "@/components/layout/Page";
 import { StatusLamp } from "./StatusLamp";
 import { CoilRemark, masterOf, type CoilRow, type CoilState, type Field, type RowActions, type RowCfg } from "./TableRows";
 import { STATUS_COLOR, cardTone, type Product } from "./types";
@@ -213,7 +214,7 @@ const coilVal = (k: string, r: CoilRow) => ({ COILNO: r.coilNo, MOTHER: masterOf
 
 // 🧲 Coil บนมือถือ: แถบ MASTER COIL -> Coil ลูกเป็นการ์ดเล็ก (เลข Coil ใหญ่ + ค่าอื่นเป็นคู่ ชื่อ : ค่า)
 function MobileCoils({ list, cfg, act }: { list: CoilState; cfg: RowCfg; act: RowActions }) {
-  if (list === "loading") return <div className="py-3 text-center text-xs font-bold text-ink-soft">⏳ LOADING COILS...</div>;
+  if (list === "loading") return <Loading compact label="กำลังโหลด Coil…" />;
   if (!list.some((r) => !r.isMother)) return <div className="py-3 text-center text-xs font-bold text-ink-soft">ยังไม่มี Coil ในคลังของสินค้านี้</div>;
   const keys = cfg.coilKeys.filter((k) => k !== "NO" && k !== "COILNO" && k !== "REMARK");
   return (

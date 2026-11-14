@@ -107,8 +107,18 @@ export function Empty({ children = "ไม่พบรายการ" }: { chil
   return <div className="nx-fade py-12 text-center text-sm font-semibold text-ink-soft">{children}</div>;
 }
 
-export function Loading() {
-  return <div className="nx-fade py-12 text-center text-sm font-semibold text-ink-soft">⏳ LOADING...</div>;
+// โหลดอยู่ = โครงวิบวับ (skeleton) + ข้อความไทย · ประกาศให้ Screen reader · compact = พื้นที่เล็ก (แถวย่อย / หน้าต่างเล็ก)
+export function Loading({ compact = false, label = "กำลังโหลดข้อมูล…" }: { compact?: boolean; label?: string }) {
+  return (
+    <div role="status" aria-live="polite" className={`nx-fade grid justify-items-center ${compact ? "gap-1.5 py-3" : "gap-2.5 py-10"}`}>
+      <div className={`grid w-full max-w-sm gap-2 ${compact ? "px-3" : ""}`} aria-hidden>
+        <div className="nx-skel h-3.5 w-2/5" />
+        <div className={`nx-skel ${compact ? "h-7" : "h-12"}`} />
+        {!compact && <div className="nx-skel h-12 w-[88%]" />}
+      </div>
+      <span className="text-xs font-semibold text-ink-soft">{label}</span>
+    </div>
+  );
 }
 
 export function Badge({ children, color = "var(--primary)" }: { children: React.ReactNode; color?: string }) {

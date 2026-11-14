@@ -102,7 +102,7 @@
   border-radius: 10px;
   font-size: 20px;
   font-weight: 800;
-  color: #a1a1aa;
+  color: #52525b;
   transition: background-color 0.3s var(--ease-drop), color 0.3s, translate 0.3s var(--ease-drop);
 }
 .edp-date > button:hover {

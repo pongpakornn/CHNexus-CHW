@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { createPortal } from "react-dom";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
@@ -280,7 +281,7 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
           {req && data ? (
             <SheetPreview items={cards} layout={layout} keyOf={keyOf} card={pickingCard} foot="PICKING" />
           ) : (
-            <div className="grid min-h-[300px] place-items-center text-sm font-bold text-ink-soft">กำลังโหลด…</div>
+            <div className="grid min-h-[300px] place-items-center"><Loading /></div>
           )}
         </div>
       </Modal>

@@ -199,6 +199,7 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
               </div>
             </div>
 
+            <div key={tab} className="adm-pane">
             {tab === "sign" ? (
               signing.length === 0 ? (
                 <Empty>ไม่มีเอกสารที่รอลงลายเซ็น 🎉</Empty>
@@ -223,6 +224,7 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
                 ))}
               </div>
             )}
+            </div>
           </div>
         )}
       </Modal>

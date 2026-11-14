@@ -38,7 +38,7 @@ export function ViewSwitch({ value, onChange }: { value: ChartView; onChange: (v
           {value === v && (
             <motion.span
               layoutId={`vs-${id}`}
-              className="absolute inset-0 rounded-full bg-gradient-to-b from-[#3b82f6] to-[#2563eb] shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]"
+              className="absolute inset-0 rounded-full bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]"
               transition={springSoft}
             />
           )}
@@ -86,7 +86,7 @@ export function PillSwitch<T extends string>({ value, onChange, options, label }
           {value === o.v && (
             <motion.span
               layoutId={`ps-${id}`}
-              className="absolute inset-0 rounded-full bg-gradient-to-b from-[#3b82f6] to-[#2563eb] shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]"
+              className="absolute inset-0 rounded-full bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] shadow-[0_4px_12px_-4px_rgba(37,99,235,.7)]"
               transition={springSoft}
             />
           )}

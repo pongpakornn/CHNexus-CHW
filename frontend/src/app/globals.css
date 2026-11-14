@@ -22,6 +22,10 @@
   --scanout: #7b1fa2;
   /* Sidebar: #1C1C1E ความเข้ม 95% */
   --sidebar: rgba(28, 28, 30, 0.95);
+  /* the one motion curve of the whole app (same as EASE in lib/motion.ts) */
+  --ease-drop: cubic-bezier(0.22, 1, 0.36, 1);
+  /* what buttons / chips animate (replaces "transition: all") */
+  --tx-ui: color, background-color, border-color, box-shadow, opacity, filter, transform, translate, scale;
 }
 
 @theme inline {
@@ -380,10 +384,12 @@ main :has(> .data-table.is-stacked) {
   box-shadow: 0 6px 14px -8px rgb(20 20 40 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
   transition: translate 0.45s var(--ease-drop), filter 0.45s var(--ease-drop), box-shadow 0.45s var(--ease-drop), background-color 0.45s var(--ease-drop), scale 0.15s var(--ease-drop);
 }
-.btn:hover {
-  translate: 0 -1px;
-  filter: brightness(1.07);
-  box-shadow: 0 10px 20px -10px rgb(20 20 40 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
+@media (hover: hover) {
+  .btn:hover {
+    translate: 0 -1px;
+    filter: brightness(1.07);
+    box-shadow: 0 10px 20px -10px rgb(20 20 40 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
+  }
 }
 .btn:active {
   scale: 0.97;
@@ -1370,7 +1376,7 @@ div.swap-in:has(> .show-strip) {
   color: var(--primary);
   font-weight: 700;
   line-height: 1.6;
-  transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+  transition-property: var(--tx-ui); transition-duration: 0.48s; transition-timing-function: var(--ease-drop);
 }
 .pg-btn::before,
 .pg-btn::after {
@@ -1389,7 +1395,7 @@ div.swap-in:has(> .show-strip) {
   height: 40px;
   border-radius: 11px;
   transform: translate(-50%, -50%);
-  transition: all 0.48s cubic-bezier(0.23, 1, 0.32, 1);
+  transition-property: var(--tx-ui), top; transition-duration: 0.48s; transition-timing-function: var(--ease-drop);
 }
 .pg-btn::after {
   bottom: -26px;
@@ -1397,7 +1403,7 @@ div.swap-in:has(> .show-strip) {
   height: 6px;
   border-radius: 50%;
   transform: translateX(-50%);
-  transition: all 0.48s 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+  transition-property: var(--tx-ui), bottom; transition-duration: 0.48s; transition-delay: 0.2s; transition-timing-function: var(--ease-drop);
 }
 .pg-btn:hover:not(:disabled):not(.is-on) {
   border-color: #0a3cff;
@@ -3187,7 +3193,7 @@ div.swap-in:has(> .show-strip) {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: all 0.2s var(--ease-drop);
+  transition: stroke 0.2s var(--ease-drop), stroke-dashoffset 0.2s var(--ease-drop);
 }
 .cbx svg path {
   stroke-dasharray: 60;
@@ -3206,11 +3212,11 @@ div.swap-in:has(> .show-strip) {
 }
 .cbx-input:checked + .cbx svg path {
   stroke-dashoffset: 60;
-  transition: all 0.3s linear;
+  transition: stroke 0.3s linear, stroke-dashoffset 0.3s linear;
 }
 .cbx-input:checked + .cbx svg polyline {
   stroke-dashoffset: 42;
-  transition: all 0.2s linear 0.15s;
+  transition: stroke 0.2s linear 0.15s, stroke-dashoffset 0.2s linear 0.15s;
 }
 .cbx-input:focus-visible + .cbx::before {
   opacity: 1;
@@ -3267,7 +3273,7 @@ div.swap-in:has(> .show-strip) {
   font-size: 26px;
   font-weight: 500;
   line-height: 1;
-  transition: all 0.3s var(--ease-drop);
+  transition: width 0.3s var(--ease-drop), padding 0.3s var(--ease-drop);
 }
 .add-btn .text {
   position: absolute;
@@ -3281,7 +3287,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
-  transition: all 0.3s var(--ease-drop);
+  transition: width 0.3s var(--ease-drop), padding 0.3s var(--ease-drop), opacity 0.3s var(--ease-drop);
 }
 .add-btn:hover,
 .add-btn:focus-visible {
@@ -3460,7 +3466,7 @@ div.swap-in:has(> .show-strip) {
   background: rgb(8 14 30 / 0.66);
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
   backdrop-filter: blur(14px) saturate(1.3);
-  transition: left 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: translate 0.2s var(--ease-drop);
   animation: menu-pop 0.18s var(--ease-drop) both;
 }
 .fc-chart svg:focus-visible {
@@ -4403,7 +4409,7 @@ div.swap-in:has(> .show-strip) {
   font-weight: 800;
   letter-spacing: 0.02em;
   color: var(--f);
-  transition: all 0.45s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.45s; transition-timing-function: var(--ease-drop);
 }
 .fill-btn::before {
   content: "";
@@ -4416,7 +4422,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: inherit;
   background: var(--f);
   scale: 0;
-  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  transition-property: var(--tx-ui); transition-duration: 0.6s; transition-timing-function: var(--ease-drop);
 }
 .fill-btn:hover::before,
 .fill-btn.is-on::before {
@@ -4427,8 +4433,10 @@ div.swap-in:has(> .show-strip) {
   color: #fff;
   box-shadow: 0 0 18px color-mix(in srgb, var(--f) 40%, transparent);
 }
-.fill-btn:hover {
-  scale: 1.06;
+@media (hover: hover) {
+  .fill-btn:hover {
+    scale: 1.06;
+  }
 }
 .fill-btn:active {
   scale: 1;
@@ -4562,7 +4570,7 @@ div.swap-in:has(> .show-strip) {
 
 /* 🔵 ปุ่มเม็ดยาสีเต็ม (CTA): ชี้ = สีสว่างขึ้น + แสงเรือง + ขยาย · กด = ยุบ  (--b = สีปุ่ม) */
 .cta-btn {
-  --b: #2ba8fb;
+  --b: #2563eb;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4577,18 +4585,20 @@ div.swap-in:has(> .show-strip) {
   white-space: nowrap;
   color: #fff;
   cursor: pointer;
-  transition: all 0.45s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.45s; transition-timing-function: var(--ease-drop);
 }
-.cta-btn:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--b) 72%, white);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--b) 40%, transparent);
-  transform: scale(1.08);
+@media (hover: hover) {
+  .cta-btn:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--b) 88%, black); /* deeper on hover keeps white text readable */
+    box-shadow: 0 0 20px color-mix(in srgb, var(--b) 40%, transparent);
+    transform: scale(1.08);
+  }
 }
 .cta-btn:active:not(:disabled) {
   background-color: color-mix(in srgb, var(--b) 82%, black);
   box-shadow: none;
   transform: scale(0.97);
-  transition: all 0.25s;
+  transition-property: var(--tx-ui); transition-duration: 0.25s; transition-timing-function: var(--ease-drop);
 }
 .cta-btn:disabled {
   opacity: 0.45;
@@ -4599,10 +4609,10 @@ div.swap-in:has(> .show-strip) {
   font-size: 11.5px;
 }
 .cta-btn.is-green {
-  --b: #16a34a;
+  --b: #15803d;
 }
 .cta-btn.is-red {
-  --b: #ef4444;
+  --b: #dc2626;
 }
 .cta-btn.is-purple {
   --b: #6750a4;
@@ -4611,10 +4621,10 @@ div.swap-in:has(> .show-strip) {
   --b: #64748b;
 }
 .cta-btn.is-orange {
-  --b: #ea580c;
+  --b: #c2410c;
 }
 .cta-btn.is-teal {
-  --b: #0d9488;
+  --b: #0f766e;
 }
 
 /* 🔘 สวิตช์เปิด / ปิด (AUTO CALC) */
@@ -4699,29 +4709,34 @@ div.swap-in:has(> .show-strip) {
 }
 
 /* ✨ เปิดหน้า: ส่วนต่างๆ ของหน้าทยอยเลื่อนขึ้นมา (ไม่กระทบตอนอัพเดทข้อมูล เพราะเล่นครั้งเดียวตอนวาดครั้งแรก) */
-.page-in > * {
-  animation: page-rise 0.5s var(--ease-drop) backwards;
+/* ONE entrance for every page built with PageBody: same rise as the system launcher (route-rise, 80 ms apart, max 7 steps).
+   Skipped for blocks that animate themselves: data-reveal="own" (hero) and framer-motion blocks (inline opacity),
+   and whole pages whose inner panels stagger themselves (add class "page-own" to that PageBody). */
+.page-in:not(.page-own) > :not([data-reveal="own"]):not([style*="opacity"]) {
+  animation: route-rise 0.7s var(--ease-drop) backwards;
+  animation-delay: calc(var(--pi, 0) * 80ms + 40ms);
 }
-.page-in > *:nth-child(2) {
-  animation-delay: 60ms;
-}
-.page-in > *:nth-child(3) {
-  animation-delay: 120ms;
-}
-.page-in > *:nth-child(4) {
-  animation-delay: 180ms;
-}
-.page-in > *:nth-child(n + 5) {
-  animation-delay: 240ms;
-}
+.page-in > :nth-child(2) { --pi: 1; }
+.page-in > :nth-child(3) { --pi: 2; }
+.page-in > :nth-child(4) { --pi: 3; }
+.page-in > :nth-child(5) { --pi: 4; }
+.page-in > :nth-child(6) { --pi: 5; }
+.page-in > :nth-child(7) { --pi: 6; }
+.page-in > :nth-child(n + 8) { --pi: 7; }
 @keyframes page-rise {
   from {
     opacity: 0;
     transform: translateY(14px);
   }
 }
+/* wait for the opening splash, like [data-ri] */
+html:has(#chr-splash.cs-hold) .page-in > * {
+  animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) {
-  .page-in > *,
+  .page-in:not(.page-own) > :not([data-reveal="own"]):not([style*="opacity"]) {
+    animation: route-fade 0.2s ease backwards;
+  }
   .ch-card {
     animation: none;
   }
@@ -5687,7 +5702,7 @@ div.swap-in:has(> .show-strip) {
 .modal-in .btn {
   border-radius: 100px;
   padding-inline: 18px;
-  transition: all 0.4s;
+  transition-property: var(--tx-ui); transition-duration: 0.4s; transition-timing-function: var(--ease-drop);
 }
 .modal-in .btn:hover:not(:disabled) {
   translate: none;
@@ -5698,7 +5713,7 @@ div.swap-in:has(> .show-strip) {
 .modal-in .btn:active:not(:disabled) {
   scale: 0.97;
   box-shadow: none;
-  transition: all 0.2s;
+  transition-property: var(--tx-ui); transition-duration: 0.2s; transition-timing-function: var(--ease-drop);
 }
 .modal-in .btn-ghost {
   position: relative;
@@ -5708,7 +5723,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: 100px;
   background: transparent;
   color: var(--accent);
-  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  transition-property: var(--tx-ui); transition-duration: 0.3s; transition-timing-function: var(--ease-drop);
 }
 .modal-in .btn-ghost::before {
   content: "";
@@ -5721,7 +5736,7 @@ div.swap-in:has(> .show-strip) {
   border-radius: inherit;
   background: var(--accent);
   scale: 0;
-  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  transition-property: var(--tx-ui); transition-duration: 0.6s; transition-timing-function: var(--ease-drop);
 }
 .modal-in .btn-ghost:hover:not(:disabled) {
   translate: none;
@@ -6940,7 +6955,7 @@ body:has(.modal-bg) .bug-fab {
   font-weight: 900;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
-  transition: all 0.25s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.25s; transition-timing-function: var(--ease-drop);
 }
 .sc-lock.is-on {
   border-color: transparent;
@@ -7166,7 +7181,7 @@ body:has(.modal-bg) .bug-fab {
   font-size: 11.5px;
   font-weight: 800;
   color: var(--ink);
-  transition: all 0.25s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.25s; transition-timing-function: var(--ease-drop);
 }
 .flt-chip b {
   min-width: 22px;
@@ -7176,7 +7191,7 @@ body:has(.modal-bg) .bug-fab {
   text-align: center;
   font-size: 11px;
   color: var(--accent);
-  transition: all 0.25s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.25s; transition-timing-function: var(--ease-drop);
 }
 .flt-chip:hover {
   border-color: var(--accent);
@@ -8689,7 +8704,7 @@ body:has(.modal-bg) .bug-fab {
   padding: 4px 12px;
   font: 800 12px/1.4 ui-monospace, Consolas, monospace;
   color: var(--primary);
-  transition: all 0.2s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.2s; transition-timing-function: var(--ease-drop);
 }
 .lo-pick:hover:not(:disabled) {
   border-color: var(--accent);
@@ -8711,7 +8726,7 @@ body:has(.modal-bg) .bug-fab {
   background: #fff;
   padding: 8px 12px;
   text-align: left;
-  transition: all 0.2s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.2s; transition-timing-function: var(--ease-drop);
 }
 .lo-opt b {
   font-size: 13px;
@@ -8795,7 +8810,7 @@ body:has(.modal-bg) .bug-fab {
   font-weight: 900;
   line-height: 1;
   color: #fff;
-  transition: all 0.2s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.2s; transition-timing-function: var(--ease-drop);
 }
 .lo-check.is-on,
 .lo-check.is-some {
@@ -8811,7 +8826,7 @@ body:has(.modal-bg) .bug-fab {
   font-weight: 800;
   color: var(--primary);
   background: #f2f0f8;
-  transition: all 0.2s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.2s; transition-timing-function: var(--ease-drop);
 }
 .lo-ibtn:hover {
   background: color-mix(in srgb, var(--accent) 16%, #fff);
@@ -8837,7 +8852,7 @@ body:has(.modal-bg) .bug-fab {
   padding: 4px 12px 4px 8px;
   font: 900 14px/1.2 ui-monospace, Consolas, monospace;
   color: #2b2840;
-  transition: all 0.2s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.2s; transition-timing-function: var(--ease-drop);
   user-select: none;
 }
 .lo-chip:hover {
@@ -9135,7 +9150,7 @@ body:has(.modal-bg) .bug-fab {
   background: #fff;
   padding: 14px 16px;
   text-align: left;
-  transition: all 0.3s var(--ease-drop);
+  transition-property: var(--tx-ui); transition-duration: 0.3s; transition-timing-function: var(--ease-drop);
 }
 button.mrp-stat:hover {
   translate: 0 -2px;
@@ -10976,16 +10991,20 @@ table.lqp code {
     box-shadow 0.5s var(--ease-drop),
     transform 0.5s var(--ease-drop);
 }
-.cta-btn:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.04);
+@media (hover: hover) {
+  .cta-btn:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.04);
+  }
 }
 .cta-btn:active:not(:disabled) {
   transform: translateY(0) scale(0.97);
   transition-duration: 0.15s;
 }
-.fill-btn:hover {
-  scale: 1.04;
-  translate: 0 -1px;
+@media (hover: hover) {
+  .fill-btn:hover {
+    scale: 1.04;
+    translate: 0 -1px;
+  }
 }
 .fill-btn:active {
   scale: 0.98;
@@ -11924,6 +11943,31 @@ table.lqp code {
 .modal-body > .grid > *:nth-child(n + 5) { animation-delay: 0.24s; }
 
 /* ข้อความว่าง / กำลังโหลด: ค่อย ๆ ขึ้น (ค้นหาไม่เจอ ไม่กระพริบ) */
+/* skeleton block for Loading(): grey bar + a light sweep (translate only) */
+.nx-skel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #ececf2;
+}
+.nx-skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.7) 50%, transparent 70%);
+  translate: -100% 0;
+  animation: nx-shimmer 1.3s var(--ease-drop) infinite;
+}
+@keyframes nx-shimmer {
+  to {
+    translate: 100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nx-skel::after {
+    animation: none;
+  }
+}
 .nx-fade {
   animation: nx-fade-in 0.35s var(--ease-drop) both;
 }
@@ -14164,4 +14208,15 @@ html:has(#chr-splash.cs-hold) [data-ri] {
 }
 main {
   overflow-wrap: break-word;
+}
+
+/* ⌨ One focus ring for keyboard users (zero specificity: any component's own focus style still wins).
+   White on dark surfaces (modal header, sidebar) so the ring stays visible. */
+:where(button, a, summary, [role="tab"], [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid #6750a4;
+  outline-offset: 2px;
+}
+.modal-head :focus-visible,
+.sb-nav :focus-visible {
+  outline-color: #fff;
 }

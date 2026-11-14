@@ -9,7 +9,7 @@
   --out-soft: #fee2e2;
   --none: #94a3b8;
   --head: #3f3f46;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease: var(--ease-drop);
   background:
     radial-gradient(900px 420px at 92% -10%, rgb(37 99 235 / 0.08), transparent 60%),
     radial-gradient(700px 380px at -5% 10%, rgb(124 58 237 / 0.06), transparent 60%);
@@ -1949,7 +1949,7 @@ line.cc-line.is-ctl {
   font-size: 12px;
   font-weight: 800;
   color: #64748b;
-  transition: all 0.4s var(--ease);
+  transition-property: var(--tx-ui); transition-duration: 0.4s; transition-timing-function: var(--ease);
 }
 .fm-end small {
   font-size: 11.5px;

@@ -165,7 +165,9 @@ export function MinSignHistory({ onClose }: { onClose: () => void }) {
           </div>
           <input className="mr-search" value={key} onChange={(e) => setKey(e.target.value)} placeholder="ค้นหา คลัง / Part Code / สาเหตุ / ผู้รายงาน" />
         </div>
-        {!rows ? <Loading /> : list.length === 0 ? <Empty>{tab === "MINE" ? "ไม่มีเอกสารที่รอคุณเซ็น 🎉" : "ไม่มีรายการ"}</Empty> : <SignList rows={list} showStock />}
+        <div key={tab} className="adm-pane">
+          {!rows ? <Loading /> : list.length === 0 ? <Empty>{tab === "MINE" ? "ไม่มีเอกสารที่รอคุณเซ็น 🎉" : "ไม่มีรายการ"}</Empty> : <SignList rows={list} showStock />}
+        </div>
       </div>
     </Modal>
   );

@@ -933,7 +933,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                             <tr>
                               <td colSpan={ncols} className="!p-0 text-left text-xs">
                                 {coils[p.ptId] === "loading" ? (
-                                  <div className="bg-[#f8f6fd] p-3">⏳ LOADING COILS...</div>
+                                  <div className="bg-[#f8f6fd]"><Loading compact label="กำลังโหลด Coil…" /></div>
                                 ) : (
                                   <CoilPanel
                                     rows={coils[p.ptId] as CoilRow[]}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { fmtDate } from "@/lib/format";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
@@ -438,7 +439,7 @@ export default function ScannerPage() {
   const layoutOn = !!ctx?.layout?.enabled;
   const extras = (ctx?.who.askEmployee ? 1 : 0) + (ctx?.who.askDepartment ? 1 : 0) + (layoutOn ? 1 : 0);
 
-  if (!ctx) return <div className="grid h-full place-items-center text-ink-soft">⏳ LOADING...</div>;
+  if (!ctx) return <div className="grid h-full place-items-center"><Loading /></div>;
 
   return (
     <div className="sc-page page-in flex flex-col gap-4 p-3 md:p-5" style={{ "--tone": tone } as React.CSSProperties}>

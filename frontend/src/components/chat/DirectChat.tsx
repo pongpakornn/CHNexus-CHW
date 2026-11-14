@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { pollGuard } from "@/lib/pollGuard";
 import { refreshNotifications } from "@/lib/support";
@@ -208,7 +209,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
               <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="เลือกผู้ใช้: ค้นหาชื่อ / UserID / หน่วยงาน..." className="flex-1 rounded-full border border-line bg-surface px-3.5 py-1.5 text-[13px] font-semibold outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15" />
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-2">
-              {!users && <div className="py-6 text-center text-xs font-semibold text-ink-soft">กำลังโหลด...</div>}
+              {!users && <Loading compact />}
               {users && found.length === 0 && <div className="py-6 text-center text-xs font-semibold text-ink-soft">ไม่พบผู้ใช้</div>}
               {found.map((u) => (
                 <button key={u.userId} type="button" onClick={() => open(u.userId)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-[#eaf1ff]">
@@ -258,7 +259,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
             </div>
             <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_1px_1px,rgba(37,99,235,.06)_1px,transparent_0)] bg-[length:18px_18px] p-4">
               <div className="flex min-h-full flex-col justify-end gap-2">
-              {!msgs && <div className="py-6 text-center text-xs font-semibold text-ink-soft">กำลังโหลด...</div>}
+              {!msgs && <Loading compact />}
               {msgs && msgs.length === 0 && <div className="py-6 text-center text-xs font-semibold text-ink-soft">เริ่มคุยกับ {partnerName} ได้เลย 👋</div>}
               {msgs?.map((m, i) => {
                 const mine = m.from === me;

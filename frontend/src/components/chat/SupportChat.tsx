@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { pollGuard } from "@/lib/pollGuard";
 import { refreshNotifications, SUPPORT_EVENT, TOPICS, topicOf, type SupportOpen, type SupportTopic } from "@/lib/support";
@@ -313,7 +314,7 @@ export function SupportChat() {
         info ? (
           <DirectChat key={chatKey} me={info.me} initialWith={chatWith} />
         ) : (
-          <div className="grid flex-1 place-items-center text-xs font-semibold text-ink-soft">กำลังโหลด...</div>
+          <div className="grid flex-1 place-items-center"><Loading compact /></div>
         )
       ) : info && !info.enabled ? (
         <div className="grid flex-1 place-items-center p-6 text-center text-sm font-semibold text-ink-soft">
@@ -447,7 +448,7 @@ export function SupportChat() {
                       />
                     );
                   })}
-                  {typeof active === "number" && !data && <div className="py-6 text-center text-xs font-semibold text-ink-soft">กำลังโหลด...</div>}
+                  {typeof active === "number" && !data && <Loading compact />}
                   {typing && <TypingDots name={data && !data.mine ? data.thread.userName : "Admin"} />}
                   </div>
                 </div>

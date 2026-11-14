@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
@@ -112,7 +113,7 @@ export function MinDisplayPanel({ stocks }: { stocks: St[] }) {
         <p className="min-w-0 flex-1 text-xs font-semibold text-ink-soft">ตัวเลือกมาจากคอลัมน์ของตาราง Store (Max-Min) ของคลังนี้ · กด ＋ ตามลำดับที่ต้องการแสดง · ช่องที่ว่าง (เช่น รหัส &quot;-&quot;) จะถูกข้ามให้เอง</p>
       </div>
       {!data ? (
-        <p className="py-3 text-xs font-bold text-ink-soft">กำลังโหลด…</p>
+        <Loading compact />
       ) : (
         <>
           <div className="grid gap-3 lg:grid-cols-2">
