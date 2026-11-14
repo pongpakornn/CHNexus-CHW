@@ -152,8 +152,9 @@ public sealed class MinReportController : AppController
             stuckDays = _svc.GetSettings().StuckDays,
             rows = rows.Select(r => new
             {
-                r.WatchId, r.PartCode, r.PartName, r.Title, r.Sub, r.Customer, r.Qty, r.NowQty, r.NowStatus, min = r.MinQty, max = r.MaxQty,
+                r.WatchId, r.PartId, r.PartCode, r.PartName, r.Title, r.Sub, r.Customer, r.Supplier, r.Qty, r.NowQty, r.NowStatus, min = r.MinQty, max = r.MaxQty,
                 r.StartQty, r.ResolvedQty, r.BelowSince, r.LastSeen, r.ResolvedAt, r.Days, r.ReportCount, r.LastReportAt, r.LastReason, r.LastReporter, r.Moves,
+                r.LastMoveAt, r.NextAlertAt,
                 daily = r.Daily.Select(d => new { day = d.Day.ToString("yyyy-MM-dd"), d.FirstQty, d.LastQty, min = d.MinQty, max = d.MaxQty, d.Moves, d.UpdatedAt })
             })
         });

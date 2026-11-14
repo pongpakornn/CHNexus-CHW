@@ -2877,3 +2877,6 @@ thead .pp-stick {
 .pp-legend i.is-mark { width: 18px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--c), var(--c2), var(--c)); box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgb(234 88 12 / 0.4); align-self: center; }
 .pp-tip .r.is-over b, .pp-tip .r.is-over span { color: #dc2626; }
 .pp-over { font: 800 9.5px var(--font-sans, system-ui); letter-spacing: .06em; fill: #dc2626; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+/* ป้ายตอนชี้: ชื่อแถวไม่ถูกบีบจนตัวอักษรเรียงลงแนวตั้ง (ข้อความด้านขวายาว = ขึ้นบรรทัดใหม่แทน) */
+.pp-tip .r span { flex: 1 1 auto; min-width: 72px; overflow-wrap: break-word; word-break: normal; }
+.pp-tip .r.is-sum b { flex: 0 1 auto; white-space: normal; text-align: right; }

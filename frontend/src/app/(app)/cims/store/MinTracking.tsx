@@ -18,6 +18,10 @@ import type { Stock } from "./types";
 type Day = { day: string; firstQty: number | null; lastQty: number | null; min: number | null; max: number | null; moves: number; updatedAt: string };
 type Row = {
   watchId: number;
+  partId: number;
+  supplier?: string | null;
+  lastMoveAt: string | null;
+  nextAlertAt: string | null;
   partCode: string;
   partName: string;
   title?: string | null;
@@ -59,13 +63,17 @@ function why(r: Row, stuck: number) {
   const parts = [`🔴 ยังใต้ MIN: ยอด ${n0(q)} < MIN ${n0(r.min)}${short ? ` (ขาดอีก ${n0(short)})` : ""}`];
   if (r.moves === 0) parts.push("ยังไม่มีการอัพเดทยอดตั้งแต่ตกใต้ MIN");
   if (r.reportCount === 0) parts.push(r.days >= stuck ? `ค้างครบ ${stuck} วันแล้ว รอรายงานสาเหตุ` : `เฝ้าดู (ครบ ${stuck} วันจะแจ้งเตือน)`);
-  else parts.push(`รายงานแล้ว ${r.reportCount} ครั้ง · ล่าสุด ${dt(r.lastReportAt)}${r.lastReason ? ` : ${r.lastReason}` : ""}`);
+  else {
+    parts.push(`รายงานแล้ว ${r.reportCount} ครั้ง · ล่าสุด ${dt(r.lastReportAt)}${r.lastReason ? ` : ${r.lastReason}` : ""}`);
+    // 🔁 แจ้งเตือนอีกครั้งเมื่อไม่มีการเคลื่อนไหวครบ StuckDays วัน (นับจากรายงาน / ยอดเปลี่ยนล่าสุด)
+    if (r.nextAlertAt) parts.push(`ไม่มีการเคลื่อนไหวครบ ${stuck} วัน จะแจ้งเตือนอีกครั้ง ${dt(r.nextAlertAt)}`);
+  }
   return parts.join(" · ");
 }
 
 export function TrackingModal({ stock: s, onClose, toastErr }: { stock: Stock; onClose: () => void; toastErr: (m: string) => void }) {
   const now = useNow();
-  const [from, setFrom] = useState(daysAgo(29));
+  const [from, setFrom] = useState(daysAgo(364)); // ประวัติ: ทุกรายการที่เคยใต้ MIN ในรอบ 1 ปี (เปลี่ยนช่วงได้)
   const [to, setTo] = useState(today());
   const [key, setKey] = useState("");
   const k = useDebounced(key, 300);
@@ -92,7 +100,7 @@ export function TrackingModal({ stock: s, onClose, toastErr }: { stock: Stock; o
     <Modal
       open
       size="xl"
-      title={`📈 MIN TRACKING • ${s.code}`}
+      title={`📈 MIN HISTORY • TRACKING • ${s.code}`}
       onClose={onClose}
       footer={
         <div className="flex w-full flex-wrap items-center gap-2">
@@ -140,10 +148,23 @@ export function TrackingModal({ stock: s, onClose, toastErr }: { stock: Stock; o
                 <div key={r.watchId} className={`mrp-row is-hist mtk-row ${r.resolvedAt ? "is-ok" : "is-late"} ${isOpen ? "is-open" : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}>
                   <button type="button" className="mrp-main mtk-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : r.watchId)}>
                     <span className="mrp-no">{i + 1}</span>
-                    <div className="mrp-part">
-                      <b className={title ? "" : "is-none"}>{title || "ไม่มีรหัส"}</b>
-                      <span>{subOf(r)}</span>
-                      <div className="mrp-tags">{r.customer && <i>CUSTOMER : {r.customer}</i>}</div>
+                    {/* การ์ดแบบหน้าต่างแจ้งเตือน: รูปสินค้า · บรรทัด 1 / 2 ตาม SETUP · ลูกค้า / Supplier */}
+                    <div className="mrp-part has-img">
+                      <span className="mrp-img" aria-hidden>
+                        {r.partId > 0 && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/api/images/part/${r.partId}`} alt="" loading="lazy" draggable={false} onError={(e) => (e.currentTarget.style.display = "none")} />
+                        )}
+                      </span>
+                      <div className="mrp-part-tx">
+                        <b className={title ? "" : "is-none"}>{title || "ไม่มีรหัส"}</b>
+                        <span>{subOf(r)}</span>
+                        <div className="mrp-tags">
+                          {r.customer && <i>CUSTOMER : {r.customer}</i>}
+                          {r.supplier && <i>SUPPLIER : {r.supplier}</i>}
+                          <i className={r.resolvedAt ? "is-ok" : "is-follow"}>{r.resolvedAt ? "🟢 อัพเดทแล้ว" : "🔴 ยังไม่อัพเดท"}</i>
+                        </div>
+                      </div>
                     </div>
                     <div className="mrp-nums">
                       <span>
@@ -170,7 +191,9 @@ export function TrackingModal({ stock: s, onClose, toastErr }: { stock: Stock; o
                     <div className="mrp-time">
                       <small>ใต้ MIN ตั้งแต่</small>
                       <b>{dt(r.belowSince)}</b>
+                      <small>ถึง {r.resolvedAt ? dt(r.resolvedAt) : "ตอนนี้ (ยังค้าง)"}</small>
                       <small>{r.resolvedAt ? `นาน ${span(r.belowSince, r.resolvedAt, now)}` : `ค้างมา ${span(r.belowSince, null, now)}`}</small>
+                      {r.lastMoveAt && <small>ยอดเปลี่ยนล่าสุด {dt(r.lastMoveAt)}</small>}
                       <small>
                         อัพเดท {r.moves} ครั้ง · รายงาน {r.reportCount} ครั้ง
                       </small>

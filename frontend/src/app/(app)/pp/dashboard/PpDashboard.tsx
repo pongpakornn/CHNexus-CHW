@@ -291,21 +291,20 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
 function MachineTip({ c, metric, shifts }: { c: Calc; metric: "stroke" | "hr" | "day"; shifts: string[] }) {
   const over = c.needIdx < 0 && c.P1 > 0;
   const code = over ? `C${4 + shifts.length}` : `C${5 + c.needIdx}`;
-  const name = over ? shifts.at(-1) : shifts[c.needIdx];
   const left = c.needCap - c.P1;
   return (
     <>
-      <div className={`r is-sum ${over ? "is-over" : ""}`}>
-        <span>{over ? "เกินกำลังทุกกะ" : "กะที่ต้องใช้"}</span>
+      <div className={`r is-sum ${over ? "is-over" : ""}`} title={over ? shifts.at(-1) : shifts[c.needIdx]}>
+        <span>{over ? "เกินทุกกะ" : "กะที่ต้องใช้"}</span>
         <b>
-          {code} · {name}
+          {code} · {f1(c.needHr)} hr
         </b>
       </div>
       {metric === "day" ? (
         <div className={`r is-sum ${over ? "is-over" : ""}`}>
-          <span>WORKLOAD {f1(c.P6)} hr/day</span>
+          <span>P6 เทียบ {code}</span>
           <b>
-            {over ? "เกิน" : "ไม่เกิน"} {f1(c.needHr)} hr
+            {f1(c.P6)} / {f1(c.needHr)} hr
           </b>
         </div>
       ) : (

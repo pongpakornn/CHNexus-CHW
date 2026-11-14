@@ -82,6 +82,8 @@ public sealed class MinTrackRow : MinPartBase
     public DateTime? LastReportAt { get; set; }
     public string LastReason { get; set; }
     public string LastReporter { get; set; }
+    public DateTime? LastMoveAt { get; set; }   // ยอดเปลี่ยนล่าสุดขณะใต้ MIN
+    public DateTime? NextAlertAt { get; set; }  // รายงานแล้ว + ยังค้าง = จะแจ้งเตือนอีกครั้งเมื่อไร (ไม่มีการเคลื่อนไหวครบ StuckDays วัน)
     public int Moves { get; set; }
     public double Days => Math.Round(((ResolvedAt ?? DateTime.Now) - BelowSince).TotalDays, 1);
     public List<MinTrackDay> Daily { get; set; } = new();
@@ -377,7 +379,9 @@ public sealed class MinReportService
             foreach (var b in below)
             {
                 if (open.Remove(b.PartID, out int wid))
-                    c.Execute("UPDATE Nexus.MinWatch SET LastSeen = @now, Qty = @Qty, StockBox = @StockBox, MinQty = @Min, MaxQty = @Max, PartCode = @PartCode, PartName = @PartName WHERE WatchID = @wid",
+                    // ยอดต่างจากรอบก่อน = มีการเคลื่อนไหว (LastMoveAt) -> นับ StuckDays ใหม่สำหรับรายการที่รายงานแล้ว
+                    c.Execute("UPDATE Nexus.MinWatch SET LastSeen = @now, Qty = @Qty, StockBox = @StockBox, MinQty = @Min, MaxQty = @Max, PartCode = @PartCode, PartName = @PartName" +
+                              (DbSchema.HasMinMove ? ", LastMoveAt = CASE WHEN ISNULL(Qty, -1) <> @Qty THEN @now ELSE LastMoveAt END" : "") + " WHERE WatchID = @wid",
                               new { now, b.Qty, b.StockBox, b.Min, b.Max, b.PartCode, b.PartName, wid });
                 else
                 {
@@ -426,7 +430,8 @@ public sealed class MinReportService
                                                  w.BelowSince, w.LastSeen, w.ResolvedAt, " + (DbSchema.HasMinTracking ? "w.ResolvedQty" : "CAST(NULL AS DECIMAL(18,3))") + @" AS ResolvedQty,
                                                  m.QtyStkb AS NowQty, m.StockStatus AS NowStatus,
                                                  (SELECT COUNT(*) FROM Nexus.MinReports r WHERE r.WatchID = w.WatchID) AS ReportCount,
-                                                 lr.ReportedAt AS LastReportAt, lr.Reason AS LastReason, lr.ReporterName AS LastReporter, " + PartCols + @"
+                                                 lr.ReportedAt AS LastReportAt, lr.Reason AS LastReason, lr.ReporterName AS LastReporter,
+                                                 " + (DbSchema.HasMinMove ? "w.LastMoveAt" : "CAST(NULL AS DATETIME)") + @" AS LastMoveAt, " + PartCols + @"
                                           FROM Nexus.MinWatch w JOIN Nexus.Stocks s ON s.StockID = w.StockID
                                           LEFT JOIN Nexus.Parts p ON p.PartID = w.PartID
                                           OUTER APPLY (SELECT TOP 1 r.ReportedAt, r.Reason, r.ReporterName FROM Nexus.MinReports r WHERE r.WatchID = w.WatchID ORDER BY r.ReportedAt DESC) lr
@@ -450,6 +455,9 @@ public sealed class MinReportService
                     r.Moves = d.Sum(x => x.Moves);
                 }
         }
+        int stuck = GetSettings().StuckDays;
+        foreach (var r in rows.Where(r => r.ResolvedAt == null && r.LastReportAt.HasValue))
+            r.NextAlertAt = (r.LastMoveAt > r.LastReportAt ? r.LastMoveAt.Value : r.LastReportAt.Value).AddDays(stuck);
         ApplyDisplay(rows);
         return rows;
     }
@@ -463,8 +471,11 @@ public sealed class MinReportService
                                          LEFT JOIN Nexus.Parts p ON p.PartID = w.PartID
                                          OUTER APPLY (SELECT TOP 1 r0.ReportedAt, r0.Reason FROM Nexus.MinReports r0 WHERE r0.ReportID = w.ReportID) lr ";
 
-    // ยังไม่รายงาน หรือ 🔁 รายงานแล้วแต่ยังใต้ MIN ต่อครบอีก StuckDays วัน (ยังไม่กลับเป็นเขียว) = ต้องรายงานติดตามอีกครั้ง
-    private const string DueReport = "(w.ReportID IS NULL OR lr.ReportedAt <= DATEADD(DAY, -@stuckDays, GETDATE()))";
+    // ยังไม่รายงาน หรือ 🔁 รายงานแล้วแต่ยังใต้ MIN และ "ไม่มีการเคลื่อนไหว" ครบ StuckDays วัน = ต้องรายงานติดตามอีกครั้ง
+    //   นับจากเวลาล่าสุดของ (รายงาน / ยอดเปลี่ยน LastMoveAt) · ยอดกลับไม่ต่ำกว่า MIN = รอบถูกปิด (ResolvedAt) ไม่แจ้งอีก
+    private static string DueReport => DbSchema.HasMinMove
+        ? "(w.ReportID IS NULL OR (CASE WHEN w.LastMoveAt > lr.ReportedAt THEN w.LastMoveAt ELSE lr.ReportedAt END) <= DATEADD(DAY, -@stuckDays, GETDATE()))"
+        : "(w.ReportID IS NULL OR lr.ReportedAt <= DATEADD(DAY, -@stuckDays, GETDATE()))";
 
     public List<MinWatchRow> Pending(IEnumerable<int> stockIds, int stuckDays, bool all = false)
     {

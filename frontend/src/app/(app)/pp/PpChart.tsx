@@ -233,7 +233,7 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
               {hover >= 0 && (
                 <motion.g key="hv" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                   <motion.rect y={m.t} height={base - m.t} rx={8} className="pp-band" animate={{ x: m.l + hover * band, width: band }} initial={false} transition={{ type: "spring", stiffness: 500, damping: 40 }} />
-                  <motion.line y1={m.t} y2={base} className="pp-cross" animate={{ x1: sx(hover), x2: sx(hover) }} initial={false} transition={{ type: "spring", stiffness: 500, damping: 40 }} />
+                  {lines.length > 0 && <motion.line y1={m.t} y2={base} className="pp-cross" animate={{ x1: sx(hover), x2: sx(hover) }} initial={false} transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
                 </motion.g>
               )}
             </AnimatePresence>

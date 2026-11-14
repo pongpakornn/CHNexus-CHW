@@ -201,6 +201,10 @@ namespace Nexus.Helpers
         private static bool _minTrack;
         public static bool HasMinTracking => _minTrack || (_minTrack = HasMinReport && TableExists("Nexus.MinWatchDays") == true && ColumnIn("Nexus.MinWatch", "ResolvedQty") == true);
 
+        // 🔁 MIN REPORT เวลาที่ยอดเปลี่ยนล่าสุด (49_Min_Last_Move.sql): Nexus.MinWatch.LastMoveAt
+        private static bool _minMove;
+        public static bool HasMinMove => _minMove || (_minMove = HasMinTracking && ColumnIn("Nexus.MinWatch", "LastMoveAt") == true);
+
         // ✍ MIN REPORT (21_Min_Report_Sign.sql): รูปแบบการแสดงสินค้าต่อคลัง + FLOW ลายเซ็น Prepared / Checked / Checked / Approved
         private static bool _minSign;
         public static bool HasMinSign => _minSign || (_minSign = HasMinReport && TableExists("Nexus.MinReportDisplay") == true && TableExists("Nexus.MinReportFlow") == true

@@ -14113,3 +14113,5 @@ table.lqp code {
   .mtk-d.is-head { display: none; }
   .mtk-d > span::before { content: attr(data-l) " : "; color: #71717a; font-size: 11px; }
 }
+/* MIN HISTORY: ป้ายสถานะอัพเดทแล้ว (เขียว) */
+.mrp-tags i.is-ok { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
