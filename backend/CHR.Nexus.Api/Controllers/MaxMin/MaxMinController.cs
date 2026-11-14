@@ -184,7 +184,7 @@ public sealed class MaxMinController : AppController
         var stock = FindStock(stk);
         if (stock == null) return Fail("ไม่พบคลังที่เลือก");
         try { return Ok(new { message = CalcResult(_svc.Calculate(stock.StkId, null, Uid), $"คำนวณคลัง {stock.Code}", stock.Code) }); }
-        catch (Exception ex) { return Fail("คำนวณไม่สำเร็จ: " + ex.Message); }
+        catch (Exception ex) { return Fail(ex, "คำนวณไม่สำเร็จ"); }
     }
 
     #region === [ Formulas ] ===
@@ -284,7 +284,7 @@ public sealed class MaxMinController : AppController
                 (list.Count <= 3 ? string.Join(", ", list.Select(d => d.ToString("dd/MM/yyyy", Inv))) : $"{list.Count} days {list.Min().ToString("dd/MM/yyyy", Inv)} - {list.Max().ToString("dd/MM/yyyy", Inv)}"), req.Customer);
             return Ok(new { saved = DateTime.Now.ToString("HH:mm:ss", Inv) });
         }
-        catch (Exception ex) { return Fail("บันทึกวันทำงานไม่สำเร็จ: " + ex.Message); }
+        catch (Exception ex) { return Fail(ex, "บันทึกวันทำงานไม่สำเร็จ"); }
     }
 
     [HttpGet("workdays/template")]
@@ -308,12 +308,12 @@ public sealed class MaxMinController : AppController
     {
         if (!CanEdit) return Deny();
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             List<CalcImportRow> rows;
             try { rows = _svc.ReadWorkdayExcel(path); }
-            catch (Exception ex) { return Fail("อ่านไฟล์ไม่สำเร็จ: " + ex.Message); }
+            catch (Exception ex) { return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
             var valid = rows.Where(r => r.IsValid).ToList();
             int bad = rows.Count - valid.Count;
             if (valid.Count == 0) return Fail("ไม่พบวันทำงานที่นำเข้าได้ในไฟล์นี้" + (bad > 0 ? $" (ข้าม {bad} แถว)" : ""));
@@ -321,7 +321,7 @@ public sealed class MaxMinController : AppController
             LogService.WriteLog(Uid, "WORKDAY_IMPORT", $"Import workdays: {file.FileName} | Days: {result.Days} | Months: {result.Months} | Skipped rows: {bad}", "");
             return Ok(new { message = $"นำเข้าวันทำงาน {result.Days:N0} วัน ({result.Months:N0} เดือน-ลูกค้า) แทนที่ของเดิมแล้ว" + (bad > 0 ? $"\nข้ามแถวที่มีปัญหา {bad} แถว" : "") });
         }
-        catch (Exception ex) { return Fail("นำเข้าวันทำงานไม่สำเร็จ: " + ex.Message); }
+        catch (Exception ex) { return Fail(ex, "นำเข้าวันทำงานไม่สำเร็จ"); }
         finally { TryDelete(path); }
     }
 
@@ -381,7 +381,7 @@ public sealed class MaxMinController : AppController
         if (stock == null) return Fail("ไม่พบคลังที่เลือก");
         mode = mode is "CALC" or "ONLY" ? mode : "DAYS";
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var (_, _, f) = Formula(stock.StkId);
@@ -389,7 +389,7 @@ public sealed class MaxMinController : AppController
             {
                 List<CalcImportRow> trows;
                 try { trows = _svc.ReadTemplateExcel(path, stock, _svc.GetRows(stock, f, "")); }
-                catch (Exception ex) { TryDelete(path); return Fail("อ่านไฟล์ Excel ไม่สำเร็จ\n" + ex.Message); }
+                catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
                 if (trows != null)
                 {
                     var tv = trows.Where(r => r.IsValid).ToList();
@@ -415,7 +415,7 @@ public sealed class MaxMinController : AppController
 
             List<CalcImportRow> rows;
             try { rows = mode == "DAYS" ? _svc.ReadDaysExcel(path, stock, _svc.GetRows(stock, f, "")) : _svc.ReadForecastExcel(path); }
-            catch (Exception ex) { TryDelete(path); return Fail("อ่านไฟล์ Excel ไม่สำเร็จ\n" + ex.Message); }
+            catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
             var valid = rows.Where(r => r.IsValid).ToList();
             var bad = rows.Where(r => !r.IsValid).ToList();
             if (valid.Count == 0) { TryDelete(path); return Fail("ไม่พบรายการที่นำเข้าได้ในไฟล์นี้\n\n" + ErrorList(bad)); }

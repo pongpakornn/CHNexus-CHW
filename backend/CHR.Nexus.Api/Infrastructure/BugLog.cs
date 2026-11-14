@@ -9,6 +9,22 @@ namespace CHR.Nexus.Api.Web;
 // 🐞 BUG LOG (Nexus.BugLogs - database/nexus/10_BugLog.sql): ข้อผิดพลาดของระบบทั้ง API และหน้าเว็บ
 //   บันทึกเบื้องหลัง (ไม่ให้ผู้ใช้รอ) · ข้อความเดิมซ้ำ = นับ Hits แถวเดิม · ยิงซ้ำถี่ภายใน 10 วินาที = ข้าม (กันฐานข้อมูลโดนถล่ม)
 //   ยังไม่รัน Script = ปิดตัวเองเงียบๆ ระบบหลักทำงานต่อได้ · เก็บ 90 วัน
+// 📉 นับ Log ที่ถูกทิ้งเพราะคิวเต็ม (ฐานข้อมูลสะดุด) + เตือนผ่าน ILogger ไม่เกิน 1 ครั้ง / นาที (ไม่เขียนฐานข้อมูล)
+public static class DropWarn
+{
+    public static ILogger Logger;
+    private static int _count;
+    private static long _lastTicks;
+
+    public static void Hit(string what)
+    {
+        int n = Interlocked.Increment(ref _count);
+        long now = DateTime.UtcNow.Ticks, last = Interlocked.Read(ref _lastTicks);
+        if (now - last < TimeSpan.FromMinutes(1).Ticks || Interlocked.CompareExchange(ref _lastTicks, now, last) != last) return;
+        Logger?.LogWarning("{What} write queue full - dropped entries so far: {Count} (database slow?)", what, n);
+    }
+}
+
 public static class BugLog
 {
     private static bool _off;
@@ -32,7 +48,7 @@ public static class BugLog
         if (Recent.Count > 2000) foreach (var k in Recent.Where(x => now - x.Value > TimeSpan.FromMinutes(1)).Select(x => x.Key).ToList()) Recent.TryRemove(k, out _);
 
         // ฐานข้อมูลสะดุด = งานเขียน Log ไม่ทับถมจนกิน Connection Pool: เขียนพร้อมกันไม่เกิน 4 · คิวรอเกิน 500 = ทิ้ง (Log วินิจฉัยเท่านั้น)
-        if (Interlocked.Increment(ref _pending) > MaxPending) { Interlocked.Decrement(ref _pending); return; }
+        if (Interlocked.Increment(ref _pending) > MaxPending) { Interlocked.Decrement(ref _pending); DropWarn.Hit("BugLog"); return; }
         Task.Run(async () =>
         {
             await Slots.WaitAsync();

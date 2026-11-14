@@ -13,7 +13,7 @@ public static class ChatFiles
         { ".exe", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".scr", ".dll", ".sys", ".lnk", ".hta", ".cpl", ".reg", ".jar",
           ".html", ".htm", ".xhtml", ".svg", ".xml", ".mht", ".mhtml" };
     // แสดงในหน้าเว็บ (inline) ได้เฉพาะรูปชนิดนี้ · ที่เหลือบังคับดาวน์โหลดเสมอ (กัน script ในไฟล์รันบนเว็บของเรา)
-    private static readonly HashSet<string> InlineExt = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+    private static readonly HashSet<string> InlineExt = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp" };
     public static bool CanInline(string kind, string name) => kind == "IMAGE" && InlineExt.Contains(System.IO.Path.GetExtension(name ?? ""));
 
     public static string FilesRoot { get; private set; } = "";

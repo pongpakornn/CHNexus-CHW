@@ -84,7 +84,7 @@ public sealed class ForecastController : AppController
         if (Me?.CanImportForecastOrder != true) return Deny();
         if (!DbSchema.HasForecastSummary) return Fail("ฐานข้อมูลยังไม่มีตาราง Nexus.ForecastSummary (database/nexus/39_Production_Plan_Pcs_Override_Forecast_Summary.sql)");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var p = new ForecastSummaryService().Read(path, year > 2000 ? year : DateTime.Today.Year);
@@ -194,7 +194,7 @@ public sealed class ForecastController : AppController
     {
         if (Me?.CanImportForecastOrder != true) return Deny();
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var rows = new MaxMinCalcService().ReadForecastExcel(path);

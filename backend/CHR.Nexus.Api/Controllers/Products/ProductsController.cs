@@ -368,7 +368,7 @@ public sealed class ProductsController : AppController
                 LogService.WriteLog(Uid, "ADD_COIL", $"{c.Stock.Code} | {m.PartCode} | Coil {c.No} | Master {c.Master ?? "-"} | {Qty.Plain(c.Kg)} KG", m.PartCode);
                 notes.Add($"เพิ่ม Coil {c.No} ({Qty.Plain(c.Kg)} KG) เข้า {c.Stock.Code} แล้ว");
             }
-            catch (Exception ex) { notes.Add($"⚠ บันทึกสินค้าแล้ว แต่เพิ่ม Coil {c.No} ไม่สำเร็จ\n{ex.Message}"); }
+            catch (Exception ex) { notes.Add($"⚠ บันทึกสินค้าแล้ว แต่เพิ่ม Coil {c.No} ไม่สำเร็จ\n{SafeMessage(ex)}"); }
         }
         return notes;
     }
@@ -569,7 +569,7 @@ public sealed class ProductsController : AppController
     {
         if (Me?.CanAddProduct != true) return Deny("คุณไม่มีสิทธิ์ Import สินค้า");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var rows = new PartImportService().ReadExcel(path, _stocks.GetStocks());

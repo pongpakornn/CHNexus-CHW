@@ -19,10 +19,16 @@ namespace Nexus.Services
 
         private static void Insert(string userId, string action, string detail, string refCode)
         {
-            if (RequestScope.Value is { } box) box.Value = true;
             string machine = ClientContext.Machine;   // อ่านก่อนเข้า Task (ค่าของ Request นี้)
             // ฐานข้อมูลสะดุด = ไม่เปิด Connection ทับถมจนหมด Pool: เขียนพร้อมกันไม่เกิน 8 · คิวรอเกิน 5,000 = ทิ้ง (ไม่ให้หน่วยความจำบวม)
-            if (System.Threading.Interlocked.Increment(ref _pending) > MaxPending) { System.Threading.Interlocked.Decrement(ref _pending); return; }
+            //   ทิ้ง = ไม่ตั้งธง "Request บันทึกเองแล้ว" -> AuditMiddleware ยังเขียน Log สำรองให้
+            if (System.Threading.Interlocked.Increment(ref _pending) > MaxPending)
+            {
+                System.Threading.Interlocked.Decrement(ref _pending);
+                CHR.Nexus.Api.Web.DropWarn.Hit("ActivityLog");
+                return;
+            }
+            if (RequestScope.Value is { } box) box.Value = true;
             Task.Run(async () =>
             {
                 await Slots.WaitAsync();

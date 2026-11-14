@@ -93,7 +93,7 @@ public sealed class ForecastFileController : AppController
     {
         if (!Can) return Deny();
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var r = new ForecastFileService().Read(path);
@@ -220,7 +220,7 @@ public sealed class ForecastFileController : AppController
                         LogService.WriteLog(Uid, "FORECAST_SUMMARY_IMPORT", $"File: {file} (FORECAST FILE) | Year: {p.Year} | Rows: {n} | DIFF (3) Order: {p.Cells.Where(c => c.Key == "DIFF3").Sum(c => c.O):N0} | DIFF (2) Order: {p.Cells.Where(c => c.Key == "DIFF2").Sum(c => c.O):N0}", "");
                         msg += $"\nอัพเดทกราฟ DIFF (2) / DIFF (3) ปี {p.Year} แล้ว";
                     }
-                    catch (Exception ex) { msg += "\n⚠ อัพเดทกราฟ DIFF (2) / (3) ไม่สำเร็จ: " + ex.Message; }
+                    catch (Exception ex) { msg += "\n⚠ อัพเดทกราฟ DIFF (2) / (3) ไม่สำเร็จ: " + SafeMessage(ex); }
             }
             LiveBus.Publish("forecast");
             var last = valid.Count > 0 ? valid.Max(v => v.Month) : (DateTime?)null;

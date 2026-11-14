@@ -43,14 +43,23 @@ public abstract class AppController : ControllerBase
     // ข้อผิดพลาดที่พบบ่อยเป็นข้อความไทยแบบเดิม
     protected IActionResult Fail(Exception ex, string prefix = null)
     {
+        string msg = SafeMessage(ex, prefix);
+        return BadRequest(new { message = string.IsNullOrEmpty(prefix) ? msg : prefix + "\n" + msg });
+    }
+
+    // ข้อความที่ปลอดภัยให้ผู้ใช้อ่านจาก Exception (บันทึกรายละเอียดเต็มลง BUG LOG ด้วย) - ใช้ในที่ที่ประกอบข้อความตอบเอง
+    protected string SafeMessage(Exception ex, string prefix = null) => Safe(ex, HttpContext, Uid, prefix);
+
+    public static string Safe(Exception ex, HttpContext ctx, string uid, string prefix = null)
+    {
         bool open = ex.Message.Contains("being used") || ex is IOException && ex.Message.Contains("process");
         bool show = open || IsUserMessage(ex);
         BugLog.Write("API", show ? "WARN" : "ERROR", (string.IsNullOrEmpty(prefix) ? "" : prefix + " • ") + $"{ex.GetType().Name}: {ex.Message}", ex.ToString(),
-                     HttpContext?.Request.Path + HttpContext?.Request.QueryString, HttpContext?.Request.Method, 400, Uid, global::Nexus.Core.ClientContext.Machine);
+                     ctx?.Request.Path + ctx?.Request.QueryString, ctx?.Request.Method, 400, uid, global::Nexus.Core.ClientContext.Machine);
         string msg = open ? "ไฟล์ Excel ถูกเปิดค้างอยู่ กรุณาปิดไฟล์ก่อนแล้วลองใหม่"
             : show ? ex.Message
             : "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่ หากยังพบปัญหาให้แจ้ง Admin (รายละเอียดอยู่ใน BUG LOG)";
-        return BadRequest(new { message = string.IsNullOrEmpty(prefix) ? msg : prefix + "\n" + msg });
+        return msg;
     }
 
     // ส่งไฟล์แนบแชท / แจ้ง Admin: รูปปลอดภัยเท่านั้นที่เปิดในหน้าได้ · อื่น ๆ ดาวน์โหลดเสมอ + sandbox + nosniff

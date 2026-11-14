@@ -148,6 +148,7 @@ public sealed class UsersController : AppController
         var u = _svc.GetUsers().FirstOrDefault(x => string.Equals(x.UserId, userId, StringComparison.OrdinalIgnoreCase));
         if (u == null) return NotFound(new { message = "ไม่พบผู้ใช้" });
         if (string.Equals(u.UserId, Uid, StringComparison.OrdinalIgnoreCase)) return Fail("ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้");
+        if (CannotManage(u)) return Deny(DenyHigher);
         if (u.IsMasterAdmin) return Fail($"{u.UserId} เป็นผู้ดูแลระบบหลัก (Master Admin) ลบไม่ได้");
         try
         {
@@ -382,11 +383,15 @@ public sealed class UsersController : AppController
     {
         if (Me?.CanAddUser != true || !Me.CanEditUser) return Deny();
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             bool allowMaster = Me.UserLevel == 1 || Me.IsMasterAdmin;
             var f = _svc.ReadImport(path, allowMaster);
+            // 🔐 ทุกคน (รวม Level 1 / Master Admin): ห้ามแก้สิทธิ์ / ล็อก / เปลี่ยน Level ของตัวเองผ่านการนำเข้า (เหมือน Edit / SavePermissions)
+            foreach (var r in f.Users.Where(r => r.IsValid && string.Equals(r.User.UserId, Uid, StringComparison.OrdinalIgnoreCase)))
+                if ((r.LockGiven && r.User.IsLocked) || (r.LevelGiven && r.User.Level != Me.UserLevel)) r.Error = "ล็อก / เปลี่ยน Level ของบัญชีตัวเองผ่านการนำเข้าไม่ได้";
+            foreach (var p in f.Perms.Where(p => p.IsValid && string.Equals(p.UserId, Uid, StringComparison.OrdinalIgnoreCase))) p.Error = "แก้สิทธิ์ของตัวเองไม่ได้";
             if (!allowMaster)
             {
                 // 🔐 นำเข้า Excel ต้องไม่เป็นช่องทางเลี่ยงกฎเดียวกับ ADD / EDIT / PERMISSION
@@ -402,8 +407,7 @@ public sealed class UsersController : AppController
                 {
                     known.TryGetValue(p.UserId, out var ex);
                     if (ex == null && !f.Users.Any(r => r.IsValid && r.IsNew && string.Equals(r.User.UserId, p.UserId, StringComparison.OrdinalIgnoreCase))) p.Error = "ไม่พบผู้ใช้นี้ (แถวผู้ใช้ถูกข้าม)";
-                    if (string.Equals(p.UserId, Uid, StringComparison.OrdinalIgnoreCase)) p.Error = "แก้สิทธิ์ของตัวเองไม่ได้";
-                    else if (ex != null && CannotManage(ex)) p.Error = "ไม่มีสิทธิ์แก้สิทธิ์ของผู้ดูแลระบบ หรือผู้ใช้ Level สูงกว่าคุณ";
+                    if (ex != null && CannotManage(ex)) p.Error = "ไม่มีสิทธิ์แก้สิทธิ์ของผู้ดูแลระบบ หรือผู้ใช้ Level สูงกว่าคุณ";
                 }
             }
             if (f.Perms.Count > 0 && !Me.CanSetPermissions)

@@ -197,7 +197,7 @@ public sealed class PpImportController : AppController
         if (Me?.CanEditPpCapacity != true) return Deny("คุณไม่มีสิทธิ์บันทึก Actual (CAPACITY › EDIT)");
         if (!DbSchema.HasProductionPlan) return Fail("ฐานข้อมูลยังไม่มีตาราง Production Plan");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var errors = new List<PvError>();
@@ -402,7 +402,7 @@ public sealed class PpImportController : AppController
         if (Me?.CanEditPpCapacity != true) return Deny("คุณไม่มีสิทธิ์บันทึกคนที่มีจริง (CAPACITY › EDIT)");
         if (!DbSchema.HasPpWorkload) return Fail("ฐานข้อมูลยังไม่มีตาราง Workload");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var errors = new List<PvError>();

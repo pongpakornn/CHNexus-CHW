@@ -31,8 +31,14 @@ public sealed class RemarkAutoClear : BackgroundService
             var next = LiveBus.Next();   // รับก่อนเช็ค -> ไม่พลาดการเปลี่ยนที่เกิดระหว่างเช็ค
             if (LiveBus.DataVersion == seen)
             {
-                try { await next.WaitAsync(ct); } catch (OperationCanceledException) { break; }
-                continue;
+                // หัวใจ 30 วินาที: การเปลี่ยนจากภายนอก (โปรแกรมเดิม / SQL ตรง ในคลังที่ไม่มีใครเปิดดู) ก็ยังถูกกวาด
+                using var beat = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                Task done;
+                try { done = await Task.WhenAny(next, Task.Delay(30000, beat.Token)); }
+                catch (OperationCanceledException) { break; }
+                beat.Cancel();
+                if (ct.IsCancellationRequested) break;
+                if (done == next) continue;   // มี Publish -> วนเช็ค DataVersion ใหม่ (ไม่ใช่ข้อมูลกลาง = รอต่อ)
             }
             try { await Task.Delay(3000, ct); } // รวมการเปลี่ยนที่ติด ๆ กัน · ไม่ถี่กว่ารอบละ 3 วินาที
             catch (OperationCanceledException) { break; }

@@ -95,7 +95,7 @@ public sealed class ProductionPlanController : AppController
         if (GuardWl(Me?.CanEditPpCapacity == true) is { } g) return g;
         if (!DbSchema.HasPpWorkloadRef) return Fail("ฐานข้อมูลยังไม่มีตาราง ProductionPlan.WorkloadRef (database/nexus/41_Production_Plan_Workload_Excel.sql)");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             var p = new WorkloadExcelService().Read(path);

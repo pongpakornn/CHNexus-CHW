@@ -131,7 +131,7 @@ public sealed class ScannerController : ControllerBase
     {
         if (User_?.CanViewScannerMenu != true) return NoAccess();
         try { return Ok(new ScanProcessor(Scope(req.ClientScope), req).Process()); }
-        catch (Exception ex) { return Ok(ScanResult.Err("เกิดข้อผิดพลาด: " + ex.Message)); }
+        catch (Exception ex) { return Ok(ScanResult.Err("เกิดข้อผิดพลาด: " + CHR.Nexus.Api.Web.AppController.Safe(ex, HttpContext, _me.UserId))); }
     }
 
     // 🏬 SCAN STOCKS: Level 1 เปลี่ยนของตัวเองได้ (บันทึกเป็นค่าของ UserID) / ฐานเดิม = EDIT ของ Multi-Scanner เลือกเอง (จำไว้ที่ Browser)
@@ -148,7 +148,7 @@ public sealed class ScannerController : ControllerBase
         if (sc.AssignMode)
         {
             try { new ScannerSetupService().SaveAssignment(u.UserId, req.Auto ? sc.Stocks.Select(s => s.StkId) : ids, req.PriorityId, u.UserId, sc.AssignedDeduct); }
-            catch (Exception ex) { return BadRequest(new { message = "บันทึกคลังที่สแกนไม่สำเร็จ\n" + ex.Message }); }
+            catch (Exception ex) { return BadRequest(new { message = "บันทึกคลังที่สแกนไม่สำเร็จ\n" + CHR.Nexus.Api.Web.AppController.Safe(ex, HttpContext, _me.UserId) }); }
         }
         return Ok(new { serialized = ScannerScope.FormatScope(req.Auto, ids, req.PriorityId) });
     }
@@ -325,7 +325,7 @@ public sealed class ScannerController : ControllerBase
             }
             catch (Exception ex)
             {
-                string msg = ex.Message.Contains("being used") ? "ไฟล์ Excel ถูกเปิดค้างอยู่ กรุณาปิดไฟล์ก่อน Export" : ex.Message;
+                string msg = ex.Message.Contains("being used") ? "ไฟล์ Excel ถูกเปิดค้างอยู่ กรุณาปิดไฟล์ก่อน Export" : CHR.Nexus.Api.Web.AppController.Safe(ex, HttpContext, _me.UserId);
                 return BadRequest(new { message = "Export RPA ไม่สำเร็จ\n" + msg + (done.Count > 0 ? "\n\nทำไปแล้ว:\n" + string.Join("\n", done) : ""), done, files });
             }
         }
