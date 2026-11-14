@@ -14,7 +14,8 @@ IF DB_ID('EDP_SYSTEM') IS NULL THROW 50001, N'ไม่พบฐาน EDP_SYSTE
 
 BEGIN TRAN;
 
-DECLARE @pc INT = (SELECT StockID FROM Nexus.Stocks WHERE StockCode = 'STORE-PC');
+DECLARE @pc INT = (SELECT TOP 1 StockID FROM Nexus.Stocks WHERE StockCode IN ('STORE-FG', 'STORE-PC') ORDER BY CASE StockCode WHEN 'STORE-FG' THEN 0 ELSE 1 END);   -- คลังชิ้นงาน EDP (เดิม STORE-PC)
+IF @pc IS NULL THROW 50002, N'ไม่พบคลังชิ้นงาน EDP (STORE-FG / STORE-PC) ใน Nexus.Stocks', 1;
 DECLARE @map TABLE (OLD_ID INT PRIMARY KEY, PartID INT);
 INSERT INTO @map (OLD_ID, PartID)
 SELECT M.PT_ID, MIN(P.PartID)
@@ -120,6 +121,12 @@ SELECT P.FieldID, P.PartID, P.Val, SYSDATETIME(), N'EDP_SYNC'
 FROM @pv P
 WHERE NOT EXISTS (SELECT 1 FROM Nexus.PartFieldValues F WHERE F.PartID = P.PartID AND F.FieldID = P.FieldID);
 INSERT INTO @r VALUES ('part_hg_added', @@ROWCOUNT);
+
+-- 8) หัวแผนที่มีเฉพาะบนเว็บ (แผนทดสอบ) และไม่เหลือการ์ดแล้ว = เอาออก ให้ตรงกับ EDP_SYSTEM
+DELETE N FROM EDP.PlanHeaders N
+WHERE NOT EXISTS (SELECT 1 FROM EDP_SYSTEM.dbo.TRN_PLAN_H E WHERE E.PLH_ID = N.PLH_ID)
+  AND NOT EXISTS (SELECT 1 FROM EDP.PlanCards C WHERE C.PLH_ID = N.PLH_ID);
+INSERT INTO @r VALUES ('headers_removed', @@ROWCOUNT);
 
 COMMIT;
 

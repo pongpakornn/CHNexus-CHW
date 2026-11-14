@@ -44,6 +44,7 @@ public sealed class EdpCard
     public bool IsProblem { get; set; }
     public string Remark { get; set; }
     public int? OrigHg { get; set; }        // HG ตามแผนก่อนถูกแก้ครั้งแรก (ฐานคิดส่วนต่างเวลา)
+    public bool IsEdited { get; set; }      // หน้างานกด EDIT แก้แผนแล้ว (มีประวัติแก้ที่ไม่ใช่แจ้งผลิตไม่ได้) -> การ์ดสีส้ม
 }
 
 public sealed class EdpPart
@@ -221,7 +222,7 @@ public sealed class EdpService
                 FROM EDP.PlanEditLogs L JOIN EDP.PlanCards D ON D.PLD_ID = L.PLD_ID JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID
                 WHERE L.IS_PROBLEM = 0 AND L.OLD_HG_PLAN IS NOT NULL AND H.PLH_DATE = @date) X WHERE RN = 1",
             new { date = date.Date }).ToDictionary(x => x.Id, x => x.Hg);
-        foreach (var card in list) if (orig.TryGetValue(card.PldId, out int h)) card.OrigHg = h;
+        foreach (var card in list) if (orig.TryGetValue(card.PldId, out int h)) (card.OrigHg, card.IsEdited) = (h, true);
         return list;
     }
 
@@ -284,7 +285,7 @@ public sealed class EdpService
         else
         {
             nw = c.QueryFirstOrDefault<(string, string)>("SELECT ISNULL(CUST_CODE,''), ISNULL(PT_NO,'') FROM EDP.vw_Parts WHERE PT_ID = @partId", new { partId }, t);
-            if (nw == default) throw new InvalidOperationException("ไม่พบชิ้นงานที่เลือกใน STORE-PC");
+            if (nw == default) throw new InvalidOperationException("ไม่พบชิ้นงานที่เลือกใน STORE-FG");
             c.Execute("UPDATE EDP.PlanCards SET PT_ID = @partId, QTY_PLAN = @qty, HG_PLAN = @hg, REMARK = @remark, IS_PROBLEM = 0 WHERE PLD_ID = @pldId",
                       new { pldId, partId, qty, hg, remark }, t);
         }
@@ -386,9 +387,16 @@ public sealed class EdpService
         c.Execute(@"INSERT INTO EDP.PlanCards (PLH_ID, PT_ID, TIME_START, TIME_END, QTY_PLAN, HG_PLAN, IS_VISIBLE, ROUND_ID)
                     VALUES (@h, @PartId, @TimeStart, @TimeEnd, @Qty, @Hg, @Visible, @round)",
                   cards.Where(x => !(x.PldId is int id && keepIds.Contains(id))).Select(x => new { h, x.PartId, x.TimeStart, x.TimeEnd, x.Qty, x.Hg, x.Visible, round }), t);
+        // 📅 SAVE ALL ตอนรอบว่าง = ตั้งใจให้ว่าง (ไม่แสดงร่างจากแม่แบบประจำวันซ้ำ) · มีการ์ด = ยกเลิกเครื่องหมาย
+        if (DbSchema.HasEdpDailySkip)
+            c.Execute(cards.Count == 0 ? SkipSet : "DELETE FROM EDP.PlanDailySkips WHERE PLH_DATE = @d AND SHIFT = @s AND ROUND_ID = @r",
+                      new { d = date.Date, s = shift, r = round, uid }, t);
         t.Commit();
         return cards.Count;
     }
+
+    private const string SkipSet = @"IF NOT EXISTS (SELECT 1 FROM EDP.PlanDailySkips WHERE PLH_DATE = @d AND SHIFT = @s AND ROUND_ID = @r)
+                                     INSERT INTO EDP.PlanDailySkips (PLH_DATE, SHIFT, ROUND_ID, CREATE_BY) VALUES (@d, @s, @r, @uid)";
 
     private const string SrcScope = @" FROM EDP.vw_PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID
                                        WHERE H.PLH_DATE = @sd AND H.SHIFT = @ss AND (@sr IS NULL OR D.EFF_ROUND_ID = @sr)";
@@ -424,7 +432,7 @@ public sealed class EdpService
     }
 
     // ล้างแผน: includeDone = false เก็บการ์ดที่ MARK SUCCESS แล้วไว้ (ยอดผลิตจริงไม่หาย)
-    public (int Removed, int Kept) Clear(DateTime date, string shift, int? round, bool includeDone)
+    public (int Removed, int Kept) Clear(DateTime date, string shift, int? round, bool includeDone, string uid = null)
     {
         using var c = Conn();
         c.Open();
@@ -435,6 +443,16 @@ public sealed class EdpService
         var p = new { d = date.Date, s = shift, r = round };
         int kept = includeDone ? 0 : c.ExecuteScalar<int>("SELECT COUNT(*)" + scope + " AND ISNULL(D.IS_DONE,0) = 1", p, t);
         int removed = c.Execute("DELETE D" + scope + (includeDone ? "" : " AND ISNULL(D.IS_DONE,0) = 0"), p, t);
+        // 📅 รอบที่ว่างแล้วหลังล้าง = ตั้งใจให้ว่าง (แม่แบบประจำวันไม่เติมกลับมา)
+        if (DbSchema.HasEdpDailySkip)
+            c.Execute(@"INSERT INTO EDP.PlanDailySkips (PLH_DATE, SHIFT, ROUND_ID, CREATE_BY)
+                        SELECT @d, @s, R.ROUND_ID, @uid FROM EDP.Rounds R
+                        WHERE (@r IS NULL OR R.ROUND_ID = @r)
+                          AND CASE WHEN R.START_HOUR >= 8 AND R.START_HOUR < 20 THEN 'DAY' ELSE 'NIGHT' END = @s
+                          AND NOT EXISTS (SELECT 1 FROM EDP.PlanDailySkips K WHERE K.PLH_DATE = @d AND K.SHIFT = @s AND K.ROUND_ID = R.ROUND_ID)
+                          AND NOT EXISTS (SELECT 1 FROM EDP.vw_PlanCards E JOIN EDP.PlanHeaders H ON H.PLH_ID = E.PLH_ID
+                                          WHERE H.PLH_DATE = @d AND H.SHIFT = @s AND E.EFF_ROUND_ID = R.ROUND_ID)",
+                      new { d = date.Date, s = shift, r = round, uid }, t);
         t.Commit();
         return (removed, kept);
     }
@@ -474,6 +492,14 @@ public sealed class EdpService
     }
 
     // 📅 แม่แบบประจำวันที่เลือกไว้ + ช่องทั้งหมด (ไม่มี = null)
+    // รอบนี้ผู้วางแผนตั้งใจให้ว่าง (SAVE ALL ว่าง / CLEAR) = ไม่เติมร่างจากแม่แบบประจำวัน
+    public bool DailySkipped(DateTime date, string shift, int round)
+    {
+        if (!DbSchema.HasEdpDailySkip) return false;
+        using var c = Conn();
+        return c.ExecuteScalar<int>("SELECT COUNT(*) FROM EDP.PlanDailySkips WHERE PLH_DATE = @d AND SHIFT = @s AND ROUND_ID = @r", new { d = date.Date, s = shift, r = round }) > 0;
+    }
+
     public (int Id, string Name, List<EdpDailyCard> Cards)? Daily()
     {
         if (!DbSchema.HasEdpDaily) return null;
@@ -648,43 +674,47 @@ public sealed class EdpService
             SELECT MONTH(H.PLH_DATE), CASE WHEN SUM(D.HG_PLAN) > 0 THEN SUM(ISNULL(D.HG_ACT,0)) * 100.0 / SUM(D.HG_PLAN) ELSE 0 END
             FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID
             WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) GROUP BY MONTH(H.PLH_DATE)").ToDictionary(x => x.M, x => x.Eff);
-        var daily = c.Query<(DateTime D, double Plan, double Act)>(@"
-            SELECT H.PLH_DATE, ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
+        var daily = c.Query<(DateTime D, double Plan, double Act, double QPlan, double QAct)>(@"
+            SELECT H.PLH_DATE, ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0), ISNULL(SUM(D.QTY_PLAN),0), ISNULL(SUM(D.QTY_ACT),0)
             FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID
             WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) AND MONTH(H.PLH_DATE) = MONTH(GETDATE())
             GROUP BY H.PLH_DATE").ToDictionary(x => x.D.Day);
-        var rounds = c.Query<(int Round, int Start, int End, double Plan, double Act)>(@"
-            SELECT R.ROUND_ID, ISNULL(R.START_HOUR,0), ISNULL(R.END_HOUR,0), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
+        var rounds = c.Query<(int Round, int Start, int End, double Plan, double Act, double QPlan, double QAct)>(@"
+            SELECT R.ROUND_ID, ISNULL(R.START_HOUR,0), ISNULL(R.END_HOUR,0), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0), ISNULL(SUM(D.QTY_PLAN),0), ISNULL(SUM(D.QTY_ACT),0)
             FROM EDP.Rounds R
             LEFT JOIN (EDP.vw_PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID AND H.PLH_DATE = CAST(GETDATE() AS DATE))
                    ON D.EFF_ROUND_ID = R.ROUND_ID AND ISNULL(D.IS_VISIBLE,1) = 1
             GROUP BY R.ROUND_ID, R.START_HOUR, R.END_HOUR ORDER BY R.ROUND_ID").ToList();
-        var hgMonth = c.Query<(int M, double Plan, double Act)>(@"
-            SELECT MONTH(H.PLH_DATE), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0)
+        var hgMonth = c.Query<(int M, double Plan, double Act, double QPlan, double QAct)>(@"
+            SELECT MONTH(H.PLH_DATE), ISNULL(SUM(D.HG_PLAN),0), ISNULL(SUM(D.HG_ACT),0), ISNULL(SUM(D.QTY_PLAN),0), ISNULL(SUM(D.QTY_ACT),0)
             FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID
             WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) GROUP BY MONTH(H.PLH_DATE)").ToDictionary(x => x.M);
-        var custs = c.Query<(string Name, double Hg)>(@"
-            SELECT ISNULL(NULLIF(P.CUST_CODE,''),'-'), SUM(ISNULL(D.HG_ACT,0))
+        var custs = c.Query<(string Name, double Hg, double Pcs)>(@"
+            SELECT ISNULL(NULLIF(P.CUST_CODE,''),'-'), SUM(ISNULL(D.HG_ACT,0)), SUM(ISNULL(D.QTY_ACT,0))
             FROM EDP.PlanHeaders H JOIN EDP.PlanCards D ON D.PLH_ID = H.PLH_ID LEFT JOIN EDP.vw_Parts P ON P.PT_ID = D.PT_ID
             WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND YEAR(H.PLH_DATE) = YEAR(GETDATE()) AND MONTH(H.PLH_DATE) = MONTH(GETDATE())
-            GROUP BY ISNULL(NULLIF(P.CUST_CODE,''),'-') HAVING SUM(ISNULL(D.HG_ACT,0)) > 0 ORDER BY 2 DESC").ToList();
-        double custTotal = custs.Sum(x => x.Hg);
+            GROUP BY ISNULL(NULLIF(P.CUST_CODE,''),'-') HAVING SUM(ISNULL(D.HG_ACT,0)) > 0 OR SUM(ISNULL(D.QTY_ACT,0)) > 0 ORDER BY 2 DESC").ToList();
+        double custTotal = custs.Sum(x => x.Hg), custPcs = custs.Sum(x => x.Pcs);
         var now = DateTime.Now;
         string[] mn = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
         return new
         {
             month = now.ToString("MM/yyyy"),
             year = now.Year,
-            hgMonths = Enumerable.Range(1, 12).Select(m => new { label = mn[m - 1], plan = hgMonth.TryGetValue(m, out var x) ? x.Plan : 0, act = hgMonth.TryGetValue(m, out var y) ? y.Act : 0 }),
-            customers = custs.Select(x => new { name = x.Name, amount = x.Hg, percentage = custTotal > 0 ? Math.Round(x.Hg * 100 / custTotal, 1) : 0 }),
+            hgMonths = Enumerable.Range(1, 12).Select(m => new { label = mn[m - 1], plan = hgMonth.TryGetValue(m, out var x) ? x.Plan : 0, act = hgMonth.TryGetValue(m, out var y) ? y.Act : 0,
+                                                             qtyPlan = hgMonth.TryGetValue(m, out var q1) ? q1.QPlan : 0, qtyAct = hgMonth.TryGetValue(m, out var q2) ? q2.QAct : 0 }),
+            customers = custs.Select(x => new { name = x.Name, amount = x.Hg, percentage = custTotal > 0 ? Math.Round(x.Hg * 100 / custTotal, 1) : 0,
+                                          pcs = x.Pcs, pcsPct = custPcs > 0 ? Math.Round(x.Pcs * 100 / custPcs, 1) : 0 }),
             monthly = Enumerable.Range(1, 12).Select(m => new { name = mn[m - 1], eff = Math.Round(monthly.GetValueOrDefault(m), 1) }),
             daily = Enumerable.Range(1, DateTime.DaysInMonth(now.Year, now.Month)).Select(d => new
             {
                 day = $"{d:D2}/{now:MM}",
                 plan = daily.TryGetValue(d, out var v) ? v.Plan : 0,
-                act = daily.TryGetValue(d, out var w) ? w.Act : 0
+                act = daily.TryGetValue(d, out var w) ? w.Act : 0,
+                qtyPlan = daily.TryGetValue(d, out var q3) ? q3.QPlan : 0,
+                qtyAct = daily.TryGetValue(d, out var q4) ? q4.QAct : 0
             }),
-            rounds = rounds.Select(r => new { round = r.Round, start = r.Start, end = r.End, plan = r.Plan, act = r.Act, eff = r.Plan > 0 ? Math.Min(100, Math.Round(r.Act * 100 / r.Plan, 1)) : 0 })
+            rounds = rounds.Select(r => new { round = r.Round, start = r.Start, end = r.End, plan = r.Plan, act = r.Act, qtyPlan = r.QPlan, qtyAct = r.QAct, eff = r.Plan > 0 ? Math.Min(100, Math.Round(r.Act * 100 / r.Plan, 1)) : 0 })
         };
     }
 

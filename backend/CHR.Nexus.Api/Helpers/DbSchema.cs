@@ -242,6 +242,10 @@ namespace Nexus.Helpers
         private static bool _edpDaily;
         public static bool HasEdpDaily => _edpDaily || (_edpDaily = HasEdp && ColumnIn("EDP.PlanTemplates", "IS_DAILY") == true);
 
+        // 📅 รอบที่ตั้งใจให้ว่าง (46_EDP_Daily_Skip.sql): EDP.PlanDailySkips
+        private static bool _edpSkip;
+        public static bool HasEdpDailySkip => _edpSkip || (_edpSkip = HasEdpDaily && TableExists("EDP.PlanDailySkips") == true);
+
         // ⏰ EDP ALERT (29_EDP_Alert.sql): EDP.AlertSettings (แจ้งเตือนการ์ดเลยเวลา)
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);

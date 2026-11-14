@@ -161,7 +161,7 @@ SELECT P.PartID                       AS PT_ID,
        CAST(ISNULL(P.IsActive, 1) AS BIT) AS IS_ACTIVE
 FROM Nexus.Parts P
 JOIN Nexus.PartStocks S ON S.PartID = P.PartID
-JOIN Nexus.Stocks K     ON K.StockID = S.StockID AND K.StockCode = 'STORE-PC'
+JOIN Nexus.Stocks K     ON K.StockID = S.StockID AND K.StockCode IN ('STORE-FG', 'STORE-PC')   -- คลัง FG (เดิมชื่อ STORE-PC)
 OUTER APPLY (
     SELECT MAX(CASE WHEN D.Label = 'HG TYPE'         THEN V.Value END)                                 AS HG_TYPE,
            MAX(CASE WHEN D.Label = 'PCS/HG'          THEN TRY_CAST(V.Value AS INT) END)                AS PCS_HG,

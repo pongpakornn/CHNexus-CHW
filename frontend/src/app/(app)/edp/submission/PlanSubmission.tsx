@@ -26,6 +26,14 @@ type Typed = Record<number, { qty: number; hg: number; hgPlan: number }>;
 type Saved = { date: string; shift: Scope; round: number | null; started: boolean };
 const KEY = "edp-submit";
 
+// 🎨 สีสถานะการ์ด: เขียว = อัพเดทแล้ว (MARK) · แดง = ผลิตไม่ได้ (Blank ไว้) · ส้ม = แก้ไขแผนแล้ว · ฟ้า = อยู่ระหว่างแผน (รออัพเดท)
+function statusOf(c: Card) {
+  if (c.isDone) return { k: "ok", label: "✔ อัพเดทแล้ว", tip: "MARK SUCCESS แล้ว" };
+  if (c.isProblem) return { k: "bad", label: "⛔ ผลิตไม่ได้", tip: c.remark ? `แจ้งผลิตไม่ได้: ${c.remark}` : "แจ้งผลิตไม่ได้" };
+  if (c.isEdited) return { k: "edit", label: "✏ แก้ไขแล้ว", tip: c.remark ? `แก้ไขแผน: ${c.remark}` : "แก้ไขแผนจากหน้างานแล้ว รออัพเดทยอด" };
+  return { k: "plan", label: "● ระหว่างแผน", tip: "อยู่ระหว่างแผน รอกรอกยอดแล้ว MARK SUCCESS" };
+}
+
 const lateText = (min: number) => (min < 60 ? `${min} นาที` : `${Math.floor(min / 60)} ชม. ${min % 60} นาที`);
 
 // เวลา HH:mm ของการ์ด -> วันเวลาจริง (เวลาก่อนต้นกะ = วันถัดไป)
@@ -320,16 +328,18 @@ export default function PlanSubmission() {
                 const img = imgOf(c);
                 const lock = c.isDone || c.isProblem || !canSubmit || closed;
                 const moveLock = c.isDone || busy.has(c.pldId) || !canSubmit || closed; // ลากสลับได้ = ยังไม่ MARK (ใบผลิตไม่ได้ก็ลากได้ แบบ CanMoveCard)
+                const st = statusOf(c);
                 return (
-                  <article className={`edp-card is-set ${c.isDone ? "is-done" : ""} ${c.isProblem ? "is-problem" : ""} ${lt ? "is-late" : ""} ${lifted ? "is-lifted" : ""}`}>
+                  <article className={`edp-card is-set is-st-${st.k} ${c.isDone ? "is-done" : ""} ${c.isProblem ? "is-problem" : ""} ${lt ? "is-late" : ""} ${lifted ? "is-lifted" : ""}`}>
                     <header className={moveLock ? "" : "edp-handle"} {...(moveLock ? {} : handle)} title={moveLock ? undefined : "ลากที่หัวการ์ดไปวางทับอีกใบเพื่อสลับเวลา"}>
                       <span className="edp-round">
                         {shift === "ALL" ? `${c.shift === "DAY" ? "☀" : "🌙"} ` : ""}R{c.roundId || "-"}
                       </span>
                       <b className="truncate">{c.customer}</b>
                       {lt > 0 && <span className="edp-late">ช้า {lateText(lt)}</span>}
-                      {c.isDone && <span className="edp-badge is-ok">✔ FINISHED</span>}
-                      {c.isProblem && <span className="edp-badge is-bad">⛔ ผลิตไม่ได้</span>}
+                      <span className={`edp-st is-${st.k}`} title={st.tip}>
+                        {st.label}
+                      </span>
                       {!moveLock && (
                         <span className="edp-grip" aria-hidden>
                           ⠿

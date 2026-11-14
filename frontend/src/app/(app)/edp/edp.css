@@ -2170,3 +2170,30 @@
 .edp-draft { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; border: 1px dashed #93c5fd; background: #eff6ff; color: #1e3a8a; font-size: 13px; line-height: 1.5; }
 .edp-draft b { color: #1d4ed8; }
 @media (max-width: 640px) { .edp-daily { min-width: 0; width: 100%; } }
+
+/* 🎨 สีสถานะการ์ด PLAN SUBMISSION: ฟ้า = ระหว่างแผน · ส้ม = แก้ไขแล้ว · แดง = ผลิตไม่ได้ · เขียว = อัพเดทแล้ว */
+.edp-st {
+  flex: none;
+  margin-left: auto;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: color 0.35s var(--ease-drop), background 0.35s var(--ease-drop);
+}
+.edp-st + .edp-grip { margin-left: 0; }
+.edp-st.is-plan { color: #1d4ed8; background: #dbeafe; }
+.edp-st.is-edit { color: #c2410c; background: #ffedd5; }
+.edp-st.is-bad { color: #b91c1c; background: #fee2e2; }
+.edp-st.is-ok { color: #15803d; background: #dcfce7; animation: edp-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.edp-card.is-st-plan::before { background: linear-gradient(90deg, #3b82f6, #38bdf8); }
+.edp-card.is-st-edit::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+.edp-card.is-st-bad::before { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.edp-light .edp-card.is-st-plan { border-color: #bfdbfe; background: linear-gradient(165deg, #eff6ff 0%, #fff 60%); }
+.edp-light .edp-card.is-st-edit { border-color: #fed7aa; background: linear-gradient(165deg, #fff7ed 0%, #fff 60%); }
+.edp-light .edp-card.is-st-bad { border-color: #fecaca; background: linear-gradient(165deg, #fef2f2 0%, #fff 60%); filter: none; opacity: 1; }
+/* เลยเวลา: แถบบนกะพริบแดง + ขอบแดง (สีพื้นยังบอกสถานะ) */
+.edp-light .edp-card.is-st-plan.is-late,
+.edp-light .edp-card.is-st-edit.is-late { border-color: #fca5a5; }
+@media (prefers-reduced-motion: reduce) { .edp-st.is-ok { animation: none; } }

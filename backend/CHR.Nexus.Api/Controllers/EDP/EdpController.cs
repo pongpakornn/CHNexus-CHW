@@ -164,7 +164,7 @@ public sealed class EdpController : AppController
     [HttpPost("clear")]
     public IActionResult Clear([FromBody] ClearReq r) => Guard(Me?.CanDeleteEdpSetting == true) ?? Run(() =>
     {
-        var (removed, kept) = _svc.Clear(r.Date, Sh(r.Shift), r.Round, r.IncludeDone);
+        var (removed, kept) = _svc.Clear(r.Date, Sh(r.Shift), r.Round, r.IncludeDone, Uid);
         LogService.WriteLog(Uid, "EDP_CLEAR_PLAN", $"ล้างแผน {r.Date:dd/MM/yyyy} กะ {Sh(r.Shift)} {(r.Round?.ToString() ?? "ทั้งกะ")} ลบ {removed} เก็บ {kept}", null);
         return Ok(new { message = $"ล้างแผนแล้ว {removed} การ์ด" + (kept > 0 ? $" (เก็บการ์ดที่ MARK แล้ว {kept} ใบ)" : "") });
     }, "ล้างแผนไม่สำเร็จ");
@@ -192,10 +192,12 @@ public sealed class EdpController : AppController
 
     // 📅 แม่แบบประจำวัน: เปิดวัน / รอบที่ยังไม่มีการ์ด = หน้า Plan Setting แสดงช่องของแม่แบบนี้เป็นร่าง (ลงจริงเมื่อกด SAVE ALL)
     [HttpGet("templates/daily")]
-    public IActionResult Daily() => Guard(Me?.CanViewEdpSetting == true) ?? Run(() =>
+    public IActionResult Daily([FromQuery] DateTime? date, [FromQuery] string shift, [FromQuery] int? round, [FromQuery] bool force = false) => Guard(Me?.CanViewEdpSetting == true) ?? Run(() =>
     {
         var d = _svc.Daily();
-        return Ok(new { tplId = d?.Id, tplName = d?.Name, cards = d?.Cards ?? new List<EdpDailyCard>() });
+        // วัน / รอบที่ตั้งใจให้ว่างไว้ = ไม่ส่งช่อง (force = ผู้ใช้กด "ใช้แม่แบบประจำวัน" เอง)
+        bool skipped = d != null && !force && date.HasValue && round.HasValue && _svc.DailySkipped(date.Value, Sh(shift), round.Value);
+        return Ok(new { tplId = d?.Id, tplName = d?.Name, skipped, cards = skipped ? new List<EdpDailyCard>() : d?.Cards ?? new List<EdpDailyCard>() });
     }, "โหลดแม่แบบประจำวันไม่สำเร็จ");
 
     [HttpPost("templates/daily")]

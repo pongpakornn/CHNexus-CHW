@@ -119,7 +119,7 @@ export default function MachineProducts() {
   }
   async function save() {
     if (!machine) return toast.show("WARNING", "กรุณาเลือกเครื่องจักร", "warn");
-    if (!f.a) return toast.show("WARNING", "กรุณาเลือก PART A (STORE-PC)", "warn");
+    if (!f.a) return toast.show("WARNING", "กรุณาเลือก PART A (STORE-FG)", "warn");
     if (!(n(f.tp) > 0) || !(n(f.col) > 0) || !(n(f.ct) > 0)) return toast.show("WARNING", "Total Process / Pcs./Stroke / MC CT ต้องมากกว่า 0", "warn");
     setBusy(true);
     try {
@@ -156,7 +156,7 @@ export default function MachineProducts() {
       <PageHeader
         icon="/icons/InventoryRegistration.png"
         title="PRODUCTION PLAN • MACHINE PRODUCTS"
-        subtitle="MASTER DATA · ตาราง Product ของเครื่อง · PART A (STORE-PC) · PART B (STORE-SUB) · PROCESS CODE"
+        subtitle="MASTER DATA · ตาราง Product ของเครื่อง · PART A (STORE-FG) · PART B (STORE-SUB) · PROCESS CODE"
         actions={
           <>
             <MonthPicker value={month} onChange={setMonth} />
@@ -223,7 +223,7 @@ export default function MachineProducts() {
                 <Card clip={false} title={row ? `✏️ EDIT PRODUCT • ${machine?.code}` : `＋ ADD PRODUCT • ${machine?.code}`} bodyClass="p-4 md:p-5">
                   <div className="pp-form is-prod">
                     <div className="is-wide">
-                      <span className={lab}>PART A • STORE-PC (PRODUCT CODE) *</span>
+                      <span className={lab}>PART A • STORE-FG (PRODUCT CODE) *</span>
                       <PartSearch kind="A" value={f.a} onChange={(a) => set({ a })} />
                     </div>
                     <div className="is-wide">

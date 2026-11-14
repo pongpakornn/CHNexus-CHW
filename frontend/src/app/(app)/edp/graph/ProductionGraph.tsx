@@ -18,23 +18,24 @@ type G = {
   month: string;
   year: number;
   monthly: { name: string; eff: number }[];
-  daily: { day: string; plan: number; act: number }[];
+  daily: { day: string; plan: number; act: number; qtyPlan: number; qtyAct: number }[];
   rounds: {
     round: number;
     start: number;
     end: number;
     plan: number;
     act: number;
+    qtyPlan: number;
+    qtyAct: number;
     eff: number;
   }[];
-  hgMonths: { label: string; plan: number; act: number }[];
-  customers: { name: string; amount: number; percentage: number }[];
+  hgMonths: { label: string; plan: number; act: number; qtyPlan: number; qtyAct: number }[];
+  customers: { name: string; amount: number; percentage: number; pcs: number; pcsPct: number }[];
 };
-const NAMES = {
-  forecast: "PLAN HG",
-  order: "ACT HG",
-  compare: "ACT vs PLAN",
-} as const;
+// หน่วยของกราฟ: HG (ยอดตาม HG) · PCS (จำนวนชิ้น QTY)
+type Unit = "HG" | "PCS";
+const namesOf = (u: Unit) => ({ forecast: `PLAN ${u}`, order: `ACT ${u}`, compare: "ACT vs PLAN" }) as const;
+const UNIT_KEY = "edp-graph-unit";
 
 // ตัวเลขนับขึ้นนุ่ม ๆ (ลดการเคลื่อนไหว = แสดงค่าเลย)
 function useCount(target: number, ms = 1100) {
@@ -125,6 +126,23 @@ export default function ProductionGraph() {
   });
   const [g, setG] = useState<G | null>(null);
   const reduce = useReducedMotion();
+  const [unit, setUnitState] = useState<Unit>(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem(UNIT_KEY) === "PCS" ? "PCS" : "HG";
+    } catch {
+      return "HG";
+    }
+  });
+  const setUnit = (u: Unit) => {
+    setUnitState(u);
+    try {
+      localStorage.setItem(UNIT_KEY, u);
+    } catch {}
+  };
+  const pcs = unit === "PCS";
+  const NAMES = namesOf(unit);
+  // แถว plan / act ตามหน่วยที่เลือก
+  const pick = <T extends { plan: number; act: number; qtyPlan: number; qtyAct: number }>(r: T) => (pcs ? { plan: r.qtyPlan, act: r.qtyAct } : { plan: r.plan, act: r.act });
   const load = useCallback(async (quiet = false) => {
     try {
       setG(await api<G>("/edp/graph"));
@@ -161,13 +179,21 @@ export default function ProductionGraph() {
         </div>
       </PageBody>
     );
-  const today = g.rounds.reduce(
-    (a, r) => ({ plan: a.plan + r.plan, act: a.act + r.act }),
-    { plan: 0, act: 0 },
-  );
-  const month = g.daily.reduce(
-    (a, r) => ({ plan: a.plan + r.plan, act: a.act + r.act }),
-    { plan: 0, act: 0 },
+  const sum = (rows: { plan: number; act: number; qtyPlan: number; qtyAct: number }[]) =>
+    rows.reduce((a, r) => ({ plan: a.plan + r.plan, act: a.act + r.act, qp: a.qp + r.qtyPlan, qa: a.qa + r.qtyAct }), { plan: 0, act: 0, qp: 0, qa: 0 });
+  const today = sum(g.rounds);
+  const month = sum(g.daily);
+  const fmt = (n: number) => Math.round(n).toLocaleString();
+  const unitSeg = (
+    <div className="edp-seg is-2" style={{ "--n": pcs ? 1 : 0, "--c": 2, minWidth: 150 } as React.CSSProperties} role="group" aria-label="หน่วยของกราฟ">
+      <span className="edp-seg-glider" aria-hidden />
+      <button type="button" className={!pcs ? "is-on" : ""} aria-pressed={!pcs} onClick={() => setUnit("HG")}>
+        HG
+      </button>
+      <button type="button" className={pcs ? "is-on" : ""} aria-pressed={pcs} onClick={() => setUnit("PCS")}>
+        PCS
+      </button>
+    </div>
   );
   const pct = (a: number, b: number) =>
     b > 0 ? Math.round((a / b) * 1000) / 10 : 0;
@@ -181,7 +207,8 @@ export default function ProductionGraph() {
         <PageHeader
           icon="/icons/Dashboard.png"
           title="EDP • DASHBOARD"
-          subtitle="ประสิทธิภาพ HG (ACT ÷ PLAN) · อัพเดทเองเมื่อหน้างาน MARK SUCCESS"
+          subtitle="ประสิทธิภาพ HG (ACT ÷ PLAN) · กราฟสลับดูเป็น HG หรือจำนวนชิ้น (PCS) ได้ · อัพเดทเองเมื่อหน้างาน MARK SUCCESS"
+          actions={unitSeg}
         />
       </motion.div>
       <div className="edp-kpis">
@@ -190,7 +217,7 @@ export default function ProductionGraph() {
           i={0}
           cap="TODAY"
           pct={pct(today.act, today.plan)}
-          sub={`${today.act.toLocaleString()} / ${today.plan.toLocaleString()} HG`}
+          sub={`${fmt(today.act)} / ${fmt(today.plan)} HG · ${fmt(today.qa)} / ${fmt(today.qp)} PCS`}
           color="#6750a4"
         />
         </Panel>
@@ -199,7 +226,7 @@ export default function ProductionGraph() {
           i={1}
           cap={`MONTH ${g.month}`}
           pct={pct(month.act, month.plan)}
-          sub={`${month.act.toLocaleString()} / ${month.plan.toLocaleString()} HG`}
+          sub={`${fmt(month.act)} / ${fmt(month.plan)} HG · ${fmt(month.qa)} / ${fmt(month.qp)} PCS`}
           color="#2563eb"
         />
         </Panel>
@@ -216,26 +243,27 @@ export default function ProductionGraph() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
         <Panel reduce={!!reduce} i={4} className="flex">
         <CustomerDonut
-          title={`HG ACT BY CUSTOMER • ${g.month}`}
+          key={`c${unit}`}
+          title={`${unit} ACT BY CUSTOMER • ${g.month}`}
           period={g.month}
-          rows={g.customers}
+          rows={pcs ? g.customers.filter((c) => c.pcs > 0).sort((a, b) => b.pcs - a.pcs).map((c) => ({ name: c.name, amount: c.pcs, percentage: c.pcsPct })) : g.customers.filter((c) => c.amount > 0)}
           empty="ยังไม่มียอดผลิตของเดือนนี้"
-          metric="HG ACT"
-          subtitle="สัดส่วนยอดผลิตจริง (HG) แยกตามลูกค้า"
+          metric={`${unit} ACT`}
+          subtitle={`สัดส่วนยอดผลิตจริง (${pcs ? "ชิ้น" : "HG"}) แยกตามลูกค้า`}
           fill
         />
         </Panel>
         <Panel reduce={!!reduce} i={5} className="flex">
         <section className="flex flex-col overflow-hidden rounded-2xl border border-line/60 bg-surface shadow-sm">
           <MonthChart
-            data={asPoints(g.hgMonths)}
+            data={asPoints(g.hgMonths.map((m) => ({ label: m.label, ...pick(m) })))}
             year={g.year}
             fill
             names={NAMES}
             hide={["delivery"]}
             header={{
               icon: "/images/dashboard/chart.png",
-              title: `PLAN / ACT HG • ${g.year}`,
+              title: `PLAN / ACT ${unit} • ${g.year}`,
             }}
           />
         </section>
@@ -247,19 +275,22 @@ export default function ProductionGraph() {
         <CustomerDonut
           title={`ROUND EFFICIENCY • วันนี้ ${pct(today.act, today.plan)}%`}
           period="TODAY"
+          key={`r${unit}`}
           rows={g.rounds
-            .filter((r) => r.act > 0)
-            .map((r) => ({
-              name: `R${r.round} · ${hh(r.start)}-${hh(r.end)} · ${r.eff}%`,
-              amount: r.act,
-              percentage: today.act
-                ? Math.round((r.act * 1000) / today.act) / 10
-                : 0,
-            }))}
+            .filter((r) => (pcs ? r.qtyAct : r.act) > 0)
+            .map((r) => {
+              const v = pcs ? r.qtyAct : r.act,
+                tot = pcs ? today.qa : today.act;
+              return {
+                name: `R${r.round} · ${hh(r.start)}-${hh(r.end)} · ${r.eff}%`,
+                amount: v,
+                percentage: tot ? Math.round((v * 1000) / tot) / 10 : 0,
+              };
+            })}
           empty="วันนี้ยังไม่มียอดผลิต"
-          metric="HG ACT"
+          metric={`${unit} ACT`}
           nameHead="Round"
-          subtitle="ยอดผลิตจริง (HG) ตามรอบเวลา · % = ACT ÷ PLAN ของรอบ"
+          subtitle={`ยอดผลิตจริง (${pcs ? "ชิ้น" : "HG"}) ตามรอบเวลา · % ประสิทธิภาพ = HG ACT ÷ HG PLAN ของรอบ`}
           fill
         />
         </Panel>
@@ -269,8 +300,7 @@ export default function ProductionGraph() {
             data={asPoints(
               g.daily.map((d) => ({
                 label: String(+d.day.slice(0, 2)),
-                plan: d.plan,
-                act: d.act,
+                ...pick(d),
               })),
             )}
             year={g.month}
@@ -279,7 +309,7 @@ export default function ProductionGraph() {
             hide={["delivery"]}
             header={{
               icon: "/images/dashboard/chart.png",
-              title: `DAILY HG • ${g.month}`,
+              title: `DAILY ${unit} • ${g.month}`,
             }}
           />
         </section>

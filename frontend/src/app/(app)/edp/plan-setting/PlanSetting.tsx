@@ -23,7 +23,7 @@ import "../edp.css";
 //   ALL = ภาพรวมทั้งวัน (กะ -> รอบ -> การ์ด) กด EDIT ที่รอบ = ไปแก้รอบนั้น · แม่แบบ (บันทึก / ใช้) · คัดลอกแผนจากวันอื่น · ล้างแผน
 type Tpl = { tplId: number; tplName: string; shift: string | null; roundId: number | null; createBy: string | null; createAt: string; updateAt: string | null; cardCount: number; isDaily?: boolean };
 type DailyCard = { partId: number | null; timeStart: string; timeEnd: string; qty: number; hg: number; roundId: number | null };
-type Daily = { tplId: number | null; tplName: string | null; cards: DailyCard[] };
+type Daily = { tplId: number | null; tplName: string | null; skipped?: boolean; cards: DailyCard[] };
 let seq = 0;
 const nextKey = () => --seq;
 
@@ -50,6 +50,8 @@ export default function PlanSetting() {
   const [savedOk, setSavedOk] = useState(false); // SAVE ALL สำเร็จ = ปุ่มเป็นติ๊กเขียวสั้น ๆ
   // 📅 แม่แบบประจำวัน: รอบที่ยังไม่มีการ์ด = แสดงช่องของแม่แบบเป็นร่าง (draft = ชื่อแม่แบบ) · ลงจริงเมื่อกด SAVE ALL
   const [draft, setDraft] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState<string | null>(null); // รอบนี้ตั้งใจให้ว่าง (ลบ / ล้างแล้ว) = ชื่อแม่แบบประจำวัน
+  const forceDaily = useRef(false);
   const [tpls, setTpls] = useState<Tpl[]>([]);
   const [dailyBusy, setDailyBusy] = useState(false);
   const partsRef = useRef<Part[]>([]);
@@ -96,8 +98,12 @@ export default function PlanSetting() {
         const s = shiftStart(shift);
         let list = r.cards.map(toEd);
         let from: string | null = null;
+        let skip: string | null = null;
         if (list.length === 0) {
-          const d = await api<Daily>("/edp/templates/daily").catch(() => null);
+          const force = forceDaily.current;
+          forceDaily.current = false;
+          const d = await api<Daily>("/edp/templates/daily", { query: { date, shift, round, force: force || undefined } }).catch(() => null);
+          if (d?.skipped && d.tplName) skip = d.tplName;
           if (v !== loadVer.current) return;
           const mine = d?.tplName ? d.cards.filter((c) => c.roundId === round) : [];
           if (mine.length) {
@@ -111,6 +117,7 @@ export default function PlanSetting() {
         }
         setEds(list.sort((a, b) => sortMin(a.t.sb, s) - sortMin(b.t.sb, s)));
         setDraft(from);
+        setSkipped(skip);
         setAll(null);
         setDirty(false);
       }
@@ -294,7 +301,26 @@ export default function PlanSetting() {
               </motion.div>
             )}
           </AnimatePresence>
-          {shown.length === 0 && <Empty>ยังไม่มีการ์ดในรอบนี้ · กด ＋ ADD CARD หรือใช้แม่แบบ</Empty>}
+          {shown.length === 0 && (
+            <Empty>
+              {skipped ? (
+                <>
+                  รอบนี้ลบการ์ดจากแม่แบบประจำวัน &quot;{skipped}&quot; ออกไว้แล้ว · กด ＋ ADD CARD เพื่อเพิ่มเอง
+                  {can.add && (
+                    <>
+                      {" "}
+                      หรือ{" "}
+                      <button type="button" className="fill-btn is-sm" onClick={() => ((forceDaily.current = true), load())}>
+                        📋 ใช้แม่แบบประจำวัน
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                "ยังไม่มีการ์ดในรอบนี้ · กด ＋ ADD CARD หรือใช้แม่แบบ"
+              )}
+            </Empty>
+          )}
           <AnimatePresence mode="wait">
             <motion.div key={`${date}|${shift}|${round}`} variants={reduce ? fadeOnly : fadeUp} initial="hidden" animate="show" exit="exit">
               <SetCards

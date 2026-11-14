@@ -36,7 +36,7 @@ public sealed class PpPart
     public int Sort { get; set; }
     public int PartAId { get; set; }
     public string PartA { get; set; }        // PART A (A974-00001)
-    public string PdCode { get; set; }       // PRODUCT CODE ของ STORE-PC
+    public string PdCode { get; set; }       // PRODUCT CODE ของ STORE-FG (เดิม STORE-PC)
     public string Customer { get; set; }
     public int? PartBId { get; set; }
     public string PartB { get; set; }        // PART B (B171-00012) / ชิ้นเดียวกับ PART A
@@ -259,7 +259,7 @@ public sealed class ProductionPlanService
     public int SavePart(PartForm f, string uid)
     {
         if (f.MachineId <= 0) throw new InvalidOperationException("กรุณาเลือกเครื่องจักร");
-        if (f.PartAId <= 0) throw new InvalidOperationException("กรุณาเลือก PART A (STORE-PC)");
+        if (f.PartAId <= 0) throw new InvalidOperationException("กรุณาเลือก PART A (STORE-FG)");
         if (f.Tp <= 0) throw new InvalidOperationException("Total Process ต้องมากกว่า 0");
         if (f.Col <= 0) throw new InvalidOperationException("Pcs./Stroke ต้องมากกว่า 0");
         if (f.Ct <= 0) throw new InvalidOperationException("MC CT (วินาที) ต้องมากกว่า 0");
@@ -304,12 +304,12 @@ public sealed class ProductionPlanService
         using var c = Conn();
         return c.Query(@"
             SELECT TOP 30 p.PartID AS id, s.StockCode AS stock,
-                   CASE WHEN s.StockCode = 'STORE-PC' THEN LTRIM(RTRIM(ISNULL(p.PartA, ''))) ELSE COALESCE(NULLIF(LTRIM(RTRIM(p.PartB)), ''), p.PartCode) END AS code,
+                   CASE WHEN s.StockCode IN ('STORE-FG', 'STORE-PC') THEN LTRIM(RTRIM(ISNULL(p.PartA, ''))) ELSE COALESCE(NULLIF(LTRIM(RTRIM(p.PartB)), ''), p.PartCode) END AS code,
                    p.PartCode AS pdCode, ISNULL(p.Description, '') AS name, ISNULL(p.Customer, '') AS customer
             FROM Nexus.Parts p WITH (NOLOCK)
             JOIN Nexus.PartStocks ps ON ps.PartID = p.PartID
-            JOIN Nexus.Stocks s ON s.StockID = ps.StockID AND (s.StockCode = 'STORE-PC' OR (@b = 1 AND s.StockCode = 'STORE-SUB'))
-            WHERE p.IsActive = 1 AND (s.StockCode <> 'STORE-PC' OR ISNULL(p.PartA, '') <> '')
+            JOIN Nexus.Stocks s ON s.StockID = ps.StockID AND (s.StockCode IN ('STORE-FG', 'STORE-PC') OR (@b = 1 AND s.StockCode = 'STORE-SUB'))
+            WHERE p.IsActive = 1 AND (s.StockCode NOT IN ('STORE-FG', 'STORE-PC') OR ISNULL(p.PartA, '') <> '')
               AND (p.PartCode LIKE '%' + @k + '%' OR ISNULL(p.PartA, '') LIKE '%' + @k + '%' OR ISNULL(p.PartB, '') LIKE '%' + @k + '%' OR ISNULL(p.Description, '') LIKE '%' + @k + '%')
             ORDER BY CASE WHEN ISNULL(p.PartA, '') = @k OR ISNULL(p.PartB, '') = @k OR p.PartCode = @k THEN 0
                           WHEN ISNULL(p.PartA, '') LIKE @k + '%' OR ISNULL(p.PartB, '') LIKE @k + '%' OR p.PartCode LIKE @k + '%' THEN 1 ELSE 2 END,

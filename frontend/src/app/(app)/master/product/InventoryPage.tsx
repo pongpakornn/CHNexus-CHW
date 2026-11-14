@@ -866,7 +866,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                 options={[...(meta.canAll ? [{ value: "", label: "ALL STOCKS" }] : []), ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))]}
                 onChange={(v) => changeFilter(v ? Number(v) : null)}
               />
-              {filterStock?.code === "STORE-PC" && (
+              {(filterStock?.code === "STORE-FG" || filterStock?.code === "STORE-PC") && (
                 <button
                   type="button"
                   className={`fill-btn ${edpOnly ? "is-on" : ""}`}

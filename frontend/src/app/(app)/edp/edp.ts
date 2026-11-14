@@ -33,6 +33,7 @@ export type Card = {
   isVisible: boolean;
   isProblem: boolean;
   remark: string | null;
+  isEdited?: boolean;
   origHg: number | null;
 };
 // planSig = ลายเซ็นแผน (ค่าที่ใช้คิดเวลาเท่านั้น) ส่งกลับตอนสลับการ์ด กันสลับทับแผนที่เครื่องอื่นแก้ไปแล้ว (SUB-14)

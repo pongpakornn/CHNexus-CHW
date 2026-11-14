@@ -25,8 +25,10 @@ export function EditCard({ card, qty0, hg0, onClose, onSaved }: { card: Card; qt
       .then(setParts)
       .catch((e) => toast.show("ERROR", (e as Error).message, "error"));
   }, [toast]);
-  const custs = useMemo(() => [...new Set((parts ?? []).map((p) => p.customer))].filter(Boolean), [parts]);
-  const list = (parts ?? []).filter((p) => p.customer === cust);
+  // แบบหน้า PLAN SETTING / .exe: เฉพาะชิ้นงานที่ EDP ใช้ (มี HG QTY / PCS/HG) · PART NO ซ้ำได้ -> แสดง PART CODE ให้แยกออก
+  const edp = useMemo(() => (parts ?? []).filter((p) => p.qtyHg > 0 || p.pcsHg > 0), [parts]);
+  const custs = useMemo(() => [...new Set(edp.map((p) => p.customer))].filter(Boolean).sort(), [edp]);
+  const list = edp.filter((p) => p.customer === cust);
   const part = parts?.find((p) => p.partId === partId) ?? null;
 
   async function save() {
@@ -75,7 +77,7 @@ export function EditCard({ card, qty0, hg0, onClose, onSaved }: { card: Card; qt
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="fx">
                 <span className="fx-cap">CUSTOMER</span>
-                <ComboBox value={cust} onChange={(v) => v !== cust && (setCust(v), setPartId(null))} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
+                <ComboBox value={cust} onChange={(v) => v !== cust && (setCust(v), setPartId(null), setQty(0), setHg(0))} options={custs.map((c) => ({ value: c, label: c }))} placeholder="พิมพ์ค้นหาลูกค้า" ariaLabel="CUSTOMER" />
               </label>
               <label className="fx">
                 <span className="fx-cap">PART NO</span>
@@ -83,11 +85,15 @@ export function EditCard({ card, qty0, hg0, onClose, onSaved }: { card: Card; qt
                   value={partId ? String(partId) : ""}
                   onChange={(v) => {
                     const p = parts?.find((x) => x.partId === +v);
-                    if (p && p.partId !== partId) (setHg(1), setQty(p.qtyHg));
+                    // เลือกชิ้นงาน = 1 HG · QTY = HG QTY ของชิ้นงาน (เวลาบนการ์ดคิดใหม่ตาม HG หลังบันทึก)
+                    if (p && p.partId !== partId) {
+                      setHg(p.qtyHg > 0 ? 1 : 0);
+                      setQty(p.qtyHg);
+                    }
                     setPartId(+v);
                   }}
-                  options={list.map((p) => ({ value: String(p.partId), label: p.partNo, sub: p.partName ?? undefined }))}
-                  placeholder={parts ? "พิมพ์ค้นหา PART NO / ชื่อ" : "LOADING..."}
+                  options={list.map((p) => ({ value: String(p.partId), label: p.partNo, sub: [p.partCode, p.qtyHg ? `${p.qtyHg} PCS/HG` : "", p.partName].filter(Boolean).join(" · ") }))}
+                  placeholder={!parts ? "LOADING..." : cust ? `พิมพ์ค้นหา PART NO ของ ${cust} (${list.length})` : "เลือก CUSTOMER ก่อน"}
                   ariaLabel="PART NO"
                 />
               </label>
