@@ -95,6 +95,10 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
   const [tipPos, setTipPos] = useState({ x: 0, y: 0, flip: false });
   const tapSkip = useRef(false); // มือถือ: แตะครั้งแรก = ดูค่า · แตะซ้ำแท่งเดิม = เปิด (onPick)
   const lastY = useRef(-999); // ป้ายตามเมาส์แนวตั้งแบบหยาบ (ไม่ render กราฟใหม่ทุกพิกเซลที่ขยับ)
+  const tipRef = useRef<HTMLDivElement>(null); // วัดความสูงป้าย -> ไม่ล้นลงไปทับการ์ดถัดไป
+  const raf = useRef(0); // เมาส์ขยับ = คำนวณ 1 ครั้งต่อเฟรม (ลื่น ไม่กระตุก)
+  const pt = useRef({ x: 0, y: 0 });
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
   useEffect(() => {
     const el = box.current;
@@ -138,7 +142,8 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
     const r = box.current!.getBoundingClientRect();
     const i = Math.floor((clientX - r.left - m.l) / band);
     if (i < 0 || i >= n || !band) return hover !== -1 && setHover(-1);
-    const y = Math.max(8, Math.min(clientY - r.top - 30, H - 120));
+    const th = tipRef.current?.offsetHeight ?? 170;
+    const y = Math.max(6, Math.min(clientY - r.top - 30, H - th - 6));
     // แท่งเดิม + เมาส์ขยับนิดเดียว = ไม่ต้องวาดใหม่ (เดิมวาดกราฟทั้งชุดทุกครั้งที่ขยับเมาส์ = กระตุก)
     if (i === hover && Math.abs(y - lastY.current) < 28) return;
     lastY.current = y;
@@ -169,7 +174,14 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
         ref={box}
         className="pp-stage"
         style={{ height: H }}
-        onPointerMove={(e) => at(e.clientX, e.clientY)}
+        onPointerMove={(e) => {
+          pt.current = { x: e.clientX, y: e.clientY };
+          if (raf.current) return;
+          raf.current = requestAnimationFrame(() => {
+            raf.current = 0;
+            at(pt.current.x, pt.current.y);
+          });
+        }}
         onPointerDown={(e) => {
           const before = hover;
           at(e.clientX, e.clientY);
@@ -387,6 +399,7 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
         <AnimatePresence>
           {hover >= 0 && (
             <motion.div
+              ref={tipRef}
               className="pp-tip"
               initial={{ opacity: 0, scale: 0.94, x: tipPos.flip ? tipPos.x - 236 : tipPos.x + 16, y: tipPos.y }}
               animate={{ opacity: 1, scale: 1, x: tipPos.flip ? tipPos.x - 236 : tipPos.x + 16, y: tipPos.y }}
