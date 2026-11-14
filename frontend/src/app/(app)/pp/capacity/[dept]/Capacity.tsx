@@ -22,7 +22,7 @@ import "../../pp.css";
 //   เลือกเครื่อง (ชิป) + เดือน · Condition / Plan / Actual · ตาราง Product (คำนวณเอง: PCS จาก Forecast / Order · SPH · Stroke · MC Hr)
 //   M/C Plan รายวัน = อัตโนมัติจากวันทำงาน · M/C Actual = หน้างานกรอก Working hour / Stroke / Man -> %EFF คำนวณทันที -> SAVE
 //   จอใหญ่ = ตารางรายวัน (คอลัมน์แรกติดซ้าย) · มือถือ = การ์ดรายวันกรอกง่าย · เครื่องอื่นบันทึก = อัพเดทเอง (ไม่ทับค่าที่กำลังพิมพ์)
-const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", eff: "#d97706" };
+const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", eff: "#d97706", cap: "#ea580c", cap2: "#fb923c" };
 type Draft = Record<number, { hr: string; stroke: string; man: string }>;
 const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(/,/g, "")));
 const str = (v: number | null | undefined) => (v == null ? "" : String(+v.toFixed(2)));
@@ -265,6 +265,16 @@ export default function Capacity({ dept }: { dept: string }) {
     : [
         { key: "act", label: isHr ? "ACTUAL HR. (A2)" : "ACTUAL STROKE (A1)", kind: "bar", color: C.act, color2: C.act2, values: isHr ? c.actHr : c.actStroke, fmt: isHr ? f2 : f0 },
         { key: "plan", label: isHr ? "PLAN HR. (P5)" : "PLAN STROKE (P2)", kind: "line", color: C.plan, dashed: true, values: isHr ? c.planHr : c.plan, fmt: isHr ? f2 : f0 },
+        // 🔶 กำลังต่อวันของกะที่ต้องใช้ (C5-C9 ไล่ตาม Order แบบ Dashboard): Stroke = C2·C3·C4·ชม. ของกะ · ชม. = ชม. ของกะ × C2
+        {
+          key: "cap",
+          label: `SHIFT CAPACITY / DAY (C${c.needIdx < 0 ? 4 + data.shifts.length : 5 + c.needIdx})`,
+          kind: "mark",
+          color: C.cap,
+          color2: C.cap2,
+          values: Array.from({ length: nd }, (_, i) => (wd.has(i + 1) ? (isHr ? c.needHr * c.C2 : c.C2 * c.C3 * c.C4 * c.needHr) : null)),
+          fmt: isHr ? f2 : f0,
+        },
       ];
   const load1 = c.sh[0] ? c.P1 / c.sh[0] : 0;
   const todayIdx = month === thisMonth() ? new Date().getDate() - 1 : -1;
@@ -824,7 +834,7 @@ function MachineBanner({ deptName, code, group, month, c, parts, withPcs, byPcs 
           ))}
         </div>
       </div>
-      <div className="ring">
+      <div className="bn-ring">
         <Ring
           frac={prog}
           color="#ffffff"

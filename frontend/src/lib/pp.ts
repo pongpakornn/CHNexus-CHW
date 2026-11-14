@@ -61,6 +61,12 @@ export type Calc = {
   capHr: number;
   /** ชม. ของแต่ละกะ C5-C9 (7.75 · 10.75 · 15.5 · 18.5 · 21.5) */
   shHr: number[];
+  /** กะที่ต้องใช้ = กะแรกใน C5-C9 ที่ ≥ P1 (ไล่ต่อกันแบบ Excel) · -1 = เกินทุกกะ (เกิน C9) */
+  needIdx: number;
+  /** เพดานของกะที่ต้องใช้ (ค่าสุดท้ายที่แสดงใน C5-C9) · เกินทุกกะ = C9 */
+  needCap: number;
+  /** ชม. ของกะที่ต้องใช้ (เช่น 7.75) · เกินทุกกะ = ชม. กะสูงสุด */
+  needHr: number;
   P1: number;
   P2: number;
   P3: number;
@@ -130,6 +136,9 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
   const shHr = d.shifts.map((s) => s.hours);
   const capHr = Math.max(0, ...shHr);
   const cap = base * capHr;
+  const needIdx = sh.findIndex((v) => v != null && v >= P1);
+  const needCap = needIdx >= 0 ? (sh[needIdx] ?? cap) : cap;
+  const needHr = needIdx >= 0 ? (shHr[needIdx] ?? capHr) : capHr;
 
   const nd = d.days;
   const byDay = new Map(m.actual.map((a) => [a.day, a]));
@@ -197,6 +206,9 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
     cap,
     capHr,
     shHr,
+    needIdx,
+    needCap,
+    needHr,
     P1,
     P2,
     P3,

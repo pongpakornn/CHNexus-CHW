@@ -10,7 +10,7 @@ import { shortN } from "@/lib/pp";
 //   วันหยุด = ลายเส้นทแยงจาง ๆ · วันนี้ = เส้นประ TODAY · ชี้ / แตะ = เส้น crosshair + จุดขยาย + กล่องค่าลอยแบบกระจกฝ้า
 //   เปลี่ยนโหมด / ข้อมูล = แท่ง / เส้น / แกน Y เลื่อนไปค่าใหม่นุ่ม ๆ · กด Legend = ซ่อน / แสดง · ลดการเคลื่อนไหว = ไม่มีแอนิเมชัน
 // kind "mark" = ขีดแนวนอนเหนือแต่ละคอลัมน์ (เช่น MAX CAPACITY ของเครื่อง) ไม่ลากเส้นต่อกันข้ามเครื่อง
-export type Series = { key: string; label: string; kind: "bar" | "line" | "mark"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string; unit?: string };
+export type Series = { key: string; label: string; kind: "bar" | "line" | "mark"; color: string; color2?: string; values: (number | null)[]; alert?: boolean[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string; unit?: string };
 
 // ป้ายแกน X ยาว (เช่น "Group 1.7.2- POLISH(PL21) Auto") = ตัดเป็นหลายบรรทัดตามความกว้างของแท่ง ไม่ซ้อนกัน · ยาวเกิน = … (ชื่อเต็มอยู่ในป้ายตอนชี้)
 const CH = 6.2; // ความกว้างโดยประมาณต่อ 1 ตัวอักษร (ตัว 11px)
@@ -192,12 +192,25 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
                   <stop offset="1" stopColor={s.color} />
                 </linearGradient>
               ))}
+              {series.map((s) =>
+                s.kind === "mark" ? (
+                  <linearGradient key={"m" + s.key} id={`${uid}-m-${s.key}`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stopColor={s.color} stopOpacity={0.75} />
+                    <stop offset="0.5" stopColor={s.color2 ?? s.color} />
+                    <stop offset="1" stopColor={s.color} stopOpacity={0.75} />
+                  </linearGradient>
+                ) : null,
+              )}
               {series.map((s) => (
                 <linearGradient key={"a" + s.key} id={`${uid}-a-${s.key}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" stopColor={s.color} stopOpacity={0.28} />
                   <stop offset="1" stopColor={s.color} stopOpacity={0} />
                 </linearGradient>
               ))}
+              <linearGradient id={`${uid}-g-alert`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#f87171" />
+                <stop offset="1" stopColor="#dc2626" />
+              </linearGradient>
               <pattern id={`${uid}-hatch`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                 <rect width="6" height="6" fill="#fff7ed" />
                 <line x1="0" y1="0" x2="0" y2="6" stroke="#fdba74" strokeWidth="1.2" strokeOpacity="0.45" />
@@ -264,7 +277,7 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
                 return (
                   <motion.path
                     key={`${s.key}-${i}`}
-                    fill={`url(#${uid}-g-${s.key})`}
+                    fill={`url(#${uid}-g-${s.alert?.[i] ? "alert" : s.key})`}
                     className="pp-bar"
                     initial={reduce ? false : { d: barPath(x, base, w, 0) }}
                     animate={{ d: barPath(x, y, w, base - y), opacity: hover < 0 || hover === i ? 1 : 0.4 }}
@@ -275,24 +288,47 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
             )}
 
             {/* 🔶 ขีดเพดาน (MAX CAPACITY) : กว้างกว่ากลุ่มแท่งเล็กน้อย · แท่งแผนสูงเกินขีด = เกินกำลังเครื่อง */}
+            {/* ⚠ แท่งเกินกำลัง (alert) = ป้าย OVER เหนือแท่ง ไม่ใช้สีอย่างเดียว */}
+            {bars.map((s, k) =>
+              s.alert?.map((on, i) => {
+                const v = s.values[i];
+                if (!on || v == null || v <= 0) return null;
+                const x = sx(i) - (bw * bars.length) / 2 + k * bw + bw / 2;
+                return (
+                  <motion.text key={`ov-${s.key}-${i}`} x={x} textAnchor="middle" className="pp-over" initial={reduce ? false : { y: base, opacity: 0 }} animate={{ y: sy(v) - 7, opacity: 1 }} transition={T(0.7, 0.3 + dl(i))}>
+                    OVER
+                  </motion.text>
+                );
+              }),
+            )}
+
+            {/*   ขีด = แคปซูลไล่สี ขอบขาว · เส้นประจางจากยอดแท่งแรก (แผน) ขึ้นไปถึงขีด = กำลังที่ยังเหลือ */}
             {marks.map((s) =>
               s.values.map((v, i) => {
                 if (v == null || v <= 0) return null;
-                const half = Math.min(band * 0.46, (bw * Math.max(1, bars.length)) / 2 + 7);
+                const half = Math.min(band * 0.42, (bw * Math.max(1, bars.length)) / 2 + 6);
+                const pv = bars[0]?.values[i] ?? null;
+                const on = hover < 0 || hover === i;
                 return (
-                  <motion.line
-                    key={`${s.key}-${i}`}
-                    x1={sx(i) - half}
-                    x2={sx(i) + half}
-                    stroke={s.color}
-                    strokeWidth={3}
-                    strokeLinecap="round"
-                    strokeDasharray={s.dashed ? "5 4" : undefined}
-                    className="pp-mark"
-                    initial={reduce ? false : { y1: base, y2: base, opacity: 0 }}
-                    animate={{ y1: sy(v), y2: sy(v), opacity: hover < 0 || hover === i ? 1 : 0.45 }}
-                    transition={{ ...T(0.8, 0.15 + dl(i)), opacity: { duration: 0.2 } }}
-                  />
+                  <g key={`${s.key}-${i}`} className="pp-mark">
+                    {pv != null && pv > 0 && pv < v && (
+                      <motion.line
+                        x1={sx(i)}
+                        x2={sx(i)}
+                        stroke={s.color}
+                        strokeWidth={1.5}
+                        strokeDasharray="2 4"
+                        strokeLinecap="round"
+                        initial={reduce ? false : { y1: sy(pv), y2: sy(pv), opacity: 0 }}
+                        animate={{ y1: sy(pv) - 3, y2: sy(v) + 4, opacity: on ? 0.55 : 0.2 }}
+                        transition={{ ...T(0.8, 0.35 + dl(i)), opacity: { duration: 0.2 } }}
+                      />
+                    )}
+                    <motion.g initial={reduce ? false : { x: sx(i), y: base, opacity: 0 }} animate={{ x: sx(i), y: sy(v), opacity: on ? 1 : 0.5 }} transition={{ ...T(0.8, 0.15 + dl(i)), opacity: { duration: 0.2 } }}>
+                      <rect x={-half} y={-3.5} width={half * 2} height={7} rx={3.5} fill={`url(#${uid}-m-${s.key})`} className="pp-mark-cap" />
+                      {hover === i && <circle r={4.5} fill="#fff" stroke={s.color} strokeWidth={2.2} />}
+                    </motion.g>
+                  </g>
                 );
               }),
             )}
