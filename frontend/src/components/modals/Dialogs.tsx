@@ -104,11 +104,21 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
 
   const ovId = useRef<symbol | null>(null);
   const hasState = !!state;
+  // leaving = off the stack at once, so Esc on the window behind works during the 180 ms exit
+  const active = hasState && !leaving;
   useEffect(() => {
-    if (!hasState) return;
+    if (!active) return;
     const ov = pushOverlay();
     ovId.current = ov.id;
     return () => ov.pop();
+  }, [active]);
+  // give keyboard focus back to what had it before the dialog opened
+  useEffect(() => {
+    if (!hasState) return;
+    const prev = document.activeElement as HTMLElement | null;
+    return () => {
+      if (prev?.isConnected) prev.focus({ preventScroll: true });
+    };
   }, [hasState]);
   useEffect(() => {
     if (!state) return;

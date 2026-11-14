@@ -37,8 +37,8 @@ export const fadeDown: Variants = {
 
 /** การ์ดของหน้า Dashboard (y 24 · ไล่ทีละ 0.08 วินาที) */
 export const panelIn: Variants = {
-  hidden: { opacity: 0, y: 24, scale: 0.98 },
-  show: (i: number = 0) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: DUR.card, ease: EASE, delay: i * STAGGER.page } }),
+  hidden: { opacity: 0, y: 18, scale: 0.985 },
+  show: (i: number = 0) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: 0.7, ease: EASE, delay: i * STAGGER.page } }),
 };
 
 /** เปลี่ยนหน้า: จาง + ขยับขึ้น 8px */

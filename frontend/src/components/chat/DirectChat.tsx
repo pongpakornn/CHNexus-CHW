@@ -53,7 +53,8 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   const { typing, notify: notifyTyping } = useTyping(withId ? `/chat/typing/${encodeURIComponent(withId)}` : null);
 
   const loadConvs = useCallback(() => api<Conv[]>("/chat/conversations").then(setConvs).catch(() => {}), []);
-  const guard = useRef(pollGuard());
+  const guard = useRef<ReturnType<typeof pollGuard> | null>(null);
+  guard.current ??= pollGuard();
   const withRef = useRef(withId);
   useEffect(() => {
     withRef.current = withId;
@@ -61,15 +62,15 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   // poll = true: timer tick (skips while a request is running / server is down; one notice per outage)
   const loadMsgs = useCallback(
     (id: string, poll = false) => {
-      if (poll && !guard.current.shouldRun()) return Promise.resolve();
-      guard.current.begin();
+      if (poll && !guard.current!.shouldRun()) return Promise.resolve();
+      guard.current!.begin();
       return api<Msg[]>(`/chat/with/${encodeURIComponent(id)}`)
         .then((m) => {
-          guard.current.ok();
+          guard.current!.ok();
           if (withRef.current === id) setMsgs(m); // late reply of a chat the user already left = ignored
         })
         .catch((e) => {
-          if (guard.current.fail()) toast.show("ERROR", e.message, "error");
+          if (guard.current!.fail()) toast.show("ERROR", e.message, "error");
         });
     },
     [toast],

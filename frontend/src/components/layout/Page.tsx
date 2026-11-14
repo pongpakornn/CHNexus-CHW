@@ -110,7 +110,7 @@ export function Empty({ children = "ไม่พบรายการ" }: { chil
 // โหลดอยู่ = โครงวิบวับ (skeleton) + ข้อความไทย · ประกาศให้ Screen reader · compact = พื้นที่เล็ก (แถวย่อย / หน้าต่างเล็ก)
 export function Loading({ compact = false, label = "กำลังโหลดข้อมูล…" }: { compact?: boolean; label?: string }) {
   return (
-    <div role="status" aria-live="polite" className={`nx-fade grid justify-items-center ${compact ? "gap-1.5 py-3" : "gap-2.5 py-10"}`}>
+    <div role="status" aria-live="polite" className={`nx-fade grid w-full justify-items-center ${compact ? "gap-1.5 py-3" : "gap-2.5 py-10"}`}>
       <div className={`grid w-full max-w-sm gap-2 ${compact ? "px-3" : ""}`} aria-hidden>
         <div className="nx-skel h-3.5 w-2/5" />
         <div className={`nx-skel ${compact ? "h-7" : "h-12"}`} />

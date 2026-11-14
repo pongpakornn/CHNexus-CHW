@@ -827,7 +827,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       <div ref={wrapRef}>
       <div
         ref={scrollRef}
-        className={`swap-${swap} ${asCards ? "mc-wrap" : "rounded-2xl border border-line/60 bg-surface shadow-sm"} ${production ? "prod-scroll max-h-[75vh] overflow-hidden" : asCards ? "" : "max-h-[calc(100dvh-330px)] min-h-[320px] overflow-auto"}`}
+        className={`swap-${swap} ${asCards ? "mc-wrap" : "rounded-2xl border border-line/60 bg-surface shadow-sm"} ${production ? "prod-scroll max-h-[75dvh] overflow-hidden" : asCards ? "" : "max-h-[calc(100dvh-330px)] min-h-[320px] overflow-auto"}`}
       >
         {!rows ? (
           <Loading />

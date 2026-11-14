@@ -4570,7 +4570,7 @@ div.swap-in:has(> .show-strip) {
 
 /* 🔵 ปุ่มเม็ดยาสีเต็ม (CTA): ชี้ = สีสว่างขึ้น + แสงเรือง + ขยาย · กด = ยุบ  (--b = สีปุ่ม) */
 .cta-btn {
-  --b: #2563eb;
+  --b: #0278b5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4591,7 +4591,6 @@ div.swap-in:has(> .show-strip) {
   .cta-btn:hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--b) 88%, black); /* deeper on hover keeps white text readable */
     box-shadow: 0 0 20px color-mix(in srgb, var(--b) 40%, transparent);
-    transform: scale(1.08);
   }
 }
 .cta-btn:active:not(:disabled) {
@@ -4621,7 +4620,7 @@ div.swap-in:has(> .show-strip) {
   --b: #64748b;
 }
 .cta-btn.is-orange {
-  --b: #c2410c;
+  --b: #d0470b;
 }
 .cta-btn.is-teal {
   --b: #0f766e;
@@ -5704,11 +5703,13 @@ html:has(#chr-splash.cs-hold) .page-in > * {
   padding-inline: 18px;
   transition-property: var(--tx-ui); transition-duration: 0.4s; transition-timing-function: var(--ease-drop);
 }
-.modal-in .btn:hover:not(:disabled) {
-  translate: none;
-  filter: brightness(1.12) saturate(1.05);
-  box-shadow: 0 0 20px -4px rgb(103 80 164 / 0.45);
-  scale: 1.05;
+@media (hover: hover) {
+  .modal-in .btn:hover:not(:disabled) {
+    translate: none;
+    filter: brightness(1.12) saturate(1.05);
+    box-shadow: 0 0 20px -4px rgb(103 80 164 / 0.45);
+    scale: 1.05;
+  }
 }
 .modal-in .btn:active:not(:disabled) {
   scale: 0.97;
@@ -14238,11 +14239,19 @@ main {
 
 /* ⌨ One focus ring for keyboard users (zero specificity: any component's own focus style still wins).
    White on dark surfaces (modal header, sidebar) so the ring stays visible. */
-:where(button, a, summary, [role="tab"], [role="button"], input, select, textarea):focus-visible {
+:where(button, a, summary, [role="tab"], [role="button"]):focus-visible {
   outline: 2px solid #6750a4;
   outline-offset: 2px;
 }
+/* text fields: in the base layer so Tailwind's outline-none utility (and .field) still win */
+@layer base {
+  :where(input, select, textarea):focus-visible {
+    outline: 2px solid #6750a4;
+    outline-offset: 2px;
+  }
+}
 .modal-head :focus-visible,
-.sb-nav :focus-visible {
+.sb-nav :focus-visible,
+.lg-bg :focus-visible {
   outline-color: #fff;
 }

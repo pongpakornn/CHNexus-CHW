@@ -31,6 +31,11 @@ function fit(table: HTMLTableElement) {
   if (!box) return;
   const w = box.clientWidth;
   const cl = table.classList;
+  // opt-in tables (data-stack) become compact / cards on phones only: desktop and iPad keep the normal table
+  if (table.hasAttribute("data-stack") && window.innerWidth > 767) {
+    cl.remove("is-stacked", "is-tight");
+    return;
+  }
   if (cl.contains("is-stacked")) {
     if (w >= Number(table.dataset.need || 0)) cl.remove("is-stacked");
     else return;

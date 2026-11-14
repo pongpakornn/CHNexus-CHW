@@ -90,7 +90,8 @@ export function SupportChat() {
   const lastCount = useRef(0);
 
   const loadThreads = useCallback(() => api<ThreadRow[]>("/support/threads").then(setThreads).catch(() => {}), []);
-  const guard = useRef(pollGuard());
+  const guard = useRef<ReturnType<typeof pollGuard> | null>(null);
+  guard.current ??= pollGuard();
   const activeRef = useRef(active);
   useEffect(() => {
     activeRef.current = active;
@@ -98,15 +99,15 @@ export function SupportChat() {
   // poll = true: timer tick (skips while a request is running / server is down; one notice per outage)
   const loadThread = useCallback(
     (id: number, poll = false) => {
-      if (poll && !guard.current.shouldRun()) return Promise.resolve();
-      guard.current.begin();
+      if (poll && !guard.current!.shouldRun()) return Promise.resolve();
+      guard.current!.begin();
       return api<ThreadData>(`/support/threads/${id}`)
         .then((d) => {
-          guard.current.ok();
+          guard.current!.ok();
           if (activeRef.current === id) setData(d); // late reply of a thread the user already left = ignored
         })
         .catch((e) => {
-          if (guard.current.fail()) toast.show("ERROR", e.message, "error");
+          if (guard.current!.fail()) toast.show("ERROR", e.message, "error");
         });
     },
     [toast],

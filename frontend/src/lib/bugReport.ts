@@ -29,14 +29,6 @@ let installed = false;
 export function installBugReporter() {
   if (installed || typeof window === "undefined") return;
   installed = true;
-  // The page loaded fine: forget the one-shot reload flag so the NEXT deploy can reload this long-lived tab again
-  setTimeout(() => {
-    try {
-      sessionStorage.removeItem("chr-chunk-reload");
-    } catch {
-      /* no storage */
-    }
-  }, 15_000);
   const chunk = (m: string) => /ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module/i.test(m);
   window.addEventListener("error", (e) => {
     const msg = e.message || String(e.error ?? "");
@@ -55,8 +47,10 @@ export function installBugReporter() {
 
 function reloadOnce() {
   try {
-    if (sessionStorage.getItem("chr-chunk-reload")) return;
-    sessionStorage.setItem("chr-chunk-reload", "1");
+    // timestamp, not a flag: a long-lived tab can reload again after the next deploy, but never twice within 60 s (no loop)
+    const last = Number(sessionStorage.getItem("chr-chunk-reload"));
+    if (Number.isFinite(last) && Date.now() - last < 60_000) return;
+    sessionStorage.setItem("chr-chunk-reload", String(Date.now()));
   } catch {
     /* ไม่มี storage = โหลดใหม่ครั้งเดียวตามปกติ */
   }
