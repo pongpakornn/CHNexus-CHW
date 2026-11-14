@@ -19,10 +19,19 @@ namespace Nexus.Services
 
         private static void Insert(string userId, string action, string detail, string refCode)
         {
-            if (RequestScope.Value is { } box) box.Value = true;
             string machine = ClientContext.Machine;   // อ่านก่อนเข้า Task (ค่าของ Request นี้)
-            Task.Run(() =>
+            // ฐานข้อมูลสะดุด = ไม่เปิด Connection ทับถมจนหมด Pool: เขียนพร้อมกันไม่เกิน 8 · คิวรอเกิน 5,000 = ทิ้ง (ไม่ให้หน่วยความจำบวม)
+            //   ทิ้ง = ไม่ตั้งธง "Request บันทึกเองแล้ว" -> AuditMiddleware ยังเขียน Log สำรองให้
+            if (System.Threading.Interlocked.Increment(ref _pending) > MaxPending)
             {
+                System.Threading.Interlocked.Decrement(ref _pending);
+                CHR.Nexus.Api.Web.DropWarn.Hit("ActivityLog");
+                return;
+            }
+            if (RequestScope.Value is { } box) box.Value = true;
+            Task.Run(async () =>
+            {
+                await Slots.WaitAsync();
                 try
                 {
                     using (SqlConnection conn = new SqlConnection(GlobalConfig.ConnStr))
@@ -43,8 +52,13 @@ namespace Nexus.Services
                 {
                     System.Diagnostics.Debug.WriteLine("Log Error: " + ex.Message);
                 }
+                finally { Slots.Release(); System.Threading.Interlocked.Decrement(ref _pending); }
             });
         }
+
+        private static readonly System.Threading.SemaphoreSlim Slots = new(8);
+        private static int _pending;
+        private const int MaxPending = 5000;
 
         private static void Exec(SqlConnection conn, bool withPc, string machine, string userId, string action, string detail, string refCode)
         {

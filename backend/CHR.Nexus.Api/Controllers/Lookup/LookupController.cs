@@ -17,6 +17,8 @@ public sealed class LookupController : AppController
     {
         string k = (key ?? "").Trim();
         if (k.Length == 0) return Ok(Array.Empty<object>());
+        // 🔒 ระบุคลัง = ต้องมีสิทธิ์ดูคลังนั้น (ไม่ระบุคลัง = ค้นทั้งระบบเหมือนเดิม)
+        if (stkId.HasValue && Me?.CanViewStock(new StockService().GetStocks().FirstOrDefault(s => s.StkId == stkId.Value)) != true) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
         using var conn = new SqlConnection(GlobalConfig.ConnStr);
         var rows = conn.Query(@"
             SELECT TOP (@top) p.PartID AS partId, p.PartCode AS partCode, p.Description AS partName, ISNULL(p.PartA, '') AS partA,

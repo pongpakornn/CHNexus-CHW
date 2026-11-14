@@ -112,7 +112,10 @@ export default function EdpPlanning() {
       (k) => draft[r.id][k] !== undefined && draft[r.id][k] !== r[k],
     );
 
+  const [savingId, setSavingId] = useState<number | null>(null);
   async function save(r: Row) {
+    if (savingId !== null) return; // busy-lock: no double submit
+    setSavingId(r.id);
     try {
       const res = await api<{ message: string }>(`/edp/monitor/${r.id}`, {
         method: "PUT",
@@ -133,6 +136,8 @@ export default function EdpPlanning() {
       load(true);
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setSavingId(null);
     }
   }
 
@@ -319,7 +324,7 @@ export default function EdpPlanning() {
                               <button
                                 type="button"
                                 className={`cta-btn is-sm ${dirty(r) ? "is-green" : "is-gray"}`}
-                                disabled={!dirty(r)}
+                                disabled={!dirty(r) || savingId !== null}
                                 onClick={() => save(r)}
                               >
                                 SAVE

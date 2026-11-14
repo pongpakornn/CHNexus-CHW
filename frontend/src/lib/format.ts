@@ -35,3 +35,16 @@ export function stamp(v: string | Date | null | undefined) {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}:${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
+
+// วันเวลาแบบอ่านง่าย ใช้แทน new Date(x).toLocaleString(...) - ค่าว่าง / รูปแบบผิด = "-" (ไม่โชว์ "Invalid Date")
+export function fmtDate(
+  v: string | number | Date | null | undefined,
+  locale: string,
+  opts?: Intl.DateTimeFormatOptions,
+  part: "both" | "date" | "time" = "both",
+): string {
+  if (v === null || v === undefined || v === "") return "-";
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return "-";
+  return part === "date" ? d.toLocaleDateString(locale, opts) : part === "time" ? d.toLocaleTimeString(locale, opts) : d.toLocaleString(locale, opts);
+}

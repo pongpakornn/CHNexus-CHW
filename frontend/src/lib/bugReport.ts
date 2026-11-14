@@ -47,8 +47,10 @@ export function installBugReporter() {
 
 function reloadOnce() {
   try {
-    if (sessionStorage.getItem("chr-chunk-reload")) return;
-    sessionStorage.setItem("chr-chunk-reload", "1");
+    // timestamp, not a flag: a long-lived tab can reload again after the next deploy, but never twice within 60 s (no loop)
+    const last = Number(sessionStorage.getItem("chr-chunk-reload"));
+    if (Number.isFinite(last) && Date.now() - last < 60_000) return;
+    sessionStorage.setItem("chr-chunk-reload", String(Date.now()));
   } catch {
     /* ไม่มี storage = โหลดใหม่ครั้งเดียวตามปกติ */
   }

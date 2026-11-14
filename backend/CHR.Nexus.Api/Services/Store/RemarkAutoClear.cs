@@ -23,12 +23,32 @@ public sealed class RemarkAutoClear : BackgroundService
         try { if (File.Exists(FilePath)) _red = JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(FilePath)) ?? new(); }
         catch (Exception ex) { _log.LogDebug(ex, "RemarkAutoClear load"); }
 
+        // ทำงานเฉพาะเมื่อ "ข้อมูลกลาง" เปลี่ยน (LiveBus.DataVersion ขยับ · เปิดหน้า / แชท / แจ้ง Admin ไม่นับ) + 1 รอบตอนเริ่มระบบ
+        //   ไฟแดง / ไม่แดง เปลี่ยนได้จากข้อมูลเปลี่ยนเท่านั้น (สแกน / แก้ยอด / MAX-MIN / ตัวเฝ้าคลังจับการเปลี่ยนจากภายนอก) -> ทุกอย่างผ่าน DataVersion
+        long seen = -1;
         while (!ct.IsCancellationRequested)
         {
-            try { await Task.WhenAny(Task.Delay(10000, ct), LiveBus.Next()); await Task.Delay(3000, ct); } // ไม่ถี่กว่ารอบละ 3 วินาที
+            var next = LiveBus.Next();   // รับก่อนเช็ค -> ไม่พลาดการเปลี่ยนที่เกิดระหว่างเช็ค
+            if (LiveBus.DataVersion == seen)
+            {
+                // หัวใจ 30 วินาที: การเปลี่ยนจากภายนอก (โปรแกรมเดิม / SQL ตรง ในคลังที่ไม่มีใครเปิดดู) ก็ยังถูกกวาด
+                using var beat = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                Task done;
+                try { done = await Task.WhenAny(next, Task.Delay(30000, beat.Token)); }
+                catch (OperationCanceledException) { break; }
+                beat.Cancel();
+                if (ct.IsCancellationRequested) break;
+                if (done == next) continue;   // มี Publish -> วนเช็ค DataVersion ใหม่ (ไม่ใช่ข้อมูลกลาง = รอต่อ)
+            }
+            try { await Task.Delay(3000, ct); } // รวมการเปลี่ยนที่ติด ๆ กัน · ไม่ถี่กว่ารอบละ 3 วินาที
             catch (OperationCanceledException) { break; }
-            try { Sweep(); }
-            catch (Exception ex) { _log.LogDebug(ex, "RemarkAutoClear sweep"); } // รอบหน้าลองใหม่
+            long ver = LiveBus.DataVersion;   // อ่านก่อน Sweep -> เปลี่ยนระหว่าง Sweep = รอบหน้าทำอีกครั้ง
+            try { Sweep(); seen = ver; }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "RemarkAutoClear sweep");   // รอบหน้าลองใหม่ (ไม่จำเวอร์ชัน) · พักกัน Loop ถี่
+                try { await Task.Delay(10000, ct); } catch (OperationCanceledException) { break; }
+            }
         }
     }
 

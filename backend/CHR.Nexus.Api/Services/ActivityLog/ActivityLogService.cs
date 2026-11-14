@@ -38,6 +38,9 @@ namespace Nexus.Services
         public const int PageSize = 100;
         public const int MaxRows = 200;
         private static bool? _hasPc;
+        private static readonly object ActLock = new object();
+        private static List<string> _acts;
+        private static DateTime _actsAt;
 
         private static bool HasPc(SqlConnection conn)
         {
@@ -48,8 +51,8 @@ namespace Nexus.Services
         }
 
         private static string FromWhere => @"
-            FROM Nexus.SystemLogs l
-            LEFT JOIN Nexus.Users u ON u.UserID = l.UserID
+            FROM Nexus.SystemLogs l WITH (NOLOCK)
+            LEFT JOIN Nexus.Users u WITH (NOLOCK) ON u.UserID = l.UserID
             WHERE l.LogDate >= @from AND l.LogDate < @to
               AND (@usr IS NULL OR l.UserID = @usr)
               AND (@act IS NULL OR l.ActionType = @act)
@@ -91,12 +94,12 @@ namespace Nexus.Services
             {
                 await conn.OpenAsync(ct).ConfigureAwait(false);
                 bool pc = HasPc(conn);
-                using (var cmd = new SqlCommand(Sql(pc, "SELECT COUNT(*) ", ""), conn))
+                using (var cmd = new SqlCommand(Sql(pc, "SELECT COUNT(*) ", ""), conn) { CommandTimeout = 60 })
                 {
                     AddParams(cmd, f);
                     total = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
                 }
-                using (var cmd = new SqlCommand(Sql(pc, Cols(pc), " ORDER BY l.LogDate DESC, l.LogID DESC OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY"), conn))
+                using (var cmd = new SqlCommand(Sql(pc, Cols(pc), " ORDER BY l.LogDate DESC, l.LogID DESC OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY"), conn) { CommandTimeout = 60 })
                 {
                     AddParams(cmd, f);
                     cmd.Parameters.AddWithValue("@skip", Math.Clamp(page, 0, MaxRows / PageSize - 1) * PageSize);
@@ -118,8 +121,16 @@ namespace Nexus.Services
                 conn.Open();
                 using (var cmd = new SqlCommand("SELECT UserID, ISNULL(FullName, '') FROM Nexus.Users ORDER BY UserID", conn))
                 using (var r = cmd.ExecuteReader()) while (r.Read()) users.Add((r.GetValue(0).ToString(), r.GetValue(1).ToString()));
-                using (var cmd = new SqlCommand("SELECT DISTINCT ActionType FROM Nexus.SystemLogs WHERE ISNULL(ActionType, '') <> '' ORDER BY ActionType", conn))
-                using (var r = cmd.ExecuteReader()) while (r.Read()) acts.Add(r.GetValue(0).ToString());
+                // ชนิดการกระทำ: DISTINCT ทั้งตาราง Log (ใหญ่ขึ้นทุกวัน) -> จำไว้ 5 นาที (ชนิดใหม่ปรากฏในตัวกรองภายใน 5 นาที)
+                List<string> cached;
+                lock (ActLock) cached = _acts != null && DateTime.UtcNow - _actsAt < TimeSpan.FromMinutes(5) ? _acts : null;
+                if (cached == null)
+                {
+                    using (var cmd = new SqlCommand("SELECT DISTINCT ActionType FROM Nexus.SystemLogs WITH (NOLOCK) WHERE ISNULL(ActionType, '') <> '' ORDER BY ActionType", conn) { CommandTimeout = 60 })
+                    using (var r = cmd.ExecuteReader()) while (r.Read()) acts.Add(r.GetValue(0).ToString());
+                    lock (ActLock) { _acts = new List<string>(acts); _actsAt = DateTime.UtcNow; }
+                }
+                else acts.AddRange(cached);
             }
             return (users, acts);
         }

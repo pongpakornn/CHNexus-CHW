@@ -31,15 +31,44 @@ public abstract class AppController : ControllerBase
 
     protected IActionResult Fail(string message) => BadRequest(new { message });
 
+    // ข้อความ Exception ที่ตั้งใจเขียนให้ผู้ใช้อ่าน (ไทย) ส่งต่อได้ · ที่เหลือ (SQL / path ของ Server / บั๊กที่ไม่คาด) ส่งข้อความกลาง ๆ แทน
+    // รายละเอียดเต็มอยู่ใน BUG LOG เสมอ (Admin เปิดดูได้)
+    private static bool IsUserMessage(Exception ex)
+    {
+        if (ex is Microsoft.Data.SqlClient.SqlException) return false;
+        if (ex is InvalidOperationException || ex is InvalidDataException || ex is FormatException) return true;
+        return (ex.Message ?? "").Any(ch => ch >= '฀' && ch <= '๿');   // ข้อความไทยที่โค้ดเราโยนเอง
+    }
+
     // ข้อผิดพลาดที่พบบ่อยเป็นข้อความไทยแบบเดิม
     protected IActionResult Fail(Exception ex, string prefix = null)
     {
-        BugLog.Write("API", "WARN", (string.IsNullOrEmpty(prefix) ? "" : prefix + " • ") + $"{ex.GetType().Name}: {ex.Message}", ex.ToString(),
-                     HttpContext?.Request.Path + HttpContext?.Request.QueryString, HttpContext?.Request.Method, 400, Uid, global::Nexus.Core.ClientContext.Machine);
-        string msg = ex.Message.Contains("being used") || ex is IOException && ex.Message.Contains("process")
-            ? "ไฟล์ Excel ถูกเปิดค้างอยู่ กรุณาปิดไฟล์ก่อนแล้วลองใหม่"
-            : ex.Message;
+        string msg = SafeMessage(ex, prefix);
         return BadRequest(new { message = string.IsNullOrEmpty(prefix) ? msg : prefix + "\n" + msg });
+    }
+
+    // ข้อความที่ปลอดภัยให้ผู้ใช้อ่านจาก Exception (บันทึกรายละเอียดเต็มลง BUG LOG ด้วย) - ใช้ในที่ที่ประกอบข้อความตอบเอง
+    protected string SafeMessage(Exception ex, string prefix = null) => Safe(ex, HttpContext, Uid, prefix);
+
+    public static string Safe(Exception ex, HttpContext ctx, string uid, string prefix = null)
+    {
+        bool open = ex.Message.Contains("being used") || ex is IOException && ex.Message.Contains("process");
+        bool show = open || IsUserMessage(ex);
+        BugLog.Write("API", show ? "WARN" : "ERROR", (string.IsNullOrEmpty(prefix) ? "" : prefix + " • ") + $"{ex.GetType().Name}: {ex.Message}", ex.ToString(),
+                     ctx?.Request.Path + ctx?.Request.QueryString, ctx?.Request.Method, 400, uid, global::Nexus.Core.ClientContext.Machine);
+        string msg = open ? "ไฟล์ Excel ถูกเปิดค้างอยู่ กรุณาปิดไฟล์ก่อนแล้วลองใหม่"
+            : show ? ex.Message
+            : "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่ หากยังพบปัญหาให้แจ้ง Admin (รายละเอียดอยู่ใน BUG LOG)";
+        return msg;
+    }
+
+    // ส่งไฟล์แนบแชท / แจ้ง Admin: รูปปลอดภัยเท่านั้นที่เปิดในหน้าได้ · อื่น ๆ ดาวน์โหลดเสมอ + sandbox + nosniff
+    protected IActionResult ServeAttachment(string kind, string full, string name, bool download)
+    {
+        Response.Headers["Content-Security-Policy"] = "sandbox";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        if (!download && ChatFiles.CanInline(kind, name)) return PhysicalFile(full, ChatFiles.ContentType(name));
+        return PhysicalFile(full, "application/octet-stream", name);
     }
 
     protected IActionResult Download(string path, string contentType = null)

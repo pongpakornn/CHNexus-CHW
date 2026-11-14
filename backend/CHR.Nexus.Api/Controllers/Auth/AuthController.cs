@@ -50,12 +50,14 @@ public sealed class AuthController : ControllerBase
         {
             // ONLINE ค้างจากเครื่องอื่น แต่เครื่องนั้นไม่ได้ใช้งานแล้ว (ปิดหน้าต่าง / เงียบเกิน 3 นาที) + รหัสผ่านถูก = ปลดสถานะเดิมแล้วเข้าได้เลย
             string uid0 = req.UserId.Trim();
-            if (!Presence.CanTakeOver(uid0)) return Conflict(new { message = ex.Message });   // Online อยู่เครื่องอื่นจริง
+            // 🔐 ตรวจรหัสผ่านก่อนเสมอ: คนที่ไม่รู้รหัสต้องไม่รู้ว่าบัญชีออนไลน์อยู่ / ชื่อเครื่อง (และนับเป็นการเดารหัสผิดด้วย)
             if (!PasswordOk(uid0, req.Password))
             {
                 LoginGuard.Fail(uid0, ip);
-                return Conflict(new { message = ex.Message });
+                LogService.WriteLog(uid0, "LOGIN_FAILED", $"รหัสผ่านไม่ถูกต้อง / บัญชีถูกล็อก จาก {ip}", global::Nexus.Core.ClientContext.Machine);
+                return Unauthorized(new { message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" });
             }
+            if (!Presence.CanTakeOver(uid0)) return Conflict(new { message = ex.Message });   // Online อยู่เครื่องอื่นจริง (รหัสผ่านถูกแล้ว)
             auth.UpdateLogoutStatus(uid0);
             LogService.WriteLog(uid0, "AUTO_OFFLINE", "ปลดสถานะ ONLINE ค้าง (เครื่องเดิมไม่ได้ใช้งานแล้ว) แล้วเข้าสู่ระบบจากเครื่องใหม่", global::Nexus.Core.ClientContext.Machine);
             try { session = auth.Authenticate(uid0, req.Password); }
@@ -78,7 +80,9 @@ public sealed class AuthController : ControllerBase
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
-            Secure = Request.IsHttps,
+            // Next proxy ต่อ API ด้วย http ภายในเครื่อง -> ดู X-Forwarded-Proto (เชื่อเฉพาะที่มาจาก loopback = proxy ของเราเอง)
+            Secure = Request.IsHttps || (Request.HttpContext.Connection.RemoteIpAddress is { } rip && System.Net.IPAddress.IsLoopback(rip)
+                     && Request.Headers["X-Forwarded-Proto"].ToString().Split(',')[0].Trim().Equals("https", StringComparison.OrdinalIgnoreCase)),
             Expires = DateTimeOffset.UtcNow.AddHours(_opt.Hours)
         });
         return Ok(MeDto.From(session));

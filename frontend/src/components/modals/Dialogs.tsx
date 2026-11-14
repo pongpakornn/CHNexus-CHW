@@ -1,5 +1,6 @@
 "use client";
 
+import { isTopOverlay, pushOverlay } from "@/lib/overlayStack";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 // ✅ ยืนยัน / กรอกข้อความ / แจ้งผล (แทน DialogHelper.ShowConfirm / ShowTextInput / ShowSuccess ของ WPF) - ใช้แบบ await
@@ -101,11 +102,30 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     [state, leaving, text],
   );
 
+  const ovId = useRef<symbol | null>(null);
+  const hasState = !!state;
+  // leaving = off the stack at once, so Esc on the window behind works during the 180 ms exit
+  const active = hasState && !leaving;
+  useEffect(() => {
+    if (!active) return;
+    const ov = pushOverlay();
+    ovId.current = ov.id;
+    return () => ov.pop();
+  }, [active]);
+  // give keyboard focus back to what had it before the dialog opened
+  useEffect(() => {
+    if (!hasState) return;
+    const prev = document.activeElement as HTMLElement | null;
+    return () => {
+      if (prev?.isConnected) prev.focus({ preventScroll: true });
+    };
+  }, [hasState]);
   useEffect(() => {
     if (!state) return;
     const k = (e: KeyboardEvent) => {
+      if (!ovId.current || !isTopOverlay(ovId.current)) return; // another overlay is on top
       if (e.key === "Escape") close(false);
-      else if (e.key === "Enter" && state.kind !== "prompt" && !(e.target instanceof HTMLButtonElement)) close(true);
+      else if (e.key === "Enter" && state.kind !== "prompt" && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement) && !(e.target instanceof HTMLSelectElement)) close(true);
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);

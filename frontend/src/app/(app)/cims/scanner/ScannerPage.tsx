@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loading } from "@/components/layout/Page";
+import { fmtDate } from "@/lib/format";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
@@ -437,7 +439,7 @@ export default function ScannerPage() {
   const layoutOn = !!ctx?.layout?.enabled;
   const extras = (ctx?.who.askEmployee ? 1 : 0) + (ctx?.who.askDepartment ? 1 : 0) + (layoutOn ? 1 : 0);
 
-  if (!ctx) return <div className="grid h-full place-items-center text-ink-soft">⏳ LOADING...</div>;
+  if (!ctx) return <div className="grid h-full place-items-center"><Loading /></div>;
 
   return (
     <div className="sc-page page-in flex flex-col gap-4 p-3 md:p-5" style={{ "--tone": tone } as React.CSSProperties}>
@@ -660,7 +662,7 @@ export default function ScannerPage() {
               {last.stockCode && <span className="sc-tag">🏬 {last.stockCode}</span>}
               {last.layout && <span className="sc-layout-tag">📍 {last.layout}</span>}
               <StatusPill status={last.status} deduct={last.isDeductOut} />
-              <span className="text-[11px] font-bold text-ink-soft">{new Date(last.time).toLocaleTimeString("th-TH")}</span>
+              <span className="text-[11px] font-bold text-ink-soft">{fmtDate(last.time, "th-TH", undefined, "time")}</span>
             </div>
           )}
         </div>
@@ -684,7 +686,7 @@ export default function ScannerPage() {
             </h3>
             <span className="sc-count">{(modes.test ? testRows : rows).length.toLocaleString()} รายการ</span>
           </div>
-          <div className="max-h-[520px] overflow-auto">
+          <div className="max-h-[min(520px,60dvh)] overflow-auto">
             <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>
@@ -708,7 +710,7 @@ export default function ScannerPage() {
                     <td>
                       <StatusPill status={r.status} deduct={r.isDeductOut} />
                     </td>
-                    <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{new Date(r.time).toLocaleTimeString("th-TH")}</td>
+                    <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{fmtDate(r.time, "th-TH", undefined, "time")}</td>
                   </tr>
                 ))}
                 {(modes.test ? testRows : rows).length === 0 && (
@@ -743,7 +745,7 @@ export default function ScannerPage() {
               />
             )}
           </div>
-          <div className="max-h-[520px] overflow-auto">
+          <div className="max-h-[min(520px,60dvh)] overflow-auto">
             <table className="data-table t-center w-full">
               <thead className="sticky top-0 z-[1]">
                 <tr>

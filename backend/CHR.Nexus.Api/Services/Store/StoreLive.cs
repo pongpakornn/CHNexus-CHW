@@ -37,7 +37,7 @@ public static class StoreLive
         conn.Open();
         string One(string sql)
         {
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new SqlCommand(sql, conn) { CommandTimeout = 10 };   // ช้าเกิน 10 วิ = ข้ามรอบ
             cmd.Parameters.AddWithValue("@stk", stkId);
             using var r = cmd.ExecuteReader();
             return r.Read() ? $"{r.GetInt32(0)}:{(r.IsDBNull(1) ? 0 : r.GetInt32(1))}" : "";

@@ -68,7 +68,7 @@ namespace Nexus.Services
                 : @"SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(ps.PartID, ps.Quantity, ps.BoxQuantity, ps.MaxQuantity, ps.MinQuantity, ps.Remark, ps.IsShow, p.PackSize, p.IsActive))
                     FROM Nexus.PartStocks ps JOIN Nexus.Parts p ON p.PartID = ps.PartID WHERE ps.StockID = @stk";
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
-            using (var cmd = new SqlCommand(sql, conn))
+            using (var cmd = new SqlCommand(sql, conn) { CommandTimeout = 10 })   // ช้าเกิน 10 วิ = ข้ามรอบ
             {
                 cmd.Parameters.AddWithValue("@stk", stock.StkId);
                 conn.Open();

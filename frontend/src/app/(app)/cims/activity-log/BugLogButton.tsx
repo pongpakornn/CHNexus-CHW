@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
@@ -26,7 +27,7 @@ type Bug = {
   isRead: boolean;
 };
 
-const when = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const when = (s: string) => fmtDate(s, "en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 // 🐞 ปุ่มกลม BUG LOG (หน้า ACTIVITY LOG - เฉพาะ Admin Level 1): ตัวเลข = ยังไม่ได้อ่าน · เช็กทุก 30 วินาที
 export function BugLogButton() {

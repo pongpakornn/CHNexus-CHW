@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Modal } from "@/components/modals/Modal";
@@ -114,7 +115,7 @@ export function ProfileModal({ tab: startTab, onClose }: { tab: "info" | "passwo
         {tabBtn("password", "เปลี่ยนรหัสผ่าน")}
       </div>
 
-      {!p && !err && <p className="py-6 text-center text-sm font-bold text-ink-soft">กำลังโหลด...</p>}
+      {!p && !err && <Loading />}
 
       {p && tab === "info" && (
         <form

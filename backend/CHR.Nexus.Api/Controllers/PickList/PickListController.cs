@@ -90,7 +90,7 @@ public sealed class PickListController : AppController
         foreach (var c in items)
         {
             try { svc.LogPrinted(Model(c), Uid); }
-            catch (Exception ex) { fails.Add($"{c.TicketNo}/{c.ItemNo}: {ex.Message}"); }
+            catch (Exception ex) { fails.Add($"{c.TicketNo}/{c.ItemNo}: {SafeMessage(ex)}"); }
         }
         LogService.WriteLog(Uid, "PRINT_PICKLIST", $"Printed {items.Count - fails.Count} card(s) | Bills: {string.Join(", ", items.Select(i => i.TicketNo).Distinct().Take(30))}", "");
         return Ok(new { saved = items.Count - fails.Count, fails });

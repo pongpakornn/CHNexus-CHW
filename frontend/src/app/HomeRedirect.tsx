@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Loading } from "@/components/layout/Page";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { startPage } from "@/lib/menu";
@@ -13,5 +14,9 @@ export default function Home() {
     if (loading) return;
     router.replace(me ? startPage(me.can) ?? "/no-permission" : "/login");
   }, [me, loading, router]);
-  return <div className="grid h-dvh place-items-center text-ink-soft">⏳ LOADING...</div>;
+  return (
+    <div className="grid h-dvh place-items-center">
+      <Loading />
+    </div>
+  );
 }

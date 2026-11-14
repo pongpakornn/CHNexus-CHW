@@ -308,7 +308,7 @@ export default function ForecastPage() {
         <div className="border-b border-line/60 p-3">
           <SearchBox value={key} onChange={(v) => (setKey(v), setPage(0))} placeholder="ค้นหา ลูกค้า / PART A / PART NO / ชื่อสินค้า" />
         </div>
-        <div ref={scrollRef} className="max-h-[60vh] min-h-[300px] overflow-auto">
+        <div ref={scrollRef} className="max-h-[60dvh] min-h-[300px] overflow-auto">
           {!rows ? (
             <Loading />
           ) : rows.length === 0 ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { createPortal } from "react-dom";
 import { Modal } from "@/components/modals/Modal";
 import { Checkbox } from "@/components/forms/Checkbox";
@@ -113,7 +114,7 @@ export function LayoutQrPicker({ onClose }: { onClose: () => void }) {
                         <code>{l.qr}</code>
                       </td>
                       <td className="text-xs text-ink-soft max-sm:hidden">
-                        {l.createdBy ?? "-"} · {new Date(l.createdAt).toLocaleDateString("en-GB")}
+                        {l.createdBy ?? "-"} · {fmtDate(l.createdAt, "en-GB", undefined, "date")}
                       </td>
                     </tr>
                   ))}

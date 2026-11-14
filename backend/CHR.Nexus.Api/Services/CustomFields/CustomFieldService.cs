@@ -469,6 +469,7 @@ namespace Nexus.Services
             foreach (var sql in sets)
                 using (var cmd = new SqlCommand(sql, conn, tr)) cmd.ExecuteNonQuery();
             tr.Commit();
+            StockService.InvalidateStocks();   // Nexus.Stocks.ColumnOrder เปลี่ยน
             return old;
         }
 

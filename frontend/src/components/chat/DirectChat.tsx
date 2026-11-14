@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
+import { pollGuard } from "@/lib/pollGuard";
 import { refreshNotifications } from "@/lib/support";
 import { MIN_TOKEN } from "@/lib/minSign";
 import { useTyping } from "@/lib/useTyping";
@@ -21,6 +23,7 @@ type Msg = { messageId: number; from: string; to: string; body: string; createdA
 const pad = (n: number) => String(n).padStart(2, "0");
 const when = (iso: string) => {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
   return new Date().toDateString() === d.toDateString() ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const initials = (s: string) => s.trim().slice(0, 1).toUpperCase() || "?";
@@ -50,7 +53,28 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   const { typing, notify: notifyTyping } = useTyping(withId ? `/chat/typing/${encodeURIComponent(withId)}` : null);
 
   const loadConvs = useCallback(() => api<Conv[]>("/chat/conversations").then(setConvs).catch(() => {}), []);
-  const loadMsgs = useCallback((id: string) => api<Msg[]>(`/chat/with/${encodeURIComponent(id)}`).then(setMsgs).catch((e) => toast.show("ERROR", e.message, "error")), [toast]);
+  const guard = useRef<ReturnType<typeof pollGuard> | null>(null);
+  guard.current ??= pollGuard();
+  const withRef = useRef(withId);
+  useEffect(() => {
+    withRef.current = withId;
+  }, [withId]);
+  // poll = true: timer tick (skips while a request is running / server is down; one notice per outage)
+  const loadMsgs = useCallback(
+    (id: string, poll = false) => {
+      if (poll && !guard.current!.shouldRun()) return Promise.resolve();
+      guard.current!.begin();
+      return api<Msg[]>(`/chat/with/${encodeURIComponent(id)}`)
+        .then((m) => {
+          guard.current!.ok();
+          if (withRef.current === id) setMsgs(m); // late reply of a chat the user already left = ignored
+        })
+        .catch((e) => {
+          if (guard.current!.fail()) toast.show("ERROR", e.message, "error");
+        });
+    },
+    [toast],
+  );
 
   useEffect(() => {
     const first = setTimeout(() => {
@@ -64,7 +88,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   useEffect(() => {
     if (!withId) return;
     const first = setTimeout(() => loadMsgs(withId).then(() => (loadConvs(), refreshNotifications())), 0);
-    const t = setInterval(() => document.visibilityState === "visible" && loadMsgs(withId), 4000);
+    const t = setInterval(() => document.visibilityState === "visible" && loadMsgs(withId, true), 4000);
     return () => (clearTimeout(first), clearInterval(t));
   }, [withId, loadMsgs, loadConvs]);
 
@@ -186,7 +210,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
               <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="เลือกผู้ใช้: ค้นหาชื่อ / UserID / หน่วยงาน..." className="flex-1 rounded-full border border-line bg-surface px-3.5 py-1.5 text-[13px] font-semibold outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15" />
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-2">
-              {!users && <div className="py-6 text-center text-xs font-semibold text-ink-soft">กำลังโหลด...</div>}
+              {!users && <Loading compact />}
               {users && found.length === 0 && <div className="py-6 text-center text-xs font-semibold text-ink-soft">ไม่พบผู้ใช้</div>}
               {found.map((u) => (
                 <button key={u.userId} type="button" onClick={() => open(u.userId)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-[#eaf1ff]">
@@ -236,7 +260,7 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
             </div>
             <div ref={scroller} className="min-h-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_1px_1px,rgba(37,99,235,.06)_1px,transparent_0)] bg-[length:18px_18px] p-4">
               <div className="flex min-h-full flex-col justify-end gap-2">
-              {!msgs && <div className="py-6 text-center text-xs font-semibold text-ink-soft">กำลังโหลด...</div>}
+              {!msgs && <Loading compact />}
               {msgs && msgs.length === 0 && <div className="py-6 text-center text-xs font-semibold text-ink-soft">เริ่มคุยกับ {partnerName} ได้เลย 👋</div>}
               {msgs?.map((m, i) => {
                 const mine = m.from === me;

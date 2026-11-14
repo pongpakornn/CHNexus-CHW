@@ -94,6 +94,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 builder.WebHost.ConfigureKestrel(k => k.AddServerHeader = false); // 🛡 ไม่บอกชนิด Server
 
 var app = builder.Build();
+CHR.Nexus.Api.Web.DropWarn.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LogDrop");
 
 app.UseMiddleware<SecurityMiddleware>(); // 🛡 Security headers · กันคำขอบันทึกจากเว็บภายนอก (CSRF) · จำกัดคำขอต่อเครื่อง
 app.UseMiddleware<ClientContextMiddleware>();

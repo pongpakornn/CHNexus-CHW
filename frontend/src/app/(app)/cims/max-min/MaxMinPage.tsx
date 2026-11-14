@@ -458,7 +458,7 @@ export default function MaxMinPage() {
       )}
 
       <Card title={`${total.toLocaleString()} ITEMS`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหา ลูกค้า / PART NO / PD CODE / PART A / ชื่อสินค้า" className="w-72 max-w-full" />}>
-        <div ref={listRef} className="max-h-[65vh] min-h-[300px] overflow-auto">
+        <div ref={listRef} className="max-h-[65dvh] min-h-[300px] overflow-auto">
           {!data ? (
             <Loading />
           ) : total === 0 ? (

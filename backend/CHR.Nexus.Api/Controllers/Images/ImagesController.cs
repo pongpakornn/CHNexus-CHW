@@ -49,10 +49,15 @@ public sealed class ImagesController : ControllerBase
         return allowed ? Send(ImageCacheHelper.Readable(full)) : NotFound();
     }
 
+    private static readonly HashSet<string> ImageTypes = new(StringComparer.OrdinalIgnoreCase) { "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp" };
+
     private IActionResult Send(string path)
     {
         if (path == null) return NotFound();
-        if (!Types.TryGetContentType(path, out var type) || !type.StartsWith("image/")) return NotFound();
+        // 🔒 แสดงในหน้าได้เฉพาะรูปแรสเตอร์ (SVG ฯลฯ ที่ฝัง script ได้ = ไม่ส่ง) + sandbox + nosniff
+        if (!Types.TryGetContentType(path, out var type) || !ImageTypes.Contains(type)) return NotFound();
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "sandbox";
         return PhysicalFile(path, type);
     }
 }

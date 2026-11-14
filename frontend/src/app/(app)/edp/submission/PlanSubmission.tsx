@@ -492,7 +492,7 @@ function Picker({
       )}
       <motion.div className="edp-pick-foot" custom={4} variants={V} initial="hidden" animate="show">
         {!data ? (
-          <span>⏳ กำลังโหลดแผน...</span>
+          <span>กำลังโหลดแผน…</span>
         ) : cards.length > 0 ? (
           <span>
             พบแผน <b>{cards.length}</b> การ์ด · เสร็จแล้ว <b>{done}</b>

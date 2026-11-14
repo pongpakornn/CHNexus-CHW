@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { StatusLamp } from "./StatusLamp";
 import { STATUS_COLOR, type Product } from "./types";
 import { AddCoilButton, CoilActions, type CoilAct, type ManageMode } from "./CoilManageButtons";
@@ -222,7 +223,7 @@ function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; 
             <div className="coil-box px-3 pb-3 pt-1">
               <div className="overflow-hidden rounded-2xl border border-[#e4def3] bg-white shadow-[0_10px_26px_-20px_rgb(60_40_130/0.5)]">
                 {list === "loading" ? (
-                  <div className="p-3 text-center text-xs font-bold text-ink-soft">⏳ LOADING COILS...</div>
+                  <Loading compact label="กำลังโหลด Coil…" />
                 ) : !list.some((r) => !r.isMother) ? (
                   <div className="py-3.5 text-center text-[13px] font-bold text-ink-soft">ยังไม่มี Coil ในคลังของสินค้านี้ (สแกนรับเข้า หรือ Import COIL LIST)</div>
                 ) : (

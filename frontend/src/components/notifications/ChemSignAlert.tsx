@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { fmtDate } from "@/lib/format";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
@@ -102,7 +103,7 @@ function Host({ uid }: { uid: string }) {
                   </div>
                   <div className="mrp-time">
                     <b className="is-sign">✍ รอคุณเซ็นช่อง {x.slotName}</b>
-                    {x.submittedAt && <small>ส่งเมื่อ {new Date(x.submittedAt).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>}
+                    {x.submittedAt && <small>ส่งเมื่อ {fmtDate(x.submittedAt, "th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>}
                   </div>
                   <div className="mrp-act flex items-center gap-2">
                     <button type="button" className="cta-btn is-purple is-sm" onClick={() => sign(x)}>

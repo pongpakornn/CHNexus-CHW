@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Shell } from "@/components/layout/Shell";
+import { Loading } from "@/components/layout/Page";
 import { useAuth } from "@/lib/auth";
 import { installBugReporter } from "@/lib/bugReport";
 
@@ -28,6 +29,11 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading && !me) router.replace("/login");
   }, [me, loading, router]);
-  if (!me) return <div className="grid h-dvh place-items-center text-ink-soft">⏳ LOADING...</div>;
+  if (!me)
+    return (
+      <div className="grid h-dvh place-items-center">
+        <Loading />
+      </div>
+    );
   return <Shell>{children}</Shell>;
 }

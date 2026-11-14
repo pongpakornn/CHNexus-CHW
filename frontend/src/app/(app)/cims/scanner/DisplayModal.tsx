@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loading } from "@/components/layout/Page";
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
@@ -51,7 +52,7 @@ export function DisplayModal({ onClose, onSaved }: { onClose: () => void; onSave
       }
     >
       {!stocks ? (
-        <div className="text-center text-ink-soft">⏳ LOADING...</div>
+        <Loading />
       ) : (
         // เว้นที่ใต้ช่องสุดท้ายให้รายการ Dropdown กางลงได้เต็ม ๆ (ไม่ถูกขอบหน้าต่างตัด)
         <div className="grid gap-3" style={{ paddingBottom: (stocks.at(-1)?.options.length ?? 0) > 7 ? 340 : (stocks.at(-1)?.options.length ?? 0) * 44 + 24 }}>

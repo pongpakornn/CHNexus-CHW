@@ -31,6 +31,11 @@ function fit(table: HTMLTableElement) {
   if (!box) return;
   const w = box.clientWidth;
   const cl = table.classList;
+  // opt-in tables (data-stack) become compact / cards on phones only: desktop and iPad keep the normal table
+  if (table.hasAttribute("data-stack") && window.innerWidth > 767) {
+    cl.remove("is-stacked", "is-tight");
+    return;
+  }
   if (cl.contains("is-stacked")) {
     if (w >= Number(table.dataset.need || 0)) cl.remove("is-stacked");
     else return;
@@ -49,12 +54,12 @@ function fit(table: HTMLTableElement) {
 export function FitTables() {
   useEffect(() => {
     const seen = new Set<HTMLTableElement>();
-    const ro = new ResizeObserver((list) => list.forEach((e) => e.target.querySelectorAll<HTMLTableElement>(":scope > table.data-table").forEach(fit)));
+    const ro = new ResizeObserver((list) => list.forEach((e) => e.target.querySelectorAll<HTMLTableElement>(":scope > table.data-table, :scope > table[data-stack]").forEach(fit)));
     let raf = 0;
     const scan = () => {
       raf = 0;
       const now = new Set<HTMLTableElement>();
-      document.querySelectorAll<HTMLTableElement>("table.data-table").forEach((t) => {
+      document.querySelectorAll<HTMLTableElement>("table.data-table, table[data-stack]").forEach((t) => {
         if (t.matches(SKIP) || t.closest(".store-table") || !t.parentElement) return;
         now.add(t);
         label(t);

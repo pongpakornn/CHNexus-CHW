@@ -341,7 +341,7 @@ public sealed class StoreController : AppController
             if (changes.Count > 0) LogService.WriteLog(Uid, "UPDATE_PRODUCT_MASTER", $"| {tag}Changes: {string.Join(", ", changes)}", p.PartCode);
             return _products.UpdateProductMaster(stock, p.PartCode, p.Remark, maxVal, minVal, qtyVal, boxVal, partId) ? Ok() : Fail("ไม่สามารถบันทึกข้อมูลได้");
         }
-        catch (Exception ex) { return Fail("ไม่สามารถบันทึกข้อมูลได้\n" + ex.Message); }
+        catch (Exception ex) { return Fail(ex, "ไม่สามารถบันทึกข้อมูลได้"); }
     }
 
     // 🧲 แถว Coil ย่อยของสินค้า (คลิก PD CODE) - แถบ Master Coil + Coil ลูก ข้อความตาม CoilRowsView (น้ำหนักทศนิยมตามคลัง)
@@ -398,7 +398,7 @@ public sealed class StoreController : AppController
                 LogService.WriteLog(Uid, "UPDATE_COIL_REMARK", $"| Stock: {s.Code} | Coil: {r.Value.CoilNo} | Remark: {r.Value.Old} -> {remark}", r.Value.CoilNo);
             return Ok();
         }
-        catch (Exception ex) { return Fail("ไม่สามารถบันทึก REMARK ได้\n" + ex.Message); }
+        catch (Exception ex) { return Fail(ex, "ไม่สามารถบันทึก REMARK ได้"); }
     }
 
     // SHOW COILS / รอบเรียลไทม์: Coil ทั้งคลังครั้งเดียว แยกตามสินค้า (PartID -> แถว)
@@ -483,7 +483,7 @@ public sealed class StoreController : AppController
         if (s.IsLiveView) return Fail(StockModel.LiveViewMessage);
         if (!Me.CanImportStock(s)) return Deny("คุณไม่มีสิทธิ์ Import ข้อมูลเข้าคลังนี้");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         string fileName = file.FileName;
         try
         {

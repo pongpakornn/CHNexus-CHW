@@ -253,7 +253,7 @@ public sealed class ScannerActionsController : AppController
                 LogService.WriteLog(Uid, "SCAN_ADJUST",
                     $"Delete scan #{row.TxId} {row.TxType} {row.StockCode} {row.PartCode} x{row.Qty} | Balance: {res.BalanceAfter}{(res.SourceNote != null ? " | " + res.SourceNote : "")} | Reason: {reason}", row.TxId.ToString());
             }
-            catch (Exception ex) { fails.Add($"• {row.PartCode} ({row.TxType} {row.StockCode}): {ex.Message}"); }
+            catch (Exception ex) { fails.Add($"• {row.PartCode} ({row.TxType} {row.StockCode}): {SafeMessage(ex)}"); }
         }
         var msg = new StringBuilder($"ลบรายการสแกนแล้ว {ok.Count:N0} รายการ ยอด Stock ปรับย้อนกลับเรียบร้อย");
         var src = ok.Where(r => r.SourceNote != null).Select(r => r.SourceNote).ToList();

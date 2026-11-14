@@ -102,7 +102,7 @@ public sealed class PpExcelController : AppController
         if (Me?.CanEditPpSetup != true) return Deny("คุณไม่มีสิทธิ์แก้ PCS (Production Plan STD › EDIT)");
         if (!DbSchema.HasPpPcsOverride) return Fail("ฐานข้อมูลยังไม่มีตาราง PCS (database/nexus/39_Production_Plan_Pcs_Override_Forecast_Summary.sql)");
         string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex.Message); }
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
             string d;
