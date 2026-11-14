@@ -14115,3 +14115,39 @@ table.lqp code {
 }
 /* MIN HISTORY: ป้ายสถานะอัพเดทแล้ว (เขียว) */
 .mrp-tags i.is-ok { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+
+/* 🎬 Route reveal: opening motion for every page of every system (tagged by app/(app)/template.tsx)
+   Same feel as the system launcher cards: each main block rises + sharpens one after another (80 ms apart, max 7 steps).
+   Only opacity / translate / scale, played once when the block mounts; "backwards" fill = no transform is left behind. */
+[data-ri] {
+  animation: route-rise 0.7s var(--ease-drop) backwards;
+  animation-delay: calc(var(--ri-d, 0) * 80ms + 40ms);
+}
+[data-ri="1"] { --ri-d: 1; }
+[data-ri="2"] { --ri-d: 2; }
+[data-ri="3"] { --ri-d: 3; }
+[data-ri="4"] { --ri-d: 4; }
+[data-ri="5"] { --ri-d: 5; }
+[data-ri="6"] { --ri-d: 6; }
+[data-ri="7"] { --ri-d: 7; }
+@keyframes route-rise {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.985;
+  }
+}
+/* wait for the opening splash, like data-reveal */
+html:has(#chr-splash.cs-hold) [data-ri] {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ri] {
+    animation: route-fade 0.2s ease backwards;
+  }
+}
+@keyframes route-fade {
+  from {
+    opacity: 0;
+  }
+}
