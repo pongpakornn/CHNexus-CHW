@@ -126,6 +126,7 @@ export default function PlanSubmission() {
   }, [load]);
   // ⚡ Realtime: เครื่องอื่น MARK / แก้ / สลับ = Server แจ้งทันที (หัวข้อ "edp") -> โหลดเงียบ ไม่กระพริบ
   //   สำรอง: ทุก 30 วินาทีเช็คลายเซ็นแผน (เบา) เปลี่ยนจริงค่อยโหลด · กำลังแก้การ์ด = ไม่ดึงทับ
+  //   ระหว่างเปิด EDIT ไม่ดึงทับ · ปิด EDIT (ไม่ว่าบันทึกหรือไม่) = โหลดใหม่ทันที ไม่พลาดที่เครื่องอื่น MARK ระหว่างนั้น
   useLive(["edp"], () => (edit ? undefined : load(true)));
   useEffect(() => {
     const t = setInterval(async () => {
@@ -394,7 +395,7 @@ export default function PlanSubmission() {
           )}
         </>
       )}
-      {edit && <EditCard card={edit} qty0={qtyNow(edit)} hg0={hgNow(edit)} onClose={() => setEdit(null)} onSaved={() => (setEdit(null), load(true))} />}
+      {edit && <EditCard card={edit} qty0={qtyNow(edit)} hg0={hgNow(edit)} onClose={() => (setEdit(null), load(true))} onSaved={() => (setEdit(null), load(true))} />}
     </PageBody>
   );
 }
