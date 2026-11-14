@@ -32,6 +32,8 @@ public sealed class ProductsController : AppController
         bool canAll = stocks.Count == all.Count;
         var layouts = new ProductControlLayoutService().GetAll();
         var sg = new ProductControlLayoutService().GetSuggestions();
+        // 🏭 คลังชิ้นงาน EDP (ผูกด้วย StockID): ปุ่ม FILTER EDP + คอลัมน์ PART A / PART B ของคลังนั้น
+        var edpCols = DbSchema.HasEdp ? new EdpService().PartStocks() : new Dictionary<int, string>();
         string savedFilter = UserSettings.Get(Uid, KeyFilter, "");
         string savedStocks = UserSettings.Get(Uid, KeyStocks, "");
         return Ok(new
@@ -43,6 +45,7 @@ public sealed class ProductsController : AppController
                                                                      d.Suggest, d.AutoFrom, isNew = IsNew(d) }),
             // สิทธิ์ต่อคลัง: VIEW = ดูอย่างเดียว / ADD,EDIT = ติ๊กสินค้าเข้าคลัง + แก้ไข / DEL = ลบ
             stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.StockType, s.IsMain, s.CountCoil, s.ShowCoilRows, s.IsLiveView, canView = true,
+                                              edpCol = edpCols.TryGetValue(s.StkId, out var ec) ? ec : null,
                                               canAdd = Me.CanAddInStock(s), canEdit = Me.CanEditStock(s), canDelete = Me.CanDeleteInStock(s) }),
             columns = ProductControlColumns.All.Select(c => new { key = c.Key, label = c.Label }),
             layouts = stocks.Select(s => (int?)s.StkId).Prepend(null).Select(id => new { stkId = id ?? 0, layout = LayoutOf(layouts, id) }),
@@ -100,7 +103,7 @@ public sealed class ProductsController : AppController
         var all = string.IsNullOrWhiteSpace(key)
             ? LiveCache.Get($"products:{stkId}", TimeSpan.FromSeconds(30), () => _svc.GetInventoryForQR(null, stkId))
             : _svc.GetInventoryForQR(key.Trim(), stkId);
-        // 🏭 FILTER EDP: เฉพาะชิ้นงานที่ระบบ EDP ใช้ (มีค่า PCS/HG หรือ HG QTY ใน STORE-PC)
+        // 🏭 FILTER EDP: เฉพาะชิ้นงานที่ระบบ EDP ใช้ (มีค่า PCS/HG หรือ HG QTY ใน STORE-FG / STORE-SUB)
         if (edp && DbSchema.HasEdp)
         {
             var ids = new EdpService().PartIds();

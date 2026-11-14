@@ -39,6 +39,7 @@ namespace Nexus.Models
 
         // ข้อมูลเสริมสำหรับเลือกค่าที่แสดง
         public string PartA { get; set; }
+        public string PartB { get; set; }
         public string PartNumber { get; set; }
         public string Model { get; set; }
         public string RefNo { get; set; }

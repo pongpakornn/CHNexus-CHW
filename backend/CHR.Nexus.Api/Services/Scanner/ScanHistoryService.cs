@@ -144,7 +144,7 @@ namespace Nexus.Services
                 var formats = map.Values.Any(v => v.StartsWith("FIELD:")) ? new StockService().GetFormats() : new List<Nexus.Models.BarcodeFormatModel>();
                 foreach (var x in rows)
                     if (map.TryGetValue(x.StkId, out string key))
-                        x.DisplayCode = Nexus.Helpers.ScanDisplay.Resolve(key, x.PartCode, x.PartA, x.PartNumber, x.Model, x.PartName, x.RefNo, formats);
+                        x.DisplayCode = Nexus.Helpers.ScanDisplay.Resolve(key, x.PartCode, x.PartA, x.PartNumber, x.Model, x.PartName, x.RefNo, formats, x.PartB);
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"History display: {ex.Message}"); }
         }

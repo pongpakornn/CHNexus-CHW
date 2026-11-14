@@ -55,6 +55,12 @@ export type Calc = {
   C3auto: boolean;
   C4: number;
   sh: (number | null)[];
+  /** MAX CAPACITY = Plan SPH ของกะสูงสุด (C9 · 2 Shift + OT 6 Hrs.) คิดเสมอ แม้ในตารางจะเป็น "-" (กะก่อนหน้าพอแล้ว) */
+  cap: number;
+  /** ชม. ของกะสูงสุด (เช่น 21.5) = เพดานชม. ทำงานต่อวันต่อเครื่อง */
+  capHr: number;
+  /** ชม. ของแต่ละกะ C5-C9 (7.75 · 10.75 · 15.5 · 18.5 · 21.5) */
+  shHr: number[];
   P1: number;
   P2: number;
   P3: number;
@@ -69,6 +75,8 @@ export type Calc = {
   A3: number;
   A4: number;
   A5: number;
+  /** ชม. ทำงานจริงเฉลี่ยต่อวันต่อเครื่อง = A2 ÷ วันที่มี Actual ÷ C2 (เทียบกับ P6) */
+  actHrDay: number;
   pcs: number;
   // รายวัน (index 0 = วันที่ 1)
   plan: (number | null)[];
@@ -119,6 +127,9 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
     const prev = i === 0 ? null : sh[i - 1];
     sh.push(i === 0 ? base * s.hours : prev != null && prev < P1 ? base * s.hours : null);
   });
+  const shHr = d.shifts.map((s) => s.hours);
+  const capHr = Math.max(0, ...shHr);
+  const cap = base * capHr;
 
   const nd = d.days;
   const byDay = new Map(m.actual.map((a) => [a.day, a]));
@@ -183,6 +194,9 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
     C3auto: !(m.sph && m.sph > 0),
     C4,
     sh,
+    cap,
+    capHr,
+    shHr,
     P1,
     P2,
     P3,
@@ -197,6 +211,7 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
     A3,
     A4: div(A3, C3),
     A5: mCnt ? mSum / mCnt : 0,
+    actHrDay: div(div(A2, actHr.filter((v) => (v ?? 0) > 0).length), C2),
     pcs,
     plan,
     planHr,

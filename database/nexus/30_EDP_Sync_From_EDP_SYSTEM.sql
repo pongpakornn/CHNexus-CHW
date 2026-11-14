@@ -3,7 +3,8 @@
    - EDP_SYSTEM อ่านอย่างเดียว (SELECT) · เขียนเฉพาะ schema EDP ใน CHR-Nexus
    - หัวแผน: สถานะ / วันที่ / กะ ตาม EDP_SYSTEM · ที่ยังไม่มี = เพิ่ม (เลข PLH_ID เดิม)
    - การ์ด: เลข PLD_ID เดิม · ที่ EDP_SYSTEM ไม่มีแล้ว (ถูก SAVE ALL / ลงแม่แบบใหม่ที่ .exe) = เอาออก · ที่ยังไม่มี = เพิ่ม · ค่าไม่ตรง = แก้
-   - ชิ้นงาน: PT_ID ของ EDP_SYSTEM -> Nexus PartID (จับคู่ PT_CODE = PartA ในคลัง STORE-PC แบบ 26_EDP_Planning.sql)
+   - ชิ้นงาน: PT_ID ของ EDP_SYSTEM -> Nexus PartID (จับคู่ PT_CODE กับ EDP.vw_Parts: PART A ของ STORE-FG / PART B ของ STORE-SUB
+             ตามคลังใน EDP.PartStocks ที่ผูกด้วย StockID - 48_EDP_Part_Stocks.sql · เปลี่ยนรหัส / ชื่อคลังได้ไม่กระทบ)
    - Log แก้ไขการ์ด (ฐานคิด HG ตั้งต้น): เพิ่มแถวที่ยังไม่มี
    รันซ้ำได้ (ไม่มีอะไรต่าง = ไม่แก้อะไร)
    ===================================================================== */
@@ -14,15 +15,19 @@ IF DB_ID('EDP_SYSTEM') IS NULL THROW 50001, N'ไม่พบฐาน EDP_SYSTE
 
 BEGIN TRAN;
 
-DECLARE @pc INT = (SELECT TOP 1 StockID FROM Nexus.Stocks WHERE StockCode IN ('STORE-FG', 'STORE-PC') ORDER BY CASE StockCode WHEN 'STORE-FG' THEN 0 ELSE 1 END);   -- คลังชิ้นงาน EDP (เดิม STORE-PC)
-IF @pc IS NULL THROW 50002, N'ไม่พบคลังชิ้นงาน EDP (STORE-FG / STORE-PC) ใน Nexus.Stocks', 1;
-DECLARE @map TABLE (OLD_ID INT PRIMARY KEY, PartID INT);
-INSERT INTO @map (OLD_ID, PartID)
-SELECT M.PT_ID, MIN(P.PartID)
+IF OBJECT_ID('EDP.PartStocks') IS NULL OR NOT EXISTS (SELECT 1 FROM EDP.PartStocks)
+    THROW 50002, N'ยังไม่ได้ตั้งคลังชิ้นงาน EDP (รัน 48_EDP_Part_Stocks.sql ก่อน)', 1;
+-- ชิ้นงาน EDP ทั้งหมด (PART A ของคลังลำดับแรก / PART B ของ STORE-SUB) -> จับคู่ PT_CODE · ซ้ำหลายตัว = คลังลำดับแรก แล้ว PartID น้อยสุด
+DECLARE @vp TABLE (PartID INT PRIMARY KEY, Code NVARCHAR(100), StockID INT, SortNo INT);
+INSERT INTO @vp (PartID, Code, StockID, SortNo)
+SELECT V.PT_ID, LTRIM(RTRIM(V.PT_CODE)), V.PT_STOCK, E.SortNo
+FROM EDP.vw_Parts V JOIN EDP.PartStocks E ON E.StockID = V.PT_STOCK
+WHERE NULLIF(LTRIM(RTRIM(V.PT_CODE)), '') IS NOT NULL;
+DECLARE @map TABLE (OLD_ID INT PRIMARY KEY, PartID INT, StockID INT);
+INSERT INTO @map (OLD_ID, PartID, StockID)
+SELECT M.PT_ID, X.PartID, X.StockID
 FROM EDP_SYSTEM.dbo.MST_PART M
-JOIN Nexus.Parts P ON P.PartA = M.PT_CODE
-JOIN Nexus.PartStocks S ON S.PartID = P.PartID AND S.StockID = @pc
-GROUP BY M.PT_ID;
+CROSS APPLY (SELECT TOP 1 V.PartID, V.StockID FROM @vp V WHERE V.Code = LTRIM(RTRIM(M.PT_CODE)) ORDER BY V.SortNo, V.PartID) X;
 
 DECLARE @r TABLE (Step VARCHAR(30), N INT);
 
@@ -94,7 +99,7 @@ WHERE NOT EXISTS (SELECT 1 FROM EDP.PlanTimeFixLogs N WHERE N.FIX_ID = E.FIX_ID)
 INSERT INTO @r VALUES ('timefix_added', @@ROWCOUNT);
 SET IDENTITY_INSERT EDP.PlanTimeFixLogs OFF;
 
--- 7) ค่า HG ของชิ้นงาน (MST_PART -> ช่องเพิ่มเองของ STORE-PC) ให้ตรงกับ .exe : HG TYPE · PCS/HG · HG QTY · CT (SEC) · STD TIME (MIN.)
+-- 7) ค่า HG ของชิ้นงาน (MST_PART -> ช่องเพิ่มเองของคลังชิ้นงานนั้น STORE-FG / STORE-SUB) ให้ตรงกับ .exe : HG TYPE · PCS/HG · HG QTY · CT (SEC) · STD TIME (MIN.)
 --    ค่าไม่ตรง = HG <-> PCS และเวลาที่ยืด / หดตาม HG บนเว็บไม่ตรงกับ .exe · จับคู่ชิ้นงานด้วย PT_CODE = PART A ของ STORE-PC
 --    แก้เฉพาะค่าที่ต่างจริง (ตัวเลขเทียบเป็นตัวเลข ไม่สนรูปแบบ เช่น 3 กับ 3.00) · เขียนเฉพาะ Nexus.PartFieldValues (CHR-Nexus)
 DECLARE @pv TABLE (PartID INT, FieldID INT, Val NVARCHAR(100), Num BIT);
@@ -107,7 +112,7 @@ CROSS APPLY (VALUES (N'HG TYPE', NULLIF(LTRIM(RTRIM(M.HG_TYPE)), N''), CAST(0 AS
                     (N'HG QTY', CONVERT(NVARCHAR(100), M.QTY_HG), CAST(1 AS BIT)),
                     (N'CT (SEC)', CONVERT(NVARCHAR(100), M.STD_CT), CAST(1 AS BIT)),
                     (N'STD TIME (MIN.)', CONVERT(NVARCHAR(100), M.STD_TIME_HG), CAST(1 AS BIT))) V(Label, Val, Num)
-JOIN Nexus.PartFieldDefs D ON D.StockID = @pc AND D.Label = V.Label
+JOIN Nexus.PartFieldDefs D ON D.StockID = X.StockID AND D.Label = V.Label
 WHERE V.Val IS NOT NULL;
 
 UPDATE F SET F.Value = P.Val, F.UpdatedAt = SYSDATETIME(), F.UpdatedBy = N'EDP_SYNC'

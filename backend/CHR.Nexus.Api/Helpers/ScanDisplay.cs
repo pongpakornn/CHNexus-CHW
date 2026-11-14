@@ -6,7 +6,7 @@ using System.Linq;
 namespace Nexus.Helpers
 {
     // 🏷️ ค่าที่แสดงในช่อง PRODUCT CODE ของหน้า Multi-Scanner / HISTORY ตั้งต่อคลัง (Nexus.Stocks.ScanDisplayField)
-    //   PartCode (ค่าเดิม) / PartA / PartNumber / Model / Description
+    //   PartCode (ค่าเดิม) / PartA / PartB (เช่น STORE-SUB) / PartNumber / Model / Description
     //   FIELD:<FormatID>:<n> = ช่องที่ n ของบาร์โค้ดดิบตาม Barcode Format นั้น (เช่น Panta #11)
     //   ใช้แค่ "แสดงผล" ไม่มีผลกับการบันทึก / ยอด - ดึงค่าไม่ได้ (ป้ายไม่ตรงรูปแบบ / ค่าว่าง) = แสดง PartCode
     public static class ScanDisplay
@@ -17,6 +17,7 @@ namespace Nexus.Helpers
         {
             ("PartCode", "PRODUCT CODE"),
             ("PartA", "PART A"),
+            ("PartB", "PART B"),
             ("PartNumber", "PART NO"),
             ("Model", "MODEL"),
             ("Description", "PRODUCT NAME")
@@ -48,7 +49,7 @@ namespace Nexus.Helpers
         }
 
         public static string Resolve(string key, string partCode, string partA, string partNo, string model, string name,
-                                     string rawBarcode, IEnumerable<BarcodeFormatModel> formats)
+                                     string rawBarcode, IEnumerable<BarcodeFormatModel> formats, string partB = null)
         {
             string fallback = partCode ?? "";
             string v = null;
@@ -56,6 +57,7 @@ namespace Nexus.Helpers
             {
                 case "PartCode": v = partCode; break;
                 case "PartA": v = partA; break;
+                case "PartB": v = partB; break;
                 case "PartNumber": v = partNo; break;
                 case "Model": v = model; break;
                 case "Description": v = name; break;

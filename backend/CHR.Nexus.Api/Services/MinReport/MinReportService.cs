@@ -232,7 +232,8 @@ public sealed class MinReportService
         "CUSTOMER" => r.Customer, "SUPPLIER" => r.Supplier, "CATEGORY" => r.Category, "BIN" => r.Bin, "PACKSIZE" => r.PackSize, _ => ""
     });
 
-    private static string Join(MinPartBase r, List<string> keys) => string.Join(" · ", keys.Select(k => Value(r, k)).Where(v => v.Length > 0));
+    private static string Join(MinPartBase r, List<string> keys) =>
+        string.Join(" · ", keys.Select(k => Value(r, k)).Where(v => v.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
 
     // บรรทัดที่ 1 ว่าง (เช่น PRODUCT CODE = "-") = แสดง "ไม่มีรหัส" ที่หน้าเว็บ · บรรทัดที่ 2 ว่าง = ชื่อสินค้า
     public void ApplyDisplay<T>(IEnumerable<T> rows, Dictionary<int, MinDisplay> map = null) where T : MinPartBase

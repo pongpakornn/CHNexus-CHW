@@ -463,12 +463,12 @@ public sealed class ScanProcessor
         EnsureDisplay();
         if (item == null || !_displayMap.TryGetValue(item.StkId, out string key)) { if (item != null) item.DisplayCode = null; return; }
         if (!string.IsNullOrEmpty(raw)) item.RefNo = raw;
-        if (fetchInfo && (key == "PartA" || key == "PartNumber" || key == "Model") && item.PartA == null && item.PartId > 0)
+        if (fetchInfo && (key == "PartA" || key == "PartB" || key == "PartNumber" || key == "Model") && item.PartA == null && item.PartId > 0)
         {
             var info = _scanService.GetPartDisplayInfo(item.PartId);
-            item.PartA = info.PartA; item.PartNumber = info.PartNumber; item.Model = info.Model;
+            item.PartA = info.PartA; item.PartNumber = info.PartNumber; item.Model = info.Model; item.PartB = info.PartB;
         }
-        string v = ScanDisplay.Resolve(key, item.PartCode, item.PartA, item.PartNumber, item.Model, item.PartName, item.RefNo, _displayFormats);
+        string v = ScanDisplay.Resolve(key, item.PartCode, item.PartA, item.PartNumber, item.Model, item.PartName, item.RefNo, _displayFormats, item.PartB);
         item.DisplayCode = string.IsNullOrWhiteSpace(v) ? null : v;
     }
 

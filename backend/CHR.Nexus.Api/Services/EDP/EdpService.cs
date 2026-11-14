@@ -7,7 +7,8 @@ using Nexus.Helpers;
 namespace Nexus.Services;
 
 // 🏭 EDP PLANNING (schema EDP ในฐาน CHR-Nexus) - ย้ายมาจากโปรแกรม EDP Systems (WPF) เงื่อนไขเดิมทุกข้อ
-//   ชิ้นงาน = EDP.vw_Parts (VIEW เหนือ MASTER DATA › Product Control › STORE-PC) · PT_ID = Nexus.Parts.PartID
+//   ชิ้นงาน = EDP.vw_Parts (VIEW เหนือ MASTER DATA › Product Control › STORE-FG = PART A / STORE-SUB = PART B) · PT_ID = Nexus.Parts.PartID
+//   คลังชิ้นงานผูกด้วย StockID (EDP.PartStocks · 48_EDP_Part_Stocks.sql) -> เปลี่ยนรหัส / ชื่อคลังได้ ไม่กระทบ EDP
 //   รอบ 1 = 08-12 · 2 = 12-16 · 3 = 16-20 (กะ DAY) · 4 = 20-24 · 5 = 00-04 · 6 = 04-08 (กะ NIGHT)
 //   1 HG = 3.25 นาที (เวลาของการ์ดยืด / หดตาม HG คิดที่หน้าเว็บ แบบเดียวกับ WPF)
 
@@ -185,6 +186,14 @@ public sealed class EdpService
                 .GroupBy(x => x.PT_ID).ToDictionary(g => g.Key, g => g.First());
     }
 
+    // คลังชิ้นงาน EDP: StockID -> PARTA / PARTB (ยังไม่รัน 48_EDP_Part_Stocks.sql = ว่าง)
+    public Dictionary<int, string> PartStocks()
+    {
+        using var c = Conn();
+        if (c.ExecuteScalar<int>("SELECT CASE WHEN OBJECT_ID('EDP.PartStocks') IS NULL THEN 0 ELSE 1 END") == 0) return new();
+        return c.Query<(int StockID, string PartCol)>("SELECT StockID, PartCol FROM EDP.PartStocks").ToDictionary(x => x.StockID, x => x.PartCol);
+    }
+
     public HashSet<int> PartIds()
     {
         using var c = Conn();
@@ -285,7 +294,7 @@ public sealed class EdpService
         else
         {
             nw = c.QueryFirstOrDefault<(string, string)>("SELECT ISNULL(CUST_CODE,''), ISNULL(PT_NO,'') FROM EDP.vw_Parts WHERE PT_ID = @partId", new { partId }, t);
-            if (nw == default) throw new InvalidOperationException("ไม่พบชิ้นงานที่เลือกใน STORE-FG");
+            if (nw == default) throw new InvalidOperationException("ไม่พบชิ้นงานที่เลือกในคลังชิ้นงาน EDP (STORE-FG / STORE-SUB)");
             c.Execute("UPDATE EDP.PlanCards SET PT_ID = @partId, QTY_PLAN = @qty, HG_PLAN = @hg, REMARK = @remark, IS_PROBLEM = 0 WHERE PLD_ID = @pldId",
                       new { pldId, partId, qty, hg, remark }, t);
         }

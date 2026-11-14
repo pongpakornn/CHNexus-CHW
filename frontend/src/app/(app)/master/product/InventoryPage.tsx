@@ -62,7 +62,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const dlg = useDialogs();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [filter, setFilter] = useState<number | null>(null);
-  const [edpOnly, setEdpOnly] = useState(false); // 🏭 FILTER EDP: เฉพาะชิ้นงานที่ระบบ EDP ใช้ (STORE-PC)
+  const [edpOnly, setEdpOnly] = useState(false); // 🏭 FILTER EDP: เฉพาะชิ้นงานที่ระบบ EDP ใช้ (STORE-FG / STORE-SUB)
   const [formStk, setFormStk] = useState<number | null>(null); // คลังที่ลงทะเบียน -> ช่องกรอกตามคอลัมน์ของคลังนั้น (null = ทุกช่อง)
   const [key, setKey] = useState("");
   const [page, setPage] = useState(0);
@@ -259,7 +259,9 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
     admin: meta.can.admin,
   };
   // 🏭 กด EDP = ตารางแบบหน้า Product Control ของ EDP Systems (.exe): IMAGE · PART CODE · PART NO · PRODUCT NAME · HG TYPE · PCS/HG · HG QTY · CT(S) · STD(M) · WEIGHT
-  const cols = edpOnly ? EDP_COLS.map((c) => c[0]) : (layout?.columns ?? []);
+  // 🏭 FILTER EDP: STORE-FG = PART A · STORE-SUB = PART B (ตามคลังชิ้นงาน EDP ที่ผูกด้วย StockID)
+  const edpCol = meta.stocks.find((s) => s.stkId === filter)?.edpCol ?? null;
+  const cols = edpOnly ? EDP_COLS.map((c) => (c[0] === "PARTA" && edpCol === "PARTB" ? "PARTB" : c[0])) : (layout?.columns ?? []);
   // ช่องกรอกของคลังที่เลือกในหัว REGISTER PRODUCT
   const formStock = meta.stocks.find((s) => s.stkId === formStk) ?? null;
   const formCols = formStk == null ? null : (meta.layouts.find((l) => l.stkId === formStk)?.layout.formFields ?? null);
@@ -269,7 +271,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const coilForm = meta.hasCoilRegister && (formStock ? formStock.countCoil : true);
   const showPartWeight = !!formStock && !formStock.countCoil && fieldKeys.includes("WEIGHT");
   const cfDefs = meta.customFields ?? [];
-  const label = (k: string) => (edpOnly ? EDP_COLS.find((c) => c[0] === k)?.[1] : undefined) ?? meta.columns.find((c) => c.key === k)?.label ?? cfDefs.find((f) => f.key === k)?.label ?? k;
+  const label = (k: string) => (edpOnly ? (k === "PARTB" ? "PART CODE (B)" : EDP_COLS.find((c) => c[0] === k)?.[1]) : undefined) ?? meta.columns.find((c) => c.key === k)?.label ?? cfDefs.find((f) => f.key === k)?.label ?? k;
   // ➕ ช่องกรอกเพิ่มเอง: TEXT / NUMBER / DATE
   const cfInput = (k: string) => {
     const d = cfDefs.find((f) => f.key === k);
@@ -866,7 +868,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                 options={[...(meta.canAll ? [{ value: "", label: "ALL STOCKS" }] : []), ...meta.stocks.map((s) => ({ value: String(s.stkId), label: s.code }))]}
                 onChange={(v) => changeFilter(v ? Number(v) : null)}
               />
-              {(filterStock?.code === "STORE-FG" || filterStock?.code === "STORE-PC") && (
+              {!!filterStock?.edpCol && (
                 <button
                   type="button"
                   className={`fill-btn ${edpOnly ? "is-on" : ""}`}

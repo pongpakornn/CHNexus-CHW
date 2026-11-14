@@ -2871,3 +2871,8 @@ thead .pp-stick {
 .pp-tip .r span { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
 .pp-tip .r b { flex: none; white-space: nowrap; }
 .pp-tip .r b .u { font-size: 10.5px; font-weight: 700; opacity: 0.7; }
+
+/* 🔶 MAX CAPACITY: ขีดเพดานต่อเครื่อง + ไอคอนใน Legend + แถวเกินกำลังในป้าย */
+.pp-mark { filter: drop-shadow(0 1px 1.5px rgb(234 88 12 / 0.35)); }
+.pp-legend i.is-mark { height: 4px; border-radius: 2px; background: var(--c); align-self: center; }
+.pp-tip .r.is-over b, .pp-tip .r.is-over span { color: #dc2626; }

@@ -295,7 +295,8 @@ public sealed class ProductionPlanService
         return label;
     }
 
-    // ค้นหา PART A (STORE-PC) / PART B (STORE-SUB + STORE-PC) สำหรับ Dropdown
+    // ค้นหา PART A (STORE-FG) / PART B (STORE-SUB + STORE-FG) สำหรับ Dropdown
+    //   คลังผูกด้วย StockID ใน EDP.PartStocks (48_EDP_Part_Stocks.sql): PARTA = คลัง FG · PARTB = คลัง SUB -> เปลี่ยนรหัส / ชื่อคลังได้ไม่กระทบ
     public IEnumerable<object> SearchParts(string kind, string key)
     {
         string k = (key ?? "").Trim();
@@ -304,16 +305,17 @@ public sealed class ProductionPlanService
         using var c = Conn();
         return c.Query(@"
             SELECT TOP 30 p.PartID AS id, s.StockCode AS stock,
-                   CASE WHEN s.StockCode IN ('STORE-FG', 'STORE-PC') THEN LTRIM(RTRIM(ISNULL(p.PartA, ''))) ELSE COALESCE(NULLIF(LTRIM(RTRIM(p.PartB)), ''), p.PartCode) END AS code,
+                   CASE WHEN e.PartCol = 'PARTA' THEN LTRIM(RTRIM(ISNULL(p.PartA, ''))) ELSE COALESCE(NULLIF(LTRIM(RTRIM(p.PartB)), ''), p.PartCode) END AS code,
                    p.PartCode AS pdCode, ISNULL(p.Description, '') AS name, ISNULL(p.Customer, '') AS customer
             FROM Nexus.Parts p WITH (NOLOCK)
             JOIN Nexus.PartStocks ps ON ps.PartID = p.PartID
-            JOIN Nexus.Stocks s ON s.StockID = ps.StockID AND (s.StockCode IN ('STORE-FG', 'STORE-PC') OR (@b = 1 AND s.StockCode = 'STORE-SUB'))
-            WHERE p.IsActive = 1 AND (s.StockCode NOT IN ('STORE-FG', 'STORE-PC') OR ISNULL(p.PartA, '') <> '')
+            JOIN Nexus.Stocks s ON s.StockID = ps.StockID
+            JOIN EDP.PartStocks e ON e.StockID = s.StockID AND (e.PartCol = 'PARTA' OR @b = 1)
+            WHERE p.IsActive = 1 AND (e.PartCol <> 'PARTA' OR ISNULL(p.PartA, '') <> '')
               AND (p.PartCode LIKE '%' + @k + '%' OR ISNULL(p.PartA, '') LIKE '%' + @k + '%' OR ISNULL(p.PartB, '') LIKE '%' + @k + '%' OR ISNULL(p.Description, '') LIKE '%' + @k + '%')
             ORDER BY CASE WHEN ISNULL(p.PartA, '') = @k OR ISNULL(p.PartB, '') = @k OR p.PartCode = @k THEN 0
                           WHEN ISNULL(p.PartA, '') LIKE @k + '%' OR ISNULL(p.PartB, '') LIKE @k + '%' OR p.PartCode LIKE @k + '%' THEN 1 ELSE 2 END,
-                     CASE WHEN s.StockCode = 'STORE-SUB' THEN 0 ELSE 1 END * @b, p.PartA, p.PartCode", new { k, b = b ? 1 : 0 }).ToList();
+                     CASE WHEN e.PartCol = 'PARTB' THEN 0 ELSE 1 END * @b, p.PartA, p.PartCode", new { k, b = b ? 1 : 0 }).ToList();
     }
 
     // ---------------------------------------------------------------- ข้อมูลทั้งเดือน (Dashboard / Capacity)

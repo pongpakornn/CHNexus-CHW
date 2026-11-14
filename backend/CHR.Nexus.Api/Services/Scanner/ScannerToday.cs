@@ -57,7 +57,7 @@ public static class ScannerToday
         {
             if (displayMap.TryGetValue(item.StkId, out string key))
             {
-                string v = ScanDisplay.Resolve(key, item.PartCode, item.PartA, item.PartNumber, item.Model, item.PartName, item.RefNo, displayFormats);
+                string v = ScanDisplay.Resolve(key, item.PartCode, item.PartA, item.PartNumber, item.Model, item.PartName, item.RefNo, displayFormats, item.PartB);
                 item.DisplayCode = string.IsNullOrWhiteSpace(v) ? null : v;
             }
             if (item.Status == "IN" || item.Status == "RETURN" || item.Status == "OUT") dto.Rows.Insert(0, ScanRowDto.From(item));

@@ -9,7 +9,8 @@ import { shortN } from "@/lib/pp";
 //   แท่ง = ไล่สี + มุมบนมน โตขึ้นจากฐานทีละแท่ง · เส้น = ลากจากซ้ายไปขวา + เงาเรือง + พื้นไล่สีใต้เส้น (area)
 //   วันหยุด = ลายเส้นทแยงจาง ๆ · วันนี้ = เส้นประ TODAY · ชี้ / แตะ = เส้น crosshair + จุดขยาย + กล่องค่าลอยแบบกระจกฝ้า
 //   เปลี่ยนโหมด / ข้อมูล = แท่ง / เส้น / แกน Y เลื่อนไปค่าใหม่นุ่ม ๆ · กด Legend = ซ่อน / แสดง · ลดการเคลื่อนไหว = ไม่มีแอนิเมชัน
-export type Series = { key: string; label: string; kind: "bar" | "line"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string; unit?: string };
+// kind "mark" = ขีดแนวนอนเหนือแต่ละคอลัมน์ (เช่น MAX CAPACITY ของเครื่อง) ไม่ลากเส้นต่อกันข้ามเครื่อง
+export type Series = { key: string; label: string; kind: "bar" | "line" | "mark"; color: string; color2?: string; values: (number | null)[]; dashed?: boolean; area?: boolean; fmt?: (v: number) => string; unit?: string };
 
 // ป้ายแกน X ยาว (เช่น "Group 1.7.2- POLISH(PL21) Auto") = ตัดเป็นหลายบรรทัดตามความกว้างของแท่ง ไม่ซ้อนกัน · ยาวเกิน = … (ชื่อเต็มอยู่ในป้ายตอนชี้)
 const CH = 6.2; // ความกว้างโดยประมาณต่อ 1 ตัวอักษร (ตัว 11px)
@@ -124,6 +125,7 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
   const base = H - m.b;
   const bars = shown.filter((s) => s.kind === "bar");
   const lines = shown.filter((s) => s.kind === "line");
+  const marks = shown.filter((s) => s.kind === "mark");
   const bw = Math.max(2, Math.min(28, (band * 0.72) / Math.max(1, bars.length)));
   const short = 14; // แท่งแคบมาก: ป้ายตัดเหลือ 14 ตัวอักษร แล้วเว้นป้ายเป็นช่วงให้ไม่ชนกัน
   const labelEvery = wrap ? 1 : Math.max(1, Math.ceil((n * (sub ? 30 : Math.max(40, Math.min(longest, short) * CH + 10))) / Math.max(1, iw)));
@@ -158,7 +160,7 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
             transition={T(0.35, 0.1 + i * 0.06)}
             whileTap={{ scale: 0.95 }}
           >
-            <i className={s.kind === "line" ? (s.dashed ? "is-dash" : "is-line") : ""} style={{ "--c": s.color, "--c2": s.color2 ?? s.color } as React.CSSProperties} />
+            <i className={s.kind === "mark" ? "is-mark" : s.kind === "line" ? (s.dashed ? "is-dash" : "is-line") : ""} style={{ "--c": s.color, "--c2": s.color2 ?? s.color } as React.CSSProperties} />
             {s.label}
           </motion.button>
         ))}
@@ -267,6 +269,29 @@ export function PpChart({ cats, sub, off, today, series, height, tipTitle, tipEx
                     initial={reduce ? false : { d: barPath(x, base, w, 0) }}
                     animate={{ d: barPath(x, y, w, base - y), opacity: hover < 0 || hover === i ? 1 : 0.4 }}
                     transition={{ ...T(0.7, dl(i)), opacity: { duration: 0.2 } }}
+                  />
+                );
+              }),
+            )}
+
+            {/* 🔶 ขีดเพดาน (MAX CAPACITY) : กว้างกว่ากลุ่มแท่งเล็กน้อย · แท่งแผนสูงเกินขีด = เกินกำลังเครื่อง */}
+            {marks.map((s) =>
+              s.values.map((v, i) => {
+                if (v == null || v <= 0) return null;
+                const half = Math.min(band * 0.46, (bw * Math.max(1, bars.length)) / 2 + 7);
+                return (
+                  <motion.line
+                    key={`${s.key}-${i}`}
+                    x1={sx(i) - half}
+                    x2={sx(i) + half}
+                    stroke={s.color}
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeDasharray={s.dashed ? "5 4" : undefined}
+                    className="pp-mark"
+                    initial={reduce ? false : { y1: base, y2: base, opacity: 0 }}
+                    animate={{ y1: sy(v), y2: sy(v), opacity: hover < 0 || hover === i ? 1 : 0.45 }}
+                    transition={{ ...T(0.8, 0.15 + dl(i)), opacity: { duration: 0.2 } }}
                   />
                 );
               }),

@@ -327,15 +327,16 @@ namespace Nexus.Services
         }
 
         // ข้อมูลสินค้าสำหรับเลือกค่าที่แสดง (หลังสแกน 1 รายการ)
-        public (string PartA, string PartNumber, string Model) GetPartDisplayInfo(int ptId)
+        public (string PartA, string PartNumber, string Model, string PartB) GetPartDisplayInfo(int ptId)
         {
+            string b = Nexus.Helpers.DbSchema.HasPartB ? "ISNULL(PartB, '')" : "''";
             using (var conn = new SqlConnection(_connectionString))
-            using (var cmd = new SqlCommand("SELECT ISNULL(PartA, ''), ISNULL(PartNumber, ''), ISNULL(Model, '') FROM Nexus.Parts WHERE PartID = @p", conn))
+            using (var cmd = new SqlCommand($"SELECT ISNULL(PartA, ''), ISNULL(PartNumber, ''), ISNULL(Model, ''), {b} FROM Nexus.Parts WHERE PartID = @p", conn))
             {
                 cmd.Parameters.AddWithValue("@p", ptId);
                 conn.Open();
                 using (var r = cmd.ExecuteReader())
-                    return r.Read() ? (r.GetString(0), r.GetString(1), r.GetString(2)) : ("", "", "");
+                    return r.Read() ? (r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)) : ("", "", "", "");
             }
         }
 
@@ -376,6 +377,7 @@ namespace Nexus.Services
                                     t.TransactionDate,
                                     t.TransactionType,
                                     ISNULL(m.PartA, '') AS PartA,
+                                    " + (Nexus.Helpers.DbSchema.HasPartB ? "ISNULL(m.PartB, '')" : "''") + @" AS PartB,
                                     ISNULL(m.PartNumber, '') AS PartNumber,
                                     ISNULL(m.Model, '') AS Model,
                                     ISNULL(t.ReferenceNo, '') AS ReferenceNo,
@@ -408,6 +410,7 @@ namespace Nexus.Services
                                 UpdateTime = Convert.ToDateTime(rdr["TransactionDate"]),
                                 Status = rdr["TransactionType"].ToString(),
                                 PartA = rdr["PartA"].ToString(),
+                                PartB = rdr["PartB"].ToString(),
                                 PartNumber = rdr["PartNumber"].ToString(),
                                 Model = rdr["Model"].ToString(),
                                 RefNo = rdr["ReferenceNo"].ToString(),

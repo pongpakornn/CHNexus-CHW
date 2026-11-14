@@ -16,7 +16,7 @@ import "../pp.css";
 // 📈 PRODUCTION PLAN › DASHBOARD: เลือกหน่วยงาน (PRESS 1 · PRESS 2 · ASSEMBLY · PIPE PART · PIPE ASSY · PAINT PART) · ภาพรวมทุกเครื่องของเดือน
 //   KPI (วันทำงาน · Plan / Actual Stroke · Plan / Actual Hr · เครื่องที่ถึงเป้า Eff) · กราฟ Plan vs Actual (รายเครื่อง / รายวัน / สะสม)
 //   %EFF รายเครื่องเทียบเป้า · ตาราง Condition M/C ทุกเครื่อง + รวมกลุ่ม + TOTAL (เหมือนชีท Press 1 table) · อัพเดทเองเมื่อหน้างานบันทึก Actual
-const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", target: "#d97706" };
+const C = { plan: "#4f46e5", plan2: "#818cf8", act: "#0891b2", act2: "#67e8f9", target: "#d97706", cap: "#ea580c" };
 
 // แท็บ WORKLOAD ต่อจาก QC (สรุปอัตรากำลังคน · ข้อมูลเดียวกับ CAPACITY › WORKLOAD)
 const WL_TAB: DeptTab = { code: "WORKLOAD", name: "WORKLOAD", th: "อัตรากำลังคน (Man-power)" };
@@ -42,7 +42,9 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
   const D = deptOf(dept);
   const { data, calcs } = usePpMonth(dept, month);
   const [view, setView] = useState<"machine" | "daily">("machine");
-  const [metric, setMetric] = useState<"stroke" | "hr">("stroke");
+  // STROKE (P1 / A1 + MAX CAPACITY C9) · WORKING HR. (P4 / A2 ต่อเดือน) · HR./DAY (P6 Workload ต่อวันต่อเครื่อง เทียบเพดาน 21.5 ชม.)
+  const [metricSel, setMetric] = useState<"stroke" | "hr" | "day">("stroke");
+  const metric = view === "daily" && metricSel === "day" ? "hr" : metricSel; // รายวัน (รวมทุกเครื่อง) ไม่มี HR./DAY ต่อเครื่อง = ใช้ WORKING HR.
   const [acc, setAcc] = useState(false);
 
   const list = useMemo(() => (data ? data.machines.map((m) => ({ m, c: calcs.get(m.id)! })).filter((x) => x.c) : []), [data, calcs]);
@@ -73,6 +75,9 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
   const daily = useMemo(() => {
     if (!data) return null;
     const z = () => Array.from({ length: nd }, () => 0);
+    // เพดานต่อวันของทุกเครื่องรวมกัน (กะสูงสุด เช่น 2 Shift + OT 6 Hrs.) : Stroke = Σ C2·C3·C4·ชม. · ชม. = Σ C2·ชม.
+    const capDay = list.reduce((a, { c }) => a + c.C2 * c.C3 * c.C4 * c.capHr, 0);
+    const capHrDay = list.reduce((a, { c }) => a + c.C2 * c.capHr, 0);
     const plan = z(),
       act = z(),
       planHr = z(),
@@ -90,20 +95,41 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
       let s = 0;
       return a.map((v, i) => (i > stop ? null : (s += v)));
     };
-    return { plan, act, planHr, actHr, has, planAcc: accum(plan), actAcc: accum(act, has), planHrAcc: accum(planHr), actHrAcc: accum(actHr, has) };
+    return { plan, act, planHr, actHr, has, capDay, capHrDay, planAcc: accum(plan), actAcc: accum(act, has), planHrAcc: accum(planHr), actHrAcc: accum(actHr, has) };
   }, [data, list, nd]);
 
   const chart = useMemo((): { cats: string[]; sub?: string[]; off?: boolean[]; series: Series[] } | null => {
     if (!data || !daily) return null;
-    const isHr = metric === "hr";
+    const isHr = metric !== "stroke";
     const fmt = isHr ? f1 : f0;
     const unit = isHr ? "hr" : "stroke"; // หน่วยในป้ายตอนชี้กราฟ
+    const cats = list.map((x) => x.m.code.replace(/^PROG /, ""));
+    if (view === "machine" && metric === "day")
+      // ⏱ WORKLOAD ต่อวันต่อเครื่อง: P6 (แผน) เทียบ ชม. จริงเฉลี่ยต่อวัน · ขีดส้ม = เพดาน ชม. ต่อวัน (กะสูงสุด เช่น 21.5)
+      return {
+        cats,
+        series: [
+          { key: "plan", label: "PLAN HR./DAY/MC (P6)", kind: "bar", color: C.plan, color2: C.plan2, values: list.map((x) => x.c.P6), fmt, unit: "hr/day" },
+          { key: "act", label: "ACTUAL HR./DAY/MC", kind: "bar", color: C.act, color2: C.act2, values: list.map((x) => x.c.actHrDay), fmt, unit: "hr/day" },
+          { key: "cap", label: `MAX ${data.shifts.at(-1)?.name ?? "CAPACITY"}`, kind: "mark", color: C.cap, values: list.map((x) => x.c.capHr), fmt, unit: "hr/day" },
+        ],
+      };
     if (view === "machine")
       return {
-        cats: list.map((x) => x.m.code.replace(/^PROG /, "")),
+        cats,
         series: [
           { key: "plan", label: isHr ? "PLAN HR. (P4)" : "PLAN STROKE (P1)", kind: "bar", color: C.plan, color2: C.plan2, values: list.map((x) => (isHr ? x.c.P4 : x.c.P1)), fmt, unit },
           { key: "act", label: isHr ? "ACTUAL HR. (A2)" : "ACTUAL STROKE (A1)", kind: "bar", color: C.act, color2: C.act2, values: list.map((x) => (isHr ? x.c.A2 : x.c.A1)), fmt, unit },
+          // 🔶 MAX CAPACITY (C9): Stroke = Plan SPH กะสูงสุด · ชม. = ชม. กะสูงสุด × วันทำงาน × จำนวนเครื่อง
+          {
+            key: "cap",
+            label: isHr ? "MAX CAPACITY HR." : "MAX CAPACITY (C9)",
+            kind: "mark",
+            color: C.cap,
+            values: list.map((x) => (isHr ? x.c.capHr * x.c.C1 * x.c.C2 : x.c.cap)),
+            fmt,
+            unit,
+          },
         ],
       };
     const wd = new Set(data.workdays);
@@ -122,6 +148,8 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
       series: [
         { key: "act", label: isHr ? "ACTUAL HR." : "ACTUAL STROKE", kind: "bar", color: C.act, color2: C.act2, values: isHr ? daily.actHr : daily.act, fmt, unit },
         { key: "plan", label: isHr ? "PLAN HR. / DAY" : "PLAN STROKE / DAY", kind: "line", color: C.plan, dashed: true, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.planHr[i] : daily.plan[i]) : null)), fmt, unit },
+        // 🔶 เพดานต่อวันของทุกเครื่อง (กะสูงสุด) เฉพาะวันทำงาน
+        { key: "cap", label: isHr ? "MAX CAPACITY HR. / DAY" : "MAX CAPACITY / DAY", kind: "mark", color: C.cap, dashed: true, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.capHrDay : daily.capDay) : null)), fmt, unit },
       ],
     };
   }, [data, daily, list, view, metric, acc, nd]);
@@ -175,7 +203,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
       <motion.div variants={reduce ? fadeOnly : panelIn} initial="hidden" animate="show" custom={2}>
         <Card
           clip={false}
-          title={view === "machine" ? "PLAN vs ACTUAL • BY MACHINE" : acc ? "PLAN vs ACTUAL • ACCUMULATED" : "PLAN vs ACTUAL • DAILY (ALL M/C)"}
+          title={view === "machine" ? (metric === "day" ? "WORKLOAD / DAY / M/C • BY MACHINE" : "PLAN vs ACTUAL • BY MACHINE") : acc ? "PLAN vs ACTUAL • ACCUMULATED" : "PLAN vs ACTUAL • DAILY (ALL M/C)"}
           actions={
             <>
               <Seg id="v" value={view} onChange={setView} options={[{ v: "machine", l: "BY MACHINE" }, { v: "daily", l: "DAILY" }]} />
@@ -186,7 +214,12 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
                   </motion.span>
                 )}
               </AnimatePresence>
-              <Seg id="m" value={metric} onChange={setMetric} options={[{ v: "stroke", l: "STROKE" }, { v: "hr", l: "WORKING HR." }]} />
+              <Seg
+                id="m"
+                value={metric}
+                onChange={setMetric}
+                options={[{ v: "stroke", l: "STROKE" }, { v: "hr", l: "WORKING HR." }, ...(view === "machine" ? [{ v: "day" as const, l: "HR./DAY (P6)" }] : [])]}
+              />
             </>
           }
           bodyClass="px-2 pb-3 pt-2 md:px-4"
@@ -202,16 +235,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
               empty={view === "daily" && !acc ? "ยังไม่มี Actual ของเดือนนี้" : undefined}
               series={chart.series}
               tipTitle={(i) => (view === "machine" ? list[i].m.code : `${i + 1} ${monthLabel(month)} · ${DOW[dowOf(month, i + 1)]}${chart.off?.[i] ? " · วันหยุด" : ""}`)}
-              tipExtra={(i) =>
-                view === "machine" ? (
-                  <div className="r is-sum">
-                    <span>EFF% (A4)</span>
-                    <b>
-                      {pc(list[i].c.A4)} <EffPill a={list[i].c.A4} t={list[i].c.C4} />
-                    </b>
-                  </div>
-                ) : null
-              }
+              tipExtra={(i) => (view === "machine" ? <MachineTip c={list[i].c} metric={metric} shifts={data.shifts.map((s) => s.name)} /> : null)}
               onPick={view === "machine" ? (i) => router.push(`/pp/capacity/${D.slug}?m=${list[i].m.id}&month=${month}`) : undefined}
             />
           )}
@@ -258,6 +282,35 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
       </motion.div>
       <WorkloadSection month={month} dept={dept} />
     </PageBody>
+  );
+}
+
+// ป้ายตอนชี้เครื่อง: EFF% + ใช้กำลังเครื่องไปกี่ % ของเพดาน (C9) · เหลือ / เกินเท่าไร · Workload ต่อวันพอในกะไหน
+function MachineTip({ c, metric, shifts }: { c: Calc; metric: "stroke" | "hr" | "day"; shifts: string[] }) {
+  const k = shifts.findIndex((_, i) => (c.shHr[i] ?? 0) >= c.P6 - 1e-9);
+  const left = c.cap - c.P1;
+  return (
+    <>
+      {metric === "day" ? (
+        <div className={`r is-sum ${k < 0 && c.P6 > 0 ? "is-over" : ""}`}>
+          <span>WORKLOAD {f1(c.P6)} hr/day</span>
+          <b>{c.P6 <= 0 ? "–" : k >= 0 ? `พอใน ${shifts[k]}` : "เกินทุกกะ"}</b>
+        </div>
+      ) : (
+        <div className={`r is-sum ${left < 0 ? "is-over" : ""}`}>
+          <span>ใช้กำลังเครื่อง (P1 ÷ C9)</span>
+          <b>
+            {pc(c.cap ? c.P1 / c.cap : 0)} · {left >= 0 ? "เหลือ" : "เกิน"} {f0(Math.abs(left))}
+          </b>
+        </div>
+      )}
+      <div className="r is-sum">
+        <span>EFF% (A4)</span>
+        <b>
+          {pc(c.A4)} <EffPill a={c.A4} t={c.C4} />
+        </b>
+      </div>
+    </>
   );
 }
 
