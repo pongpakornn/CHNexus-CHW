@@ -21,7 +21,9 @@ import "../edp.css";
 //   วางแผนรายรอบ: เพิ่มการ์ด · เลือกลูกค้า / ชิ้นงาน (STORE-PC) · ชิ้น <-> HG · เวลา START / OUT · SHOW / HIDE · ลบ · ลากสลับ
 //   แก้ HG = เวลาการ์ดถัดไปในรอบเลื่อนตาม (3.25 นาที / HG) · แก้เวลาเอง = ยึดเวลาบนจอเป็นฐานใหม่ · ลงฐานข้อมูลตอนกด SAVE ALL
 //   ALL = ภาพรวมทั้งวัน (กะ -> รอบ -> การ์ด) กด EDIT ที่รอบ = ไปแก้รอบนั้น · แม่แบบ (บันทึก / ใช้) · คัดลอกแผนจากวันอื่น · ล้างแผน
-type Tpl = { tplId: number; tplName: string; shift: string | null; roundId: number | null; createBy: string | null; createAt: string; updateAt: string | null; cardCount: number };
+type Tpl = { tplId: number; tplName: string; shift: string | null; roundId: number | null; createBy: string | null; createAt: string; updateAt: string | null; cardCount: number; isDaily?: boolean };
+type DailyCard = { partId: number | null; timeStart: string; timeEnd: string; qty: number; hg: number; roundId: number | null };
+type Daily = { tplId: number | null; tplName: string | null; cards: DailyCard[] };
 let seq = 0;
 const nextKey = () => --seq;
 
@@ -46,6 +48,11 @@ export default function PlanSetting() {
   const [all, setAll] = useState<Card[] | null>(null);
   const [dirty, setDirty] = useState(false);
   const [savedOk, setSavedOk] = useState(false); // SAVE ALL สำเร็จ = ปุ่มเป็นติ๊กเขียวสั้น ๆ
+  // 📅 แม่แบบประจำวัน: รอบที่ยังไม่มีการ์ด = แสดงช่องของแม่แบบเป็นร่าง (draft = ชื่อแม่แบบ) · ลงจริงเมื่อกด SAVE ALL
+  const [draft, setDraft] = useState<string | null>(null);
+  const [tpls, setTpls] = useState<Tpl[]>([]);
+  const [dailyBusy, setDailyBusy] = useState(false);
+  const partsRef = useRef<Part[]>([]);
   const reduce = useReducedMotion();
   const [modal, setModal] = useState<"save" | "tpl" | "apply" | "clear" | null>(null);
   const loadVer = useRef(0);
@@ -58,6 +65,7 @@ export default function PlanSetting() {
     Promise.all([api<Meta>("/edp/meta"), api<Part[]>("/edp/parts")])
       .then(([m, p]) => {
         setMeta(m);
+        partsRef.current = p;
         setParts(p);
         const s = nowSlot(m.rounds);
         setDate(s.date);
@@ -86,7 +94,23 @@ export default function PlanSetting() {
         const r = await api<CardsRes>("/edp/cards", { query: { date, shift, round } });
         if (v !== loadVer.current) return;
         const s = shiftStart(shift);
-        setEds(r.cards.map(toEd).sort((a, b) => sortMin(a.t.sb, s) - sortMin(b.t.sb, s)));
+        let list = r.cards.map(toEd);
+        let from: string | null = null;
+        if (list.length === 0) {
+          const d = await api<Daily>("/edp/templates/daily").catch(() => null);
+          if (v !== loadVer.current) return;
+          const mine = d?.tplName ? d.cards.filter((c) => c.roundId === round) : [];
+          if (mine.length) {
+            from = d!.tplName;
+            list = mine.map((c) => {
+              const t = timesOf(c.timeStart, c.timeEnd);
+              const p = c.partId ? partsRef.current.find((x) => x.partId === c.partId) : undefined;
+              return { key: nextKey(), partId: p ? c.partId : null, customer: p?.customer ?? "", qty: p ? c.qty : 0, hg: p ? c.hg : 0, perHg: p?.qtyHg ?? 0, t, base: t, baseHg: baseHgOf(p ? c.hg : 0, t), visible: true, roundId: round, done: false, img: p?.img ? `/api/images/part/${p.partId}` : null, partName: p?.partName ?? null };
+            });
+          }
+        }
+        setEds(list.sort((a, b) => sortMin(a.t.sb, s) - sortMin(b.t.sb, s)));
+        setDraft(from);
         setAll(null);
         setDirty(false);
       }
@@ -99,6 +123,28 @@ export default function PlanSetting() {
     return () => clearTimeout(t);
   }, [load]);
   useLive(["edp"], () => (dirty ? undefined : load()));
+  const loadTpls = useCallback(() => api<Tpl[]>("/edp/templates").then(setTpls).catch(() => undefined), []);
+  useEffect(() => {
+    const t = setTimeout(loadTpls, 0);
+    return () => clearTimeout(t);
+  }, [loadTpls]);
+  useLive(["edp"], loadTpls);
+  const dayTpls = tpls.filter((t) => (t.shift ?? "").toUpperCase() === "ALL");
+  const dailyId = String(tpls.find((t) => t.isDaily)?.tplId ?? "");
+  async function setDaily(v: string) {
+    if (v === dailyId || dailyBusy) return;
+    setDailyBusy(true);
+    try {
+      const r = await api<{ message: string }>("/edp/templates/daily", { method: "POST", body: { tplId: v ? +v : null } });
+      toast.show("DAILY TEMPLATE", r.message, "ok");
+      await loadTpls();
+      if (!dirty) load();
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setDailyBusy(false);
+    }
+  }
 
   async function leave(fn: () => void) {
     if (dirty && !(await dlg.confirm({ title: "UNSAVED", message: "ยังไม่ได้กด SAVE ALL · ออกจากรอบนี้แล้วการแก้ไขจะหายไป ?", ok: "LEAVE" }))) return;
@@ -191,6 +237,16 @@ export default function PlanSetting() {
         round={round}
         onRound={(r) => leave(() => setRound(r ?? fixRound(shift)))}
       >
+        {can.edit && (
+          <div className="edp-daily" title="แม่แบบประจำวัน: เปลี่ยนวันแล้วรอบที่ยังไม่มีการ์ดจะแสดงแผนจากแม่แบบนี้ให้เลย (ยังไม่บันทึกจนกด SAVE ALL) · OFF = วันที่ยังไม่มีแผนจะว่าง">
+            <Select
+              value={dailyId}
+              onChange={setDaily}
+              ariaLabel="DAILY TEMPLATE"
+              options={[{ value: "", label: "📅 DAILY TEMPLATE : OFF" }, ...dayTpls.map((t) => ({ value: String(t.tplId), label: `📅 DAILY : ${t.tplName}` }))]}
+            />
+          </div>
+        )}
         {shift !== "ALL" && (
           <>
             {can.edit && (
@@ -209,7 +265,7 @@ export default function PlanSetting() {
               </button>
             )}
             {can.add && (
-              <motion.button type="button" whileTap={{ scale: 0.97 }} className={`cta-btn is-green ${dirty && !savedOk ? "edp-pulse" : ""} ${savedOk ? "is-saved" : ""}`} onClick={() => setModal("save")}>
+              <motion.button type="button" whileTap={{ scale: 0.97 }} className={`cta-btn is-green ${(dirty || draft) && !savedOk ? "edp-pulse" : ""} ${savedOk ? "is-saved" : ""}`} onClick={() => setModal("save")}>
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.span key={savedOk ? "ok" : "save"} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: DUR.fast, ease: EASE }}>
                     {savedOk ? "✔ SAVED" : "💾 SAVE ALL"}
@@ -230,7 +286,14 @@ export default function PlanSetting() {
       ) : !shown ? (
         <Loading />
       ) : (
-        <Box title={`${dmy(date)} · กะ ${shift} · ${cur ? roundLabel(cur) : "-"} · ${shown.length} การ์ด${dirty ? " · ยังไม่บันทึก" : ""}`}>
+        <Box title={`${dmy(date)} · กะ ${shift} · ${cur ? roundLabel(cur) : "-"} · ${shown.length} การ์ด${dirty || draft ? " · ยังไม่บันทึก" : ""}`}>
+          <AnimatePresence initial={false}>
+            {draft && (
+              <motion.div key="draft" className="edp-draft" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: DUR.fast, ease: EASE }}>
+                📋 แผนจากแม่แบบประจำวัน <b>&quot;{draft}&quot;</b> · ยังไม่บันทึก · แก้ได้ตามวันนี้แล้วกด <b>SAVE ALL</b> เพื่อบันทึกจริง
+              </motion.div>
+            )}
+          </AnimatePresence>
           {shown.length === 0 && <Empty>ยังไม่มีการ์ดในรอบนี้ · กด ＋ ADD CARD หรือใช้แม่แบบ</Empty>}
           <AnimatePresence mode="wait">
             <motion.div key={`${date}|${shift}|${round}`} variants={reduce ? fadeOnly : fadeUp} initial="hidden" animate="show" exit="exit">

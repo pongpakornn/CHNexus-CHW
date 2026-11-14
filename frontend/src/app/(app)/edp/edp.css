@@ -2164,3 +2164,9 @@
     animation: none;
   }
 }
+
+/* 📅 แม่แบบประจำวัน (Plan Setting) */
+.edp-daily { min-width: 220px; max-width: 100%; }
+.edp-draft { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; border: 1px dashed #93c5fd; background: #eff6ff; color: #1e3a8a; font-size: 13px; line-height: 1.5; }
+.edp-draft b { color: #1d4ed8; }
+@media (max-width: 640px) { .edp-daily { min-width: 0; width: 100%; } }

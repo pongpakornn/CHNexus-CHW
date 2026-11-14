@@ -13973,3 +13973,117 @@ table.lqp code {
 @media (max-width: 640px) {
   .mfab-fan .rm-tip { width: min(250px, 50vw); }
 }
+
+/* 💬 Toast แชท: ตัวย่อชื่อ + ชื่อ + แผนก · ข้อความ 3 บรรทัด · ไฟล์แนบ · เข้ามาแบบสปริงนุ่ม ๆ (transform / opacity เท่านั้น) */
+.toast-card.is-chat {
+  align-items: flex-start;
+  padding-top: 10px;
+  animation: toast-chat-in 0.55s cubic-bezier(0.22, 1.25, 0.36, 1) backwards;
+  box-shadow: 0 18px 40px -14px rgb(37 99 235 / 0.55), 0 0 0 1px rgb(96 165 250 / 0.22);
+}
+@keyframes toast-chat-in {
+  0% { opacity: 0; transform: translate3d(28px, 10px, 0) scale(0.94); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+.toast-ava {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #60a5fa, #6750a4);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+.toast-ava i {
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 2px solid #60a5fa;
+  opacity: 0;
+  animation: toast-ping 1.6s var(--ease-drop) 0.3s 2;
+}
+@keyframes toast-ping {
+  0% { opacity: 0.8; transform: scale(0.9); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+.toast-msg {
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #e5e7eb;
+  white-space: pre-line;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.toast-att {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(96 165 250 / 0.16);
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 800;
+}
+.toast-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #93c5fd;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.25s var(--ease-drop), transform 0.35s var(--ease-drop);
+}
+.toast-card.is-chat:hover .toast-hint {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-card.is-chat, .toast-ava i { animation: none; }
+}
+
+/* ✨ MOTION ทั้งระบบ (Ultra smooth · ไม่กระตุก)
+   1) การ์ดที่อยู่ลึกลงไปในหน้า (นอกจอตอนเปิด) ค่อย ๆ ลอยขึ้น + ชัดขึ้นตอนเลื่อนลงมาเจอ
+      = CSS scroll-driven animation (animation-timeline: view()) ทำงานบน compositor ไม่ใช้ JavaScript ไม่แย่งเธรดหลัก
+      การ์ดที่อยู่ในจออยู่แล้วตอนเปิด = แสดงเต็มทันที (ส่วนหัวหน้าเล่น page-rise ตามเดิม) · เลื่อนกลับขึ้นไม่เล่นซ้ำจนน่ารำคาญ
+      เฉพาะ Chrome / Edge ที่รองรับ (เบราว์เซอร์อื่น = แสดงปกติ ไม่มีอะไรเสีย) · Production Plan มี Motion ของตัวเองแล้ว (ไม่ซ้อน)
+   2) ลดการเคลื่อนไหวในเครื่อง (prefers-reduced-motion) = ปิดทั้งหมด */
+@keyframes sv-reveal {
+  from { opacity: 0; transform: translate3d(0, 26px, 0) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .page-in:not(.pp-page) > * section.rounded-2xl,
+    .page-in:not(.pp-page) > .grid > section {
+      animation: sv-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+}
+
+/* 3) รูปสินค้า / รูปในการ์ด: ค่อย ๆ ชัดขึ้นตอนโหลดเสร็จ (ไม่โผล่ทีละเส้น) */
+@media (prefers-reduced-motion: no-preference) {
+  img[loading="lazy"] {
+    animation: img-in 0.35s var(--ease-drop) both;
+  }
+}
+@keyframes img-in {
+  from { opacity: 0; }
+}
+
+/* 4) แตะ / คลิกบนมือถือ: ไม่มีกรอบฟ้ากระพริบ */
+* {
+  -webkit-tap-highlight-color: transparent;
+}

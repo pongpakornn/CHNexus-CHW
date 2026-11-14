@@ -440,7 +440,7 @@ export default function ScannerPage() {
   if (!ctx) return <div className="grid h-full place-items-center text-ink-soft">⏳ LOADING...</div>;
 
   return (
-    <div className="sc-page flex flex-col gap-4 p-3 md:p-5" style={{ "--tone": tone } as React.CSSProperties}>
+    <div className="sc-page page-in flex flex-col gap-4 p-3 md:p-5" style={{ "--tone": tone } as React.CSSProperties}>
       {/* หัวหน้า + ปุ่มโหมด / เครื่องมือ */}
       <section className="sc-card sc-in relative z-20 p-4 md:p-5">
         <div className="flex flex-wrap items-center gap-3">

@@ -11,7 +11,7 @@ public sealed class ChatService
     public sealed record Attach(string Name, long Size, string Kind);
     public sealed record Reaction(string Emoji, string UserId, string Name);
     public sealed record ChatMsg(int MessageId, string From, string To, string Body, DateTime CreatedAt, DateTime? ReadAt, DateTime? EditedAt, bool Deleted, Attach Attach, List<Reaction> Reactions);
-    public sealed record FeedItem(string Kind, int Id, string From, string FromName, string Body, int? ThreadId, string Topic);
+    public sealed record FeedItem(string Kind, int Id, string From, string FromName, string Body, int? ThreadId, string Topic, string Dept = "", string Attach = null, DateTime? At = null);
     public sealed record StoredFile(string Path, string Name, string Kind);
 
     // ข้อความที่ฉันยังเห็น (ลบแชททั้งหมด = ซ่อนเฉพาะฝั่งของคนที่กดลบ)
@@ -241,13 +241,14 @@ public sealed class ChatService
             if (dmAfter.HasValue)
             {
                 using var cmd = new SqlCommand(@"
-                    SELECT TOP 10 m.MessageID, m.FromUserID, ISNULL(NULLIF(u.FullName, ''), m.FromUserID), " + Preview + @"
+                    SELECT TOP 10 m.MessageID, m.FromUserID, ISNULL(NULLIF(u.FullName, ''), m.FromUserID), " + Preview + @", ISNULL(u.Department, ''), m.AttachKind, m.CreatedAt
                     FROM Nexus.ChatMessages m LEFT JOIN Nexus.Users u ON u.UserID = m.FromUserID
                     WHERE m.ToUserID = @me AND m.MessageID > @after AND m.DeletedAt IS NULL ORDER BY m.MessageID", c);
                 cmd.Parameters.AddWithValue("@me", me);
                 cmd.Parameters.AddWithValue("@after", dmAfter.Value);
                 using var r = cmd.ExecuteReader();
-                while (r.Read()) items.Add(new FeedItem("dm", r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetString(3), null, null));
+                while (r.Read()) items.Add(new FeedItem("dm", r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetString(3), null, null,
+                                                     r.IsDBNull(4) ? "" : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetDateTime(6)));
             }
         }
         if (hasSupport)
@@ -256,7 +257,8 @@ public sealed class ChatService
             if (supAfter.HasValue)
             {
                 using var cmd = new SqlCommand(@"
-                    SELECT TOP 10 m.MessageID, m.SenderUserID, ISNULL(NULLIF(u.FullName, ''), m.SenderUserID), " + Preview + @", t.ThreadID, t.Topic
+                    SELECT TOP 10 m.MessageID, m.SenderUserID, ISNULL(NULLIF(u.FullName, ''), m.SenderUserID), " + Preview + @", t.ThreadID, t.Topic,
+                           ISNULL(u.Department, ''), m.AttachKind, m.CreatedAt
                     FROM Nexus.SupportMessages m
                     JOIN Nexus.SupportThreads t ON t.ThreadID = m.ThreadID
                     LEFT JOIN Nexus.Users u ON u.UserID = m.SenderUserID
@@ -267,7 +269,8 @@ public sealed class ChatService
                 cmd.Parameters.AddWithValue("@admin", admin);
                 cmd.Parameters.AddWithValue("@after", supAfter.Value);
                 using var r = cmd.ExecuteReader();
-                while (r.Read()) items.Add(new FeedItem("support", r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetInt32(4), r.GetString(5)));
+                while (r.Read()) items.Add(new FeedItem("support", r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetInt32(4), r.GetString(5),
+                                                     r.IsDBNull(6) ? "" : r.GetString(6), r.IsDBNull(7) ? null : r.GetString(7), r.IsDBNull(8) ? null : r.GetDateTime(8)));
             }
         }
         return (dmMax, supMax, items);

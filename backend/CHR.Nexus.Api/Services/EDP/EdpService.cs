@@ -82,6 +82,18 @@ public sealed class EdpTemplate
     public DateTime CreateAt { get; set; }
     public DateTime? UpdateAt { get; set; }
     public int CardCount { get; set; }
+    public bool IsDaily { get; set; }
+}
+
+// 📅 ช่องของแม่แบบประจำวัน (รอบคิดแล้ว) สำหรับแสดงเป็นร่างในวัน / รอบที่ยังไม่มีการ์ด
+public sealed class EdpDailyCard
+{
+    public int? PartId { get; set; }
+    public string TimeStart { get; set; }
+    public string TimeEnd { get; set; }
+    public decimal Qty { get; set; }
+    public decimal Hg { get; set; }
+    public int? RoundId { get; set; }
 }
 
 public sealed class EdpMonitorRow
@@ -433,8 +445,44 @@ public sealed class EdpService
         using var c = Conn();
         return c.Query<EdpTemplate>(@"SELECT T.TPL_ID AS TplId, T.TPL_NAME AS TplName, T.SHIFT AS Shift, T.ROUND_ID AS RoundId, T.REMARK AS Remark,
                                              T.CREATE_BY AS CreateBy, T.CREATE_AT AS CreateAt, T.UPDATE_AT AS UpdateAt,
-                                             (SELECT COUNT(*) FROM EDP.PlanTemplateCards D WHERE D.TPL_ID = T.TPL_ID) AS CardCount
-                                      FROM EDP.PlanTemplates T ORDER BY T.TPL_NAME").ToList();
+                                             (SELECT COUNT(*) FROM EDP.PlanTemplateCards D WHERE D.TPL_ID = T.TPL_ID) AS CardCount" +
+                                      (DbSchema.HasEdpDaily ? ", CAST(ISNULL(T.IS_DAILY,0) AS BIT) AS IsDaily" : "") +
+                                    " FROM EDP.PlanTemplates T ORDER BY T.TPL_NAME").ToList();
+    }
+
+    private const string TplRoundSrc = @"ISNULL(D.ROUND_ID, (SELECT TOP 1 R.ROUND_ID FROM EDP.Rounds R
+                                WHERE TRY_CAST(LEFT(D.TIME_START, 2) AS INT) % 24 >= R.START_HOUR AND TRY_CAST(LEFT(D.TIME_START, 2) AS INT) % 24 < R.END_HOUR
+                                ORDER BY R.ROUND_ID))";
+
+    // 📅 ตั้ง / ยกเลิกแม่แบบประจำวัน (มีได้ตัวเดียว · ต้องเป็นแม่แบบทั้งวัน 6 รอบ) · id = null = ปิด
+    public string SetDaily(int? id)
+    {
+        using var c = Conn();
+        c.Open();
+        using var t = c.BeginTransaction();
+        string name = null;
+        if (id is int x)
+        {
+            var row = c.QuerySingleOrDefault<(string Name, string Shift)>("SELECT TPL_NAME, ISNULL(SHIFT,'') FROM EDP.PlanTemplates WHERE TPL_ID = @x", new { x }, t);
+            if (row.Name == null) throw new InvalidOperationException("ไม่พบแม่แบบนี้แล้ว อาจถูกลบไปจากเครื่องอื่น");
+            if (!string.Equals(row.Shift, AllDay, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("ใช้ประจำวันได้เฉพาะแม่แบบทั้งวัน 6 รอบ (SAVE TEMPLATE แบบทั้งวัน)");
+            name = row.Name;
+        }
+        c.Execute("UPDATE EDP.PlanTemplates SET IS_DAILY = CASE WHEN TPL_ID = @id THEN 1 ELSE 0 END WHERE IS_DAILY = 1 OR TPL_ID = @id", new { id }, t);
+        t.Commit();
+        return name;
+    }
+
+    // 📅 แม่แบบประจำวันที่เลือกไว้ + ช่องทั้งหมด (ไม่มี = null)
+    public (int Id, string Name, List<EdpDailyCard> Cards)? Daily()
+    {
+        if (!DbSchema.HasEdpDaily) return null;
+        using var c = Conn();
+        var h = c.QueryFirstOrDefault<(int Id, string Name)>("SELECT TOP 1 TPL_ID, TPL_NAME FROM EDP.PlanTemplates WHERE IS_DAILY = 1 AND SHIFT = 'ALL' ORDER BY TPL_ID");
+        if (h.Name == null) return null;
+        var cards = c.Query<EdpDailyCard>("SELECT D.PT_ID AS PartId, D.TIME_START AS TimeStart, D.TIME_END AS TimeEnd, ISNULL(D.QTY_PLAN,0) AS Qty, ISNULL(D.HG_PLAN,0) AS Hg, " + TplRoundSrc +
+                                          " AS RoundId FROM EDP.PlanTemplateCards D WHERE D.TPL_ID = @id ORDER BY D.SEQ, D.TPD_ID", new { id = h.Id }).ToList();
+        return (h.Id, h.Name, cards);
     }
 
     // ชื่อซ้ำ = เขียนทับแม่แบบเดิม · round = null คือแม่แบบทั้งกะ (การ์ดแต่ละใบจำรอบของตัวเอง)

@@ -238,6 +238,10 @@ namespace Nexus.Helpers
         public static bool HasChemControl => _chem || (_chem = TableExists("ChemControl.Parameters") == true && TableExists("ChemControl.Readings") == true
                                                                 && TableExists("ChemControl.Sheets") == true && TableExists("ChemControl.SignFlow") == true && TableExists("ChemControl.Signs") == true);
 
+        // 📅 EDP แม่แบบประจำวัน (44_EDP_Daily_Template.sql): EDP.PlanTemplates.IS_DAILY
+        private static bool _edpDaily;
+        public static bool HasEdpDaily => _edpDaily || (_edpDaily = HasEdp && ColumnIn("EDP.PlanTemplates", "IS_DAILY") == true);
+
         // ⏰ EDP ALERT (29_EDP_Alert.sql): EDP.AlertSettings (แจ้งเตือนการ์ดเลยเวลา)
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);

@@ -7,8 +7,10 @@ import { Icon, type IconName } from "@/components/icons";
 // 🔔 แจ้งเตือนมุมขวาล่าง + เสียง (แทน NotificationManager + SystemSounds ของ WPF) - ไม่เด้ง Popup ค้าง สแกนต่อได้เลย
 //    หลอดเวลาแนวนอนติดขอบล่างค่อยๆ หดลง หมดแล้วค่อยๆ จางหาย · ชี้ค้าง = หยุดเวลา · กด = ปิด (หรือทำตาม onClick เช่น เปิดแชท)
 type Kind = "ok" | "error" | "warn" | "info" | "chat";
-type Opts = { onClick?: () => void; ms?: number };
-type Toast = { id: number; title: string; message: string; kind: Kind; ms: number; leaving: boolean; onClick?: () => void };
+/** 💬 Toast แชท: ใครส่ง (ตัวย่อ + ชื่อ) · หัวข้อ / แผนก · ข้อความ (3 บรรทัด) · ไฟล์แนบ · เวลา */
+export type ChatInfo = { name: string; attach?: string | null; time?: string | null };
+type Opts = { onClick?: () => void; ms?: number; chat?: ChatInfo };
+type Toast = { id: number; title: string; message: string; kind: Kind; ms: number; leaving: boolean; onClick?: () => void; chat?: ChatInfo };
 type Ctx = { show: (title: string, message: string, kind?: Kind, opts?: Opts) => void };
 
 const ToastCtx = createContext<Ctx | null>(null);
@@ -46,7 +48,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const id = ++seq.current;
     if (kind !== "info") beep(kind);
     const ms = opts?.ms ?? (kind === "error" || kind === "warn" ? 9000 : kind === "chat" ? 7000 : 4500);
-    setList((l) => [{ id, title, message, kind, ms, leaving: false, onClick: opts?.onClick }, ...l].slice(0, 4));
+    setList((l) => [{ id, title, message, kind, ms, leaving: false, onClick: opts?.onClick, chat: opts?.chat }, ...l].slice(0, 4));
   }, []);
 
   const leave = (id: number) => setList((l) => l.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
@@ -67,17 +69,38 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             role={t.kind === "error" ? "alert" : "status"}
             onClick={() => (t.onClick?.(), leave(t.id))}
             onTransitionEnd={(e) => e.propertyName === "opacity" && t.leaving && remove(t.id)}
-            className={`toast-card pointer-events-auto relative flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg bg-[#232531] px-2.5 pb-3 pt-2 shadow-xl shadow-black/30 transition-[opacity,transform] duration-300 ${
+            className={`toast-card ${t.chat ? "is-chat" : ""} pointer-events-auto relative flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg bg-[#232531] px-2.5 pb-3 pt-2 shadow-xl shadow-black/30 transition-[opacity,transform] duration-300 ${
               t.leaving ? "translate-x-4 opacity-0" : "opacity-100"
             }`}
           >
-            <div className="shrink-0 rounded-lg bg-white/5 p-1 backdrop-blur-xl" style={{ color: TONE[t.kind] }}>
-              <Icon name={ICON[t.kind]} />
-            </div>
-            <div className="min-w-0 flex-1 py-0.5">
-              <p className="text-xs font-semibold text-white sm:text-sm">{t.title}</p>
-              {t.message && <p className="whitespace-pre-line break-words text-[11px] text-gray-400 sm:text-xs">{t.message}</p>}
-            </div>
+            {t.chat ? (
+              <>
+                <span className="toast-ava" aria-hidden>
+                  {t.chat.name.trim().slice(0, 2).toUpperCase()}
+                  <i />
+                </span>
+                <div className="min-w-0 flex-1 py-0.5">
+                  <div className="flex items-baseline gap-2">
+                    <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">{t.chat.name}</p>
+                    {t.chat.time && <span className="shrink-0 text-[10px] font-bold text-gray-400">{t.chat.time}</span>}
+                  </div>
+                  <p className="truncate text-[10.5px] font-bold text-[#93c5fd]">{t.title}</p>
+                  {t.chat.attach && <span className="toast-att">{t.chat.attach}</span>}
+                  {t.message && <p className="toast-msg">{t.message}</p>}
+                  <span className="toast-hint">กดเพื่อเปิดแชท ›</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="shrink-0 rounded-lg bg-white/5 p-1 backdrop-blur-xl" style={{ color: TONE[t.kind] }}>
+                  <Icon name={ICON[t.kind]} />
+                </div>
+                <div className="min-w-0 flex-1 py-0.5">
+                  <p className="text-xs font-semibold text-white sm:text-sm">{t.title}</p>
+                  {t.message && <p className="whitespace-pre-line break-words text-[11px] text-gray-400 sm:text-xs">{t.message}</p>}
+                </div>
+              </>
+            )}
             {/* หลอดเวลาแนวนอนติดขอบล่าง */}
             <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/10" aria-hidden="true">
               <div

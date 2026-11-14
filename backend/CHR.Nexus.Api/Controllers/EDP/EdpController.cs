@@ -123,6 +123,7 @@ public sealed class EdpController : AppController
     public sealed record ClearReq(DateTime Date, string Shift, int? Round, bool IncludeDone);
     public sealed record TplSaveReq(string Name, string Shift, int? Round, List<EdpPlanCardIn> Cards);
     public sealed record TplApplyReq(int TplId, DateTime Date, string Shift, int? Round);
+    public sealed record TplDailyReq(int? TplId);
 
     private static string Bad(List<EdpPlanCardIn> cards)
     {
@@ -188,6 +189,23 @@ public sealed class EdpController : AppController
         LogService.WriteLog(Uid, "EDP_DELETE_TEMPLATE", $"ลบแม่แบบ {id}", id.ToString());
         return Ok(new { message = "ลบแม่แบบแล้ว" });
     }, "ลบแม่แบบไม่สำเร็จ");
+
+    // 📅 แม่แบบประจำวัน: เปิดวัน / รอบที่ยังไม่มีการ์ด = หน้า Plan Setting แสดงช่องของแม่แบบนี้เป็นร่าง (ลงจริงเมื่อกด SAVE ALL)
+    [HttpGet("templates/daily")]
+    public IActionResult Daily() => Guard(Me?.CanViewEdpSetting == true) ?? Run(() =>
+    {
+        var d = _svc.Daily();
+        return Ok(new { tplId = d?.Id, tplName = d?.Name, cards = d?.Cards ?? new List<EdpDailyCard>() });
+    }, "โหลดแม่แบบประจำวันไม่สำเร็จ");
+
+    [HttpPost("templates/daily")]
+    public IActionResult SetDaily([FromBody] TplDailyReq r) => Guard(Me?.CanEditEdpSetting == true) ?? Run(() =>
+    {
+        if (!DbSchema.HasEdpDaily) return Fail("ฐานข้อมูลยังไม่มีคอลัมน์ EDP.PlanTemplates.IS_DAILY (database/nexus/44_EDP_Daily_Template.sql)");
+        string name = _svc.SetDaily(r?.TplId);
+        LogService.WriteLog(Uid, "EDP_DAILY_TEMPLATE", name == null ? "ปิดแม่แบบประจำวัน" : $"แม่แบบประจำวัน \"{name}\"", r?.TplId?.ToString());
+        return Ok(new { message = name == null ? "ปิดแม่แบบประจำวันแล้ว · วันที่ยังไม่มีแผนจะว่าง" : $"ใช้ \"{name}\" เป็นแม่แบบประจำวันแล้ว" });
+    }, "ตั้งแม่แบบประจำวันไม่สำเร็จ");
 
     [HttpPost("templates/apply")]
     public IActionResult ApplyTemplate([FromBody] TplApplyReq r) => Guard(Me?.CanEditEdpSetting == true) ?? Run(() =>
