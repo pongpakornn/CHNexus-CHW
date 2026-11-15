@@ -559,6 +559,8 @@ namespace Nexus.Services
             return rows;
         }
 
+        public const string PartANotFound = "ไม่พบ PART A";   // error prefix: ForecastImportService turns these rows into SIMILAR / INVALID
+
         // จับคู่สินค้าด้วย PART A (ตรงทั้งคำ ไม่สนตัวพิมพ์) -> CUSTOMER + PART A ของสินค้าในระบบ
         //   Note = CUSTOMER ในไฟล์ไม่ตรงกับระบบ (ใช้ของระบบ)
         private void MatchByPartA(List<CalcImportRow> rows)
@@ -579,7 +581,7 @@ namespace Nexus.Services
             }
             foreach (var x in rows.Where(v => v.IsValid))
             {
-                if (!parts.TryGetValue(x.PartA, out var hit)) { x.Error = $"ไม่พบ PART A {x.PartA} ในระบบ"; continue; }
+                if (!parts.TryGetValue(x.PartA, out var hit)) { x.Error = $"{PartANotFound} {x.PartA} ในระบบ"; continue; }
                 var custs = hit.Select(h => h.Cust).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 if (custs.Count == 0) { x.Error = $"สินค้า PART A {x.PartA} ในระบบไม่มี CUSTOMER"; continue; }
                 if (custs.Count > 1) { x.Error = $"PART A {x.PartA} มีหลายสินค้าในระบบ ({string.Join(", ", custs.Take(3))})"; continue; }

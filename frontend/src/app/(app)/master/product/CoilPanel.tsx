@@ -102,9 +102,6 @@ export function CoilPanel({
                   <button className="cta-btn is-purple is-sm" disabled={busy} onClick={saveRename}>
                     SAVE
                   </button>
-                  <button className="fill-btn is-xs" onClick={() => setRename(null)}>
-                    CANCEL
-                  </button>
                 </span>
               ) : (
                 <b className="cp-mname">{name}</b>
@@ -112,9 +109,9 @@ export function CoilPanel({
               <span className="cp-meta">
                 {g.items.length} COIL • {qty(g.items.reduce((a, r) => a + r.weightKG, 0))} KG
               </span>
-              {canEdit && !renaming && (
+              {canEdit && (
                 <span className="ml-auto">
-                  <RowAction kind="edit" title="เปลี่ยนชื่อ MASTER COIL (Coil ลูกเปลี่ยนตาม)" onClick={() => (setEdit(null), setRename({ from: name, to: name }))} />
+                  <RowAction kind="edit" title="เปลี่ยนชื่อ MASTER COIL (Coil ลูกเปลี่ยนตาม)" active={renaming} onClick={() => (renaming ? setRename(null) : (setEdit(null), setRename({ from: name, to: name })))} />
                 </span>
               )}
             </div>
@@ -138,9 +135,7 @@ export function CoilPanel({
                     <button className="cta-btn is-purple is-sm" disabled={busy} onClick={saveEdit}>
                       💾 SAVE
                     </button>
-                    <button className="fill-btn is-xs" onClick={() => setEdit(null)}>
-                      CANCEL
-                    </button>
+                    <RowAction kind="edit" active onClick={() => setEdit(null)} />
                   </span>
                 </div>
               ) : (

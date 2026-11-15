@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -114,7 +115,7 @@ export function MinSignHost() {
       <span className="mr-flow">⏳ รอลงลายเซ็นช่อง {SLOT_NAMES[r.nextSlot ?? 0]}</span>
     )
   ) : (
-    <span className="mr-flow">คลัง {r.stockCode} ยังไม่ได้ตั้ง FLOW ลายเซ็น (SETUP › SIGN FLOW)</span>
+    <span className="mr-flow">คลัง {r.stockCode} ยังไม่ได้ตั้ง FLOW ลายเซ็น (<Link href="/admin/setup/sign-flow-min" className="underline">System Configuration › CIMS › Sign Flow</Link>)</span>
   );
 
   const histModal = hist ? createPortal(<MinSignHistory onClose={() => setHist(false)} />, document.body) : null;

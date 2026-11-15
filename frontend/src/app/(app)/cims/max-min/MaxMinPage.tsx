@@ -495,10 +495,12 @@ export default function MaxMinPage() {
                         <td className="text-right font-extrabold text-success">{r.qtyMax}</td>
                         <td className="text-right font-extrabold text-danger">{r.qtyMin}</td>
                         <td className="whitespace-nowrap text-center">
-                          <RowActions>
-                            <RowAction kind="edit" active={editing?.ptId === r.ptId} title={editing?.ptId === r.ptId ? "CANCEL" : "EDIT MAX / MIN (DAY)"} disabled={!canEdit} onClick={() => edit(r)} />
-                            <RowAction kind="reset" title="RESET = ใช้ค่าตามสูตร" disabled={!canEdit || !!busy} onClick={() => reset(r)} />
-                          </RowActions>
+                          {canEdit && (
+                            <RowActions>
+                              <RowAction kind="edit" active={editing?.ptId === r.ptId} title="EDIT MAX / MIN (DAY)" onClick={() => edit(r)} />
+                              <RowAction kind="reset" title="RESET = ใช้ค่าตามสูตร" disabled={!!busy} onClick={() => reset(r)} />
+                            </RowActions>
+                          )}
                         </td>
                       </tr>
                     ))}

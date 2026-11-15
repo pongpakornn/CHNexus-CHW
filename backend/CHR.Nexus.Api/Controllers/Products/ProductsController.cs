@@ -538,9 +538,10 @@ public sealed class ProductsController : AppController
     [HttpGet("template")]
     public IActionResult Template([FromQuery] int? stkId)
     {
-        if (Me?.CanAddProduct != true) return Deny("คุณไม่มีสิทธิ์ Import สินค้า");
-        var stocks = _stocks.GetStocks();
+        if (Me?.CanViewProductControl != true) return Deny();
+        var stocks = _stocks.GetStocks().Where(s => Me.CanViewStock(s)).ToList();   // ALL template = only stocks this user can view
         var forStock = stkId.HasValue ? stocks.FirstOrDefault(s => s.StkId == stkId.Value) : null;
+        if (stkId.HasValue && forStock == null) return Deny();
         try
         {
             string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Product, forStock == null ? "ALL_STOCKS_Template" : $"{forStock.Code}_Template");
@@ -555,7 +556,7 @@ public sealed class ProductsController : AppController
     [HttpGet("template/options")]
     public IActionResult TemplateOptions()
     {
-        if (Me?.CanAddProduct != true) return Deny();
+        if (Me?.CanViewProductControl != true) return Deny();
         var lay = new ProductControlLayoutService().GetAll();
         return Ok(_stocks.GetStocks().Where(s => Me.CanViewStock(s) && !s.IsLiveView).Select(s => new
         {
@@ -568,41 +569,49 @@ public sealed class ProductsController : AppController
     public async Task<IActionResult> ImportPreview(IFormFile file)
     {
         if (Me?.CanAddProduct != true) return Deny("คุณไม่มีสิทธิ์ Import สินค้า");
-        string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
+        byte[] data;
+        try { data = await ReadUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
-            var rows = new PartImportService().ReadExcel(path, _stocks.GetStocks());
-            var valid = rows.Where(r => r.IsValid).ToList();
-            var invalid = rows.Where(r => !r.IsValid).ToList();
-            string errors = string.Join("\n", invalid.Take(8).Select(r => $"• แถว {r.RowNumber}: {(string.IsNullOrEmpty(r.Code) ? "-" : r.Code)} - {r.Error}"))
-                            + (invalid.Count > 8 ? $"\n• ... และอีก {invalid.Count - 8:N0} แถว" : "");
-            if (valid.Count == 0) { TryDelete(path); return Fail("ไม่พบรายการที่ลงทะเบียนได้ในไฟล์นี้\n\n" + errors); }
-            int products = valid.Count(r => !r.IsCoilExtra), coilCount = valid.Count(r => r.CoilNo != null);
-            string summary = $"ไฟล์: {file.FileName}\n\nลงทะเบียนสินค้าใหม่ได้ {products:N0} รายการ" +
-                             (coilCount > 0 ? $"\nCOIL {coilCount:N0} ลูก  •  น้ำหนักรวม {valid.Where(r => r.CoilNo != null).Sum(r => r.CoilWeight):#,##0.###} KG (STOCK (UNIT) ของสินค้า = น้ำหนักรวม Coil ในทะเบียน)" : "") +
-                             (invalid.Count > 0 ? $"\n\n⚠ ข้ามแถวที่มีปัญหา {invalid.Count:N0} แถว:\n{errors}" : "") + "\n\nยืนยันการลงทะเบียนหรือไม่?";
-            return Ok(new { id = _uploads.Put(path, file.FileName, Uid, "parts", rows), summary });
+            // review only (nothing written) · the bytes stay in the upload cache (memory only, never on disk) and are parsed again on apply
+            var svc = new PartImportService();
+            var rows = svc.ReadExcel(data, _stocks.GetStocks());
+            var (items, errors) = PartImportService.Preview(rows, svc.LoadExisting());
+            return Ok(new ImportPreviewDto(_uploads.Put("", file.FileName, Uid, "parts", data), file.FileName, "PRODUCT CONTROL", items, errors));
         }
-        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
+        catch (Exception ex) { return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
     }
 
+    // re-reads + re-validates the uploaded file with the user's edits / exclusions, then the unchanged register path (new parts only)
     [HttpPost("import/apply")]
-    public IActionResult ImportApply([FromBody] string id)
+    public IActionResult ImportApply([FromBody] ImportApplyRequest req)
     {
         if (Me?.CanAddProduct != true) return Deny("คุณไม่มีสิทธิ์ Import สินค้า");
-        var it = _uploads.Get(id, Uid, "parts");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "parts");
         if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
-        var rows = (List<PartImportRow>)it.State;
         try
         {
-            int count = new PartImportService().ApplyImport(rows, Uid);
+            var (edits, skip) = PartImportService.ApplyArgs(req);
+            var stocks = _stocks.GetStocks();
+            var rows = new PartImportService().ReadExcel((byte[])it.State, stocks, edits, skip);
+            var stillBad = PartImportService.StillBad(rows, edits, skip);
+            if (stillBad.Count > 0)
+                return Fail("แถวที่แก้ไขยังไม่ผ่าน:\n" + string.Join("\n", stillBad.Take(8).Select(r => $"• แถว {r.RowNumber}: {(string.IsNullOrEmpty(r.Code) ? "-" : r.Code)} - {r.Error}")));
             var valid = rows.Where(r => r.IsValid).ToList();
+            if (valid.Count == 0) return Fail("ไม่มีรายการที่ลงทะเบียนได้ (ทุกแถวถูกข้าม หรือมีในระบบแล้ว)");
+            int count = new PartImportService().ApplyImport(rows, Uid);
+            int skipped = rows.Count(r => !r.IsValid && !skip.Contains(r.RowNumber));
             LogService.WriteLog(Uid, "REGISTER_PART_IMPORT",
-                $"Import Excel: {it.FileName} | Registered: {count} | Skipped rows: {rows.Count(r => !r.IsValid)} | Coils: {valid.Count(r => r.CoilNo != null)} | Codes: {string.Join(", ", valid.Where(v => !v.IsCoilExtra).Select(v => v.Code).Take(50))}", "");
-            _uploads.Remove(id);
-            return Ok(new { message = $"ลงทะเบียนสินค้าใหม่สำเร็จ {count:N0} รายการ" });
+                $"Import Excel: {it.FileName} | Registered: {count} | Skipped rows: {rows.Count(r => !r.IsValid)} | Excluded: {skip.Count} | Edited rows: {edits.Count} | Coils: {valid.Count(r => r.CoilNo != null)} | Codes: {string.Join(", ", valid.Where(v => !v.IsCoilExtra).Select(v => v.Code).Take(50))}", "");
+            _uploads.Remove(req.Id);
+            // Store (Max-Min) tables of every stock that got parts (the watcher also polls; this is immediate)
+            var main = stocks.FirstOrDefault(s => s.IsMain)?.StkId;
+            foreach (int id in valid.SelectMany(r => r.InMain && main.HasValue ? r.OtherStockIds.Append(main.Value) : r.OtherStockIds).Distinct())
+                LiveBus.Publish("store:" + id, "store");
+            LiveBus.Publish("data", "products");
+            return Ok(new { message = $"ลงทะเบียนสินค้าใหม่สำเร็จ {count:N0} รายการ" + (skipped > 0 ? $"\n⚠ ข้ามแถวที่ไม่ผ่านการตรวจ {skipped:N0} แถว" : "") });
         }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
         catch (Exception ex) { return Fail(ex, "ลงทะเบียนไม่สำเร็จ (ยกเลิกทั้งไฟล์ ไม่มีรายการใดถูกบันทึก)"); }
     }
 

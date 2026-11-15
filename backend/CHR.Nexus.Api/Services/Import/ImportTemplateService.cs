@@ -281,6 +281,10 @@ namespace Nexus.Services
                     int c = Array.IndexOf(heads, h) + 1;
                     if (c > 0) ws.Range(2, c, lastRow, c).Style.NumberFormat.Format = "@";   // เลขรหัสขึ้นต้น 0 ไม่หาย
                 }
+                // same look as the other import templates: yellow = fill in · gray = NO / STOCK1 already filled for the chosen stock
+                ws.Range(2, 2, lastRow, heads.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF2CC");
+                ws.Range(2, 1, lastRow, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#EDEDED");
+                if (forStock != null && stockCol > 0) ws.Range(2, stockCol, lastRow, stockCol).Style.Fill.BackgroundColor = XLColor.FromHtml("#EDEDED");
 
                 Guide(wb, forStock == null ? "CHR-Nexus - MASTER DATA › Product Control (IMPORT EXCEL)" : $"CHR-Nexus - MASTER DATA › Product Control (IMPORT EXCEL) -> {forStock.Code}  •  STOCK1 = {forStock.Code} ใส่ให้แล้ว", new[]
                 {
@@ -304,6 +308,8 @@ namespace Nexus.Services
                     ("STOCK (PCS)", "ยอดเป็นชิ้น (ตัวเลขเดียวกับ STOCK (UNIT) ของคลังที่นับเป็นชิ้น) - ใส่ช่องใดช่องหนึ่ง ถ้าใส่ทั้งคู่ต้องเท่ากัน"),
                     ("REMARK", "หมายเหตุ (ไม่บังคับ)"),
                     ("NO", "ลำดับ - ระบบไม่ได้ใช้ ลบหรือเว้นว่างได้"),
+                    ("สีของช่อง", "สีเหลือง = ช่องกรอก · สีเทา = ระบบใส่ให้ / ไม่ต้องแก้"),
+                    ("หน้าตรวจก่อนนำเข้า", "NEW = ลงทะเบียนใหม่ · SIMILAR = รหัสคล้ายสินค้าเดิม (ต่างแค่ตัวพิมพ์ / ขีด / เว้นวรรค) เลือกใช้ตัวเดิมหรือเพิ่มใหม่ · DUPLICATE = PRODUCT CODE + PART A ซ้ำในไฟล์ ใช้แถวบนสุด · INVALID = ข้อมูลไม่ถูกต้อง หรือมีในระบบแล้ว (ไม่นำเข้า) · แก้ค่า / กด ไม่ใช้ ได้ก่อนกด IMPORT"),
                     ("", "กรอกข้อมูลในชีท PRODUCTS (ชีทแรก) ได้ไม่จำกัดแถว แล้วกด IMPORT EXCEL ในหน้า MASTER DATA › Product Control"),
                 });
 
@@ -435,6 +441,15 @@ namespace Nexus.Services
                 ws.Range(2, 3, last, 4).Style.NumberFormat.Format = "@";   // PART A / PART NO เป็นข้อความ (เลขนำหน้า 0 ไม่หาย)
                 ws.Range(2, 6, last, 6).Style.NumberFormat.Format = "@";   // MONTH เป็นข้อความ 2026-10 (Excel ไม่แปลงเป็นวันที่)
                 ws.Range(2, 7, last, 9).Style.NumberFormat.Format = "#,##0";
+                // input = yellow (PART A of new rows, MONTH, numbers, WORK DAYS) · key of existing rows + view-only columns = gray
+                const string Yellow = "#FFF2CC", Gray = "#EDEDED";
+                int existingLast = r - 1;
+                ws.Range(2, 3, last, 3).Style.Fill.BackgroundColor = XLColor.FromHtml(Yellow);
+                ws.Range(2, 6, last, 10).Style.Fill.BackgroundColor = XLColor.FromHtml(Yellow);
+                ws.Range(2, 2, last, 2).Style.Fill.BackgroundColor = XLColor.FromHtml(Gray);
+                ws.Range(2, 4, last, 5).Style.Fill.BackgroundColor = XLColor.FromHtml(Gray);
+                if (existingLast >= 2) ws.Range(2, 3, existingLast, 3).Style.Fill.BackgroundColor = XLColor.FromHtml(Gray);
+                ws.SheetView.Freeze(1, 3);
 
                 Guide(wb, "CHR-Nexus - Import Forecast / Order / Delivery", new[]
                 {
@@ -446,6 +461,13 @@ namespace Nexus.Services
                     ("FORECAST / ORDER / DELIVERY", "ยอดพยากรณ์ / ยอดสั่ง / ยอดส่ง (ตัวเลขไม่ติดลบ) - ช่องว่าง = 0"),
                     ("WORK DAYS", "จำนวนวันทำงานของเดือน (ไม่บังคับ)"),
                     ("NO", "ลำดับ - ระบบไม่ได้ใช้"),
+                    ("สีช่อง", "สีเหลือง = กรอกได้ · สีเทา = ข้อมูลอ้างอิง / PART A ของแถวที่มีอยู่แล้ว (ห้ามแก้ ใช้จับคู่)"),
+                    ("ยอดเท่าเดิม", "ไม่แตะ (แสดงเป็น SAME ในพรีวิว)"),
+                    ("ยอดต่างจากในระบบ", "อัพเดทเป็นยอดใหม่ (พรีวิวแสดงยอดเดิม → ยอดใหม่ ก่อนกด IMPORT) · ช่องตัวเลขว่าง = 0"),
+                    ("PART A + MONTH ซ้ำในไฟล์", "ใช้แถวล่างสุด แถวบนถูกข้าม (แสดงเป็น DUPLICATE ในพรีวิว)"),
+                    ("PART A คล้ายของเดิม", "เช่น ต่างแค่ตัวพิมพ์ / ขีด / เว้นวรรค = SIMILAR · เลือกผูกกับ PART A เดิมในหน้าพรีวิว"),
+                    ("แถวผิด", "เช่น ไม่มี PART A / เดือนผิด / ตัวเลขผิด / ติดลบ = ข้ามแถว และแสดงในรายการผิดพลาด"),
+                    ("การลบ", "ไม่มีการลบผ่าน Import · รายการที่ไม่อยู่ในไฟล์ = คงเดิม"),
                     ("", "กดปุ่ม IMPORT แล้วเลือก: IMPORT + คำนวณ MAX / MIN AUTO (คำนวณคลังที่เปิด AUTO CALC ทันที) หรือ IMPORT อย่างเดียว (ไม่คำนวณ) / ลูกค้า + สินค้า + เดือนเดียวกับที่เคยนำเข้า จะถูกแทนที่ด้วยค่าใหม่"),
                 });
                 wb.Worksheet(1).SetTabActive();

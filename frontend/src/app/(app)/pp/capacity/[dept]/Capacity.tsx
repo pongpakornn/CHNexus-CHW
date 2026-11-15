@@ -15,6 +15,8 @@ import { PpChart, Ring, type Series } from "../../PpChart";
 import { conditionRows, EffPill, Kpi, MonthPicker, PpIcon, ProcessChips, usePpMonth } from "../../shared";
 import { Seg } from "../../Seg";
 import { ManStep, NumPick, type Preset, type Recent } from "./ActInput";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 import { PpImportPreview } from "../../PpImportPreview";
 import "../../pp.css";
 
@@ -54,14 +56,11 @@ export default function Capacity({ dept }: { dept: string }) {
   const actFile = useRef<HTMLInputElement>(null);
   const [actPv, setActPv] = useState<File | null>(null);
   const [pcsBusy, setPcsBusy] = useState(false);
+  const [pcsPv, setPcsPv] = useState<ImportPreview | null>(null);
   async function importPcs(f: File) {
     setPcsBusy(true);
     try {
-      const pv = await upload<{ id: string; summary: string; count: number }>("/pp/pcs/import", f);
-      if (!(await dlg.confirm({ title: "IMPORT PCS", message: pv.summary, ok: pv.count ? "IMPORT" : "OK" })) || !pv.count) return;
-      const r = await api<{ message: string }>("/pp/pcs/import/apply", { method: "POST", body: pv.id });
-      toast.show("IMPORTED", r.message, "ok");
-      await reload(true);
+      setPcsPv(await upload<ImportPreview>("/pp/pcs/import", f));
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -238,6 +237,7 @@ export default function Capacity({ dept }: { dept: string }) {
               />
             </>
           )}
+          {pcsPv && <ImportReview preview={pcsPv} applyUrl="/pp/pcs/import/apply" onClose={() => setPcsPv(null)} onDone={() => { setPcsPv(null); reload(true); }} />}
           <MonthPicker value={month} onChange={changeMonth} />
         </>
       }

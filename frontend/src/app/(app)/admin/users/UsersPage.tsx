@@ -10,17 +10,18 @@ import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { ContactModal } from "./ContactModal";
 import { PermissionModal } from "./PermissionModal";
-import { SetupModal } from "./SetupModal";
 import type { Can, User } from "./types";
 import { UserEditModal } from "./UserEditModal";
 import { Modal } from "@/components/modals/Modal";
 import { useAuth } from "@/lib/auth";
 import ActivityLogPage from "../../cims/activity-log/ActivityLogPage";
 import { useLive } from "@/lib/live";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 
 const LEVEL_TONE: Record<number, string> = { 1: "var(--danger)", 2: "var(--accent)", 3: "var(--info)" };
 
-// 👥 USER MANAGEMENT (UserManagementView): การ์ดผู้ใช้ - ดู / เพิ่ม / แก้ไข / ลบ / กำหนดสิทธิ์ / Import / ALERT CONTACT / ⚙ SETUP
+// 👥 USER MANAGEMENT (UserManagementView): การ์ดผู้ใช้ - ดู / เพิ่ม / แก้ไข / ลบ / กำหนดสิทธิ์ / Import / ALERT CONTACT
 export default function UsersPage() {
   const toast = useToast();
   const dlg = useDialogs();
@@ -32,11 +33,11 @@ export default function UsersPage() {
   const [edit, setEdit] = useState<{ user: User | null } | null>(null);
   const [perm, setPerm] = useState<{ userId: string; readOnly: boolean } | null>(null);
   const [contact, setContact] = useState<((saved: boolean) => void) | null>(null);
-  const [setup, setSetup] = useState(false);
   const [logOpen, setLogOpen] = useState(false); // 🕘 ACTIVITY LOG (ทุกระบบ) ในหน้าต่าง
   const { me: auth } = useAuth();
   const canLog = !!auth && (auth.userLevel === 1 || !!auth.can.activityLog);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const tokenRef = useRef("");
 
@@ -115,11 +116,7 @@ export default function UsersPage() {
   async function doImport(file: File) {
     setBusy(true);
     try {
-      const pv = await upload<{ id: string; summary: string }>("/users/import", file);
-      if (!(await dlg.confirm({ title: "IMPORT USER / PERMISSION", message: pv.summary, ok: "IMPORT" }))) return;
-      const r = await api<{ message: string }>("/users/import/apply", { method: "POST", body: pv.id });
-      await dlg.alert({ title: "IMPORT", message: r.message, tone: "ok" });
-      load();
+      setPreview(await upload<ImportPreview>("/users/import", file));
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -135,12 +132,12 @@ export default function UsersPage() {
     <PageBody>
       <PageHeader
         icon="/icons/management.png"
-        title="USER MANAGEMENT"
+        title="USER ACCOUNTS"
         subtitle="View, add, edit and delete users and set the permissions of every system"
         actions={
           <>
             <ActionMenu
-              caption={["USERS", "LOG · SETUP · ADD"]}
+              caption={["USERS", "LOG · ADD"]}
               fab={
                 <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <circle cx="9" cy="8" r="3.5" />
@@ -153,7 +150,6 @@ export default function UsersPage() {
                 ...(can.contact
                   ? [{ key: "alert", title: "ALERT CONTACT", detail: "ผู้ติดต่อ Admin ที่แสดงให้ผู้ใช้ที่ยังไม่ได้กำหนดคลังสแกน / ไม่มีสิทธิ์ เห็นว่าต้องติดต่อใคร", color: "#dc2626", icon: "alert" as const, onClick: () => editContacts() }]
                   : []),
-                ...(can.setup ? [{ key: "setup", title: "SETUP", detail: "ตั้งค่าระบบ (Admin): PR SETTINGS / EXCEL SETUP / DEPARTMENTS", color: "#6750a4", icon: "setup" as const, onClick: () => setSetup(true) }] : []),
                 ...(canLog ? [{ key: "log", title: "ACTIVITY LOG", detail: "ประวัติการใช้งานทุกระบบ (CIMS · MASTER DATA · EDP PLANNING · USER MANAGEMENT): ใคร เพิ่ม / แก้ไข / ลบ / อัพเดท อะไร เมื่อไร เครื่องไหน", color: "#0284c7", icon: "calendar" as const, onClick: () => setLogOpen(true) }] : []),
                 ...(can.add ? [{ key: "add", title: "ADD USER", detail: "เพิ่มผู้ใช้ใหม่ กำหนดระดับ (Level) และสิทธิ์การใช้งานแต่ละหน้า", color: "#16a34a", icon: "user" as const, onClick: () => setEdit({ user: null }) }] : []),
               ]}
@@ -179,6 +175,18 @@ export default function UsersPage() {
                     if (f) doImport(f);
                   }}
                 />
+                {preview && (
+                  <ImportReview
+                    preview={preview}
+                    applyUrl="/users/import/apply"
+                    warn="การนำเข้าสิทธิ์มีผลทันทีกับผู้ใช้ทั้ง CHR-Nexus และ CIMS"
+                    onClose={() => setPreview(null)}
+                    onDone={() => {
+                      setPreview(null);
+                      load();
+                    }}
+                  />
+                )}
               </>
             )}
           </>
@@ -260,8 +268,8 @@ export default function UsersPage() {
                       <td className="whitespace-nowrap text-xs font-semibold text-ink-soft max-[1180px]:hidden">{u.lastLoginText.replace(/^Last login\s*/i, "")}</td>
                       <td>
                         <div className="inline-flex items-center gap-1.5">
-                          <RowAction kind="view" title="VIEW PERMISSION" onClick={() => setPerm({ userId: u.userId, readOnly: true })} />
-                          {can.edit && <RowAction kind="edit" title="EDIT USER" onClick={() => setEdit({ user: u })} />}
+                          <RowAction kind="view" title="VIEW PERMISSION" active={perm?.userId === u.userId && perm.readOnly} onClick={() => setPerm(perm?.userId === u.userId && perm.readOnly ? null : { userId: u.userId, readOnly: true })} />
+                          {can.edit && <RowAction kind="edit" title="EDIT USER" active={edit?.user?.userId === u.userId} onClick={() => setEdit(edit?.user?.userId === u.userId ? null : { user: u })} />}
                           {can.perms && (
                             <button className="cta-btn is-purple is-sm" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
                               🔑 PERMISSION
@@ -312,8 +320,8 @@ export default function UsersPage() {
                 {u.showScanChip && <div className={`truncate font-extrabold ${u.scanNotSet ? "text-danger" : "text-success"}`}>{u.scanChipText}</div>}
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-1 border-t border-line/60 p-2">
-                <RowAction kind="view" title="VIEW PERMISSION" onClick={() => setPerm({ userId: u.userId, readOnly: true })} />
-                {can.edit && <RowAction kind="edit" title="EDIT USER" onClick={() => setEdit({ user: u })} />}
+                <RowAction kind="view" title="VIEW PERMISSION" active={perm?.userId === u.userId && perm.readOnly} onClick={() => setPerm(perm?.userId === u.userId && perm.readOnly ? null : { userId: u.userId, readOnly: true })} />
+                {can.edit && <RowAction kind="edit" title="EDIT USER" active={edit?.user?.userId === u.userId} onClick={() => setEdit(edit?.user?.userId === u.userId ? null : { user: u })} />}
                 {can.perms && (
                   <button className="cta-btn is-purple is-sm" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
                     🔑 PERMISSION
@@ -370,7 +378,6 @@ export default function UsersPage() {
           }}
         />
       )}
-      {setup && <SetupModal onClose={() => setSetup(false)} />}
       {logOpen && (
         <Modal open size="xl" title="🕘 ACTIVITY LOG • ทุกระบบ" onClose={() => setLogOpen(false)}>
           <ActivityLogPage embedded />

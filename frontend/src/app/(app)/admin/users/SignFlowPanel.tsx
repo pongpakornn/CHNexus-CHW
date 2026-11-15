@@ -27,11 +27,13 @@ const SRC: Record<Src, { base: string; label: string; noun: string; doc: string 
   chem: { base: "/chem/settings", label: "CHEMICAL CONTROL", noun: "รายการ", doc: "ใบบันทึกผลการตรวจวัดค่าน้ำยาเคมีประจำเดือน (FM-PD-04-03/1) ต่อพารามิเตอร์ · ALL (DEFAULT) = ใช้กับทุกรายการที่ไม่ได้ตั้งเฉพาะ · กด SUBMIT แล้วส่งตามลำดับจนอนุมัติ" },
 };
 
-export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
-  const [src, setSrc] = useState<Src>("min");
+export function SignFlowPanel({ onDirty, only }: { onDirty: (v: boolean) => void; only?: Src }) {
+  const [tab, setSrc] = useState<Src>("min");
+  const src = only ?? tab; // only = หน้า SYSTEM CONFIGURATION ของเอกสารเดียว (ไม่มีแท็บสลับ)
   const [dirtyNow, setDirtyNow] = useState(false);
   return (
     <div className="grid gap-4">
+      {!only && (
       <div className="sf-src" role="tablist" aria-label="Document">
         {(Object.keys(SRC) as Src[]).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={src === k} className={src === k ? "is-on" : ""} disabled={dirtyNow && src !== k} title={dirtyNow && src !== k ? "กด SAVE ก่อนเปลี่ยนเอกสาร" : undefined} onClick={() => setSrc(k)}>
@@ -39,6 +41,7 @@ export function SignFlowPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           </button>
         ))}
       </div>
+      )}
       <FlowEditor
         key={src}
         src={src}

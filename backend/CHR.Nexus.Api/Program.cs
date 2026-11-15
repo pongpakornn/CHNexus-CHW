@@ -53,6 +53,8 @@ if (string.IsNullOrWhiteSpace(jwt.Key) || jwt.Key.Length < 32)
 builder.Services.AddSingleton(jwt);
 builder.Services.AddSingleton<JwtTokens>();
 builder.Services.AddSingleton<CHR.Nexus.Api.Web.UploadCache>();
+// 🧹 upload cache lives 30 min in memory; files older than 1 h are orphans of a recycle / crash
+CHR.Nexus.Api.Web.AppController.SweepUploads(TimeSpan.FromHours(1));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>

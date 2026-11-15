@@ -382,66 +382,71 @@ public sealed class UsersController : AppController
     public async Task<IActionResult> ImportPreview(IFormFile file)
     {
         if (Me?.CanAddUser != true || !Me.CanEditUser) return Deny();
-        string path;
-        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
+        byte[] data;
+        try { data = await ReadUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
-            bool allowMaster = Me.UserLevel == 1 || Me.IsMasterAdmin;
-            var f = _svc.ReadImport(path, allowMaster);
-            // 🔐 ทุกคน (รวม Level 1 / Master Admin): ห้ามแก้สิทธิ์ / ล็อก / เปลี่ยน Level ของตัวเองผ่านการนำเข้า (เหมือน Edit / SavePermissions)
-            foreach (var r in f.Users.Where(r => r.IsValid && string.Equals(r.User.UserId, Uid, StringComparison.OrdinalIgnoreCase)))
-                if ((r.LockGiven && r.User.IsLocked) || (r.LevelGiven && r.User.Level != Me.UserLevel)) r.Error = "ล็อก / เปลี่ยน Level ของบัญชีตัวเองผ่านการนำเข้าไม่ได้";
-            foreach (var p in f.Perms.Where(p => p.IsValid && string.Equals(p.UserId, Uid, StringComparison.OrdinalIgnoreCase))) p.Error = "แก้สิทธิ์ของตัวเองไม่ได้";
-            if (!allowMaster)
-            {
-                // 🔐 นำเข้า Excel ต้องไม่เป็นช่องทางเลี่ยงกฎเดียวกับ ADD / EDIT / PERMISSION
-                var known = _svc.GetUsers().ToDictionary(x => x.UserId, x => x, StringComparer.OrdinalIgnoreCase);
-                foreach (var r in f.Users.Where(r => r.IsValid))
-                {
-                    known.TryGetValue(r.User.UserId, out var ex);
-                    int lv = r.LevelGiven ? r.User.Level : ex?.Level ?? 2;
-                    if (ex != null && CannotManage(ex)) r.Error = "ไม่มีสิทธิ์แก้ผู้ใช้ที่เป็นผู้ดูแลระบบ หรือ Level สูงกว่าคุณ";
-                    else if (lv < Me.UserLevel) r.Error = "กำหนด Level สูงกว่า Level ของคุณไม่ได้";
-                }
-                foreach (var p in f.Perms.Where(p => p.IsValid))
-                {
-                    known.TryGetValue(p.UserId, out var ex);
-                    if (ex == null && !f.Users.Any(r => r.IsValid && r.IsNew && string.Equals(r.User.UserId, p.UserId, StringComparison.OrdinalIgnoreCase))) p.Error = "ไม่พบผู้ใช้นี้ (แถวผู้ใช้ถูกข้าม)";
-                    if (ex != null && CannotManage(ex)) p.Error = "ไม่มีสิทธิ์แก้สิทธิ์ของผู้ดูแลระบบ หรือผู้ใช้ Level สูงกว่าคุณ";
-                }
-            }
-            if (f.Perms.Count > 0 && !Me.CanSetPermissions)
-                foreach (var p in f.Perms.Where(p => p.IsValid)) p.Error = "ไม่มีสิทธิ์กำหนดสิทธิ์ผู้ใช้ (APPROVE ของ UserManagement)";
-            var users = f.Users.Where(r => r.IsValid).ToList();
-            var perms = f.Perms.Where(r => r.IsValid).ToList();
-            var bad = f.Users.Where(r => !r.IsValid).Select(r => $"• {r.Sheet} แถว {r.RowNumber}: {(string.IsNullOrEmpty(r.User.UserId) ? "-" : r.User.UserId)} - {r.Error}")
-                      .Concat(f.Perms.Where(r => !r.IsValid).Select(r => $"• {r.Sheet} แถว {r.RowNumber}: {(string.IsNullOrEmpty(r.UserId) ? "-" : r.UserId)} {r.SysId} - {r.Error}")).ToList();
-            string errs = string.Join("\n", bad.Take(10)) + (bad.Count > 10 ? $"\n• ... และอีก {bad.Count - 10:N0} แถว" : "");
-            if (users.Count == 0 && perms.Count == 0) { TryDelete(path); return Fail("ไม่พบรายการที่นำเข้าได้ในไฟล์นี้\n\n" + errs); }
-            string summary = $"ไฟล์: {file.FileName}\n\n" +
-                             $"ผู้ใช้: เพิ่มใหม่ {users.Count(r => r.IsNew):N0} คน  •  อัพเดท {users.Count(r => !r.IsNew):N0} คน\n" +
-                             $"สิทธิ์: ตั้งค่า {perms.Count:N0} รายการ ({perms.Select(p => p.UserId).Distinct(StringComparer.OrdinalIgnoreCase).Count():N0} คน)" +
-                             (bad.Count > 0 ? $"\n\n⚠ ข้ามแถวที่มีปัญหา {bad.Count:N0} แถว:\n{errs}" : "") + "\n\nยืนยันการนำเข้าหรือไม่?";
-            return Ok(new { id = _uploads.Put(path, file.FileName, Uid, "users", (f, bad.Count)), summary });
+            // review only (nothing written, no password in the response) · bytes stay in memory only (never on disk) and are parsed again on apply
+            var f = _svc.ReadImport(data, Me.UserLevel == 1 || Me.IsMasterAdmin);
+            CheckImportRules(f);
+            var (rows, errors) = UserAdminService.Preview(f, _svc.GetUsers(), _svc.GetPermFlags());
+            return Ok(new ImportPreviewDto(_uploads.Put("", file.FileName, Uid, "users", data), file.FileName, "USER / PERMISSION", rows, errors));
         }
-        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
+        catch (Exception ex) { return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
     }
 
+    // same rules as ADD / EDIT / PERMISSION: self-edit, level, admin targets, permission right (run again on apply after review edits)
+    private void CheckImportRules(UserAdminService.ImportFile f)
+    {
+        bool allowMaster = Me.UserLevel == 1 || Me.IsMasterAdmin;
+        // 🔐 ทุกคน (รวม Level 1 / Master Admin): ห้ามแก้สิทธิ์ / ล็อก / เปลี่ยน Level ของตัวเองผ่านการนำเข้า (เหมือน Edit / SavePermissions)
+        foreach (var r in f.Users.Where(r => r.IsValid && string.Equals(r.User.UserId, Uid, StringComparison.OrdinalIgnoreCase)))
+            if ((r.LockGiven && r.User.IsLocked) || (r.LevelGiven && r.User.Level != Me.UserLevel)) r.Error = "ล็อก / เปลี่ยน Level ของบัญชีตัวเองผ่านการนำเข้าไม่ได้";
+        foreach (var p in f.Perms.Where(p => p.IsValid && string.Equals(p.UserId, Uid, StringComparison.OrdinalIgnoreCase))) p.Error = "แก้สิทธิ์ของตัวเองไม่ได้";
+        if (!allowMaster)
+        {
+            // 🔐 นำเข้า Excel ต้องไม่เป็นช่องทางเลี่ยงกฎเดียวกับ ADD / EDIT / PERMISSION
+            var known = _svc.GetUsers().ToDictionary(x => x.UserId, x => x, StringComparer.OrdinalIgnoreCase);
+            foreach (var r in f.Users.Where(r => r.IsValid))
+            {
+                known.TryGetValue(r.User.UserId, out var ex);
+                int lv = r.LevelGiven ? r.User.Level : ex?.Level ?? 2;
+                if (ex != null && CannotManage(ex)) r.Error = "ไม่มีสิทธิ์แก้ผู้ใช้ที่เป็นผู้ดูแลระบบ หรือ Level สูงกว่าคุณ";
+                else if (lv < Me.UserLevel) r.Error = "กำหนด Level สูงกว่า Level ของคุณไม่ได้";
+            }
+            foreach (var p in f.Perms.Where(p => p.IsValid))
+            {
+                known.TryGetValue(p.UserId, out var ex);
+                if (ex == null && !f.Users.Any(r => r.IsValid && r.IsNew && string.Equals(r.User.UserId, p.UserId, StringComparison.OrdinalIgnoreCase))) p.Error = "ไม่พบผู้ใช้นี้ (แถวผู้ใช้ถูกข้าม)";
+                if (ex != null && CannotManage(ex)) p.Error = "ไม่มีสิทธิ์แก้สิทธิ์ของผู้ดูแลระบบ หรือผู้ใช้ Level สูงกว่าคุณ";
+            }
+        }
+        if (f.Perms.Count > 0 && !Me.CanSetPermissions)
+            foreach (var p in f.Perms.Where(p => p.IsValid)) p.Error = "ไม่มีสิทธิ์กำหนดสิทธิ์ผู้ใช้ (APPROVE ของ UserManagement)";
+    }
+
+    // re-reads the uploaded file, applies the review (exclude / NAME / LEVEL edits), re-checks every rule, then the unchanged write path
     [HttpPost("import/apply")]
-    public IActionResult ImportApply([FromBody] string id)
+    public IActionResult ImportApply([FromBody] ImportApplyRequest req)
     {
         if (Me?.CanAddUser != true || !Me.CanEditUser) return Deny();
-        var it = _uploads.Get(id, Uid, "users");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "users");
         if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
-        var (file, bad) = ((UserAdminService.ImportFile, int))it.State;
         try
         {
+            var file = _svc.ReadImport((byte[])it.State, Me.UserLevel == 1 || Me.IsMasterAdmin);
+            UserAdminService.ApplyReview(file, req);
+            CheckImportRules(file);
+            if (!file.Users.Any(x => x.IsValid) && !file.Perms.Any(p => p.IsValid)) return Fail("ไม่มีรายการที่นำเข้าได้ (ทุกแถวถูกข้าม หรือไม่ผ่านการตรวจ)");
+            int bad = file.Users.Count(x => !x.IsValid) + file.Perms.Count(p => !p.IsValid);
             var r = _svc.ApplyImport(file);
-            LogService.WriteLog(Uid, "USER_IMPORT", $"Import Excel: {it.FileName} | Added: {r.Added} | Updated: {r.Updated} | Permissions: {r.Perms} | Skipped rows: {bad}", "");
-            _uploads.Remove(id);
+            LogService.WriteLog(Uid, "USER_IMPORT", $"Import Excel: {it.FileName} | Added: {r.Added} | Updated: {r.Updated} | Permissions: {r.Perms} | Skipped rows: {bad} | Excluded: {req.Exclude?.Count ?? 0} | Edited: {req.Edits?.Count ?? 0}", "");
+            _uploads.Remove(req.Id);
             (_cache as MemoryCache)?.Compact(1.0);   // สิทธิ์ที่นำเข้ามีผลทันที
+            LiveBus.Publish("data");
             return Ok(new { message = $"นำเข้าสำเร็จ\nผู้ใช้เพิ่มใหม่ {r.Added:N0} คน  •  อัพเดท {r.Updated:N0} คน\nสิทธิ์ {r.Perms:N0} รายการ" });
         }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
         catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ (ยกเลิกทั้งไฟล์ ไม่มีรายการใดถูกบันทึก)"); }
     }
 }

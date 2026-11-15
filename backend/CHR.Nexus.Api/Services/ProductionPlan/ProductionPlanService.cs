@@ -133,9 +133,10 @@ public sealed class ProductionPlanService
     private static DateTime? MonthKey(string s) =>
         DateTime.TryParseExact((s ?? "").Trim() + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
 
-    public int SaveMachine(MachineForm f, string uid)
+    // field rules (no DB) - shared by SaveMachine and the Excel import preview
+    public static void ValidateMachine(MachineForm f)
     {
-        string code = (f.Code ?? "").Trim(), grp = (f.Group ?? "").Trim().ToUpperInvariant();
+        string code = (f.Code ?? "").Trim(), grp = (f.Group ?? "").Trim();
         if (code.Length == 0) throw new InvalidOperationException("กรุณากรอกชื่อเครื่องจักร");
         if (grp.Length == 0) throw new InvalidOperationException("กรุณากรอก GROUP");
         if (f.Qty <= 0) throw new InvalidOperationException("Q'ty Line or MC ต้องมากกว่า 0");
@@ -144,17 +145,26 @@ public sealed class ProductionPlanService
         if (f.Sph is <= 0) throw new InvalidOperationException("SPH 100% ต้องมากกว่า 0 (เว้นว่าง = คำนวณจากตาราง Product)");
         DateTime? from = MonthKey(f.From), to = MonthKey(f.To);
         if (from != null && to != null && to < from) throw new InvalidOperationException("ใช้ถึงเดือน ต้องไม่ก่อน ใช้ตั้งแต่เดือน");
-        using var c = Conn();
+    }
+
+    // cn / t = run inside the caller's transaction (Excel import) · null = own connection (screens)
+    public int SaveMachine(MachineForm f, string uid, SqlConnection cn = null, SqlTransaction t = null)
+    {
+        ValidateMachine(f);
+        string code = (f.Code ?? "").Trim(), grp = (f.Group ?? "").Trim().ToUpperInvariant();
+        DateTime? from = MonthKey(f.From), to = MonthKey(f.To);
+        using var own = cn == null ? Conn() : null;
+        var c = cn ?? own;
         var p = new { id = f.Id, dept = Dept(f.Dept), code, grp, sub = string.IsNullOrWhiteSpace(f.SubGroup) ? null : f.SubGroup.Trim(), sort = f.Sort, qty = f.Qty, eff = f.Eff, man = f.Man, sph = f.Sph, pcs = f.ByPcs, act = f.Active, uid };
-        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM ProductionPlan.Machines WHERE Dept = @dept AND MachineCode = @code AND MachineID <> @id", p) > 0)
+        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM ProductionPlan.Machines WHERE Dept = @dept AND MachineCode = @code AND MachineID <> @id", p, t) > 0)
             throw new InvalidOperationException($"มีเครื่องจักร {code} อยู่แล้ว");
         int id = f.Id > 0
             ? c.ExecuteScalar<int>(@"UPDATE ProductionPlan.Machines SET MachineCode = @code, GroupName = @grp, SubGroup = @sub, SortNo = @sort, QtyLine = @qty, TargetEff = @eff,
-                                         ManPower = @man, SphOverride = @sph, StrokeByPcs = @pcs, IsActive = @act, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE MachineID = @id; SELECT @id;", p)
+                                         ManPower = @man, SphOverride = @sph, StrokeByPcs = @pcs, IsActive = @act, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE MachineID = @id; SELECT @id;", p, t)
             : c.ExecuteScalar<int>(@"INSERT INTO ProductionPlan.Machines (Dept, MachineCode, GroupName, SubGroup, SortNo, QtyLine, TargetEff, ManPower, SphOverride, StrokeByPcs, IsActive, CreatedBy, UpdatedBy)
-                                     VALUES (@dept, @code, @grp, @sub, @sort, @qty, @eff, @man, @sph, @pcs, 1, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p);
+                                     VALUES (@dept, @code, @grp, @sub, @sort, @qty, @eff, @man, @sph, @pcs, 1, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p, t);
         if (DbSchema.HasPpMachineRange)
-            c.Execute("UPDATE ProductionPlan.Machines SET FromMonth = @from, ToMonth = @to WHERE MachineID = @id", new { id, from, to });
+            c.Execute("UPDATE ProductionPlan.Machines SET FromMonth = @from, ToMonth = @to WHERE MachineID = @id", new { id, from, to }, t);
         return id;
     }
 
@@ -172,32 +182,41 @@ public sealed class ProductionPlanService
         return code;
     }
 
-    public void SaveShifts(IEnumerable<PpShift> list, string uid)
+    public static void ValidateShift(PpShift s)
+    {
+        if (string.IsNullOrWhiteSpace(s.Name)) throw new InvalidOperationException("กรุณากรอกชื่อ Plan SPH");
+        if (s.Hours <= 0 || s.Hours > 24) throw new InvalidOperationException($"{s.Name}: ชั่วโมงต้องอยู่ระหว่าง 0 - 24");
+    }
+
+    public void SaveShifts(IEnumerable<PpShift> list, string uid, SqlConnection cn = null, SqlTransaction tx = null)
     {
         var rows = list.ToList();
         if (rows.Count == 0) throw new InvalidOperationException("ไม่มีข้อมูล");
-        foreach (var s in rows)
-        {
-            if (string.IsNullOrWhiteSpace(s.Name)) throw new InvalidOperationException("กรุณากรอกชื่อ Plan SPH");
-            if (s.Hours <= 0 || s.Hours > 24) throw new InvalidOperationException($"{s.Name}: ชั่วโมงต้องอยู่ระหว่าง 0 - 24");
-        }
-        using var c = Conn();
-        c.Open();
-        using var t = c.BeginTransaction();
+        foreach (var s in rows) ValidateShift(s);
+        using var own = cn == null ? Conn() : null;
+        own?.Open();
+        var c = cn ?? own;
+        using var ownT = tx == null ? c.BeginTransaction() : null;
         foreach (var s in rows)
             c.Execute(@"UPDATE ProductionPlan.ShiftHours SET ShiftName = @Name, Hours = @Hours, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE ShiftID = @Id",
-                      new { s.Name, s.Hours, s.Id, uid }, t);
-        t.Commit();
+                      new { s.Name, s.Hours, s.Id, uid }, tx ?? ownT);
+        ownT?.Commit();
     }
 
-    public void SaveSettings(decimal factor, decimal perDay, string uid)
+    public static void ValidateSettings(decimal factor, decimal perDay)
     {
         if (factor <= 0 || factor > 5) throw new InvalidOperationException("ตัวคูณ Man Hour ต้องอยู่ระหว่าง 0 - 5");
         if (perDay <= 0 || perDay > 24) throw new InvalidOperationException("ชั่วโมง / คน / วัน ต้องอยู่ระหว่าง 0 - 24");
-        using var c = Conn();
+    }
+
+    public void SaveSettings(decimal factor, decimal perDay, string uid, SqlConnection cn = null, SqlTransaction t = null)
+    {
+        ValidateSettings(factor, perDay);
+        using var own = cn == null ? Conn() : null;
+        var c = cn ?? own;
         c.Execute(@"UPDATE ProductionPlan.Settings SET SettingValue = @factor, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE SettingKey = 'ManHourFactor';
                     UPDATE ProductionPlan.Settings SET SettingValue = @perDay, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE SettingKey = 'ManHourPerDay';",
-                  new { factor, perDay, uid });
+                  new { factor, perDay, uid }, t);
     }
 
     // ---------------------------------------------------------------- ตาราง Product ของเครื่อง
@@ -261,17 +280,32 @@ public sealed class ProductionPlanService
     // ✏ PCS ของแถว Product เฉพาะเดือน · null = กลับไปใช้ Order / Forecast
     public string SetPcs(DateTime month, int itemId, decimal? pcs, string uid)
     {
+        using var c = Conn();
+        return SetPcs(c, null, month, itemId, pcs, uid);
+    }
+
+    // Excel import: every row in one transaction (all or nothing) · same SQL as SetPcs
+    public void SetPcsBatch(DateTime month, IEnumerable<(int ItemId, decimal? Pcs)> rows, string uid)
+    {
+        using var c = Conn();
+        c.Open();
+        using var t = c.BeginTransaction();
+        foreach (var (itemId, pcs) in rows) SetPcs(c, t, month, itemId, pcs, uid);
+        t.Commit();
+    }
+
+    private static string SetPcs(SqlConnection c, SqlTransaction t, DateTime month, int itemId, decimal? pcs, string uid)
+    {
         if (pcs is < 0 or > 99_999_999) throw new InvalidOperationException("PCS ต้องอยู่ระหว่าง 0 - 99,999,999");
         var m = new DateTime(month.Year, month.Month, 1);
-        using var c = Conn();
         var label = c.QueryFirstOrDefault<string>(@"SELECT m.MachineCode + ' | ' + ISNULL(a.PartA, a.PartCode) FROM ProductionPlan.MachineParts x
-                                                    JOIN ProductionPlan.Machines m ON m.MachineID = x.MachineID JOIN Nexus.Parts a ON a.PartID = x.PartAID WHERE x.ItemID = @itemId", new { itemId })
+                                                    JOIN ProductionPlan.Machines m ON m.MachineID = x.MachineID JOIN Nexus.Parts a ON a.PartID = x.PartAID WHERE x.ItemID = @itemId", new { itemId }, t)
                     ?? throw new InvalidOperationException("ไม่พบรายการ");
         if (pcs == null)
-            c.Execute("DELETE FROM ProductionPlan.PcsOverrides WHERE MonthStart = @m AND ItemID = @itemId", new { m, itemId });
+            c.Execute("DELETE FROM ProductionPlan.PcsOverrides WHERE MonthStart = @m AND ItemID = @itemId", new { m, itemId }, t);
         else
             c.Execute(@"UPDATE ProductionPlan.PcsOverrides SET Pcs = @pcs, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE MonthStart = @m AND ItemID = @itemId;
-                        IF @@ROWCOUNT = 0 INSERT INTO ProductionPlan.PcsOverrides (MonthStart, ItemID, Pcs, UpdatedBy) VALUES (@m, @itemId, @pcs, @uid);", new { m, itemId, pcs, uid });
+                        IF @@ROWCOUNT = 0 INSERT INTO ProductionPlan.PcsOverrides (MonthStart, ItemID, Pcs, UpdatedBy) VALUES (@m, @itemId, @pcs, @uid);", new { m, itemId, pcs, uid }, t);
         return label;
     }
 
@@ -300,7 +334,8 @@ public sealed class ProductionPlanService
 
     public sealed record PartForm(int Id, int MachineId, int Sort, int PartAId, int? PartBId, string Process, decimal Tp, decimal Col, decimal Ct, decimal? Man, bool Active);
 
-    public int SavePart(PartForm f, string uid)
+    // field rules (no DB) - shared by SavePart and the Excel import preview
+    public static void ValidatePart(PartForm f)
     {
         if (f.MachineId <= 0) throw new InvalidOperationException("กรุณาเลือกเครื่องจักร");
         if (f.PartAId <= 0) throw new InvalidOperationException("กรุณาเลือก PART A (STORE-FG)");
@@ -308,26 +343,40 @@ public sealed class ProductionPlanService
         if (f.Col <= 0) throw new InvalidOperationException("Pcs./Stroke ต้องมากกว่า 0");
         if (f.Ct <= 0) throw new InvalidOperationException("MC CT (วินาที) ต้องมากกว่า 0");
         if (f.Man is < 0) throw new InvalidOperationException("STD MAN ติดลบไม่ได้");
+    }
+
+    // every product row of the given machines (any month, active or not) - used by the import preview
+    public List<PpPart> PartsOf(int[] machineIds)
+    {
+        if (machineIds.Length == 0) return new();
         using var c = Conn();
-        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM ProductionPlan.Machines WHERE MachineID = @MachineId", f) == 0) throw new InvalidOperationException("ไม่พบเครื่องจักร");
-        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Parts WHERE PartID = @PartAId", f) == 0) throw new InvalidOperationException("ไม่พบ PART A");
-        if (f.PartBId is > 0 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Parts WHERE PartID = @PartBId", f) == 0) throw new InvalidOperationException("ไม่พบ PART B");
+        return c.Query<PpPart>(PartSql + " WHERE x.MachineID IN @machineIds ORDER BY x.MachineID, x.SortNo, x.ItemID", new { machineIds }).ToList();
+    }
+
+    public int SavePart(PartForm f, string uid, SqlConnection cn = null, SqlTransaction t = null)
+    {
+        ValidatePart(f);
+        using var own = cn == null ? Conn() : null;
+        var c = cn ?? own;
+        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM ProductionPlan.Machines WHERE MachineID = @MachineId", f, t) == 0) throw new InvalidOperationException("ไม่พบเครื่องจักร");
+        if (c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Parts WHERE PartID = @PartAId", f, t) == 0) throw new InvalidOperationException("ไม่พบ PART A");
+        if (f.PartBId is > 0 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Parts WHERE PartID = @PartBId", f, t) == 0) throw new InvalidOperationException("ไม่พบ PART B");
         if (c.ExecuteScalar<int>(@"SELECT COUNT(*) FROM ProductionPlan.MachineParts WHERE MachineID = @MachineId AND PartAID = @PartAId
                                    AND ISNULL(PartBID, 0) = ISNULL(@PartBId, 0) AND ItemID <> @Id
-                                   AND ISNULL(ProcessCode, '') = ISNULL(@Proc, '')", new { f.MachineId, f.PartAId, f.PartBId, f.Id, Proc = Norm(f.Process) ?? "" }) > 0)
+                                   AND ISNULL(ProcessCode, '') = ISNULL(@Proc, '')", new { f.MachineId, f.PartAId, f.PartBId, f.Id, Proc = Norm(f.Process) ?? "" }, t) > 0)
             // PART A + PART B เดียวกันมีหลายแถวได้เมื่อเป็นคนละ Process (เช่น PIPE PART ขั้น 1 / 1.1)
             throw new InvalidOperationException("เครื่องนี้มี PART A + PART B + PROCESS ชุดนี้อยู่แล้ว");
         var p = new { f.Id, f.MachineId, f.PartAId, PartBId = f.PartBId is > 0 ? f.PartBId : null, Process = Norm(f.Process),
                       f.Tp, f.Col, f.Ct, f.Man, f.Active, f.Sort, uid };
         return f.Id > 0
             ? c.ExecuteScalar<int>(@"UPDATE ProductionPlan.MachineParts SET MachineID = @MachineId, PartAID = @PartAId, PartBID = @PartBId, ProcessCode = @Process, TotalProcess = @Tp,
-                                         PcsPerStroke = @Col, CycleTime = @Ct, StdMan = @Man, IsActive = @Active, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE ItemID = @Id; SELECT @Id;", p)
+                                         PcsPerStroke = @Col, CycleTime = @Ct, StdMan = @Man, IsActive = @Active, UpdatedBy = @uid, UpdatedAt = GETDATE() WHERE ItemID = @Id; SELECT @Id;", p, t)
             : c.ExecuteScalar<int>(@"INSERT INTO ProductionPlan.MachineParts (MachineID, SortNo, PartAID, PartBID, ProcessCode, TotalProcess, PcsPerStroke, CycleTime, StdMan, CreatedBy, UpdatedBy)
                                      VALUES (@MachineId, CASE WHEN @Sort > 0 THEN @Sort ELSE (SELECT ISNULL(MAX(SortNo), 0) + 1 FROM ProductionPlan.MachineParts WHERE MachineID = @MachineId) END,
-                                             @PartAId, @PartBId, @Process, @Tp, @Col, @Ct, @Man, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p);
+                                             @PartAId, @PartBId, @Process, @Tp, @Col, @Ct, @Man, @uid, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", p, t);
     }
 
-    private static string Norm(string s) => string.IsNullOrWhiteSpace(s) ? null : string.Join(' ', s.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+    public static string Norm(string s) => string.IsNullOrWhiteSpace(s) ? null : string.Join(' ', s.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
 
     public string DeletePart(int id)
     {

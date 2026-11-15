@@ -418,6 +418,12 @@ main :has(> :is(.data-table, [data-stack]).is-stacked) {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgb(103 80 164 / 0.12);
 }
+/* VIEW mode: read-only fields are muted, cannot be edited; hover tooltip and text copy still work */
+.field[readonly] {
+  cursor: default;
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
+}
 select.field {
   appearance: none;
   padding-right: 2.25rem;
@@ -3953,6 +3959,25 @@ div.swap-in:has(> .show-strip) {
 }
 .ra-reset {
   --c: #ea580c;
+}
+/* active row action = red X (cancel) */
+.ra-cancel,
+.ra.mng-adj.ra-cancel {
+  --c: var(--danger);
+}
+.ra-x {
+  animation: ra-x-in 0.22s var(--ease-drop);
+}
+@keyframes ra-x-in {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ra-x {
+    animation: none;
+  }
 }
 
 /* 👁 VIEW: ม่านตาขยาย-หด */

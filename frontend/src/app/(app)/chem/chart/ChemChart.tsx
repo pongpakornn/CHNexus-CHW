@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtDate } from "@/lib/format";
@@ -364,7 +365,7 @@ export default function ChemChart() {
                             <span>{a.checkTime ? `ตรวจพบ ${a.checkTime}` : ""}</span>
                             {d.can.edit && !locked && (
                               <RowActions className="ml-auto">
-                                <RowAction kind="edit" onClick={() => setForm({ id: a.id, date: a.date.slice(0, 10), checkTime: a.checkTime ?? "", problem: a.problem ?? "", before: a.before?.toString() ?? "", after: a.after?.toString() ?? "", correction: a.correction ?? "", adjustTime: a.adjustTime ?? "", responsible: a.responsible ?? "" })} />
+                                <RowAction kind="edit" active={form?.id === a.id} onClick={() => (form?.id === a.id ? setForm(null) : setForm({ id: a.id, date: a.date.slice(0, 10), checkTime: a.checkTime ?? "", problem: a.problem ?? "", before: a.before?.toString() ?? "", after: a.after?.toString() ?? "", correction: a.correction ?? "", adjustTime: a.adjustTime ?? "", responsible: a.responsible ?? "" }))} />
                                 <RowAction kind="delete" onClick={async () => (await dlg.confirm({ title: "DELETE", message: "ลบบันทึกการแก้ไขนี้ ?", ok: "DELETE", danger: true })) && api<{ message: string }>(`/chem/actions/${a.id}`, { method: "DELETE" }).then((r) => (toast.show("DELETED", r.message, "ok"), load(true))).catch((e: Error) => toast.show("ERROR", e.message, "error"))} />
                               </RowActions>
                             )}
@@ -404,9 +405,11 @@ export default function ChemChart() {
         onClose={() => setForm(null)}
         footer={
           <>
-            <button type="button" className="cta-btn is-gray" onClick={() => setForm(null)}>
-              CANCEL
-            </button>
+            {!form?.id && (
+              <button type="button" className="cta-btn is-gray" onClick={() => setForm(null)}>
+                CANCEL
+              </button>
+            )}
             <button type="button" className="cta-btn is-green" disabled={busy} onClick={saveForm}>
               💾 SAVE
             </button>
@@ -467,7 +470,7 @@ function Approval({ d, busy, onSubmit, onSign, onReturn }: { d: Data; busy: bool
     <Card title="ขั้นตอนการอนุมัติ (APPROVAL FLOW)" actions={<span className={`ch-sheet-st is-${st.toLowerCase()}`}>{st === "APPROVED" ? "✓ APPROVED" : st === "SIGNING" ? "✍ อยู่ระหว่างอนุมัติ" : "DRAFT · ฉบับร่าง"}</span>}>
       <div className="ch-flow">
         {steps.length === 0 ? (
-          <p className="ch-flow-none">ยังไม่ได้ตั้ง Flow การอนุมัติ · Admin ตั้งได้ที่ User Management › SETUP › SIGN FLOW › CHEMICAL CONTROL</p>
+          <p className="ch-flow-none">ยังไม่ได้ตั้ง Flow การอนุมัติ · Admin ตั้งได้ที่ <Link href="/admin/setup/sign-flow-chem" className="underline">User Management › System Configuration › Chemical Control › Sign Flow</Link></p>
         ) : (
           <div className="ch-scroll">
             <FlowMap

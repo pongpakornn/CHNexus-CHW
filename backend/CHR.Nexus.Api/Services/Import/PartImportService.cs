@@ -59,6 +59,10 @@ namespace Nexus.Services
         public bool CoilStockIsMain { get; set; }
         public PartImportRow ContOwner { get; set; }    // แถว Coil ที่เว้น PRODUCT CODE ไว้ = ของสินค้าแถวบน
         public List<int> OtherStockIds { get; } = new List<int>();
+        // import review: raw file text of the editable columns · same key earlier in file · already registered
+        public Dictionary<string, string> Raw { get; } = new Dictionary<string, string>();
+        public PartImportRow DupOf { get; set; }
+        public bool Exists { get; set; }
         public string Error { get; set; }
         public bool IsValid => string.IsNullOrEmpty(Error);
     }
@@ -129,12 +133,13 @@ namespace Nexus.Services
             return null;
         }
 
-        public List<PartImportRow> ReadExcel(string filePath, List<StockModel> stocks)
+        // edits[row][header key] replaces the cell text (re-validated by the same parser) · skip = rows the user excluded in the review
+        //   data = the upload bytes kept in memory (the temp file is deleted right after the first read)
+        public List<PartImportRow> ReadExcel(byte[] data, List<StockModel> stocks,
+                                             IReadOnlyDictionary<int, Dictionary<string, string>> edits = null, ISet<int> skip = null)
         {
-            if (!File.Exists(filePath)) throw new FileNotFoundException("ไม่พบไฟล์ที่เลือก", filePath);
-
             var rows = new List<PartImportRow>();
-            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var fs = new MemoryStream(data, false))
             using (var wb = new XLWorkbook(fs))
             {
                 var ws = wb.Worksheet(1);
@@ -165,7 +170,9 @@ namespace Nexus.Services
                 if (headerRow == 0)
                     throw new InvalidDataException("ไม่พบหัวคอลัมน์ในไฟล์ Excel\nต้องมีอย่างน้อยคอลัมน์ \"PRODUCT CODE\" และ \"PRODUCT NAME\" (อยู่ใน 10 แถวแรกของชีทแรก)");
 
-                string Get(int r, string key) => cols.TryGetValue(key, out int c) ? ws.Cell(r, c).GetString().Trim() : "";
+                string Get(int r, string key) =>
+                    edits != null && edits.TryGetValue(r, out var e) && e.TryGetValue(key, out var v) ? (v ?? "").Trim()
+                    : cols.TryGetValue(key, out int c) ? ws.Cell(r, c).GetString().Trim() : "";
 
                 int lastRow = ws.LastRowUsed()?.RowNumber() ?? headerRow;
                 PartImportRow lastProduct = null;
@@ -191,6 +198,7 @@ namespace Nexus.Services
                         Model = Get(r, "MODEL"),
                         ShowHide = Get(r, "SHOWHIDE")
                     };
+                    foreach (var (k, _) in Editable) item.Raw[k] = Get(r, k);
                     for (int n = 1; n <= 10; n++)
                     {
                         string sc = Get(r, "STOCK" + n);
@@ -281,6 +289,9 @@ namespace Nexus.Services
                 }
             }
 
+            // excluded before the duplicate check: excluding the first of two same-key rows lets the next one count
+            if (skip != null)
+                foreach (var x in rows.Where(x => x.IsValid && skip.Contains(x.RowNumber))) x.Error = "ไม่ใช้ (เลือกในหน้าตรวจก่อนนำเข้า)";
             ValidateAgainstDb(rows, stocks);
             ApplyCustomFields(rows, stocks);
             return rows;
@@ -360,11 +371,11 @@ namespace Nexus.Services
                 string k = Key(r.Code, r.PartA);
                 if (r.ContOwner != null && (!r.ContOwner.IsValid || r.ContOwner.CoilNo == null))
                     r.Error = r.ContOwner.IsValid ? $"แถวสินค้า {r.ContOwner.RowNumber} ต้องใส่ NUMBER COIL ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {r.ContOwner.RowNumber} ไม่ผ่าน ({r.ContOwner.Error})";
-                else if (existing.Contains(k)) r.Error = "สินค้านี้ลงทะเบียนไว้แล้ว (PRODUCT CODE + PART A) - เพิ่ม / อัพเดทผ่าน IMPORT EXCEL หน้า Store (Max-Min)";
+                else if (existing.Contains(k)) { r.Exists = true; r.Error = "สินค้านี้ลงทะเบียนไว้แล้ว (PRODUCT CODE + PART A) - เพิ่ม / อัพเดทผ่าน IMPORT EXCEL หน้า Store (Max-Min)"; }
                 else if (first.TryGetValue(k, out var owner))
                 {
                     if (r.CoilNo != null && owner.CoilNo != null) { r.IsCoilExtra = true; r.CoilOwner = owner; }
-                    else r.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ NUMBER COIL ทุกแถว";
+                    else { r.DupOf = owner; r.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ NUMBER COIL ทุกแถว"; }
                 }
                 else first[k] = r;
             }
@@ -387,6 +398,101 @@ namespace Nexus.Services
             foreach (var r in rows.Where(x => x.IsValid && x.IsCoilExtra && !x.CoilOwner.IsValid))
                 r.Error = $"สินค้าแถว {r.CoilOwner.RowNumber} ไม่ผ่าน ({r.CoilOwner.Error})";
         }
+
+        // ---------------------------------------------------------------- IMPORT REVIEW (PLAN.md shared import contract)
+        //   This import only registers NEW parts (existing PRODUCT CODE + PART A = skipped, same as before) · row key = "R<excel row>"
+        //   (header key, review field name): text / number columns of the register form · CODE / PART A (= key) not editable
+        public static readonly (string Key, string Label)[] Editable =
+        {
+            ("NAME", "PRODUCT NAME"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY"), ("PARTB", "PART B"),
+            ("PARTNO", "PART NO"), ("MODEL", "MODEL"), ("PACKSIZE", "PACK SIZE"), ("BIN", "BIN"), ("QRCODE", "QR CODE"),
+            ("MAX", "MAX"), ("MIN", "MIN"), ("REMARK", "REMARK")
+        };
+
+        public static string RowKey(int row) => "R" + row;
+
+        public sealed record ExistingPart(string Code, string PartA, string Name);
+
+        public List<ExistingPart> LoadExisting()
+        {
+            var list = new List<ExistingPart>();
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand("SELECT PartCode, ISNULL(PartA, ''), ISNULL(Description, '') FROM Nexus.Parts", conn))
+            {
+                conn.Open();
+                using (var rdr = cmd.ExecuteReader())
+                    while (rdr.Read()) list.Add(new ExistingPart(rdr.GetString(0), rdr.GetString(1), rdr.GetString(2)));
+            }
+            return list;
+        }
+
+        // NEW (or SIMILAR when an existing PRODUCT CODE + PART A differs only by case / space / - _ .) · DUPLICATE = same key earlier in
+        // the file (first row wins, as before) · INVALID = parser error or already registered. Extra coil rows fold into their product.
+        public static (List<ImportRowDto> Rows, List<ImportErrorDto> Errors) Preview(List<PartImportRow> rows, List<ExistingPart> existing)
+        {
+            string Near(string code, string partA) => ImportReview.NormKey(code) + "|" + ImportReview.NormKey(partA);
+            var near = existing.GroupBy(e => Near(e.Code, e.PartA)).ToDictionary(g => g.Key, g => g.ToList());
+            var coils = rows.Where(r => r.IsValid && r.CoilNo != null).GroupBy(r => r.CoilOwner ?? r).ToDictionary(g => g.Key, g => g.ToList());
+            var list = new List<ImportRowDto>();
+            var errors = new List<ImportErrorDto>();
+            foreach (var r in rows.Where(r => !r.IsValid || !r.IsCoilExtra))
+            {
+                string key = RowKey(r.RowNumber), code = string.IsNullOrEmpty(r.Code) ? "-" : r.Code;
+                string label = string.IsNullOrEmpty(r.PartA) ? code : $"{code} · PART A {r.PartA}";
+                string sub = $"แถว {r.RowNumber}" + (string.IsNullOrEmpty(r.Name) ? "" : $" · {r.Name}");
+                bool canEdit = r.IsValid || (!r.Exists && r.DupOf == null && r.ContOwner == null);
+                var f = Editable.Where(e => canEdit || (r.Raw.TryGetValue(e.Key, out var v) && v.Length > 0))
+                                .Select(e => new ImportField(e.Label, null, r.Raw.TryGetValue(e.Key, out var v) ? v : "", canEdit)).ToList();
+                if (!r.IsValid)
+                {
+                    errors.Add(new ImportErrorDto($"แถว {r.RowNumber}", $"{code} - {r.Error}"));
+                    list.Add(new ImportRowDto(key, r.DupOf != null ? ImportReview.Duplicate : ImportReview.Invalid, label, sub, f,
+                        r.DupOf != null ? $"PRODUCT CODE + PART A ซ้ำกับแถว {r.DupOf.RowNumber} · ใช้แถวบนสุด แถวนี้ถูกข้าม" : r.Error, null));
+                    continue;
+                }
+                var stocks = new List<string>();
+                if (r.InMain) stocks.Add("คลังหลัก");
+                stocks.AddRange(r.StockCodes.Concat((r.StockText ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)).Select(s => s.Trim()));
+                f.Add(new ImportField("STOCK", null, string.Join(", ", stocks.Distinct(StringComparer.OrdinalIgnoreCase))));
+                if (coils.TryGetValue(r, out var cl))
+                    f.Add(new ImportField("COIL", null, $"{cl.Count:N0} ลูก · {cl.Sum(c => c.CoilWeight):#,##0.###} KG · {string.Join(", ", cl.Select(c => c.CoilNo).Take(10))}{(cl.Count > 10 ? " ..." : "")}"));
+                if (near.TryGetValue(Near(r.Code, r.PartA), out var sim))
+                    list.Add(new ImportRowDto(key, ImportReview.Similar, label, sub, f,
+                        "ไม่พบสินค้านี้ แต่คล้ายของเดิม (ต่างแค่ตัวพิมพ์ / ขีด / เว้นวรรค) · ใช้ตัวที่มีอยู่ = ไม่ลงทะเบียนแถวนี้ หรือเพิ่มเป็นสินค้าใหม่",
+                        sim.Take(5).Select(e => new ImportSuggest(e.Code + "|" + e.PartA,
+                            (string.IsNullOrEmpty(e.PartA) ? e.Code : $"{e.Code} · PART A {e.PartA}") + (e.Name.Length > 0 ? $" · {e.Name}" : ""))).ToList()));
+                else list.Add(new ImportRowDto(key, ImportReview.New, label, sub, f, null, null));
+            }
+            return (list, errors);
+        }
+
+        // ImportApplyRequest -> parser input: edits by excel row + header key; skip = excluded rows and SIMILAR rows mapped to an existing part
+        public static (Dictionary<int, Dictionary<string, string>> Edits, HashSet<int> Skip) ApplyArgs(ImportApplyRequest req)
+        {
+            static int RowOf(string key) =>
+                key != null && key.StartsWith("R") && int.TryParse(key.Substring(1), out int n) && n > 1 ? n : throw new InvalidOperationException($"รายการ \"{key}\" ไม่ถูกต้อง");
+            var skip = new HashSet<int>((req.Exclude ?? new List<string>()).Select(RowOf));
+            foreach (var kv in req.Map ?? new Dictionary<string, string>())
+                if (!string.IsNullOrWhiteSpace(kv.Value)) skip.Add(RowOf(kv.Key));   // "use the existing part" = do not register this row
+            var edits = new Dictionary<int, Dictionary<string, string>>();
+            foreach (var kv in req.Edits ?? new Dictionary<string, Dictionary<string, string>>())
+            {
+                var e = new Dictionary<string, string>();
+                foreach (var fv in kv.Value ?? new Dictionary<string, string>())
+                {
+                    var col = Editable.FirstOrDefault(x => string.Equals(x.Label, fv.Key, StringComparison.OrdinalIgnoreCase));
+                    if (col.Key == null) throw new InvalidOperationException($"แก้ช่อง \"{fv.Key}\" ผ่านหน้าตรวจไม่ได้");
+                    if ((fv.Value ?? "").Length > 500) throw new InvalidOperationException($"{col.Label} ยาวเกิน 500 ตัวอักษร");
+                    e[col.Key] = fv.Value ?? "";
+                }
+                if (e.Count > 0) edits[RowOf(kv.Key)] = e;
+            }
+            return (edits, skip);
+        }
+
+        // an edited row that still fails stops the apply (the fix must not be dropped silently) · excluded / mapped rows never count
+        public static List<PartImportRow> StillBad(List<PartImportRow> rows, IReadOnlyDictionary<int, Dictionary<string, string>> edits, ISet<int> skip) =>
+            rows.Where(r => !r.IsValid && edits.ContainsKey(r.RowNumber) && !skip.Contains(r.RowNumber)).ToList();
 
         // ลงทะเบียนทุกแถวที่ผ่านการตรวจใน Transaction เดียว - พังแถวเดียวยกเลิกทั้งไฟล์
         public int ApplyImport(List<PartImportRow> rows, string userId = null)

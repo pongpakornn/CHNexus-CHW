@@ -35,7 +35,7 @@ export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User |
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
 
-  // 🔽 ตัวเลือก POSITION / ฝ่าย -> แผนก -> หน่วยงาน (ตั้งที่ SETUP › ADD USERID) · ยังไม่ตั้ง = ช่องพิมพ์แบบเดิม
+  // 🔽 ตัวเลือก POSITION / ฝ่าย -> แผนก -> หน่วยงาน (ตั้งที่ User Management › System Configuration › Organization Master) · ยังไม่ตั้ง = ช่องพิมพ์แบบเดิม
   type Org = { id: number; kind: string; name: string; parentId: number | null };
   const [org, setOrg] = useState<Org[] | null>(null);
   useEffect(() => {
@@ -191,7 +191,7 @@ export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User |
               {input("UNIT (หน่วยงาน)", "department")}
             </div>
           )}
-          {opts.on && <p className="mt-2 text-[11px] font-bold text-ink-soft">ตัวเลือกตั้งได้ที่ SETUP › ADD USERID · เลือกฝ่ายแล้วแผนกเหลือเฉพาะของฝ่ายนั้น · เลือกแผนกแล้วหน่วยงานเหลือเฉพาะของแผนกนั้น</p>}
+          {opts.on && <p className="mt-2 text-[11px] font-bold text-ink-soft">ตัวเลือกตั้งได้ที่ User Management › System Configuration › Organization Master · เลือกฝ่ายแล้วแผนกเหลือเฉพาะของฝ่ายนั้น · เลือกแผนกแล้วหน่วยงานเหลือเฉพาะของแผนกนั้น</p>}
         </section>
 
         <section className="fm-group" style={{ "--d": "140ms" } as React.CSSProperties}>

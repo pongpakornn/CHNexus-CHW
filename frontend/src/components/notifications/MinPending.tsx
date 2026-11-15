@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -263,7 +264,7 @@ export function FlowModal({ stkId, stockCode, title, reportId, onClose }: { stkI
           ) : !data ? (
             <p className="mr-flow-empty">LOADING...</p>
           ) : used.length === 0 ? (
-            <p className="mr-flow-empty">คลัง {data.stockCode} ยังไม่ได้ตั้ง FLOW ลายเซ็น (USER MANAGEMENT › SETUP › SIGN FLOW)</p>
+            <p className="mr-flow-empty">คลัง {data.stockCode} ยังไม่ได้ตั้ง FLOW ลายเซ็น (<Link href="/admin/setup/sign-flow-min" className="underline">User Management › System Configuration › CIMS › Sign Flow</Link>)</p>
           ) : (
             <>
             {reportId && (

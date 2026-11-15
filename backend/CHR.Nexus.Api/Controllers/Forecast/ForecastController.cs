@@ -198,50 +198,63 @@ public sealed class ForecastController : AppController
         try
         {
             var rows = new MaxMinCalcService().ReadForecastExcel(path);
-            var valid = rows.Where(r => r.IsValid).ToList();
-            var bad = rows.Where(r => !r.IsValid).ToList();
-            string errs = string.Join("\n", bad.Take(8).Select(r => $"• แถว {r.RowNumber}: {r.Error}")) + (bad.Count > 8 ? $"\n• ... และอีก {bad.Count - 8:N0} แถว" : "");
-            if (valid.Count == 0) { TryDelete(path); return Fail("ไม่พบรายการที่นำเข้าได้ในไฟล์นี้\n\n" + errs); }
-            var months = valid.Select(v => v.Month).Distinct().OrderBy(m => m).ToList();
-            int auto = valid.Count(v => !string.IsNullOrEmpty(v.Note));
+            TryDelete(path);
+            var items = ForecastImportService.Index(rows);
+            var usable = items.Where(i => i.Kind is ForecastImportService.Kind.Ready or ForecastImportService.Kind.Similar).ToList();
+            if (usable.Count == 0)
+            {
+                var bad = rows.Where(r => !r.IsValid).ToList();
+                return Fail("ไม่พบรายการที่นำเข้าได้ในไฟล์นี้" + (bad.Count > 0 ? "\n\n" + string.Join("\n", bad.Take(8).Select(r => $"• แถว {r.RowNumber}: {r.Error}")) : ""));
+            }
+            var months = usable.Select(i => i.Row.Month).Distinct().OrderBy(m => m).ToList();
             string monthText = string.Join(", ", months.Select(m => m.ToString("MMM yyyy", CultureInfo.InvariantCulture)));
-            var diff = new MaxMinCalcService().ForecastDiff(valid);
-            string summary = $"ไฟล์: {file.FileName}\n\nในไฟล์ {valid.Count:N0} แถว  (เดือน: {monthText})\n" +
-                             $"Forecast {valid.Sum(v => v.Forecast):N0}  •  Order {valid.Sum(v => v.Order):N0}  •  Delivery {valid.Sum(v => v.Delivery):N0}\n\n" +
-                             $"🆕 รายการใหม่ {diff.New:N0}  •  ✏️ ยอดเปลี่ยน {diff.Changed:N0} (อัพเดทเป็นยอดใหม่)  •  ✔ ยอดเดิมตรงกัน {diff.Same:N0} (ข้าม ไม่แตะ)" +
-                             (diff.ChangedText.Count > 0 ? "\n" + string.Join("\n", diff.ChangedText.Select(t => "  • " + t)) + (diff.Changed > diff.ChangedText.Count ? $"\n  • ... และอีก {diff.Changed - diff.ChangedText.Count:N0} รายการ" : "") : "") +
-                             (diff.New + diff.Changed == 0 ? "\n\nℹ ข้อมูลในไฟล์ตรงกับระบบทั้งหมด - ไม่มีอะไรต้องอัพเดท" : "") +
-                             (withCalc ? "\n\nแล้วคำนวณ MAX / MIN ของคลังที่เปิด AUTO CALC" : "\n\nนำเข้าอย่างเดียว ไม่คำนวณ MAX / MIN") +
-                             "\n\nℹ ตรวจสอบด้วย PART A · CUSTOMER / PART NO / ชื่อสินค้า ใช้ข้อมูลในระบบ" +
-                             (auto > 0 ? $"\n⚠ CUSTOMER ในไฟล์ไม่ตรงกับระบบ {auto:N0} แถว (ใช้ของระบบ)" : "") +
-                             (bad.Count > 0 ? $"\n\n⚠ ข้ามแถวที่มีปัญหา {bad.Count:N0} แถว:\n{errs}" : "") + "\n\nยืนยันการนำเข้าหรือไม่?";
-            return Ok(new { id = _uploads.Put(path, file.FileName, Uid, "forecast", (rows, withCalc, monthText, bad.Count, auto, Mon(months.Last()))), summary });
+            string id = _uploads.Put("", file.FileName, Uid, "forecast", new ForecastImportService.State("FORECAST / ORDER", rows, withCalc, monthText, Mon(months.Last())));
+            return Ok(new ForecastImportService().Preview(id, file.FileName, items));
         }
         catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Excel ไม่สำเร็จ"); }
     }
 
+    // body = ImportApplyRequest · ?withCalc=true|false overrides the choice made at import (default = the choice stored with the file)
     [HttpPost("import/apply")]
-    public IActionResult ImportApply([FromBody] string id)
+    public IActionResult ImportApply([FromBody] ImportApplyRequest req, [FromQuery] bool? withCalc = null)
     {
         if (Me?.CanImportForecastOrder != true) return Deny();
-        var it = _uploads.Get(id, Uid, "forecast");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "forecast");
         if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
-        var (rows, withCalc, monthText, bad, auto, last) = ((List<CalcImportRow>, bool, string, int, int, string))it.State;
+        var st = (ForecastImportService.State)it.State;
+        bool calcAfter = withCalc ?? st.WithCalc;
         try
         {
+            var (rows, mapped, skipped) = ForecastImportService.MakeRows(st, req);   // re-validates edits / map
             var calc = new MaxMinCalcService();
-            var m = calc.ApplyForecastMerge(rows, Uid);
-            int n = m.Rows;
+            if (mapped.Count > 0)
+            {
+                calc.MatchForecastRows(mapped);   // customer + PART A of the chosen product
+                var badMap = mapped.FirstOrDefault(x => !x.IsValid);
+                if (badMap != null) throw new InvalidOperationException(badMap.Error);
+            }
+            int auto = rows.Count(v => !string.IsNullOrEmpty(v.Note));
+            var m = calc.ApplyForecastMerge(rows, Uid);   // one transaction; re-reads current values
             string mergeText = $"ใหม่ {m.New:N0} • ยอดเปลี่ยน {m.Changed:N0} • ตรงกันเดิม (ข้าม) {m.Same:N0}";
-            LogService.WriteLog(Uid, "FORECAST_IMPORT", $"File: {it.FileName} | New: {m.New} | Changed: {m.Changed} | Unchanged (skipped): {m.Same} | Rows written: {n} | Months: {monthText} | Skipped rows: {bad}" +
-                                                   (withCalc ? "" : $" | Import only (no MAX / MIN calculate) | Customer differs from system: {auto}"), "");
-            _uploads.Remove(id);
-            if (!withCalc || m.New + m.Changed == 0) return Ok(new { message = $"นำเข้าแล้ว: {mergeText}" + (withCalc ? "\nไม่มียอดเปลี่ยน - ไม่ต้องคำนวณ MAX / MIN ใหม่" : "\n(ไม่คำนวณ MAX / MIN)"), month = last });
-            var r = calc.Calculate(null, null, Uid);
+            LogService.WriteLog(Uid, "FORECAST_IMPORT", $"File: {it.FileName} | New: {m.New} | Changed: {m.Changed} | Unchanged (skipped): {m.Same} | Rows written: {m.Rows} | Months: {st.MonthText} | Skipped rows: {skipped} | Mapped: {mapped.Count}" +
+                                                   (calcAfter ? "" : $" | Import only (no MAX / MIN calculate) | Customer differs from system: {auto}"), "");
+            _uploads.Remove(req.Id);
+            LiveBus.Publish("data", "forecast");
+            if (!calcAfter || m.New + m.Changed == 0) return Ok(new { message = $"นำเข้าแล้ว: {mergeText}" + (calcAfter ? "\nไม่มียอดเปลี่ยน - ไม่ต้องคำนวณ MAX / MIN ใหม่" : "\n(ไม่คำนวณ MAX / MIN)"), month = st.Last, added = m.New, updated = m.Changed, same = m.Same, skipped });
+            // the import is committed: a calculate failure must not report the import as failed
+            (int Updated, int Skipped, int Stocks) r;
+            try { r = calc.Calculate(null, null, Uid); }
+            catch (Exception ex)
+            {
+                string why = SafeMessage(ex, "Auto calculate after forecast import");   // writes the BUG LOG
+                LogService.WriteLog(Uid, "MAXMIN_CALCULATE", "Auto calculate after forecast import FAILED", "");
+                return Ok(new { message = $"⚠ นำเข้าแล้ว แต่คำนวณ MAX/MIN ไม่สำเร็จ: {why}\n{mergeText}", month = st.Last, added = m.New, updated = m.Changed, same = m.Same, skipped });
+            }
             if (r.Stocks > 0)
                 LogService.WriteLog(Uid, "MAXMIN_CALCULATE", $"Auto calculate after forecast import | Stocks: {r.Stocks} | Updated: {r.Updated} | Skipped (no order): {r.Skipped}", "");
-            return Ok(new { message = $"นำเข้าแล้ว: {mergeText}" + (r.Stocks > 0 ? $"\nคำนวณ MAX / MIN อัตโนมัติ {r.Updated:N0} รายการ" : ""), month = last });
+            return Ok(new { message = $"นำเข้าแล้ว: {mergeText}" + (r.Stocks > 0 ? $"\nคำนวณ MAX / MIN อัตโนมัติ {r.Updated:N0} รายการ" : ""), month = st.Last, added = m.New, updated = m.Changed, same = m.Same, skipped });
         }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
         catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ (ยกเลิกทั้งไฟล์)"); }
     }
 }
