@@ -19,6 +19,7 @@ const SOON: { key: string; name: string; sub: string; art: string; color: string
   { key: "scheduling", name: "Production Scheduling & Work Order", sub: "Plan · Work Order", art: "/images/systems/scheduling.webp", color: "#2563eb" },
   { key: "kanban", name: "KANBAN", sub: "Production Order · Work Call", art: "/images/systems/kanban.webp", color: "#0284c7" },
   { key: "bom", name: "Product Structure (BOM)", sub: "Process · Work Order · Kanban", art: "/images/systems/bom.webp", color: "#6750a4" },
+  { key: "logistics", name: "Delivery & Logistics Planning", sub: "Shipment Plan · Customer Delivery", art: "/images/systems/logistics.webp", color: "#0369a1" },
 ];
 
 export default function SystemsPage() {
