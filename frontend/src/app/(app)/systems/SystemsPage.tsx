@@ -14,7 +14,13 @@ const flat = (items: MenuItem[]): MenuItem[] => items.flatMap((m) => (m.children
 const TITLE = ["Choose Your", "Workspace"];
 
 // 🚧 ระบบที่กำลังพัฒนา: แสดงการ์ดไว้ก่อน (ทุกคนเห็น) กดแล้วแจ้งว่าอยู่ระหว่างการอัพเดทระบบ · เปิดใช้จริง = ย้ายไปเพิ่มใน lib/menu.ts (SYSTEMS)
-const SOON: { key: string; name: string; sub: string; art: string; color: string }[] = []; // Production Plan เปิดใช้แล้ว (lib/menu.ts › PP)
+const SOON: { key: string; name: string; sub: string; art: string; color: string }[] = [
+  { key: "pc-workspace", name: "PC Digital Workspace", sub: "Production Planning & TPS", art: "/images/systems/pc-workspace.webp", color: "#4f46e5" },
+  { key: "scheduling", name: "Production Scheduling & Work Order", sub: "Plan · Work Order", art: "/images/systems/scheduling.webp", color: "#2563eb" },
+  { key: "kanban", name: "KANBAN", sub: "Production Order · Work Call", art: "/images/systems/kanban.webp", color: "#0284c7" },
+  { key: "bom", name: "Product Structure (BOM)", sub: "Process · Work Order · Kanban", art: "/images/systems/bom.webp", color: "#6750a4" },
+  { key: "logistics", name: "Delivery & Logistics Planning", sub: "Shipment Plan · Customer Delivery", art: "/images/systems/logistics.webp", color: "#0369a1" },
+];
 
 export default function SystemsPage() {
   const { me } = useAuth();
@@ -78,13 +84,13 @@ export default function SystemsPage() {
               <button
                 key={s.key}
                 type="button"
-                title={`${s.name} · อยู่ระหว่างการอัพเดทระบบ`}
+                title={`${s.name} · อยู่ระหว่างดำเนินงานตามแผน`}
                 className="sys-card is-soon"
                 style={{ "--i": list.length + i, "--c": s.color } as React.CSSProperties}
                 onClick={() =>
                   dlg.alert({
                     title: `🚧 ${s.name.toUpperCase()}`,
-                    message: `ระบบ ${s.name} อยู่ระหว่างการอัพเดทระบบ
+                    message: `ระบบ ${s.name} อยู่ระหว่างดำเนินงานตามแผน
 ยังไม่เปิดให้ใช้งานในตอนนี้ จะแจ้งให้ทราบเมื่อพร้อมใช้งาน`,
                   })
                 }
@@ -95,7 +101,7 @@ export default function SystemsPage() {
                 </span>
                 <span className="sys-tx">
                   <b>
-                    {s.name} <em className="sys-soon">UPDATING</em>
+                    {s.name} <em className="sys-soon">IN PLAN</em>
                   </b>
                   <span>{s.sub}</span>
                 </span>
