@@ -80,3 +80,10 @@ Re-check items left undone: designer D6 (framer panels vs splash on cold load); 
 - Lockfile regenerated (+100 packages for vitest); Linux/Cloudflare build not verified. Tests ran only on Windows, local time zone.
 - Frontend handling of a 500 from /api/scanner/today not checked.
 - No test covers controllers, services, DB or components.
+
+## 2026-11-16 · Import review everywhere + RowAction red X + User Management menu (branch feature/import-rowaction-admin-ux)
+- Shared import contract (`Services/Import/ImportReviewDto.cs`, `components/import/*`): preview -> review (view/edit/exclude/map) -> apply. Used by Customer/Supplier (new), Product Control, Forecast/Order, PP PCS, Workload Excel, Machine STD / Machine Products (new `PpSetupImportController`), Users.
+- RowAction: active action renders red X, second click cancels; VIEW = readonly fields; actions hidden without permission.
+- Sidebar: USER MANAGEMENT (USER ACCOUNTS, ACCESS CONTROL `/admin/access`) + SYSTEM CONFIGURATION `/admin/setup/[slug]` grouped by system, Level 1 only. `SetupModal.tsx` unused, kept until owner approves delete.
+- Users/parts uploads stay in memory (no password file on disk); startup sweep clears upload folder files > 1 h.
+- Checks: backend 93 tests, frontend 81 tests, tsc/eslint clean, next build OK. Not run against a DB or in a browser.

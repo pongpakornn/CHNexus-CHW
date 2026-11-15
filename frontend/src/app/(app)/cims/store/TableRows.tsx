@@ -22,6 +22,8 @@ export type RowCfg = {
   isLiveView: boolean;
   /** 🧲 MANAGE STOCK: ADD = ปุ่ม ＋ ที่ PD CODE · ADJUST = ปุ่ม ACTION ที่แถว Coil ลูก */
   manage: ManageMode;
+  /** Coil row whose EDIT / ADJUST modal is open (its button shows the red X) */
+  coilOpen: { coilId: number; kind: CoilAct } | null;
 };
 
 // คำสั่งจากแถว -> หน้าตาราง (อ็อบเจกต์คงที่ ไม่ทำให้แถววาดใหม่)
@@ -259,7 +261,7 @@ function CoilPanel({ partId, list, cfg, closing, anim, act }: { partId: number; 
                             ))}
                             {adj && (
                               <td className="!border-[#f1eef7] !px-1 !py-0 text-center">
-                                <CoilActions onAct={(a) => act.coilAct(a, r)} />
+                                <CoilActions open={cfg.coilOpen?.coilId === r.coilId ? cfg.coilOpen.kind : null} onAct={(a) => act.coilAct(a, r)} />
                               </td>
                             )}
                           </tr>

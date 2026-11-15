@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
@@ -262,7 +263,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
           >
             <div className="font-extrabold text-primary">🤖 EXPORT RPA</div>
             <div className="text-sm">Scans of the chosen day → the RPA Excel file of each stock</div>
-            <div className="text-xs text-ink-soft">User Management → SETUP → EXCEL SETUP → MULTI-SCANNER</div>
+            <div className="text-xs text-ink-soft"><Link href="/admin/setup/excel" className="underline">User Management › System Configuration › PR Management › Excel Setup › Multi-Scanner</Link></div>
           </button>
         </div>
       </Modal>

@@ -8,7 +8,7 @@ export type MenuItem = {
   label: string;
   title: string; // ชื่อหน้าบนแถบด้านบน
   icon: string;
-  can?: string; // key ใน Me.can (ไม่ระบุ = ทุกคนที่เห็นระบบนี้)
+  can?: string; // key ใน Me.can (ไม่ระบุ = ทุกคนที่เห็นระบบนี้) · "level1" = Admin Level 1 เท่านั้น (Shell ใส่ให้จาก userLevel)
   ready?: boolean;
   children?: MenuItem[]; // เมนูย่อย (กาง / พับ)
   caption?: string; // หัวข้อกลุ่มในเมนูย่อย (เช่น PRODUCT CONTROL)
@@ -31,6 +31,34 @@ export const STOCK_TYPES: { type: string; label: string; icon: string }[] = [
 
 const SYSTEMS_ITEM: MenuItem = { href: "/systems", label: "Systems", title: "SELECT SYSTEM", icon: "/icons/Systems.png" };
 const USERS_ITEM: MenuItem = { href: "/admin/users", label: "User Management", title: "USER MANAGEMENT", icon: "/icons/management.png", can: "userMgmt" };
+
+// ⚙ SYSTEM CONFIGURATION (Admin Level 1 เท่านั้น = ตรงกับ SetupController): แต่ละรายการ = /admin/setup/<slug> (แผงเดิมจาก SetupModal)
+export const SETUP_GROUPS: { key: string; name: string; items: [slug: string, label: string][] }[] = [
+  { key: "pr", name: "PR MANAGEMENT", items: [["pr-settings", "PR SETTINGS"], ["excel", "EXCEL SETUP"], ["departments", "DEPARTMENTS"]] },
+  { key: "cims", name: "CIMS - CHR INVENTORY MANAGEMENT", items: [["min-report", "MIN REPORT"], ["min-reasons", "MIN REASONS"], ["sign-flow-min", "SIGN FLOW"], ["layout", "LAYOUT SETUP"]] },
+  { key: "chem", name: "CHEMICAL CONTROL", items: [["sign-flow-chem", "SIGN FLOW"]] },
+  { key: "edp", name: "EDP PLANNING", items: [["edp-alert", "EDP ALERT"]] },
+  { key: "user", name: "USER MANAGEMENT", items: [["organization", "ORGANIZATION MASTER"]] },
+];
+const SETUP_MENU: MenuItem[] = SETUP_GROUPS.map((g, i) => ({
+  href: `#setup-${g.key}`,
+  label: g.name,
+  title: `SYSTEM CONFIGURATION • ${g.name}`,
+  icon: "/icons/management.png",
+  caption: i === 0 ? "SYSTEM CONFIGURATION" : undefined,
+  children: g.items.map(([slug, label]) => ({ href: `/admin/setup/${slug}`, label, title: `${g.name} • ${label}`, icon: "/icons/management.png", can: "level1" })),
+}));
+const USER_GROUP: MenuItem = {
+  href: "/admin",
+  label: "User Management",
+  title: "USER MANAGEMENT",
+  icon: "/icons/management.png",
+  children: [
+    { href: "/admin/users", label: "USER ACCOUNTS", title: "USER MANAGEMENT • USER ACCOUNTS", icon: "/icons/management.png", can: "userMgmt" },
+    { href: "/admin/access", label: "ACCESS CONTROL", title: "USER MANAGEMENT • ACCESS CONTROL", icon: "/icons/management.png", can: "userMgmt" },
+    ...SETUP_MENU,
+  ],
+};
 
 export const MASTER_ITEM: MenuItem = {
   href: "/master",
@@ -103,7 +131,7 @@ export const ADMIN: SystemDef = {
   sub: "User & Permission",
   art: "/images/systems/user-management.webp",
   title: "USER MANAGEMENT",
-  desc: "ผู้ใช้งาน · สิทธิ์ทุกระบบ · ⚙ SETUP ทั้งหมด (Admin)",
+  desc: "ผู้ใช้งาน · สิทธิ์ทุกระบบ · ⚙ SYSTEM CONFIGURATION ทั้งหมด (Admin)",
   icon: "/icons/management.png",
   color: "#4f46e5",
   menu: [USERS_ITEM],
@@ -166,7 +194,7 @@ export const PP: SystemDef = {
   ],
 };
 
-// 🧪 CHEMICAL CONTROL: ควบคุมคุณภาพน้ำยาเคมี (สาย ED Paint) · ตั้งค่าพารามิเตอร์ควบคุมเองได้ · อนุมัติตาม SIGN FLOW (User Management › SETUP)
+// 🧪 CHEMICAL CONTROL: ควบคุมคุณภาพน้ำยาเคมี (สาย ED Paint) · ตั้งค่าพารามิเตอร์ควบคุมเองได้ · อนุมัติตาม SIGN FLOW (User Management › System Configuration)
 export const CHEM: SystemDef = {
   key: "chem",
   label: "CHEMICAL CONTROL",
@@ -190,7 +218,7 @@ export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, CHEM, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 // USER MANAGEMENT ใต้ MASTER DATA (เห็นเฉพาะผู้มีสิทธิ์ userMgmt) + เข้าได้จาก SELECT SYSTEM เหมือนเดิม
-export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USERS_ITEM];
+export const ROOT_MENU: MenuItem[] = [SYSTEMS_ITEM, MASTER_ITEM, USER_GROUP];
 export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
 export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
 export const PP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...PP.menu];
@@ -210,13 +238,14 @@ export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuIt
 
 export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) => allowed(s.menu, can).length > 0);
 
-// ระบบของหน้าปัจจุบัน: /cims = CIMS · /admin = คงระบบที่มา (ไม่ระบุ) · อื่น ๆ = ROOT
+// ระบบของหน้าปัจจุบัน: /cims = CIMS · /master = คงระบบที่มา (ไม่ระบุ) · /admin และอื่น ๆ = ROOT
 export const systemOf = (path: string): SystemKey | null =>
-  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/admin") || path.startsWith("/master") ? null : "root";
+  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/master") ? null : "root";
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
-  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap((m) => [...(m.children ?? []), m]); // เมนูย่อยก่อน = ตรงที่สุด
+  const flat = (m: MenuItem): MenuItem[] => [...(m.children ?? []).flatMap(flat), m]; // เมนูย่อยก่อน = ตรงที่สุด
+  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap(flat);
   const type = new URLSearchParams(search).get("type");
   // ตรงที่สุดก่อน: path ตรงเป๊ะ > path ยาวกว่า (เช่น /master/workdays/company ไม่ไปไฮไลต์ /master/workdays)
   let best: MenuItem | undefined;

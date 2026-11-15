@@ -5,6 +5,7 @@ import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/compone
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
+import { ExcelMenu } from "@/components/import/ExcelMenu";
 import { Pager } from "@/components/tables/Pager";
 import { api } from "@/lib/api";
 import { stamp } from "@/lib/format";
@@ -132,7 +133,24 @@ export function PartnerPage({ kind }: { kind: Kind }) {
 
   return (
     <PageBody className="md-gray md-partner">
-      <PageHeader icon={m.icon} title={m.title} subtitle={`MASTER DATA · ${m.hint}`} />
+      <PageHeader
+        icon={m.icon}
+        title={m.title}
+        subtitle={`MASTER DATA · ${m.hint}`}
+        actions={
+          data && (
+            <ExcelMenu
+              title={label}
+              templateUrl={`/master/${kind}/template`}
+              importUrl={`/master/${kind}/import`}
+              applyUrl={`/master/${kind}/import/apply`}
+              canTemplate
+              canImport={can.add && can.edit}
+              onDone={() => load(true)}
+            />
+          )
+        }
+      />
       <div className="flex flex-col gap-4">
         {/* ฟอร์มกรอกข้อมูล (แบบ Product Control): เพิ่มใหม่ / แก้ไข / ดู */}
         {showForm && (
@@ -191,9 +209,11 @@ export function PartnerPage({ kind }: { kind: Kind }) {
                   )}
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
-                    {mode === "add" ? "↺ RESET" : "✕ CANCEL"}
-                  </button>
+                  {mode === "add" && (
+                    <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
+                      ↺ RESET
+                    </button>
+                  )}
                   {mode === "view" ? (
                     can.edit && (
                       <button type="button" className="btn bg-accent min-w-[180px]" onClick={() => setMode("edit")}>
@@ -264,8 +284,8 @@ export function PartnerPage({ kind }: { kind: Kind }) {
                         </td>
                         <td>
                           <RowActions>
-                            <RowAction kind="view" onClick={() => open(r, "view")} />
-                            {can.edit && <RowAction kind="edit" active={row?.id === r.id && mode === "edit"} onClick={() => open(r, "edit")} />}
+                            <RowAction kind="view" active={row?.id === r.id && mode === "view"} onClick={() => (row?.id === r.id && mode === "view" ? reset() : open(r, "view"))} />
+                            {can.edit && <RowAction kind="edit" active={row?.id === r.id && mode === "edit"} onClick={() => (row?.id === r.id && mode === "edit" ? reset() : open(r, "edit"))} />}
                             {can.delete && <RowAction kind="delete" title={r.parts ? "มีสินค้าใช้อยู่ ลบไม่ได้ (เปลี่ยนเป็น INACTIVE แทน)" : "DELETE"} onClick={() => remove(r)} />}
                           </RowActions>
                         </td>

@@ -415,8 +415,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       canEdit: !!mCanEdit,
       isLiveView: mStock.isLiveView,
       manage,
+      coilOpen: mCoil ? { coilId: mCoil.row.coilId, kind: mCoil.kind } : null,
     };
-  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage]);
+  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage, mCoil]);
 
   // หลังจัดการ Coil: ยอดล่าสุด + Coil ของสินค้านั้นเปิดให้เห็นผลทันที
   const afterManage = useCallback(
@@ -526,7 +527,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       addCoil: (p) => setMAdd(p),
       // 🚚 TRANSFER: ยืนยัน -> สแกนออกจากคลังนี้ (บันทึกที่ Multi-Scanner) · EDIT / ADJUST = เปิดหน้าต่าง
       coilAct: async (a, r) => {
-        if (a !== "transfer") return setMCoil({ kind: a, row: r });
+        if (a !== "transfer") return setMCoil((c) => (c?.row.coilId === r.coilId && c.kind === a ? null : { kind: a, row: r })); // 2nd click (red X) cancels
         const code = metaRef.current?.stock.code ?? "";
         const pc = rowsRef.current?.find((x) => x.partId === r.partId)?.partCode ?? "";
         const ok = await dlg.confirm({

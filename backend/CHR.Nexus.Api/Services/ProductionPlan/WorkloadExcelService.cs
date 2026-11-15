@@ -120,6 +120,51 @@ public sealed class WorkloadExcelService
         return new Parsed(ws.Name, fileMonth, list);
     }
 
+    // ---------------------------------------------------------------- IMPORT review (ref import in the shared contract)
+    //   key = "yyyy-MM|ROWKEY" · same key twice = bottom row wins · blank edit = keep · PDT / Direct / Production are the editable fields
+    public sealed record Ev(ImportRowDto Row, RefRow Op);
+
+    private static string F(decimal? v) => v?.ToString("0.####", CultureInfo.InvariantCulture) ?? "";
+    public static string Key(RefRow r) => $"{r.Month:yyyy-MM}|{r.Row}";
+
+    public Dictionary<string, RefRow> Current(IEnumerable<DateTime> months)
+    {
+        var ms = months.Distinct().ToList();
+        using var c = Conn();
+        return c.Query<RefRow>("SELECT MonthStart AS Month, RowKey AS Row, Pdt, Direct, Production FROM ProductionPlan.WorkloadRef WHERE MonthStart IN @ms", new { ms }).ToDictionary(Key);
+    }
+
+    public static List<Ev> Eval(Parsed p, Dictionary<string, RefRow> cur, ImportApplyRequest req)
+    {
+        var skip = (req?.Exclude ?? new()).ToHashSet();
+        var lastIdx = p.Rows.Select((r, i) => (Key: Key(r), i)).GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.Max(x => x.i));
+        var evs = new List<Ev>();
+        for (int i = 0; i < p.Rows.Count; i++)
+        {
+            var r = p.Rows[i];
+            string key = Key(r), sub = r.Month.ToString("MMM yyyy", CultureInfo.InvariantCulture), label = r.Row;
+            if (i != lastIdx[key]) { evs.Add(new(new(key + "#" + i, ImportReview.Duplicate, label, sub, new(), "หน่วยงาน + เดือนซ้ำในไฟล์ · ใช้แถวล่างสุด แถวนี้ถูกข้าม", null), null)); continue; }
+            try
+            {
+                decimal? Edit(string f, decimal? v)
+                {
+                    if (req?.Edits == null || !req.Edits.TryGetValue(key, out var ed) || ed == null) return v;
+                    var hit = ed.FirstOrDefault(x => x.Key.Equals(f, StringComparison.OrdinalIgnoreCase));
+                    if (hit.Key == null || string.IsNullOrWhiteSpace(hit.Value)) return v;
+                    if (!decimal.TryParse(hit.Value.Trim().Replace(",", ""), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) || d < 0 || d > 999_999_999) throw new InvalidOperationException($"{f} ต้องเป็นตัวเลข 0 ขึ้นไป");
+                    return d;
+                }
+                var n = r with { Pdt = Edit("PDT", r.Pdt), Direct = Edit("Direct", r.Direct), Production = Edit("Production", r.Production) };
+                cur.TryGetValue(key, out var o);
+                var fields = new List<ImportField> { new("PDT", o == null ? null : F(o.Pdt), F(n.Pdt), true), new("Direct", o == null ? null : F(o.Direct), F(n.Direct), true), new("Production", o == null ? null : F(o.Production), F(n.Production), true) };
+                string st = ImportReview.Status(o == null ? null : string.Join("|", fields.Select(x => x.Old)), string.Join("|", fields.Select(x => x.New)));
+                evs.Add(new(new(key, st, label, sub, fields, null, null), st == ImportReview.Same || skip.Contains(key) ? null : n));
+            }
+            catch (InvalidOperationException e) { evs.Add(new(new(key, ImportReview.Invalid, label, sub, new(), e.Message, null), null)); }
+        }
+        return evs;
+    }
+
     // แทนที่ยอดของเดือน / หน่วยงานที่มีในไฟล์ (เดือนอื่นคงเดิม)
     public int Save(Parsed p, string fileName, string uid)
     {

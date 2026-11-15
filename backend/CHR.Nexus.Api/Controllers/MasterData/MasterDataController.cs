@@ -15,6 +15,9 @@ public sealed class MasterDataController : AppController
     // รหัส: A-Z 0-9 เว้นวรรค - _ . / & ( ) · ยาวไม่เกิน 50 (ตรงกับข้อความในสินค้าเดิม)
     private static readonly Regex CodeOk = new(@"^[A-Z0-9][A-Z0-9 ._/&()\-]{0,49}$", RegexOptions.Compiled);
 
+    private readonly UploadCache _uploads;
+    public MasterDataController(UploadCache uploads) => _uploads = uploads;
+
     private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง MASTER DATA (database/nexus/24_Master_Data.sql)");
 
     private object Can => new { add = Me.CanAddMasterData, edit = Me.CanEditMasterData, delete = Me.CanDeleteMasterData };
@@ -42,7 +45,7 @@ public sealed class MasterDataController : AppController
 
     public sealed record PartnerRequest(string Code, string Name, bool? IsActive);
 
-    private static (string Code, string Name, string Error) Clean(PartnerKind k, PartnerRequest req)
+    internal static (string Code, string Name, string Error) Clean(PartnerKind k, PartnerRequest req)
     {
         string code = Regex.Replace((req?.Code ?? "").Trim().ToUpperInvariant(), @"\s+", " ");
         string name = Regex.Replace((req?.Name ?? "").Trim(), @"\s+", " ");
@@ -119,5 +122,81 @@ public sealed class MasterDataController : AppController
             return Ok(new { message = $"ลบ {k.Label} {old.Code} แล้ว" });
         }
         catch (Exception ex) { return Fail(ex, "ลบไม่สำเร็จ"); }
+    }
+
+    // ---------------------------------------------------------------- Excel TEMPLATE / IMPORT (preview) / APPLY
+    //   template = view right · import + apply = add AND edit right · nothing is deleted · STATUS never changes
+    private const string XlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private bool CanImport => Me?.CanAddMasterData == true && Me?.CanEditMasterData == true;
+    private const string DenyImport = "คุณไม่มีสิทธิ์ IMPORT (ต้องมีสิทธิ์ ADD และ EDIT ของ MASTER DATA)";
+
+    [HttpGet("{kind}/template")]
+    public IActionResult Template(string kind)
+    {
+        var k = PartnerService.Of(kind);
+        if (k == null) return NotFound();
+        if (Me?.CanViewMasterData != true) return Deny();
+        if (!DbSchema.HasMasterData) return NotReady();
+        try
+        {
+            var rows = new PartnerService(k).List();
+            using var wb = new PartnerImportService(k).Template(rows);
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            LogService.WriteLog(Uid, $"MASTER_{k.Label}_TEMPLATE", $"{k.Label} | Rows: {rows.Count}", "");
+            return File(ms.ToArray(), XlsxType, $"{k.Label}_TEMPLATE.xlsx");
+        }
+        catch (Exception ex) { return Fail(ex, "สร้าง Template ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("{kind}/import")]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> Import(string kind, IFormFile file)
+    {
+        var k = PartnerService.Of(kind);
+        if (k == null) return NotFound();
+        if (!CanImport) return Deny(DenyImport);
+        if (!DbSchema.HasMasterData) return NotReady();
+        string path;
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
+        try
+        {
+            var svc = new PartnerImportService(k);
+            List<PartnerImportService.Src> src;
+            List<ImportErrorDto> errors;
+            using (var wb = new ClosedXML.Excel.XLWorkbook(path)) (src, errors) = svc.Parse(wb.Worksheets.First());
+            TryDelete(path);
+            var rows = svc.Preview(src, new PartnerService(k).List());
+            string id = _uploads.Put("", file.FileName, Uid, "partner-" + k.Key, new PartnerImportService.State(k.Label, src));
+            return Ok(new ImportPreviewDto(id, file.FileName, k.Label, rows, errors));
+        }
+        catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
+        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("{kind}/import/apply")]
+    public IActionResult ImportApply(string kind, [FromBody] ImportApplyRequest req)
+    {
+        var k = PartnerService.Of(kind);
+        if (k == null) return NotFound();
+        if (!CanImport) return Deny(DenyImport);
+        if (!DbSchema.HasMasterData) return NotReady();
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "partner-" + k.Key);
+        if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
+        try
+        {
+            var svc = new PartnerImportService(k);
+            var plan = svc.MakePlan((PartnerImportService.State)it.State, new PartnerService(k).List(), req);   // re-reads current data
+            svc.Execute(plan, Uid);
+            _uploads.Remove(req.Id);
+            LogService.WriteLog(Uid, $"MASTER_{k.Label}_IMPORT",
+                $"File: {it.FileName} | Added: {plan.Inserts.Count} | Updated: {plan.Updates.Count} | Same: {plan.Same} | Skipped: {plan.Skipped} | {string.Join(", ", plan.Inserts.Select(x => x.Code).Concat(plan.Updates.Select(x => x.Code)).Take(30))}",
+                "MASTER-IMPORT");
+            LiveBus.Publish("master");
+            return Ok(new { added = plan.Inserts.Count, updated = plan.Updates.Count, same = plan.Same, skipped = plan.Skipped,
+                            message = $"นำเข้า {k.Label} แล้ว: เพิ่ม {plan.Inserts.Count:N0} · แก้ไข {plan.Updates.Count:N0} · เหมือนเดิม {plan.Same:N0}" });
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+        catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ"); }
     }
 }

@@ -250,7 +250,7 @@ function MobileCoils({ list, cfg, act }: { list: CoilState; cfg: RowCfg; act: Ro
             </div>
             {cfg.manage === "ADJUST" && (
               <div className="mt-2 flex justify-end border-t border-[#f1eef7] pt-2">
-                <CoilActions onAct={(a) => act.coilAct(a, r)} />
+                <CoilActions open={cfg.coilOpen?.coilId === r.coilId ? cfg.coilOpen.kind : null} onAct={(a) => act.coilAct(a, r)} />
               </div>
             )}
             {cfg.coilKeys.includes("REMARK") && (

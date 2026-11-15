@@ -29,10 +29,11 @@ export function AddCoilButton({ onClick }: { onClick: () => void }) {
 export type CoilAct = "edit" | "transfer" | "adjust";
 
 // ปุ่ม ACTION ของ Coil ลูก 1 แถว
-export function CoilActions({ onAct }: { onAct: (a: CoilAct) => void }) {
+// open = the modal of this row is open: its button shows the red X (click = cancel)
+export function CoilActions({ onAct, open }: { onAct: (a: CoilAct) => void; open?: CoilAct | null }) {
   return (
     <span className="ra-row">
-      <RowAction kind="edit" title="EDIT" onClick={() => onAct("edit")} />
+      <RowAction kind="edit" title="EDIT" active={open === "edit"} onClick={() => onAct("edit")} />
       <button
         type="button"
         className="ra mng-move"
@@ -53,20 +54,27 @@ export function CoilActions({ onAct }: { onAct: (a: CoilAct) => void }) {
       </button>
       <button
         type="button"
-        className="ra mng-adj"
-        title="ADJUST (คืนยอด / ลบออก)"
-        aria-label="ADJUST"
+        className={`ra mng-adj ${open === "adjust" ? "ra-cancel is-active" : ""}`}
+        title={open === "adjust" ? "CANCEL" : "ADJUST (คืนยอด / ลบออก)"}
+        aria-label={open === "adjust" ? "CANCEL" : "ADJUST"}
+        aria-pressed={open === "adjust"}
         onClick={(e) => {
           e.stopPropagation();
           onAct("adjust");
         }}
       >
+        {open === "adjust" ? (
+          <svg viewBox="0 0 24 24" className="ra-ic ra-x" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        ) : (
         <svg viewBox="0 0 24 24" className="ra-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <g className="mng-scale">
             <path d="M12 4v16M7 20h10M5 7h14" />
             <path d="M5 7 2.5 13a2.5 2.5 0 0 0 5 0zM19 7l-2.5 6a2.5 2.5 0 0 0 5 0z" />
           </g>
         </svg>
+        )}
       </button>
     </span>
   );

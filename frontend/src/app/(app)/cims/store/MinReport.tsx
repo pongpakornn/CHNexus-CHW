@@ -49,7 +49,7 @@ export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; au
       title: late ? `PENDING REPORT (${late})` : "PENDING REPORT",
       detail: pend?.enabled
         ? `สินค้าที่ค้างที่ค่า MIN ≥ ${pend.stuckDays} วัน และยังไม่ระบุสาเหตุ (${late} รายการ) + รายการที่กำลังเฝ้าดู · 👁 PREVIEW · ✎ REPORT · PDF / EXCEL`
-        : "คลังนี้ยังไม่เปิดการแจ้งเตือน MIN REPORT (Admin ตั้งได้ที่ User Management › SETUP › MIN REPORT)",
+        : "คลังนี้ยังไม่เปิดการแจ้งเตือน MIN REPORT (Admin ตั้งได้ที่ SYSTEM CONFIGURATION › CIMS › MIN REPORT)",
       color: "#dc2626",
       icon: "alert",
       onClick: () => setOpen("pending"),
@@ -152,7 +152,7 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
         ) : !data.enabled ? (
           <div className="mr-off">
             <b>คลัง {s.code} ยังไม่เปิดการแจ้งเตือน MIN REPORT</b>
-            <span>Admin เปิดได้ที่ User Management › SETUP › MIN REPORT (เลือกคลัง · จำนวนวันที่ค้าง · แจ้งเตือนซ้ำทุกกี่นาที)</span>
+            <span>Admin เปิดได้ที่ SYSTEM CONFIGURATION › CIMS › MIN REPORT (เลือกคลัง · จำนวนวันที่ค้าง · แจ้งเตือนซ้ำทุกกี่นาที)</span>
           </div>
         ) : (
           <div className="mrp is-soft">

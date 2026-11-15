@@ -100,33 +100,34 @@ public sealed class ProductionPlanController : AppController
         {
             var p = new WorkloadExcelService().Read(path);
             TryDelete(path);
-            var ms = p.Rows.Select(r => r.Month).Distinct().OrderBy(m => m).ToList();
-            string Line(DateTime m)
-            {
-                var rs = p.Rows.Where(r => r.Month == m).ToList();
-                return $"• {m:MMM yyyy}: PDT {rs.Sum(r => r.Pdt ?? 0):N0} · Direct {rs.Sum(r => r.Direct ?? 0):N2}" + (rs.Any(r => r.Production.HasValue) ? $" · Production {rs.Sum(r => r.Production ?? 0):N0}" : "");
-            }
-            string summary = $"ไฟล์: {file.FileName}\nชีท: {p.Sheet}{(p.FileMonth.HasValue ? $" (เดือน N = {p.FileMonth:MMMM yyyy})" : "")}\n\n" +
-                             string.Join("\n", ms.Select(Line)) +
-                             "\n\nบันทึกเป็นยอด CASE 1 (ตาม EXCEL) ของเดือนที่มีในไฟล์ · ไม่เปลี่ยนยอดที่ระบบคำนวณ (CASE 2)\n\nยืนยันการนำเข้าหรือไม่?";
-            return Ok(new { id = _uploads.Put("", file.FileName, Uid, "wlxl", p), summary });
+            var evs = WorkloadExcelService.Eval(p, new WorkloadExcelService().Current(p.Rows.Select(r => r.Month)), null);
+            var rows = evs.Select(e => e.Row with { Label = WlName(e.Row.Label) }).ToList();
+            var errors = rows.Where(r => r.Status == ImportReview.Invalid).Select(r => new ImportErrorDto($"{r.Label} ({r.Sub})", r.Note)).ToList();
+            string id = _uploads.Put("", file.FileName, Uid, "wlxl", p);
+            return Ok(new ImportPreviewDto(id, file.FileName, $"WORK LOAD · {p.Sheet}", rows, errors));
         }
         catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
         catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ Work load ไม่สำเร็จ"); }
     }
 
+    private static string WlName(string key) => PpExcelController.WlRows.FirstOrDefault(x => x.Key == key).Name ?? key;
+
     [HttpPost("workload/excel/apply")]
-    public IActionResult WorkloadExcelApply([FromBody] string id) => GuardWl(Me?.CanEditPpCapacity == true) ?? Run(() =>
+    public IActionResult WorkloadExcelApply([FromBody] ImportApplyRequest req) => GuardWl(Me?.CanEditPpCapacity == true) ?? Run(() =>
     {
-        var it = _uploads.Get(id, Uid, "wlxl");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "wlxl");
         if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
         var p = (WorkloadExcelService.Parsed)it.State;
-        int n = new WorkloadExcelService().Save(p, it.FileName, Uid);
-        _uploads.Remove(id);
-        var ms = p.Rows.Select(r => r.Month).Distinct().OrderBy(m => m).ToList();
-        LogService.WriteLog(Uid, "PP_WORKLOAD_EXCEL_IMPORT", $"File: {it.FileName} | Sheet: {p.Sheet} | Months: {ms.First():MM/yyyy} - {ms.Last():MM/yyyy} | Rows: {n}", $"WL-{p.FileMonth:yyyyMM}");
+        var svc = new WorkloadExcelService();
+        var evs = WorkloadExcelService.Eval(p, svc.Current(p.Rows.Select(r => r.Month)), req);   // re-reads current values, re-validates edits
+        var write = evs.Where(e => e.Op != null).Select(e => e.Op).ToList();
+        int same = evs.Count(e => e.Row.Status == ImportReview.Same), skipped = evs.Count - write.Count - same;
+        int n = write.Count == 0 ? 0 : svc.Save(p with { Rows = write }, it.FileName, Uid);
+        _uploads.Remove(req.Id);
+        var ms = write.Select(r => r.Month).Distinct().OrderBy(m => m).ToList();
+        LogService.WriteLog(Uid, "PP_WORKLOAD_EXCEL_IMPORT", $"File: {it.FileName} | Sheet: {p.Sheet} | Months: {(ms.Count > 0 ? $"{ms.First():MM/yyyy} - {ms.Last():MM/yyyy}" : "-")} | Rows: {n} | Same: {same} | Skipped: {skipped}", $"WL-{p.FileMonth:yyyyMM}");
         Changed();
-        return Ok(new { message = $"นำเข้ายอด Work load (ตาม EXCEL) แล้ว {ms.Count} เดือน ({ms.First():MMM yyyy} - {ms.Last():MMM yyyy})" });
+        return Ok(new { rows = n, same, skipped, message = n == 0 ? "ไม่มียอด Work load ที่ต้องเปลี่ยน" : $"นำเข้ายอด Work load (ตาม EXCEL) แล้ว {ms.Count} เดือน ({ms.First():MMM yyyy} - {ms.Last():MMM yyyy}) · {n:N0} แถว" });
     }, "นำเข้าไม่สำเร็จ");
 
     public sealed record WlNoteReq(string Month, string Row, string Note);

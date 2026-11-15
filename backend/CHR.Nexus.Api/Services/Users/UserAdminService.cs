@@ -212,6 +212,7 @@ namespace Nexus.Services
             public bool LevelGiven { get; set; }
             public bool LockGiven { get; set; }
             public bool MasterGiven { get; set; }
+            public bool IsDuplicate { get; set; }
             public string Error { get; set; }
             public bool IsValid => string.IsNullOrEmpty(Error);
         }
@@ -304,12 +305,11 @@ namespace Nexus.Services
             return ids;
         }
 
-        public ImportFile ReadImport(string path, bool allowMasterAdmin)
+        // data = the upload bytes kept in memory (the temp file holds plain-text passwords and is deleted right after the first read)
+        public ImportFile ReadImport(byte[] data, bool allowMasterAdmin)
         {
             var result = new ImportFile();
-            var ms = new System.IO.MemoryStream();
-            using (var fs = new System.IO.FileStream(path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite)) fs.CopyTo(ms);
-            ms.Position = 0;
+            var ms = new System.IO.MemoryStream(data, false);
             var existing = new HashSet<string>(GetUsers().Select(u => u.UserId), StringComparer.OrdinalIgnoreCase);
             var seenUser = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenPerm = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -378,7 +378,7 @@ namespace Nexus.Services
                 else if (id.Length == 0) x.Error = "ไม่มี USERID";
                 else if (id.Length > 20) x.Error = "USERID ยาวเกิน 20 ตัวอักษร";
                 else if (name.Length == 0) x.Error = "ไม่มี FULLNAME";
-                else if (!seen.Add(id)) x.Error = "USERID ซ้ำกับแถวก่อนหน้าในไฟล์";
+                else if (!seen.Add(id)) { x.IsDuplicate = true; x.Error = "USERID ซ้ำกับแถวก่อนหน้าในไฟล์"; }
                 else
                 {
                     x.IsNew = !existing.Contains(id);
@@ -471,6 +471,125 @@ namespace Nexus.Services
                 }
             }
             return (add, upd, perms);
+        }
+
+        // ---------------------------------------------------------------- IMPORT REVIEW (PLAN.md shared import contract)
+        //   row key = USERID (user row + that user's permission rows) · invalid / duplicate user row = "<sheet>#<row>"
+        //   NEVER put a password value in a row: only a note that it will be set / changed.
+        public static string Flags(bool v, bool a, bool e, bool d, bool p)
+        {
+            string s = (v ? "V" : "") + (a ? "A" : "") + (e ? "E" : "") + (d ? "D" : "") + (p ? "P" : "");
+            return s.Length == 0 ? "-" : s;
+        }
+
+        // current permissions: user -> SystemID -> flags (missing row = "-")
+        public Dictionary<string, Dictionary<string, string>> GetPermFlags()
+        {
+            var map = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand("SELECT UserID, SystemID, CanView, CanAdd, CanEdit, CanDelete, CanApprove FROM Nexus.Permissions", conn))
+            {
+                conn.Open();
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read())
+                    {
+                        bool Y(int i) => !r.IsDBNull(i) && string.Equals(r.GetValue(i).ToString(), "Y", StringComparison.OrdinalIgnoreCase);
+                        string u = r.GetValue(0).ToString(), s = r.GetValue(1).ToString();
+                        if (!map.TryGetValue(u, out var m)) map[u] = m = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        m[s] = Flags(Y(2), Y(3), Y(4), Y(5), Y(6));
+                    }
+            }
+            return map;
+        }
+
+        private static string LockText(bool locked) => locked ? "LOCKED" : "ACTIVE";
+
+        public static (List<ImportRowDto> Rows, List<ImportErrorDto> Errors) Preview(ImportFile f, List<UserAccount> existing, Dictionary<string, Dictionary<string, string>> perms)
+        {
+            var known = existing.ToDictionary(u => u.UserId, StringComparer.OrdinalIgnoreCase);
+            var rows = new List<ImportRowDto>();
+            var errors = new List<ImportErrorDto>();
+            foreach (var x in f.Users.Where(x => !x.IsValid))
+            {
+                string id = string.IsNullOrEmpty(x.User.UserId) ? "-" : x.User.UserId;
+                errors.Add(new ImportErrorDto($"{x.Sheet} แถว {x.RowNumber}", $"{id} - {x.Error}"));
+                rows.Add(new ImportRowDto($"{x.Sheet}#{x.RowNumber}", x.IsDuplicate ? ImportReview.Duplicate : ImportReview.Invalid, id,
+                    $"{x.Sheet} แถว {x.RowNumber}" + (string.IsNullOrEmpty(x.User.Name) ? "" : $" · {x.User.Name}"), new List<ImportField>(),
+                    x.IsDuplicate ? "USERID ซ้ำในไฟล์ · ใช้แถวบนสุด แถวนี้ถูกข้าม" : x.Error, null));
+            }
+            foreach (var p in f.Perms.Where(p => !p.IsValid))
+                errors.Add(new ImportErrorDto($"{p.Sheet} แถว {p.RowNumber}", $"{(string.IsNullOrEmpty(p.UserId) ? "-" : p.UserId)} {p.SysId} - {p.Error}"));
+
+            var users = f.Users.Where(x => x.IsValid).ToList();
+            var validPerms = f.Perms.Where(p => p.IsValid).ToList();
+            var ids = users.Select(x => x.User.UserId).Concat(validPerms.Select(p => p.UserId)).Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (string id in ids)
+            {
+                var x = users.FirstOrDefault(u => string.Equals(u.User.UserId, id, StringComparison.OrdinalIgnoreCase));
+                known.TryGetValue(id, out var ex);
+                bool isNew = x?.IsNew == true;
+                var fields = new List<ImportField>();
+                void Add(string name, string old, string nw, bool edit = false) => fields.Add(new ImportField(name, isNew ? null : old ?? "", nw ?? "", edit));
+                if (x != null)
+                {
+                    var u = x.User;
+                    Add("NAME", ex?.Name, u.Name, true);
+                    Add("LEVEL", ex?.Level.ToString(), (x.LevelGiven || isNew ? u.Level : ex?.Level ?? u.Level).ToString(), true);
+                    if (x.LockGiven || isNew) Add("LOCK", ex == null ? null : LockText(ex.IsLocked), LockText(u.IsLocked));
+                    if (x.MasterGiven) Add("MASTER ADMIN", ex == null ? null : ex.IsMasterAdmin ? "1" : "0", u.IsMasterAdmin ? "1" : "0");
+                    if (u.Position != null) Add("POSITION", ex?.Position, u.Position);
+                    if (u.Department != null) Add("DEPARTMENT", ex?.Department, u.Department);
+                    if (u.Section != null) Add("SECTION", ex?.Section, u.Section);
+                    if (u.Division != null) Add("DIVISION", ex?.Division, u.Division);
+                }
+                perms.TryGetValue(id, out var cur);
+                var changes = validPerms.Where(p => string.Equals(p.UserId, id, StringComparison.OrdinalIgnoreCase))
+                    .Select(p => (p.SysId, Old: cur != null && cur.TryGetValue(p.SysId, out var o) ? o : "-", New: Flags(p.View, p.Add, p.Edit, p.Delete, p.Approve)))
+                    .Where(c => c.Old != c.New).ToList();
+                if (changes.Count > 0) fields.Add(new ImportField("PERMISSIONS", null, $"{changes.Count:N0} changes"));
+                bool pwd = x != null && !string.IsNullOrEmpty(x.Password);
+                string status = isNew ? ImportReview.New
+                              : changes.Count > 0 || pwd || fields.Any(fl => fl.Old != null && fl.Old != fl.New) ? ImportReview.Changed : ImportReview.Same;
+                string sub = string.Join(" · ", new[]
+                {
+                    x != null ? $"{x.Sheet} แถว {x.RowNumber}" : "PERMISSIONS",
+                    x?.User.Name ?? ex?.Name,
+                    changes.Count > 0 ? "PERMISSIONS: " + string.Join(", ", changes.Take(10).Select(c => $"{c.SysId} {c.Old}→{c.New}")) + (changes.Count > 10 ? $" ... +{changes.Count - 10}" : "") : null
+                }.Where(s => !string.IsNullOrEmpty(s)));
+                rows.Add(new ImportRowDto(x?.User.UserId ?? id, status, x?.User.UserId ?? ex?.UserId ?? id, sub, fields,
+                    pwd ? (isNew ? "ตั้งรหัสผ่าน" : "เปลี่ยนรหัสผ่าน") : null, null));
+            }
+            return (rows, errors);
+        }
+
+        // apply-side review choices: exclude = whole user (user row + permission rows) · edits = NAME / LEVEL of a valid user row
+        public static void ApplyReview(ImportFile f, ImportApplyRequest req)
+        {
+            var skip = new HashSet<string>(req?.Exclude ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            foreach (var x in f.Users.Where(x => x.IsValid && skip.Contains(x.User.UserId))) x.Error = "ไม่ใช้ (เลือกในหน้าตรวจก่อนนำเข้า)";
+            foreach (var p in f.Perms.Where(p => p.IsValid && skip.Contains(p.UserId))) p.Error = "ไม่ใช้ (เลือกในหน้าตรวจก่อนนำเข้า)";
+            foreach (var kv in req?.Edits ?? new Dictionary<string, Dictionary<string, string>>())
+            {
+                var x = f.Users.FirstOrDefault(u => u.IsValid && string.Equals(u.User.UserId, kv.Key, StringComparison.OrdinalIgnoreCase));
+                if (x == null || kv.Value == null) continue;   // excluded / no longer valid: nothing to edit
+                foreach (var fv in kv.Value)
+                {
+                    string v = (fv.Value ?? "").Trim();
+                    switch ((fv.Key ?? "").ToUpperInvariant())
+                    {
+                        case "NAME":
+                            if (v.Length == 0) throw new InvalidOperationException($"{x.User.UserId}: NAME ว่างไม่ได้");
+                            if (v.Length > 200) throw new InvalidOperationException($"{x.User.UserId}: NAME ยาวเกิน 200 ตัวอักษร");
+                            x.User.Name = v;
+                            break;
+                        case "LEVEL":
+                            if (!int.TryParse(v.Split(' ')[0], out int l) || l < 1 || l > 3) throw new InvalidOperationException($"{x.User.UserId}: LEVEL ต้องเป็น 1 / 2 / 3 ({v})");
+                            x.User.Level = l; x.LevelGiven = true;
+                            break;
+                        default: throw new InvalidOperationException($"แก้ช่อง \"{fv.Key}\" ผ่านหน้าตรวจไม่ได้");
+                    }
+                }
+            }
         }
 
         // กลุ่มระบบแบบเดียวกับหน้า PERMISSION (CIMS / MASTER DATA / EDP / PRODUCTION PLAN / CHEMICAL / USER MANAGEMENT)

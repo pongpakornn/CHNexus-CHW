@@ -288,9 +288,11 @@ export default function ChemSetup() {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line/60 pt-4">
                   {row && <span className="mr-auto text-xs font-bold text-ink-soft">UPDATE {stamp(row.updatedAt)} {row.updatedBy ? `· ${row.updatedBy}` : ""} · ผลการตรวจวัด {row.readings} ค่า</span>}
-                  <button type="button" className="cta-btn is-gray min-w-[120px]" disabled={busy} onClick={reset}>
-                    {row ? "✕ CANCEL" : "↺ RESET"}
-                  </button>
+                  {!row && (
+                    <button type="button" className="cta-btn is-gray min-w-[120px]" disabled={busy} onClick={reset}>
+                      ↺ RESET
+                    </button>
+                  )}
                   {editable && (
                     <button type="button" className={`cta-btn min-w-[200px] ${row ? "is-green" : "is-purple"}`} disabled={busy} onClick={save}>
                       {busy ? "…" : row ? "💾 SAVE CHANGES" : "＋ ADD PARAMETER"}
@@ -360,7 +362,7 @@ export default function ChemSetup() {
                           </td>
                           <td>
                             <RowActions>
-                              <RowAction kind={can?.setupEdit ? "edit" : "view"} active={row?.id === p.id} onClick={() => open(p)} />
+                              <RowAction kind={can?.setupEdit ? "edit" : "view"} active={row?.id === p.id} onClick={() => (row?.id === p.id ? reset() : open(p))} />
                               {can?.delete && <RowAction kind="delete" onClick={() => remove(p)} />}
                             </RowActions>
                           </td>

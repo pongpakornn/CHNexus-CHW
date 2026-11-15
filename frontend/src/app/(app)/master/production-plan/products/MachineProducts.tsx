@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { sameData, useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
+import { ExcelMenu } from "@/components/import/ExcelMenu";
 import { deptOf, f0, f1, f2, mcHrOf, sphOf, strokeOf, thisMonth, type PpPart } from "@/lib/pp";
 import { DeptPicker, MonthPicker, ProcessChips } from "../../../pp/shared";
 import "../../../pp/pp.css";
@@ -159,6 +160,15 @@ export default function MachineProducts() {
         subtitle="MASTER DATA · ตาราง Product ของเครื่อง · PART A (STORE-FG) · PART B (STORE-SUB) · PROCESS CODE"
         actions={
           <>
+            <ExcelMenu
+              title="MACHINE PRODUCTS"
+              templateUrl={`/pp/setup/products/template?dept=${dept}`}
+              importUrl="/pp/setup/products/import"
+              applyUrl="/pp/setup/products/import/apply"
+              canTemplate={!!setup}
+              canImport={can.add && can.edit}
+              onDone={() => { loadSetup(); loadRows(true); }}
+            />
             <MonthPicker value={month} onChange={setMonth} />
             <Link href={`/master/production-plan?dept=${dept}`} className="btn-ghost">
               ⚙ MACHINE STD
@@ -281,9 +291,11 @@ export default function MachineProducts() {
                     )}
                   </div>
                   <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-line/60 pt-4">
-                    <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
-                      {row ? "✕ CANCEL" : "↺ RESET"}
-                    </button>
+                    {!row && (
+                      <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
+                        ↺ RESET
+                      </button>
+                    )}
                     {(row ? can.edit : can.add) && (
                       <button type="button" className={`btn min-w-[180px] ${row ? "bg-success" : "bg-accent"}`} disabled={busy} onClick={save}>
                         {busy ? "…" : row ? "💾 SAVE CHANGES" : "＋ ADD PRODUCT"}
@@ -357,7 +369,7 @@ export default function MachineProducts() {
                           <td className="hr">{f2(mcHrOf(p, bp))}</td>
                           <td>
                             <RowActions>
-                              {can.edit && <RowAction kind="edit" active={row?.id === p.id} onClick={() => open(p)} />}
+                              {can.edit && <RowAction kind="edit" active={row?.id === p.id} onClick={() => (row?.id === p.id ? reset() : open(p))} />}
                               {can.delete && <RowAction kind="delete" onClick={() => remove(p)} />}
                             </RowActions>
                           </td>

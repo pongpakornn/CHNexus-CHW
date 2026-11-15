@@ -84,12 +84,40 @@ public abstract class AppController : ControllerBase
     }
 
     // ไฟล์ Excel ที่อัปโหลด -> เก็บชั่วคราวที่ Server (ตัวอ่าน Excel เดิมรับเป็น path)
-    protected static async Task<string> SaveUpload(IFormFile file)
+    public static readonly string UploadDir = Path.Combine(Path.GetTempPath(), "CHR-Nexus-Upload");
+
+    private static void CheckUpload(IFormFile file)
     {
         if (file == null || file.Length == 0) throw new InvalidOperationException("กรุณาเลือกไฟล์ Excel");
         string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (ext != ".xlsx" && ext != ".xlsm") throw new InvalidOperationException("รองรับเฉพาะไฟล์ Excel (.xlsx)");
-        string dir = Path.Combine(Path.GetTempPath(), "CHR-Nexus-Upload");
+    }
+
+    // sensitive uploads (users = plain-text passwords): kept in memory only, never written to the upload folder
+    protected static async Task<byte[]> ReadUpload(IFormFile file)
+    {
+        CheckUpload(file);
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        return ms.ToArray();
+    }
+
+    // startup: files left by a recycle / crash (cache entries die with the process, so nothing deletes them)
+    public static void SweepUploads(TimeSpan olderThan)
+    {
+        try
+        {
+            if (!Directory.Exists(UploadDir)) return;
+            foreach (var f in Directory.GetFiles(UploadDir))
+                if (System.IO.File.GetLastWriteTimeUtc(f) < DateTime.UtcNow - olderThan) TryDelete(f);
+        }
+        catch { }
+    }
+
+    protected static async Task<string> SaveUpload(IFormFile file)
+    {
+        CheckUpload(file);
+        string dir = UploadDir;
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, $"{Guid.NewGuid():N}_{Path.GetFileName(file.FileName)}");
         await using var fs = System.IO.File.Create(path);

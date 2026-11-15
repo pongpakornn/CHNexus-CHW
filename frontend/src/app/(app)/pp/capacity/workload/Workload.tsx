@@ -12,6 +12,8 @@ import { f0, f1, thisMonth } from "@/lib/pp";
 import { Kpi, MonthPicker, PpIcon } from "../../shared";
 import { EN, buildTable, deptTotals, refMap, savedHeads, signed, updOf, useWorkload, type WlField } from "./wl";
 import { WlGrid, WlLegend } from "./WlGrid";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 import { PpImportPreview } from "../../PpImportPreview";
 import "../../pp.css";
 
@@ -38,6 +40,7 @@ export default function Workload() {
   const { res, err, load } = useWorkload(month, dirty > 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [excelPv, setExcelPv] = useState<ImportPreview | null>(null);
   // 📥 IMPORT Current (คนที่มีจริง) จาก Template ช่องกรอก -> หน้าเตรียม IMPORT แบบ Forecast
   const curFile = useRef<HTMLInputElement>(null);
   const [curPv, setCurPv] = useState<File | null>(null);
@@ -86,11 +89,7 @@ export default function Workload() {
   async function importExcel(f: File) {
     setImporting(true);
     try {
-      const pv = await upload<{ id: string; summary: string }>("/pp/workload/excel", f);
-      if (!(await dlg.confirm({ title: "IMPORT WORK LOAD EXCEL", message: pv.summary, ok: "IMPORT" }))) return;
-      const r = await api<{ message: string }>("/pp/workload/excel/apply", { method: "POST", body: pv.id });
-      toast.show("IMPORTED", r.message, "ok");
-      await load(true);
+      setExcelPv(await upload<ImportPreview>("/pp/workload/excel", f));
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -186,6 +185,7 @@ export default function Workload() {
                   if (f) importExcel(f);
                 }}
               />
+              {excelPv && <ImportReview preview={excelPv} applyUrl="/pp/workload/excel/apply" onClose={() => setExcelPv(null)} onDone={() => { setExcelPv(null); load(true); }} />}
             </>
           )}
           {canEdit && (

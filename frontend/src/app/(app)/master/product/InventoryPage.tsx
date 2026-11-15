@@ -21,6 +21,8 @@ import { AdminModal } from "./AdminModal";
 import { LayoutQrPicker } from "./LayoutQrPicker";
 import { createPortal } from "react-dom";
 import { CoilPanel, type CoilRow } from "./CoilPanel";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 import { EMPTY_FORM, formOf, type Form, type Layout, type Meta, type Part } from "./types";
 
 const PAGE = 100;
@@ -85,6 +87,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const [admin, setAdmin] = useState(false);
   const [layoutQr, setLayoutQr] = useState(false); // ▣ EXPORT QR CODE LAYOUT
   const [tplOpen, setTplOpen] = useState(false);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [tplOptions, setTplOptions] = useState<{ stkId: number; code: string; name: string; heads: string; countCoil: boolean }[]>([]);
   const [exportOpen, setExportOpen] = useState<{ all: number } | null>(null);
   const [picking, setPicking] = useState<PickingReq | null>(null);
@@ -448,11 +451,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   async function doImport(file: File) {
     setBusy(true);
     try {
-      const pv = await upload<{ id: string; summary: string }>("/products/import", file);
-      if (!(await dlg.confirm({ title: "CONFIRM IMPORT", message: pv.summary, ok: "IMPORT" }))) return;
-      const r = await api<{ message: string }>("/products/import/apply", { method: "POST", body: pv.id });
-      await dlg.alert({ title: "IMPORT", message: r.message });
-      reload();
+      setPreview(await upload<ImportPreview>("/products/import", file));
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -618,21 +617,25 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
         actions={
           <>
             <ActionMenu
-              caption={["EXCEL · QR", can.admin ? "TEMPLATE · IMPORT · QR · ADMIN" : "TEMPLATE · IMPORT · QR"]}
+              caption={["EXCEL · QR", can.admin ? "TEMPLATE · IMPORT · QR · ADMIN" : can.add ? "TEMPLATE · IMPORT · QR" : "TEMPLATE · QR"]}
               actions={[
+                {
+                  key: "template",
+                  title: "TEMPLATE EXCEL",
+                  detail: "ดาวน์โหลดไฟล์ต้นแบบสำหรับลงทะเบียนสินค้า เลือกคลังได้ คอลัมน์ตาม Store (Max-Min) ของคลังนั้น",
+                  color: "#7c3aed",
+                  icon: "template" as const,
+                  onClick: async () => {
+                    try {
+                      setTplOptions(await api("/products/template/options"));
+                      setTplOpen(true);
+                    } catch (e) {
+                      toast.show("ERROR", (e as Error).message, "error");
+                    }
+                  },
+                },
                 ...(can.add
                   ? [
-                      {
-                        key: "template",
-                        title: "TEMPLATE EXCEL",
-                        detail: "ดาวน์โหลดไฟล์ต้นแบบสำหรับลงทะเบียนสินค้า เลือกคลังได้ คอลัมน์ตาม Store (Max-Min) ของคลังนั้น",
-                        color: "#7c3aed",
-                        icon: "template" as const,
-                        onClick: async () => {
-                          setTplOptions(await api("/products/template/options"));
-                          setTplOpen(true);
-                        },
-                      },
                       {
                         key: "import",
                         title: busy ? "IMPORTING..." : "IMPORT EXCEL",
@@ -691,7 +694,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
             title={editId ? "✏️ EDIT PRODUCT" : viewId ? "👁 VIEW PRODUCT" : "＋ REGISTER PRODUCT"}
             actions={
               <>
-                {(editId || viewId || form.partCode) && (
+                {!editId && !viewId && form.partCode && (
                   <button className="fill-btn is-sm" onClick={clear}>
                     CLEAR
                   </button>
@@ -923,7 +926,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                             <td className="whitespace-nowrap text-right">
                               <RowActions>
                                 <RowAction kind="view" active={viewId === p.ptId && !editId} onClick={() => (viewId === p.ptId && !editId ? clear() : fill(p, false))} />
-                                {can.edit && <RowAction kind="edit" active={editId === p.ptId} title={editId === p.ptId ? "CANCEL EDIT" : "EDIT"} onClick={() => (editId === p.ptId ? clear() : fill(p, true))} />}
+                                {can.edit && <RowAction kind="edit" active={editId === p.ptId} onClick={() => (editId === p.ptId ? clear() : fill(p, true))} />}
                                 {can.edit && <RowAction kind="hide" shown={p.isShow} onClick={() => toggleShow(p)} />}
                                 {can.delete && <RowAction kind="delete" onClick={() => remove(p)} />}
                               </RowActions>
@@ -968,6 +971,17 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
       </div>
 
       {/* 📄 TEMPLATE: เลือกคลัง -> คอลัมน์ตาม Store (Max-Min) ของคลังนั้น (การ์ดแบบหน้า Store) */}
+      {preview && (
+        <ImportReview
+          preview={preview}
+          applyUrl="/products/import/apply"
+          onClose={() => setPreview(null)}
+          onDone={() => {
+            setPreview(null);
+            reload();
+          }}
+        />
+      )}
       <Modal open={tplOpen} size="xl" title="📄 TEMPLATE EXCEL" onClose={() => setTplOpen(false)}>
         <p className="mb-4 text-sm font-semibold text-ink-soft">เลือกคลัง: ระบบสร้าง Template ตามคอลัมน์ที่คลังนั้นแสดงใน Store (Max-Min)</p>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

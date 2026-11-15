@@ -48,7 +48,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [sys, setSys] = useState<SystemKey>(() => systemOf(path) ?? "root");
   const here = systemOf(path);
   if (here && here !== sys) setSys(here);
-  const can = me?.can ?? {};
+  const can = { ...me?.can, level1: me?.userLevel === 1 }; // level1 = เมนู SYSTEM CONFIGURATION (Admin Level 1)
   const items = allowed(menuOf(sys), can);
 
   // หน้าต่างแคบกว่า 1500 -> พับ Sidebar ให้เหลือแต่ไอคอนเอง (เหมือน SidebarAutoWidth ของ WPF)

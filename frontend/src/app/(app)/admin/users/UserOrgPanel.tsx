@@ -6,7 +6,7 @@ import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { api } from "@/lib/api";
 
-// 👤 SETUP › ADD USERID : ตัวเลือก Dropdown ของหน้า ＋ ADD USER / ✏ EDIT USER
+// 👤 User Management › System Configuration › Organization Master : ตัวเลือก Dropdown ของหน้า ＋ ADD USER / ✏ EDIT USER
 //   POSITION (ตำแหน่ง) = รายการเดียว · ฝ่าย -> แผนก -> หน่วยงาน = กดฝ่ายเพื่อดู / เพิ่มแผนกของฝ่ายนั้น · กดแผนกเพื่อดู / เพิ่มหน่วยงานของแผนกนั้น
 //   เพิ่ม / แก้ชื่อในช่อง / ⬆⬇ เลื่อนลำดับ / ✕ ลบ (ลบฝ่าย = ลบแผนก + หน่วยงานข้างใต้) แล้วกด SAVE ครั้งเดียว
 //   ผู้ใช้ที่มีอยู่เก็บเป็นข้อความเดิม -> แก้ / ลบตัวเลือกไม่กระทบผู้ใช้
@@ -36,7 +36,7 @@ export function UserOrgPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
       setOrig(d.items);
       setRows(d.items);
     } catch (e) {
-      toast.show("ERROR", "โหลดตัวเลือก ADD USERID ไม่สำเร็จ\n" + (e as Error).message, "error");
+      toast.show("ERROR", "โหลดตัวเลือก ORGANIZATION MASTER ไม่สำเร็จ\n" + (e as Error).message, "error");
     }
   }, [toast]);
   useEffect(() => {

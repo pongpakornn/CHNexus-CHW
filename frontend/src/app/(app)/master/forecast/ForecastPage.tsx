@@ -3,6 +3,8 @@
 import { GroupRow, useCollapsed } from "@/components/tables/GroupRow";
 import { ActionMenu } from "@/components/menus/ActionMenu";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 import { Pager } from "@/components/tables/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
@@ -45,6 +47,7 @@ export default function ForecastPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const withCalcRef = useRef(true);
+  const [pv, setPv] = useState<ImportPreview | null>(null);
   const [choice, setChoice] = useState<{ title: string; text: string; calc: string; only: string } | null>(null);
 
   const loadMonths = useCallback(
@@ -151,11 +154,7 @@ export default function ForecastPage() {
   async function doImport(file: File) {
     setBusy(true);
     try {
-      const pv = await upload<{ id: string; summary: string }>("/forecast/import", file, { withCalc: String(withCalcRef.current) });
-      if (!(await dlg.confirm({ title: "IMPORT FORECAST", message: pv.summary, ok: "IMPORT" }))) return;
-      const r = await api<{ message: string; month: string }>("/forecast/import/apply", { method: "POST", body: pv.id });
-      toast.show("Forecast imported", r.message, "ok");
-      await loadMonths(r.month);
+      setPv(await upload<ImportPreview>("/forecast/import", file, { withCalc: String(withCalcRef.current) }));
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
     } finally {
@@ -264,7 +263,7 @@ export default function ForecastPage() {
         <Card
           title="TOP 5 ORDER"
           actions={
-            <MenuSelect compact className="w-[200px]" value={topMonth} options={monthOpts} onChange={setTopMonth} />
+            <MenuSelect compact className="w-[200px] max-w-full" value={topMonth} options={monthOpts} onChange={setTopMonth} />
           }
           bodyClass="p-4"
         >
@@ -301,7 +300,7 @@ export default function ForecastPage() {
         title="ITEMS"
         actions={
           <>
-            <MenuSelect compact className="w-[200px]" value={tableMonth} options={monthOpts} onChange={(v) => (setTableMonth(v), setPage(0))} />
+            <MenuSelect compact className="w-[200px] max-w-full" value={tableMonth} options={monthOpts} onChange={(v) => (setTableMonth(v), setPage(0))} />
           </>
         }
       >
@@ -355,6 +354,8 @@ export default function ForecastPage() {
           </div>
         )}
       </Card>
+
+      {pv && <ImportReview preview={pv} applyUrl="/forecast/import/apply" onClose={() => setPv(null)} onDone={() => { setPv(null); loadMonths(); }} />}
 
       {/* 📥 IMPORT: คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว */}
       <CalcChoiceModal

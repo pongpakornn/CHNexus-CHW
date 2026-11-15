@@ -279,13 +279,6 @@ export default function PrPage() {
         {/* ฟอร์ม PR อยู่ด้านบนแบบ WPF: แถว 1 = DATE · REQUESTER · PRODUCT CODE · PRODUCT NAME · QTY / แถว 2 = DEPARTMENT · REMARK · TARGET DEPT · ปุ่ม */}
         <Card
           title={viewing ? `👁 ${viewing.prNumber}` : "＋ NEW PR"}
-          actions={
-            viewing && (
-              <button className="btn-ghost px-3 py-1 text-xs" onClick={clear}>
-                CLEAR
-              </button>
-            )
-          }
           bodyClass="grid grid-cols-1 gap-3 p-4 min-[480px]:grid-cols-2 md:grid-cols-3 md:p-5 xl:grid-cols-5"
           clip={false}
         >

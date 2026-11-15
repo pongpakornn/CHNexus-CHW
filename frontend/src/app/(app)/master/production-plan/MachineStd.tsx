@@ -12,6 +12,7 @@ import { stamp } from "@/lib/format";
 import { sameData, useLive } from "@/lib/live";
 import { EASE, fadeOnly, panelIn } from "@/lib/motion";
 import { useDebounced } from "@/lib/useDebounced";
+import { ExcelMenu } from "@/components/import/ExcelMenu";
 import { deptOf, type PpShift } from "@/lib/pp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DeptPicker } from "../../pp/shared";
@@ -172,9 +173,20 @@ export default function MachineStd() {
         title="PRODUCTION PLAN • MACHINE STD"
         subtitle={`MASTER DATA · เครื่องจักร ${deptOf(DEPT).name} + Target Eff · Plan SPH · ค่าที่ใช้คำนวณ Capacity`}
         actions={
-          <Link href={`/master/production-plan/products?dept=${DEPT}`} className="btn-ghost">
-            📋 MACHINE PRODUCTS
-          </Link>
+          <>
+            <ExcelMenu
+              title="MACHINE STD"
+              templateUrl={`/pp/setup/machines/template?dept=${DEPT}`}
+              importUrl="/pp/setup/machines/import"
+              applyUrl="/pp/setup/machines/import/apply"
+              canTemplate={!!data}
+              canImport={can.add && can.edit}
+              onDone={() => load(true)}
+            />
+            <Link href={`/master/production-plan/products?dept=${DEPT}`} className="btn-ghost">
+              📋 MACHINE PRODUCTS
+            </Link>
+          </>
         }
       />
       <DeptPicker
@@ -264,9 +276,11 @@ export default function MachineStd() {
                     {row ? `UPDATE ${stamp(row.updatedAt)}${row.updatedBy ? " · " + row.updatedBy : ""} · PRODUCTS ${row.parts}` : "C3 เว้นว่าง = ΣStroke ÷ ΣMC Hr จากตาราง Product (เหมือน Excel)"}
                   </span>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                    <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
-                      {row ? "✕ CANCEL" : "↺ RESET"}
-                    </button>
+                    {!row && (
+                      <button type="button" className="btn-ghost min-w-[120px]" disabled={busy} onClick={reset}>
+                        ↺ RESET
+                      </button>
+                    )}
                     {view ? (
                       can.edit && (
                         <button type="button" className="btn bg-accent min-w-[160px]" onClick={() => setView(false)}>
@@ -346,8 +360,8 @@ export default function MachineStd() {
                           </td>
                           <td>
                             <RowActions>
-                              <RowAction kind="view" onClick={() => open(m, true)} />
-                              {can.edit && <RowAction kind="edit" active={row?.id === m.id && !view} onClick={() => open(m, false)} />}
+                              <RowAction kind="view" active={row?.id === m.id && view} onClick={() => (row?.id === m.id && view ? reset() : open(m, true))} />
+                              {can.edit && <RowAction kind="edit" active={row?.id === m.id && !view} onClick={() => (row?.id === m.id && !view ? reset() : open(m, false))} />}
                               {can.delete && <RowAction kind="delete" onClick={() => remove(m)} />}
                             </RowActions>
                           </td>
@@ -411,7 +425,7 @@ export default function MachineStd() {
                 </div>
               </div>
               {can.edit && (
-                <div className="mt-4 flex justify-end gap-2 border-t border-line/60 pt-4">
+                <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-line/60 pt-4">
                   <button
                     type="button"
                     className="btn-ghost min-w-[120px]"

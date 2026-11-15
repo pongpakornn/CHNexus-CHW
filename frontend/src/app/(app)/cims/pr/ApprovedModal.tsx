@@ -178,7 +178,7 @@ export function ApprovedModal({
                     {(can.edit || can.delete) && (
                       <td className="whitespace-nowrap">
                         <RowActions>
-                          {can.edit && <RowAction kind="edit" onClick={() => setEdit(p)} />}
+                          {can.edit && <RowAction kind="edit" active={edit?.prNumber === p.prNumber} onClick={() => setEdit(edit?.prNumber === p.prNumber ? null : p)} />}
                           {can.delete && <RowAction kind="delete" onClick={() => remove(p)} />}
                         </RowActions>
                       </td>
@@ -213,7 +213,7 @@ export function ApprovedModal({
                 title="📥 EXPORT PATH"
                 detail="ต่อข้อมูลลงไฟล์ Excel ของคลัง ตามช่องที่ตั้งไว้ (ไฟล์ของ CHR-Nexus)"
                 meta={data?.pathStocks.map((s) => s.code).join("  •  ") || "ยังไม่มีคลังที่ตั้งไฟล์"}
-                onClick={() => ((data?.pathStocks.length ?? 0) > 0 ? setChoose("PATH") : toast.show("WARNING", "ยังไม่มีคลังที่ตั้งไฟล์ Excel\nตั้งได้ที่ User Management -> ⚙ SETUP -> EXCEL SETUP (Admin)", "warn"))}
+                onClick={() => ((data?.pathStocks.length ?? 0) > 0 ? setChoose("PATH") : toast.show("WARNING", "ยังไม่มีคลังที่ตั้งไฟล์ Excel\nตั้งได้ที่ User Management › System Configuration › PR Management › Excel Setup (Admin)", "warn"))}
               />
             </div>
           </div>
@@ -321,9 +321,6 @@ function EditModal({ pr, onClose, onSaved }: { pr: Pr; onClose: () => void; onSa
       onClose={onClose}
       footer={
         <>
-          <button className="fill-btn" onClick={onClose}>
-            CANCEL
-          </button>
           <button className="cta-btn is-purple" onClick={save} disabled={saving}>
             💾 SAVE
           </button>

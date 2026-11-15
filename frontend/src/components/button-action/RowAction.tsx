@@ -27,26 +27,33 @@ export function RowAction({
   /** hide: true = แสดงอยู่ (กดเพื่อซ่อน) / false = ซ่อนอยู่ (กดเพื่อแสดง) */
   shown?: boolean;
 }) {
-  const t = title ?? (kind === "hide" ? (shown ? "HIDE" : "SHOW") : TITLE[kind]);
+  // active = the row's form/modal is open: same button becomes a red X that cancels
+  const t = active ? "CANCEL" : title ?? (kind === "hide" ? (shown ? "HIDE" : "SHOW") : TITLE[kind]);
   return (
     <button
       type="button"
-      className={`ra ra-${kind} ${active ? "is-active" : ""} ${kind === "hide" && !shown ? "is-off" : ""}`}
+      className={`ra ra-${active ? "cancel" : kind} ${active ? "is-active" : ""} ${kind === "hide" && !shown ? "is-off" : ""}`}
       title={t}
       aria-label={t}
       disabled={disabled}
+      aria-pressed={active === undefined ? undefined : !!active}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
     >
-      {kind === "view" && (
+      {active && (
+        <svg viewBox="0 0 24 24" className="ra-ic ra-x" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      )}
+      {!active && kind === "view" && (
         <svg viewBox="0 0 24 24" className="ra-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
           <circle cx="12" cy="12" r="3" className="ra-pupil" />
         </svg>
       )}
-      {kind === "edit" && (
+      {!active && kind === "edit" && (
         <svg viewBox="0 0 24 26" className="ra-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M2.6 24.4q1.7-2 3.4 0t3.4 0 3.4 0" className="ra-ink" pathLength={1} />
           <g className="ra-pencil">
@@ -55,7 +62,7 @@ export function RowAction({
           </g>
         </svg>
       )}
-      {kind === "hide" && (
+      {!active && kind === "hide" && (
         <svg viewBox="0 0 24 24" className="ra-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <g className="ra-eye">
             <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
@@ -64,7 +71,7 @@ export function RowAction({
           <path d="M3.5 3.5 20.5 20.5" className="ra-slash" pathLength={1} />
         </svg>
       )}
-      {kind === "delete" && (
+      {!active && kind === "delete" && (
         <span className="ra-bin" aria-hidden>
           <svg viewBox="0 0 69 14" className="ra-bin-top" fill="currentColor">
             <path d="M20.8232 2.62734L19.9948 4.21304C19.8224 4.54309 19.4808 4.75 19.1085 4.75H4.92857C2.20246 4.75 0 6.87266 0 9.5C0 12.1273 2.20246 14.25 4.92857 14.25H64.0714C66.7975 14.25 69 12.1273 69 9.5C69 6.87266 66.7975 4.75 64.0714 4.75H49.8915C49.5192 4.75 49.1776 4.54309 49.0052 4.21305L48.1768 2.62734C47.3451 1.00938 45.6355 0 43.7719 0H25.2281C23.3645 0 21.6549 1.00938 20.8232 2.62734Z" />
@@ -74,7 +81,7 @@ export function RowAction({
           </svg>
         </span>
       )}
-      {kind === "reset" && (
+      {!active && kind === "reset" && (
         <svg viewBox="0 0 24 24" className="ra-ic" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <g className="ra-spin">
             <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />

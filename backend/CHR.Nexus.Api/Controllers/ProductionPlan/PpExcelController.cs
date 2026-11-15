@@ -79,21 +79,30 @@ public sealed class PpExcelController : AppController
             {
                 var all = ws.Range(4, 1, r - 1, h.Length);
                 all.Style.Border.OutsideBorder = XLBorderStyleValues.Thin; all.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-                ws.Range(5, 1, r - 1, 1).Style.Font.FontColor = XLColor.FromHtml("#6b6680");
-                ws.Range(5, 12, r - 1, 12).Style.Fill.BackgroundColor = XLColor.FromHtml("#fef3c7");
+                ws.Range(5, 1, r - 1, 11).Style.Fill.BackgroundColor = XLColor.FromHtml("#EDEDED");   // key + reference = gray
+                ws.Range(5, 12, r - 1, 12).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF2CC");   // input = yellow
                 ws.Range(5, 8, r - 1, 12).Style.NumberFormat.Format = "#,##0.##";
                 all.SetAutoFilter();
             }
             ws.SheetView.FreezeRows(4);
             double[] w = { 9, 26, 14, 14, 10, 12, 40, 10, 10, 12, 14, 14 };
             for (int c = 0; c < w.Length; c++) ws.Column(c + 1).Width = w[c];
+            ImportTemplateService.Guide(wb, "CHR-Nexus - PRODUCTION PLAN > CAPACITY > PCS (IMPORT EXCEL)", new[]
+            {
+                ("ITEM ID / DEPT / MONTH", "ห้ามแก้ (ใช้จับคู่) · ITEM ID ที่ไม่มีในหน่วยงาน / เดือนนี้แล้ว = INVALID"),
+                ("PCS (ใช้จริง)", "ช่องสีเหลือง · ตัวเลข 0 - 99,999,999 · ว่าง หรือเท่ากับยอด AUTO = ใช้ยอด AUTO (Order / Forecast)"),
+                ("ยอดเท่าเดิม", "ไม่แตะ (SAME)"),
+                ("ยอดต่างจากในระบบ", "ตั้งเป็น PCS ใหม่ (ป้าย M) · หน้าพรีวิวแสดงค่าเดิม → ค่าใหม่ ก่อนกด IMPORT"),
+                ("ITEM ID ซ้ำในไฟล์", "ใช้แถวล่างสุด แถวบนถูกข้าม (DUPLICATE)"),
+                ("ตัวเลขผิด / ติดลบ", "ข้ามแถว และแสดงในรายการผิดพลาด"),
+                ("การลบ", "ไม่มีการลบ · แถวที่ไม่อยู่ในไฟล์ = คงเดิม"),
+            });
+            wb.Worksheet(1).SetTabActive();
             LogService.WriteLog(Uid, "PP_PCS_TEMPLATE", $"{d} | {m:MM/yyyy} | Rows: {rows.Count}", "");
             return File(Bytes(wb), XlsxType, $"PCS_{d}_{m:yyyy-MM}.xlsx");
         }
         catch (Exception ex) { return Fail(ex, "สร้าง Template ไม่สำเร็จ"); }
     }
-
-    public sealed record PcsChange(int ItemId, string Label, decimal? Pcs);
 
     [HttpPost("pcs/import")]
     [RequestSizeLimit(30_000_000)]
@@ -105,81 +114,40 @@ public sealed class PpExcelController : AppController
         try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
         try
         {
-            string d;
-            DateTime m;
-            var want = new Dictionary<int, decimal?>();
-            using (var wb = new XLWorkbook(path))
-            {
-                var ws = wb.Worksheets.First();
-                d = ws.Cell(2, 2).GetString().Trim().ToUpperInvariant();
-                string ms = ws.Cell(2, 4).GetString().Trim();
-                if (d.Length == 0 || !DateTime.TryParseExact(ms + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out m))
-                    throw new InvalidOperationException("ไม่ใช่ไฟล์ Template PCS (ไม่พบ DEPT / MONTH ที่แถว 2) · ดาวน์โหลด TEMPLATE จากหน้า Capacity");
-                if (!ws.Cell(4, 1).GetString().Trim().Equals("ITEM ID", StringComparison.OrdinalIgnoreCase) || !ws.Cell(4, 12).GetString().Contains("PCS"))
-                    throw new InvalidOperationException("ไม่ใช่ไฟล์ Template PCS (หัวตารางแถว 4 ไม่ตรง)");
-                int last = ws.LastRowUsed()?.RowNumber() ?? 4;
-                for (int r = 5; r <= last; r++)
-                {
-                    var idc = ws.Cell(r, 1);
-                    if (idc.IsEmpty() || !int.TryParse(idc.GetString().Trim(), out int id)) continue;
-                    var pc = ws.Cell(r, 12);
-                    decimal? v = null;
-                    if (!pc.IsEmpty())
-                    {
-                        var cv = pc.HasFormula ? pc.CachedValue : pc.Value;
-                        if (cv.IsNumber) v = (decimal)cv.GetNumber();
-                        else if (decimal.TryParse(pc.GetString().Replace(",", "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var t)) v = t;
-                        else throw new InvalidOperationException($"แถว {r}: PCS ไม่ใช่ตัวเลข ({pc.GetString()})");
-                        if (v < 0 || v > 99_999_999) throw new InvalidOperationException($"แถว {r}: PCS ต้องอยู่ระหว่าง 0 - 99,999,999");
-                    }
-                    want[id] = v;
-                }
-            }
+            PcsImportService.State st;
+            using (var wb = new XLWorkbook(path)) st = PcsImportService.Parse(wb.Worksheets.First());
             TryDelete(path);
-            var cur = _svc.DeptParts(d, m).ToDictionary(x => x.Part.Id);
-            var changes = new List<PcsChange>();
-            int same = 0, unknown = 0, toAuto = 0, toSet = 0;
-            foreach (var (id, v) in want)
-            {
-                if (!cur.TryGetValue(id, out var x)) { unknown++; continue; }
-                var p = x.Part;
-                decimal auto = p.PcsFrom == "MANUAL" ? p.PcsAuto ?? 0 : p.Pcs;
-                bool manual = p.PcsFrom == "MANUAL";
-                // ว่าง / เท่ากับยอด AUTO = ใช้ยอด AUTO (ไม่ต้องกำหนดเอง)
-                decimal? target = v == null || v.Value == auto ? null : v;
-                string label = $"{x.Machine.Code} | {p.PartA}";
-                if (target == null) { if (manual) { changes.Add(new PcsChange(id, label, null)); toAuto++; } else same++; }
-                else if (manual && p.Pcs == target.Value) same++;
-                else { changes.Add(new PcsChange(id, label, target)); toSet++; }
-            }
-            if (want.Count == 0) throw new InvalidOperationException("ไม่พบแถวที่มี ITEM ID ในไฟล์");
-            string list = string.Join("\n", changes.Take(10).Select(c => $"• {c.Label}: {(c.Pcs == null ? "AUTO" : c.Pcs.Value.ToString("#,##0.##"))}")) + (changes.Count > 10 ? $"\n• … และอีก {changes.Count - 10:N0} แถว" : "");
-            string summary = $"ไฟล์: {file.FileName}\n{d} · {m:MMMM yyyy}\n\n" +
-                             $"✏ ตั้ง PCS (M) {toSet:N0} แถว · ↺ กลับไปใช้ยอด AUTO {toAuto:N0} แถว · ✔ เท่าเดิม {same:N0} แถว" +
-                             (unknown > 0 ? $"\n⚠ ITEM ID ที่ไม่มีในหน่วยงานนี้แล้ว {unknown:N0} แถว (ข้าม)" : "") +
-                             (changes.Count > 0 ? "\n\n" + list : "\n\nไม่มี PCS ที่ต้องเปลี่ยน") + "\n\nยืนยันการนำเข้าหรือไม่?";
-            return Ok(new { id = _uploads.Put("", file.FileName, Uid, "pppcs", (d, m, changes)), summary, count = changes.Count });
+            var evs = PcsImportService.Eval(st, _svc.DeptParts(st.Dept, st.Month).ToDictionary(x => x.Part.Id), null);
+            var rows = evs.Select(e => e.Row).ToList();
+            var errors = rows.Where(r => r.Status == ImportReview.Invalid).Select(r => new ImportErrorDto($"{r.Label} ({r.Sub})", r.Note)).ToList();
+            string id = _uploads.Put("", file.FileName, Uid, "pppcs", st);
+            return Ok(new ImportPreviewDto(id, file.FileName, $"PCS · {st.Dept} · {st.Month:MMMM yyyy}", rows, errors));
         }
         catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
         catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
     }
 
     [HttpPost("pcs/import/apply")]
-    public IActionResult PcsImportApply([FromBody] string id)
+    public IActionResult PcsImportApply([FromBody] ImportApplyRequest req)
     {
         if (Me?.CanEditPpSetup != true) return Deny("คุณไม่มีสิทธิ์แก้ PCS (Production Plan STD › EDIT)");
-        var it = _uploads.Get(id, Uid, "pppcs");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "pppcs");
         if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
-        var (d, m, changes) = ((string, DateTime, List<PcsChange>))it.State;
+        var st = (PcsImportService.State)it.State;
         try
         {
-            foreach (var c in changes) _svc.SetPcs(m, c.ItemId, c.Pcs, Uid);
-            _uploads.Remove(id);
+            // re-reads the current PCS and re-validates the edits; only CHANGED + not excluded rows are written
+            var evs = PcsImportService.Eval(st, _svc.DeptParts(st.Dept, st.Month).ToDictionary(x => x.Part.Id), req);
+            var changes = evs.Where(e => e.Op != null).Select(e => e.Op).ToList();
+            _svc.SetPcsBatch(st.Month, changes.Select(c => (c.ItemId, c.Pcs)), Uid);   // one transaction
+            _uploads.Remove(req.Id);
             int set = changes.Count(c => c.Pcs != null), auto = changes.Count - set;
-            LogService.WriteLog(Uid, "PP_PCS_IMPORT", $"File: {it.FileName} | {d} | {m:MM/yyyy} | Set: {set} | Back to AUTO: {auto}", $"PP-PCS-{d}-{m:yyyyMM}");
+            int same = evs.Count(e => e.Row.Status == ImportReview.Same), skipped = evs.Count - changes.Count - same;
+            LogService.WriteLog(Uid, "PP_PCS_IMPORT", $"File: {it.FileName} | {st.Dept} | {st.Month:MM/yyyy} | Set: {set} | Back to AUTO: {auto} | Same: {same} | Skipped: {skipped}", $"PP-PCS-{st.Dept}-{st.Month:yyyyMM}");
             LiveBus.Publish("pp");
-            return Ok(new { message = $"นำเข้า PCS {d} {m:MMM yyyy} แล้ว\nตั้ง PCS (M) {set:N0} แถว · กลับไปใช้ AUTO {auto:N0} แถว" });
+            return Ok(new { set, auto, same, skipped, message = $"นำเข้า PCS {st.Dept} {st.Month:MMM yyyy} แล้ว\nตั้ง PCS (M) {set:N0} แถว · กลับไปใช้ AUTO {auto:N0} แถว" });
         }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
         catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ"); }
     }
 

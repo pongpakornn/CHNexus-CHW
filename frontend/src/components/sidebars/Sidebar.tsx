@@ -48,7 +48,7 @@ export function SidebarNav({ items, compact, onExpand, onNavigate }: { items: Me
 
   // กลุ่มที่กางอยู่: กลุ่มของหน้าปัจจุบันกางเอง · ผู้ใช้กด = สลับ
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const inGroup = (m: MenuItem) => !!m.children?.some((c) => c === current || c.href === current?.href);
+  const inGroup = (m: MenuItem): boolean => !!m.children?.some((c) => c.href === current?.href || inGroup(c));
   const isOpen = (key: string, auto: boolean) => open[key] ?? auto;
   const toggle = (key: string, auto: boolean) => {
     if (compact) {
@@ -123,6 +123,36 @@ export function SidebarNav({ items, compact, onExpand, onNavigate }: { items: Me
                 <div>
                   <div className="sb-sub">
                     {m.children.map((c) => {
+                      // กลุ่มย่อย (SYSTEM CONFIGURATION › PR MANAGEMENT …): หัวกลุ่ม = กาง / พับ · รายการข้างในใช้เส้นกิ่งแบบรายชื่อคลัง
+                      if (c.children) {
+                        const gOn = inGroup(c);
+                        const sub = isOpen(c.href, gOn);
+                        return (
+                          <div key={c.href}>
+                            {c.caption && <div className="sb-cap">{c.caption}</div>}
+                            <div className={`sb-sub-row ${gOn && !sub ? "is-on" : ""}`}>
+                              <button type="button" className="sb-sub-link text-left" aria-expanded={sub} onClick={() => toggle(c.href, gOn)}>
+                                <span className="sb-dot" />
+                                <span className="truncate">{c.label}</span>
+                              </button>
+                              <span className="sb-sub-tog" aria-hidden>
+                                <Chevron open={sub} />
+                              </span>
+                            </div>
+                            <div className={`fold ${sub ? "" : "is-closed"}`} inert={!sub}>
+                              <div>
+                                <div className="sb-stk">
+                                  {c.children.map((g, k) => (
+                                    <Link key={g.href} href={g.href} className={`sb-stk-link ${current?.href === g.href ? "is-on" : ""}`} style={{ "--i": k } as React.CSSProperties}>
+                                      <b>{g.label}</b>
+                                    </Link>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
                       const kids = c.stockType ? stocks.filter((s) => s.type === c.stockType) : [];
                       if (c.stockType && kids.length === 0) return null; // ไม่มีคลังประเภทนี้ที่ดูได้ = ไม่แสดง
                       const on = current?.href === c.href;

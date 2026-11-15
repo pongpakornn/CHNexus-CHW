@@ -73,7 +73,7 @@ export function LayoutQrPicker({ onClose }: { onClose: () => void }) {
         ) : !data.ready ? (
           <Empty>ยังไม่มีตาราง LAYOUT</Empty>
         ) : all.length === 0 ? (
-          <Empty>ยังไม่มีตำแหน่งจัดเก็บ (Admin เพิ่มได้ที่ User Management › SETUP › LAYOUT SETUP)</Empty>
+          <Empty>ยังไม่มีตำแหน่งจัดเก็บ (Admin เพิ่มได้ที่ SYSTEM CONFIGURATION › CIMS › LAYOUT SETUP)</Empty>
         ) : (
           <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2">
