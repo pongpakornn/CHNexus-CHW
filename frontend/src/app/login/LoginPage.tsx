@@ -110,7 +110,7 @@ export default function LoginPage() {
             <div className="-mt-1.5 text-xs font-medium text-white/70">บริษัท ซีเอช เรดิเอเตอร์ จำกัด</div>
           </div>
           <label htmlFor={`${fid}-user`} className="mb-1 block text-xs font-bold uppercase text-white/80">User ID</label>
-          <input id={`${fid}-user`} className="lg-field mb-4" autoFocus autoComplete="username" value={userId} onChange={(e) => setUserId(e.target.value)} />
+          <input id={`${fid}-user`} className="lg-field mb-4" autoComplete="username" value={userId} onChange={(e) => setUserId(e.target.value)} />
           <label htmlFor={`${fid}-pw`} className="mb-1 block text-xs font-bold uppercase text-white/80">Password</label>
           <div className="relative mb-4">
             <input id={`${fid}-pw`} ref={pwRef} className="lg-field" style={{ paddingRight: 58 }} type={showPw ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
