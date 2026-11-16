@@ -424,8 +424,8 @@ public sealed class ProductsController : AppController
         if (ValidateCoil(f, stocks, out var coil) is { } cerr) return Fail(cerr);
         var m = ModelOf(f);
         int psz = int.TryParse(m.PackSize, out int p) ? p : 0;
-        if (await _svc.CheckDuplicateCodeAsync(m.PartACode, m.PartA))
-            return Fail($"มีสินค้า PRODUCT CODE {m.PartACode} + PART A {m.PartA} นี้ในระบบแล้วครับ");
+        if (await _svc.CheckDuplicateCodeAsync(m.PartACode, m.PartA, 0, m.PartB))
+            return Fail($"มีสินค้า PRODUCT CODE {m.PartACode} + PART A {m.PartA} + PART B {m.PartB} นี้ในระบบแล้วครับ");
         try
         {
             string fullDetail = $"SUPPLIER: {m.CustomerCode}  | CAT: {m.Category}  | PDCODE : {m.PartCode}  | BIN: {m.Location}  | PDNAME: {m.PartName}  | PZ : {psz}";
@@ -451,8 +451,8 @@ public sealed class ProductsController : AppController
         if (ValidateCoil(f, stocks, out var coil) is { } cerr) return Fail(cerr);
         var m = ModelOf(f);
         m.PtId = ptId;
-        if (await _svc.CheckDuplicateCodeAsync(m.PartACode, m.PartA, ptId))
-            return Fail($"ไม่สามารถบันทึกได้ เนื่องจากมีสินค้า PRODUCT CODE {m.PartACode} + PART A {m.PartA} นี้ในระบบแล้วครับ");
+        if (await _svc.CheckDuplicateCodeAsync(m.PartACode, m.PartA, ptId, m.PartB))
+            return Fail($"ไม่สามารถบันทึกได้ เนื่องจากมีสินค้า PRODUCT CODE {m.PartACode} + PART A {m.PartA} + PART B {m.PartB} นี้ในระบบแล้วครับ");
         var old = _svc.GetInventoryForQR(f.OldCode ?? m.PartCode, null).FirstOrDefault(x => x.PtId == ptId);
         string changeLog = old == null ? null : Diff(old, m);
         LogService.WriteLog(Uid, "EDIT_PART", $" | Edited Details : {changeLog ?? "No changes detected"}", m.PartACode);
@@ -504,6 +504,7 @@ public sealed class ProductsController : AppController
     [HttpPost("{ptId:int}/delete")]
     public IActionResult Delete(int ptId, [FromBody] DeleteRequest req)
     {
+        if (ptId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" }); // never fall back to PartCode ('-' is shared by many STORE-SUB items)
         if (Me?.CanDeleteProduct != true) return Deny();
         var noDel = StocksOf(req.PartCode, ptId).Where(s => !Me.CanDeleteInStock(s)).Select(s => s.Code).ToList();
         if (noDel.Count > 0) return Deny($"คุณไม่มีสิทธิ์ลบสินค้าในคลัง {string.Join(", ", noDel)}");

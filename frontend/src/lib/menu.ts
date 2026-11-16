@@ -35,7 +35,7 @@ const USERS_ITEM: MenuItem = { href: "/admin/users", label: "User Management", t
 // ⚙ SYSTEM CONFIGURATION (Admin Level 1 เท่านั้น = ตรงกับ SetupController): แต่ละรายการ = /admin/setup/<slug> (แผงเดิมจาก SetupModal)
 export const SETUP_GROUPS: { key: string; name: string; items: [slug: string, label: string][] }[] = [
   { key: "pr", name: "PR MANAGEMENT", items: [["pr-settings", "PR SETTINGS"], ["excel", "EXCEL SETUP"], ["departments", "DEPARTMENTS"]] },
-  { key: "cims", name: "CIMS · INVENTORY", items: [["min-report", "MIN REPORT"], ["min-reasons", "MIN REASONS"], ["sign-flow-min", "SIGN FLOW"], ["layout", "LAYOUT SETUP"]] },
+  { key: "cims", name: "CIMS · INVENTORY", items: [["min-report", "MIN REPORT"], ["min-reasons", "MIN REASONS"], ["sign-flow-min", "SIGN FLOW"]] }, // LAYOUT SETUP moved to Master Data › Product Control (main material stock)
   { key: "chem", name: "CHEMICAL CONTROL", items: [["sign-flow-chem", "SIGN FLOW"]] },
   { key: "edp", name: "EDP PLANNING", items: [["edp-alert", "EDP ALERT"]] },
   { key: "user", name: "USER MANAGEMENT", items: [["organization", "ORGANIZATION MASTER"]] },

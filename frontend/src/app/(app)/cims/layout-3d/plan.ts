@@ -65,7 +65,8 @@ const DEFS: ZoneDef[] = [
   },
   { id: "COIL57", name: "Rack วางเหล็ก Coil 5–7", tag3d: "Rack Coil 5–7", short: "5–7", kind: "rack", color: 0xe38ba1, px: [310, 176, 630, 276], racks: [{ x: [322, 617], z: 226, levels: ["5", "6", "7"], bays: "ABCDEFGH" }] },
   { id: "COIL810", name: "Rack วางเหล็ก Coil 8–10", tag3d: "Rack Coil 8–10", short: "8–10", kind: "rack", color: 0xb5a2e0, px: [456, 288, 560, 388], racks: [{ x: [470, 545], z: 338, levels: ["8", "9", "10"], bays: "AB" }] },
-  { id: "PACK", no: 19, name: "เหล็กแพ็ค", short: "19", kind: "scenery", color: 0xf0da3e, px: [320, 295, 435, 395], labelY: 1.6 },
+  // เหล็กแพ็ค S1–S9 (LAYOUT SETUP ประเภท PLATE · ช่องละ 3 แพ็ค): ทั้งโซนวาดเป็นพื้นวาง · ตาราง S1–S9 อยู่ที่แผงด้านข้าง
+  { id: "PACK", no: 19, name: "เหล็กแพ็ค (S1–S9)", short: "19", kind: "floor", color: 0xf0da3e, px: [320, 295, 435, 395], labelY: 1.6, match: ["PLATE"], floorRows: [-0.6, 0.6] },
   { id: "PIPE", no: 23, name: "STORE ท่อ", short: "23", kind: "scenery", color: 0x5d9ee0, px: [785, 62, 1005, 385], labelY: 3.2 },
   { id: "PACKSHELF", no: 22, name: "ชั้นวางเหล็กแพ็ค", short: "22", kind: "scenery", color: 0x8dc45a, px: [728, 425, 1015, 470], labelY: 3.1 },
 ];
