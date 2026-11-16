@@ -58,6 +58,13 @@ describe("calcMachine - computed from parts", () => {
     expect(c.cap).toBeCloseTo(3200 * 10.75, 6);
     expect(c.needHr).toBe(7.75);
   });
+
+  it("c8 = 4th shift capacity even when an earlier shift covers P1; no 4th shift = top shift", () => {
+    const five = calcMachine(machine(), month({ shifts: [7.75, 10.75, 15.5, 18.5, 21.5].map((hours, i) => ({ id: i + 1, name: `S${i + 1}`, hours, sort: i + 1 })) }));
+    expect(five.c8Hr).toBe(18.5);
+    expect(five.c8).toBeCloseTo(3200 * 18.5, 6);
+    expect(c.c8Hr).toBe(10.75);
+  });
   it("daily arrays: plan only on workdays, length = days", () => {
     expect(c.plan).toHaveLength(30);
     expect(c.plan[0]).toBe(100);

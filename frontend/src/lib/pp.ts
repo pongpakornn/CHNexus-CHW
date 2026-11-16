@@ -69,6 +69,9 @@ export type Calc = {
   needCap: number;
   /** ชม. ของกะที่ต้องใช้ (เช่น 7.75) · เกินทุกกะ = ชม. กะสูงสุด */
   needHr: number;
+  /** Dashboard orange line = C8 fixed (4th shift, e.g. 18.5 hr) · no 4th shift = top shift */
+  c8: number;
+  c8Hr: number;
   P1: number;
   P2: number;
   P3: number;
@@ -142,6 +145,8 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
   const needIdx = sh.findIndex((v) => v != null && v >= P1);
   const needCap = needIdx >= 0 ? (sh[needIdx] ?? cap) : cap;
   const needHr = needIdx >= 0 ? (shHr[needIdx] ?? capHr) : capHr;
+  const c8Hr = shHr[3] ?? capHr;
+  const c8 = base * c8Hr;
 
   const nd = d.days;
   const byDay = new Map(m.actual.map((a) => [a.day, a]));
@@ -212,6 +217,8 @@ export function calcMachine(m: PpMachine, d: PpMonth): Calc {
     needIdx,
     needCap,
     needHr,
+    c8,
+    c8Hr,
     P1,
     P2,
     P3,
