@@ -48,12 +48,8 @@ type Row = {
 };
 type Res = { date: string | null; rows: Row[] };
 
-// TOTAL TIME (ชั่วโมง จาก Server = HG ACT × 3.25 นาที) -> ชม.:นาที:วินาที
-const hhmm = (h: number | null) => {
-  if (h == null) return "-";
-  const s = Math.round(h * 3600);
-  return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-};
+// TOTAL TIME (ชั่วโมง จาก Server = HG ACT × 195 ÷ 3600) แสดงเป็นทศนิยม เช่น 1.3
+const hhmm = (h: number | null) => (h == null ? "-" : (Math.round(h * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 }));
 
 export default function EdpPlanning() {
   const toast = useToast();

@@ -609,12 +609,12 @@ public sealed class EdpService
         string sql = shift == AllDay
             ? @"SELECT D.PLD_ID AS Id, P.CUST_CODE AS Customer, P.PT_CODE AS PartCode, P.PT_NO AS PartNo, P.PT_NAME AS PartName,
                        ISNULL(D.QTY_PLAN,0) AS [Plan], ISNULL(D.QTY_ACT,0) AS Actual, ISNULL(D.HG_PLAN,0) AS QtyHg, ISNULL(D.HG_ACT,0) AS HgAct,
-                       D.CUR_STD_TIME_HG AS CycleTime, ISNULL(D.HG_ACT,0) * 3.25 / 60.0 AS TotalTimeMin, D.OP_NAME AS Operator, D.REMARK AS Remark,
+                       D.CUR_STD_TIME_HG AS CycleTime, ISNULL(D.HG_ACT,0) * 195 / 3600.0 AS TotalTimeMin, D.OP_NAME AS Operator, D.REMARK AS Remark,
                        CAST(ISNULL(D.IS_DONE,0) AS BIT) AS IsDone, CAST(ISNULL(D.IS_PROBLEM,0) AS BIT) AS IsProblem, H.SHIFT AS Shift" + baseSql +
               " ORDER BY P.CUST_CODE, P.PT_NO"
             : @"SELECT MIN(D.PLD_ID) AS Id, P.CUST_CODE AS Customer, P.PT_CODE AS PartCode, P.PT_NO AS PartNo, P.PT_NAME AS PartName,
                        SUM(ISNULL(D.QTY_PLAN,0)) AS [Plan], SUM(ISNULL(D.QTY_ACT,0)) AS Actual, SUM(ISNULL(D.HG_PLAN,0)) AS QtyHg, SUM(ISNULL(D.HG_ACT,0)) AS HgAct,
-                       MAX(D.CUR_STD_TIME_HG) AS CycleTime, SUM(ISNULL(D.HG_ACT,0)) * 3.25 / 60.0 AS TotalTimeMin, MAX(D.OP_NAME) AS Operator, MAX(D.REMARK) AS Remark,
+                       MAX(D.CUR_STD_TIME_HG) AS CycleTime, SUM(ISNULL(D.HG_ACT,0)) * 195 / 3600.0 AS TotalTimeMin, MAX(D.OP_NAME) AS Operator, MAX(D.REMARK) AS Remark,
                        CAST(MAX(CAST(ISNULL(D.IS_DONE,0) AS INT)) AS BIT) AS IsDone, CAST(MAX(CAST(ISNULL(D.IS_PROBLEM,0) AS INT)) AS BIT) AS IsProblem,
                        MAX(H.SHIFT) AS Shift" + baseSql +
               " GROUP BY P.CUST_CODE, P.PT_CODE, P.PT_NO, P.PT_NAME ORDER BY P.CUST_CODE, P.PT_NO";
@@ -657,7 +657,7 @@ public sealed class EdpService
             {
                 ws.Cell(row, 1).Value = name; ws.Cell(row, 2).Value = r.Customer; ws.Cell(row, 3).Value = r.PartCode; ws.Cell(row, 4).Value = r.PartNo;
                 ws.Cell(row, 5).Value = r.PartName; ws.Cell(row, 6).Value = r.QtyHg; ws.Cell(row, 7).Value = r.Plan; ws.Cell(row, 8).Value = r.Actual;
-                ws.Cell(row, 9).Value = (double)(r.TotalTimeMin ?? 0) / 24.0; ws.Cell(row, 9).Style.NumberFormat.Format = "[h]:mm:ss";
+                ws.Cell(row, 9).Value = Math.Round((double)(r.TotalTimeMin ?? 0), 2);
                 ws.Cell(row, 10).Value = r.Operator; ws.Cell(row, 11).Value = r.Remark;
                 row++;
             }
@@ -665,7 +665,7 @@ public sealed class EdpService
         ws.Range(row, 1, row, 5).Merge().Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
         var all = day.Concat(night).ToList();
         ws.Cell(row, 6).Value = all.Sum(x => x.QtyHg); ws.Cell(row, 7).Value = all.Sum(x => x.Plan); ws.Cell(row, 8).Value = all.Sum(x => x.Actual);
-        ws.Cell(row, 9).Value = (double)all.Sum(x => x.TotalTimeMin ?? 0) / 24.0; ws.Cell(row, 9).Style.NumberFormat.Format = "[h]:mm:ss";
+        ws.Cell(row, 9).Value = Math.Round((double)all.Sum(x => x.TotalTimeMin ?? 0), 2);
         ws.Range(row, 1, row, head.Length).Style.Font.Bold = true;
         ws.Range(3, 1, row, head.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         ws.Range(3, 1, row, head.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
