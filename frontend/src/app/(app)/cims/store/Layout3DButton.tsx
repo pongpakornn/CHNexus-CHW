@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Loading } from "@/components/layout/Page";
 import { EASE } from "@/lib/motion";
 
-// 🧊 LAYOUT 3D ในหน้าคลัง STOCK-MAT: ปุ่มวงกลมข้าง MIN REPORT (แทนเมนูใน Sidebar)
+// 🧊 LAYOUT 3D ในหน้าคลังหลัก (IsMain = STOCK-MAT / STORE-MAT): ปุ่มวงกลมข้าง MIN REPORT (แทนเมนูใน Sidebar)
 //   กด = เปิดผังคลัง 3D เต็มจอ (หน้าเดิมของ CIMS › Layout 3D) · ← BACK / ✕ / Esc = ปิดกลับหน้าคลัง
 //   โหลดโมเดล 3D (three.js) ตอนกดเปิดเท่านั้น หน้าคลังปกติไม่ช้าลง
 const Layout3D = dynamic(() => import("../layout-3d/Layout3DPage"), { ssr: false, loading: () => <Loading /> });

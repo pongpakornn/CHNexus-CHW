@@ -793,7 +793,7 @@ namespace Nexus.Services
                             have[r.GetString(0)] = (Y(1), Y(2), Y(3), Y(4), Y(5));
                         }
                 }
-                using (var cmd = new SqlCommand($"SELECT StockCode, StockName, {(Nexus.Helpers.DbSchema.HasCountCoil ? "ISNULL(CountCoil, 0)" : "CAST(0 AS BIT)")} FROM Nexus.Stocks ORDER BY IsMain DESC, SortNo, StockCode", conn))
+                using (var cmd = new SqlCommand($"SELECT StockCode, StockName, {(Nexus.Helpers.DbSchema.HasCountCoil ? "ISNULL(CountCoil, 0)" : "CAST(0 AS BIT)")} FROM Nexus.Stocks ORDER BY SortNo, StockCode", conn))
                 using (var r = cmd.ExecuteReader())
                     while (r.Read()) stocks.Add((r.GetString(0), r["StockName"]?.ToString(), Convert.ToBoolean(r[2])));
             }

@@ -23,7 +23,7 @@ type Card = {
   canDelete: boolean;
   coil: { masterCount: number; masterKg: number; childCount: number; childKg: number; totalCount: number; totalKg: number } | null;
 };
-type Data = { canCreate: boolean; canFormats: boolean; canEdit: boolean; stocks: Card[] };
+type Data = { canCreate: boolean; canFormats: boolean; canEdit: boolean; canOrder: boolean; stocks: Card[] };
 
 // 🏬 การ์ดคลัง (StockCardsView) - คลิกการ์ด = เปิดตารางของคลังนั้น
 export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
@@ -32,6 +32,30 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [editor, setEditor] = useState<{ stkId: number | null } | null>(null);
   const [formats, setFormats] = useState(false);
+  // stock order (Admin Level 1): move cards, SAVE = order of every stock list / sidebar
+  const [sort, setSort] = useState<Card[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const move = (i: number, d: number) =>
+    setSort((l) => {
+      if (!l || i + d < 0 || i + d >= l.length) return l;
+      const n = [...l];
+      [n[i], n[i + d]] = [n[i + d], n[i]];
+      return n;
+    });
+  async function saveOrder() {
+    if (!sort || saving) return;
+    setSaving(true);
+    try {
+      const r = await api<{ message: string }>("/store/stocks/order", { method: "POST", body: { ids: sort.map((c) => c.stkId) } });
+      toast.show("STOCK ORDER", r.message, "ok");
+      setSort(null);
+      load();
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -76,6 +100,21 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
         subtitle={data ? `SELECT A STOCK • ${data.stocks.length} STOCK(S)` : "LOADING..."}
         actions={
           <>
+            {data?.canOrder &&
+              (sort ? (
+                <>
+                  <button type="button" className="cta-btn is-green" disabled={saving} onClick={saveOrder}>
+                    SAVE ORDER
+                  </button>
+                  <button type="button" className="pill-btn" disabled={saving} onClick={() => setSort(null)}>
+                    CANCEL
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="pill-btn" title="จัดลำดับคลัง (Admin)" onClick={() => setSort(data.stocks)}>
+                  ⇅ SORT STOCKS
+                </button>
+              ))}
             {data?.canFormats && (
               <button type="button" className="pill-btn" onClick={() => setFormats(true)}>
                 🏷️ BARCODE FORMATS
@@ -96,15 +135,15 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
         <Empty>ยังไม่มีคลังที่คุณมีสิทธิ์ดู กรุณาติดต่อ Admin</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {data.stocks.map((c, i) => {
+          {(sort ?? data.stocks).map((c, i) => {
             const [ic, col] = stockIcon(c.code, i, c.stockType);
             return (
               <div
                 key={c.stkId}
                 role="button"
                 tabIndex={0}
-                onClick={() => onOpen(c.stkId)}
-                onKeyDown={(e) => e.key === "Enter" && onOpen(c.stkId)}
+                onClick={() => !sort && onOpen(c.stkId)}
+                onKeyDown={(e) => !sort && e.key === "Enter" && onOpen(c.stkId)}
                 className="card-in group relative flex min-h-[230px] cursor-pointer flex-col overflow-hidden rounded-[22px] border border-[#e2e4f0] bg-surface p-5 text-left shadow-[0_1px_2px_rgb(20_25_60/0.04),0_12px_30px_-20px_rgb(40_45_110/0.28)] outline-none transition duration-300 hover:-translate-y-1 focus-visible:ring-2"
                 style={{ animationDelay: `${i * 60}ms` }}
               >
@@ -155,6 +194,17 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
                 </div>
 
                 <div className="relative mt-auto pt-4">
+                  {sort && (
+                    <div className="mb-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-xs font-extrabold text-ink-soft">ลำดับ {i + 1}</span>
+                      <button type="button" className="pill-btn ml-auto" disabled={i === 0} aria-label={`เลื่อน ${c.code} ขึ้น`} onClick={() => move(i, -1)}>
+                        ◀ ก่อน
+                      </button>
+                      <button type="button" className="pill-btn" disabled={i === sort.length - 1} aria-label={`เลื่อน ${c.code} ลง`} onClick={() => move(i, 1)}>
+                        หลัง ▶
+                      </button>
+                    </div>
+                  )}
                   {c.coil && (
                     <div
                       className="flex min-w-0 items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3 text-xs font-extrabold tabular-nums"
@@ -174,7 +224,7 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
                       </span>
                     </div>
                   )}
-                  {(data.canEdit || c.canDelete) && (
+                  {!sort && (data.canEdit || c.canDelete) && (
                     <div className="relative mt-3 flex items-center gap-2 opacity-100 transition duration-300 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
                       {data.canEdit && (
                         <button type="button" className="gear-btn" onClick={(e) => (e.stopPropagation(), setEditor({ stkId: c.stkId }))}>

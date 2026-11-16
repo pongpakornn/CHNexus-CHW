@@ -5581,6 +5581,17 @@ html:has(#chr-splash.cs-hold) .page-in > * {
   width: 100%;
   height: min(84dvh, 920px);
 }
+/* ACCESS CONTROL page: permission screen inside the page card (no popup) */
+.pm-inline {
+  overflow: hidden;
+  border: 1px solid var(--color-line, #e4e7f0);
+  border-radius: 18px;
+  background: var(--color-surface, #fff);
+}
+.pm-inline .adm-shell {
+  height: calc(100dvh - 190px);
+  min-height: 520px;
+}
 .adm-nav {
   display: flex;
   width: 250px;
@@ -10700,6 +10711,41 @@ table.lqp code {
   gap: 14px;
   margin-top: -18px;
 }
+/* launcher groups: CORE / DEPARTMENT / ON PLAN / ADMINISTRATION - heading + own grid */
+.sys-groups {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 22px;
+  margin-top: -18px;
+}
+.sys-groups .sys-grid {
+  margin-top: 0;
+}
+.sys-group-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 10px;
+  padding-left: 12px;
+  border-left: 3px solid #2563eb;
+  animation: sys-card-in 0.9s var(--ease-drop) calc(0.55s + var(--i, 0) * 0.12s) both;
+}
+.sys-group-h b {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #1e3a8a;
+}
+.sys-group-h span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+.sys-group.is-dept .sys-group-h { border-color: #0d9488; }
+.sys-group.is-plan .sys-group-h { border-color: #d97706; }
+.sys-group.is-admin .sys-group-h { border-color: #6750a4; }
 .sys-card {
   display: flex;
   align-items: center;
@@ -10808,6 +10854,9 @@ table.lqp code {
     opacity: 0.35;
   }
   .sys-grid {
+    margin-top: 4px;
+  }
+  .sys-groups {
     margin-top: 4px;
   }
 }
