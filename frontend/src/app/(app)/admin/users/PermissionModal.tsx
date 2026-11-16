@@ -17,7 +17,7 @@ const HEAD: Record<(typeof FLAGS)[number], string> = { view: "VIEW", add: "ADD",
 // 🗂 กลุ่มตามระบบ (หน้าเลือกระบบ): CIMS · คลังของ CIMS · MASTER DATA · EDP PLANNING · USER MANAGEMENT
 //   ระบบใหม่ = เพิ่มกลุ่มที่นี่ (SystemID ที่ไม่อยู่ในกลุ่มไหน = กลุ่ม OTHER ท้ายสุด)
 type Grp = { key: string; title: string; sub: string; color: string; icon: string; ids?: string[] };
-const GROUPS: Grp[] = [
+export const GROUPS: Grp[] = [
   { key: "CIMS", title: "CIMS", sub: "CHR Inventory Management · Dashboard · Store · Scanner · Pick List · Max-Min · Forecast · PR", color: "#6750a4", icon: "/icons/StoreMaxMin.png", ids: ["DASHBOARD", "StoreMaxMin", "MultiScanner", "PackingCard", "MAXMINCALC", "ForecastOrder", "PR"] },
   { key: "STOCK", title: "CIMS • STOCKS", sub: "สิทธิ์รายคลัง (ดู / Import / แก้ Max-Min)", color: "#0ea5e9", icon: "/icons/StoreWarehouse.png" },
   { key: "MASTER", title: "MASTER DATA", sub: "Customer · Supplier · Product Control", color: "#2563eb", icon: "/icons/ProductControl.png", ids: ["MasterData", "ProductControl"] },

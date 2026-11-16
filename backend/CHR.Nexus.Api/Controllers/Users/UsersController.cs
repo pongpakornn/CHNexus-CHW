@@ -161,6 +161,14 @@ public sealed class UsersController : AppController
         catch (Exception ex) { return Fail(ex, "ลบผู้ใช้ไม่สำเร็จ"); }
     }
 
+    // ACCESS CONTROL table: granted systems of every user + stock codes (stock permissions use the stock code as SystemID)
+    [HttpGet("access")]
+    public IActionResult Access()
+    {
+        if (Me?.CanViewUserMgmt != true) return Deny();
+        return Ok(new { stocks = new StockService().GetStocks().Select(s => s.Code), rows = _svc.GetAccessMatrix() });
+    }
+
     // ---------------------------------------------------------------- 🔑 PERMISSION + SCAN STOCKS + DISPLAY
     [HttpGet("{userId}/permissions")]
     public IActionResult Permissions(string userId)

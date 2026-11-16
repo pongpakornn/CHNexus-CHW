@@ -76,8 +76,9 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
     if (!data) return null;
     const z = () => Array.from({ length: nd }, () => 0);
     // กำลังต่อวันของทุกเครื่องรวมกัน ตามกะที่แต่ละเครื่องต้องใช้ (C5-C9 ไล่ตาม Order) : Stroke = Σ C2·C3·C4·ชม. · ชม. = Σ C2·ชม.
-    const capDay = list.reduce((a, { c }) => a + c.C2 * c.C3 * c.C4 * c.needHr, 0);
-    const capHrDay = list.reduce((a, { c }) => a + c.C2 * c.needHr, 0);
+    // orange line fixed at C8 (user request 2026-11-16)
+    const capDay = list.reduce((a, { c }) => a + c.C2 * c.C3 * c.C4 * c.c8Hr, 0);
+    const capHrDay = list.reduce((a, { c }) => a + c.C2 * c.c8Hr, 0);
     const plan = z(),
       act = z(),
       planHr = z(),
@@ -111,7 +112,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
         series: [
           { key: "plan", label: "PLAN HR./DAY/MC (P6)", kind: "bar", color: C.plan, color2: C.plan2, values: list.map((x) => x.c.P6), alert: list.map((x) => x.c.needIdx < 0 && x.c.P1 > 0), fmt, unit: "hr/day" },
           { key: "act", label: "ACTUAL HR./DAY/MC", kind: "bar", color: C.act, color2: C.act2, values: list.map((x) => x.c.actHrDay), fmt, unit: "hr/day" },
-          { key: "cap", label: "SHIFT HR. (C5–C9)", kind: "mark", color: C.cap, color2: C.cap2, values: list.map((x) => x.c.needHr), fmt, unit: "hr/day" },
+          { key: "cap", label: "SHIFT HR. (C8)", kind: "mark", color: C.cap, color2: C.cap2, values: list.map((x) => x.c.c8Hr), fmt, unit: "hr/day" },
         ],
       };
     if (view === "machine")
@@ -124,11 +125,11 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
           //    ไม่พอทุกกะ = C9 (เพดานสุดท้าย) และแท่งแผนเป็นสีแดง = เกินกำลังเครื่อง · ชม. = ชม. ของกะนั้น × วันทำงาน × จำนวนเครื่อง
           {
             key: "cap",
-            label: isHr ? "SHIFT CAPACITY HR. (C5–C9)" : "SHIFT CAPACITY (C5–C9)",
+            label: isHr ? "SHIFT CAPACITY HR. (C8)" : "SHIFT CAPACITY (C8)",
             kind: "mark",
             color: C.cap,
             color2: C.cap2,
-            values: list.map((x) => (isHr ? x.c.needHr * x.c.C1 * x.c.C2 : x.c.needCap)),
+            values: list.map((x) => (isHr ? x.c.c8Hr * x.c.C1 * x.c.C2 : x.c.c8)),
             fmt,
             unit,
           },
@@ -151,7 +152,7 @@ function DeptDash({ dept, month, setMonth, picker }: { dept: string; month: stri
         { key: "act", label: isHr ? "ACTUAL HR." : "ACTUAL STROKE", kind: "bar", color: C.act, color2: C.act2, values: isHr ? daily.actHr : daily.act, fmt, unit },
         { key: "plan", label: isHr ? "PLAN HR. / DAY" : "PLAN STROKE / DAY", kind: "line", color: C.plan, dashed: true, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.planHr[i] : daily.plan[i]) : null)), fmt, unit },
         // 🔶 เพดานต่อวันของทุกเครื่อง (กะสูงสุด) เฉพาะวันทำงาน
-        { key: "cap", label: isHr ? "SHIFT CAPACITY HR. / DAY" : "SHIFT CAPACITY / DAY", kind: "mark", color: C.cap, color2: C.cap2, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.capHrDay : daily.capDay) : null)), fmt, unit },
+        { key: "cap", label: isHr ? "SHIFT CAPACITY HR. / DAY (C8)" : "SHIFT CAPACITY / DAY (C8)", kind: "mark", color: C.cap, color2: C.cap2, values: days.map((i) => (wd.has(i + 1) ? (isHr ? daily.capHrDay : daily.capDay) : null)), fmt, unit },
       ],
     };
   }, [data, daily, list, view, metric, acc, nd]);

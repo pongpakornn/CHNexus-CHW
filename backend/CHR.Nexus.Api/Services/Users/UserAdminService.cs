@@ -74,6 +74,19 @@ namespace Nexus.Services
     {
         private readonly string _cs = GlobalConfig.ConnStr;
 
+        // ACCESS CONTROL table: every granted permission of every user (rows with at least one flag = Y)
+        public sealed record AccessRow(string UserId, string SysId, bool View, bool Add, bool Edit, bool Del, bool Approve);
+        public List<AccessRow> GetAccessMatrix()
+        {
+            using var c = new Microsoft.Data.SqlClient.SqlConnection(_cs);
+            return Dapper.SqlMapper.Query<AccessRow>(c, @"SELECT UserID AS UserId, SystemID AS SysId,
+                       CAST(CASE WHEN CanView = 'Y' THEN 1 ELSE 0 END AS BIT) AS [View], CAST(CASE WHEN CanAdd = 'Y' THEN 1 ELSE 0 END AS BIT) AS [Add],
+                       CAST(CASE WHEN CanEdit = 'Y' THEN 1 ELSE 0 END AS BIT) AS Edit, CAST(CASE WHEN CanDelete = 'Y' THEN 1 ELSE 0 END AS BIT) AS Del,
+                       CAST(CASE WHEN CanApprove = 'Y' THEN 1 ELSE 0 END AS BIT) AS Approve
+                FROM Nexus.Permissions
+                WHERE 'Y' IN (CanView, CanAdd, CanEdit, CanDelete, CanApprove)").ToList();
+        }
+
         // ทุกระบบที่โปรแกรมตรวจสิทธิ์ (SystemID ต้องตรงกับที่ UserSession ใช้) - คลังอื่นเพิ่มให้อัตโนมัติจาก Nexus.Stocks
         public static readonly (string SysId, string Title, string Hint)[] Systems =
         {
