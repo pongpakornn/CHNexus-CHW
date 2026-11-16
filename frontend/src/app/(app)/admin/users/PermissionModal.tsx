@@ -41,6 +41,7 @@ export function PermissionModal({
   onClose,
   onSaved,
   onEditContacts,
+  inline = false,
 }: {
   userId: string;
   readOnly: boolean;
@@ -48,6 +49,8 @@ export function PermissionModal({
   onClose: () => void;
   onSaved: (message: string) => void;
   onEditContacts: () => Promise<boolean>;
+  /** Access Control page: render in the page (no popup window) */
+  inline?: boolean;
 }) {
   const toast = useToast();
   const [data, setData] = useState<PermData | null>(null);
@@ -378,7 +381,7 @@ export function PermissionModal({
   );
 
   return (
-    <Modal open size="xl" flush title={`${readOnly ? "👤" : "🔑"} ${tabName}`} onClose={onClose}>
+    <Wrap inline={inline} title={`${readOnly ? "👤" : "🔑"} ${tabName}`} onClose={onClose}>
       {/* Sidebar ติดขอบซ้ายแบบเมนูหลัก (เหมือนหน้าต่าง ADMIN) · พับเหลือไอคอนได้ · มือถือ = เมนูเลื่อนออกจากซ้าย */}
       <div className={`adm-shell ${mini ? "is-mini" : ""} ${drawer ? "is-drawer" : ""}`}>
         <nav className="adm-nav">
@@ -615,6 +618,16 @@ export function PermissionModal({
           </div>
         </section>
       </div>
+    </Wrap>
+  );
+}
+
+// popup (USER ACCOUNTS) or in-page card (ACCESS CONTROL) - same content
+function Wrap({ inline, title, onClose, children }: { inline: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
+  if (inline) return <div className="pm-inline">{children}</div>;
+  return (
+    <Modal open size="xl" flush title={title} onClose={onClose}>
+      {children}
     </Modal>
   );
 }

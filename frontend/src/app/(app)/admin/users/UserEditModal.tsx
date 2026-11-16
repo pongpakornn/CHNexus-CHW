@@ -18,7 +18,7 @@ const STRENGTH = ["", "WEAK", "FAIR", "GOOD", "STRONG"];
 
 // ＋ ADD USER / ✏ EDIT USER (UserEditWindow) - รหัสผ่านว่างตอนแก้ไข = ใช้รหัสเดิม / ล็อก-ลดระดับบัญชีตัวเองไม่ได้
 //   แบ่งเป็นกลุ่ม ACCOUNT / ORGANIZATION / ACCESS / PASSWORD ทยอยแสดง · การ์ดผู้ใช้ด้านบนอัพเดทตามที่พิมพ์
-export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User | null; isSelf: boolean; onClose: () => void; onSaved: (message: string) => void }) {
+export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User | null; isSelf: boolean; onClose: () => void; onSaved: (message: string, userId: string) => void }) {
   const [f, setF] = useState({
     userId: user?.userId ?? "",
     name: user?.name ?? "",
@@ -101,7 +101,7 @@ export function UserEditModal({ user, isSelf, onClose, onSaved }: { user: User |
       const r = user
         ? await api<{ message: string }>(`/users/${encodeURIComponent(user.userId)}`, { method: "PUT", body })
         : await api<{ message: string }>("/users", { method: "POST", body });
-      onSaved(r.message);
+      onSaved(r.message, id);
     } catch (e) {
       setErr((e as Error).message);
     } finally {

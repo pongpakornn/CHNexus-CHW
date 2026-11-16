@@ -65,7 +65,7 @@ public sealed class StoreController : AppController
         var counts = new ProductControlService().GetStockPartCounts(visible);
         return Ok(new
         {
-            canCreate = Me.CanCreateStock, canFormats = Me.CanManageFormats, canEdit = Me.CanEditStore,
+            canCreate = Me.CanCreateStock, canFormats = Me.CanManageFormats, canEdit = Me.CanEditStore, canOrder = Me.IsMasterAdmin || Me.UserLevel == 1,
             stocks = visible.Select(s =>
             {
                 var c = s.CountCoil && DbSchema.HasCoilRegister ? (coils.TryGetValue(s.StkId, out var x) ? x : new CoilService.CoilSummary()) : null;
@@ -173,6 +173,25 @@ public sealed class StoreController : AppController
             return Ok(new { message = $"บันทึกการตั้งค่าคลัง {clean.Code} สำเร็จ" });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกข้อมูลคลังไม่สำเร็จ"); }
+    }
+
+    public sealed record StockOrderRequest(int[] Ids);
+
+    // Stock display order (every stock list / sidebar) - Admin Level 1 only
+    [HttpPost("stocks/order")]
+    public IActionResult Order([FromBody] StockOrderRequest req)
+    {
+        if (Me == null || !(Me.IsMasterAdmin || Me.UserLevel == 1)) return Deny("เฉพาะ Admin (Level 1) จัดลำดับคลังได้");
+        var all = _stocks.GetStocks();
+        var ids = (req?.Ids ?? Array.Empty<int>()).Distinct().ToList();
+        if (ids.Count != all.Count || ids.Any(id => all.All(s => s.StkId != id))) return BadRequest(new { message = "รายการคลังไม่ครบ กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง" });
+        try
+        {
+            _stocks.SetOrder(ids);
+            LogService.WriteLog(Uid, "STOCK_ORDER", "Stock order: " + string.Join(" > ", ids.Select(id => all.First(s => s.StkId == id).Code)), "");
+            return Ok(new { message = "บันทึกลำดับคลังแล้ว" });
+        }
+        catch (Exception ex) { return Fail(ex, "บันทึกลำดับคลังไม่สำเร็จ"); }
     }
 
     public sealed record DeleteStockRequest(string Reason);

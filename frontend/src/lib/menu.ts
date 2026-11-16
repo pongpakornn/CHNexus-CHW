@@ -35,7 +35,7 @@ const USERS_ITEM: MenuItem = { href: "/admin/users", label: "User Management", t
 // ⚙ SYSTEM CONFIGURATION (Admin Level 1 เท่านั้น = ตรงกับ SetupController): แต่ละรายการ = /admin/setup/<slug> (แผงเดิมจาก SetupModal)
 export const SETUP_GROUPS: { key: string; name: string; items: [slug: string, label: string][] }[] = [
   { key: "pr", name: "PR MANAGEMENT", items: [["pr-settings", "PR SETTINGS"], ["excel", "EXCEL SETUP"], ["departments", "DEPARTMENTS"]] },
-  { key: "cims", name: "CIMS - CHR INVENTORY MANAGEMENT", items: [["min-report", "MIN REPORT"], ["min-reasons", "MIN REASONS"], ["sign-flow-min", "SIGN FLOW"], ["layout", "LAYOUT SETUP"]] },
+  { key: "cims", name: "CIMS · INVENTORY", items: [["min-report", "MIN REPORT"], ["min-reasons", "MIN REASONS"], ["sign-flow-min", "SIGN FLOW"], ["layout", "LAYOUT SETUP"]] },
   { key: "chem", name: "CHEMICAL CONTROL", items: [["sign-flow-chem", "SIGN FLOW"]] },
   { key: "edp", name: "EDP PLANNING", items: [["edp-alert", "EDP ALERT"]] },
   { key: "user", name: "USER MANAGEMENT", items: [["organization", "ORGANIZATION MASTER"]] },
@@ -92,7 +92,7 @@ export const CIMS: SystemDef = {
   key: "cims",
   label: "CIMS",
   name: "CIMS",
-  sub: "CHR Inventory Management",
+  sub: "CHR Inventory Management System",
   art: "/images/systems/cims.webp",
   title: "CIMS • INVENTORY CONTROL",
   desc: "ระบบคลังสินค้า: Store Max-Min · Multi-Scanner · Pick List · Max-Min · PR",
@@ -114,7 +114,7 @@ export const CIMS: SystemDef = {
 export const MASTER: SystemDef = {
   key: "master",
   label: "MASTER DATA",
-  name: "Master Data",
+  name: "Master Data Management",
   sub: "Customer · Supplier · Product · Forecast",
   art: "/images/systems/master-data.webp",
   title: "MASTER DATA",
@@ -127,8 +127,8 @@ export const MASTER: SystemDef = {
 export const ADMIN: SystemDef = {
   key: "admin",
   label: "USER MANAGEMENT",
-  name: "User Management",
-  sub: "User & Permission",
+  name: "User & Access Management",
+  sub: "Accounts · Access Control · Configuration",
   art: "/images/systems/user-management.webp",
   title: "USER MANAGEMENT",
   desc: "ผู้ใช้งาน · สิทธิ์ทุกระบบ · ⚙ SYSTEM CONFIGURATION ทั้งหมด (Admin)",
@@ -142,7 +142,7 @@ export const EDP: SystemDef = {
   key: "edp",
   label: "EDP PLANNING",
   name: "EDP Planning",
-  sub: "Production Plan · HG · Round",
+  sub: "EDP Line Planning · HG · Round",
   art: "/images/systems/edp-planning.webp",
   title: "EDP • PRODUCTION PLANNING",
   desc: "วางแผนผลิต EDP รายรอบ · หน้างาน MARK SUCCESS · ติดตามแผน · กราฟประสิทธิภาพ",
@@ -170,8 +170,8 @@ const PP_DEPTS = [
 
 export const PP: SystemDef = {
   key: "pp",
-  label: "PRODUCTION PLAN",
-  name: "Production Plan",
+  label: "PRODUCTION PLANNING",
+  name: "Production Planning",
   sub: "Capacity Planning · 7 Departments",
   art: "/images/systems/production-plan.webp",
   title: "PRODUCTION PLAN • CAPACITY",

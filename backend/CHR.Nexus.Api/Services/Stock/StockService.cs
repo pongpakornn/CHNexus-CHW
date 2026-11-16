@@ -77,7 +77,7 @@ namespace Nexus.Services
                 string sql = $@"SELECT {StockColumns}, ISNULL(v.ItemCount, 0) AS ItemCount
                                 FROM Nexus.Stocks s
                                 LEFT JOIN Nexus.vw_StockSummary v ON v.StockID = s.StockID
-                                ORDER BY s.IsMain DESC, s.SortNo, s.StockCode";
+                                ORDER BY s.SortNo, s.StockCode";
                 using (var cmd = new SqlCommand(sql, conn))
                 using (var rdr = cmd.ExecuteReader())
                 {
@@ -91,6 +91,27 @@ namespace Nexus.Services
                 LoadFormatIds(conn, list);
             }
             return list;
+        }
+
+        // Stock order (Admin Level 1): ids in display order -> SortNo 1..n, one transaction
+        public void SetOrder(IReadOnlyList<int> ids)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                conn.Open();
+                using (var tr = conn.BeginTransaction())
+                {
+                    for (int i = 0; i < ids.Count; i++)
+                        using (var cmd = new SqlCommand("UPDATE Nexus.Stocks SET SortNo = @n WHERE StockID = @id", conn, tr))
+                        {
+                            cmd.Parameters.AddWithValue("@n", i + 1);
+                            cmd.Parameters.AddWithValue("@id", ids[i]);
+                            cmd.ExecuteNonQuery();
+                        }
+                    tr.Commit();
+                }
+            }
+            InvalidateStocks();
         }
 
         public StockModel GetStock(int stkId) => GetStocks().FirstOrDefault(s => s.StkId == stkId);

@@ -8,6 +8,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { useRouter } from "next/navigation";
 import { ContactModal } from "./ContactModal";
 import { PermissionModal } from "./PermissionModal";
 import type { Can, User } from "./types";
@@ -25,6 +26,7 @@ const LEVEL_TONE: Record<number, string> = { 1: "var(--danger)", 2: "var(--accen
 export default function UsersPage() {
   const toast = useToast();
   const dlg = useDialogs();
+  const router = useRouter();
   const [users, setUsers] = useState<User[] | null>(null);
   const [can, setCan] = useState<Can | null>(null);
   const [me, setMe] = useState("");
@@ -256,7 +258,7 @@ export default function UsersPage() {
                         </div>
                       </td>
                       <td>
-                        <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[11px] font-extrabold text-primary">{u.permCount}</span>
+                        <PermChip n={u.permCount} />
                       </td>
                       <td className="text-xs">
                         {u.showScanChip && (
@@ -270,11 +272,6 @@ export default function UsersPage() {
                         <div className="inline-flex items-center gap-1.5">
                           <RowAction kind="view" title="VIEW PERMISSION" active={perm?.userId === u.userId && perm.readOnly} onClick={() => setPerm(perm?.userId === u.userId && perm.readOnly ? null : { userId: u.userId, readOnly: true })} />
                           {can.edit && <RowAction kind="edit" title="EDIT USER" active={edit?.user?.userId === u.userId} onClick={() => setEdit(edit?.user?.userId === u.userId ? null : { user: u })} />}
-                          {can.perms && (
-                            <button className="cta-btn is-purple is-sm" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
-                              🔑 PERMISSION
-                            </button>
-                          )}
                           {can.delete && <RowAction kind="delete" title="DELETE USER" onClick={() => remove(u)} />}
                         </div>
                       </td>
@@ -309,7 +306,7 @@ export default function UsersPage() {
                     <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${u.isLocked ? "bg-[#ffebee] text-danger" : u.isOnline ? "bg-[#e8f5e9] text-success" : "bg-surface-2 text-ink-soft"}`}>
                       {u.statusText}
                     </span>
-                    <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-extrabold text-primary">{u.permCount} SYSTEMS</span>
+                    <PermChip n={u.permCount} />
                   </div>
                 </div>
               </div>
@@ -322,11 +319,6 @@ export default function UsersPage() {
               <div className="mt-auto flex flex-wrap items-center gap-1 border-t border-line/60 p-2">
                 <RowAction kind="view" title="VIEW PERMISSION" active={perm?.userId === u.userId && perm.readOnly} onClick={() => setPerm(perm?.userId === u.userId && perm.readOnly ? null : { userId: u.userId, readOnly: true })} />
                 {can.edit && <RowAction kind="edit" title="EDIT USER" active={edit?.user?.userId === u.userId} onClick={() => setEdit(edit?.user?.userId === u.userId ? null : { user: u })} />}
-                {can.perms && (
-                  <button className="cta-btn is-purple is-sm" onClick={() => setPerm({ userId: u.userId, readOnly: false })}>
-                    🔑 PERMISSION
-                  </button>
-                )}
                 {can.delete && (
                   <span className="ml-auto">
                     <RowAction kind="delete" title="DELETE USER" onClick={() => remove(u)} />
@@ -344,10 +336,20 @@ export default function UsersPage() {
           user={edit.user}
           isSelf={!!edit.user && edit.user.userId.toLowerCase() === me.toLowerCase()}
           onClose={() => setEdit(null)}
-          onSaved={(m) => {
+          onSaved={async (m, id) => {
+            const added = !edit.user;
             setEdit(null);
-            toast.show(edit.user ? "Saved" : "User added", m, "ok");
+            toast.show(added ? "User added" : "Saved", m, "ok");
             load();
+            if (
+              added &&
+              can.perms &&
+              (await dlg.confirm({ title: "SET PERMISSION", ok: "SET PERMISSION", message: `เพิ่มผู้ใช้ ${id} แล้ว
+ต้องการกำหนดสิทธิ์การใช้งานของผู้ใช้นี้ตอนนี้หรือไม่?
+
+ยืนยัน = ไปหน้า ACCESS CONTROL และเปิดสิทธิ์ของ ${id}` }))
+            )
+              router.push(`/admin/access?user=${encodeURIComponent(id)}`);
           }}
         />
       )}
@@ -384,5 +386,18 @@ export default function UsersPage() {
         </Modal>
       )}
     </PageBody>
+  );
+}
+
+// SYSTEMS column: how many systems the user can use, or a clear "not set" (permission editor = ACCESS CONTROL page)
+function PermChip({ n }: { n: number }) {
+  return n > 0 ? (
+    <span className="whitespace-nowrap rounded-md bg-[#e8f5e9] px-2 py-0.5 text-[11px] font-extrabold text-success" title={`มีสิทธิ์ใช้งาน ${n} ระบบ`}>
+      ✓ {n} SYSTEMS
+    </span>
+  ) : (
+    <span className="whitespace-nowrap rounded-md bg-[#ffebee] px-2 py-0.5 text-[11px] font-extrabold text-danger" title="ยังไม่ได้กำหนดสิทธิ์ (กำหนดที่ ACCESS CONTROL)">
+      ✕ NO PERMISSION
+    </span>
   );
 }

@@ -759,7 +759,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         actions={
           <>
             <MinReportMenu stock={s} autoOpen={openMinReport} />
-            {s.code.toUpperCase() === "STOCK-MAT" && <Layout3DButton stockCode={s.code} />}
+            {s.isMain && /* main material stock (by flag, not name - rename-safe) */ <Layout3DButton stockCode={s.code} />}
             <ActionMenu actions={menu} />
             {meta.canImport && (
               <input
