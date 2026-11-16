@@ -339,18 +339,23 @@ namespace Nexus.Services
             // รหัสที่มีอยู่แล้ว = อัพเดท / ยังไม่มี = เพิ่มใหม่ (ต้องมีชื่อ) / รหัสซ้ำในไฟล์ = ใช้แถวแรก
             // สินค้า 1 ตัว = PRODUCT CODE + PART A (PRODUCT CODE ซ้ำได้ถ้า PART A ต่างกัน)
             //   ไฟล์ไม่ได้ใส่ PART A -> หาจาก PRODUCT CODE อย่างเดียว (ถ้าระบบมีรหัสนี้หลายตัว ต้องใส่ PART A)
-            string K(string code, string partA) => (code ?? "").Trim().ToUpperInvariant() + "|" + (partA ?? "").Trim().ToUpperInvariant();
+            //   + PART B (STORE-SUB: PRODUCT CODE '-' ซ้ำกันหลายพันตัว แยกกันด้วย PART B · ไฟล์ไม่มี PART B = หาจาก CODE + PART A ถ้ามีตัวเดียว)
+            string K(string code, string partA, string partB = "") => (code ?? "").Trim().ToUpperInvariant() + "|" + (partA ?? "").Trim().ToUpperInvariant() + "|" + (partB ?? "").Trim().ToUpperInvariant();
             var byKey = new Dictionary<string, int>();
+            var byKey2 = new Dictionary<string, List<int>>();
             var byCode = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
             using (var conn = new SqlConnection(_cs))
-            using (var cmd = new SqlCommand("SELECT PartID, LTRIM(RTRIM(PartCode)), ISNULL(PartA, '') FROM Nexus.Parts", conn))
+            using (var cmd = new SqlCommand("SELECT PartID, LTRIM(RTRIM(PartCode)), ISNULL(PartA, ''), " + (Nexus.Helpers.DbSchema.HasPartB ? "ISNULL(PartB, '')" : "''") + " FROM Nexus.Parts", conn))
             {
                 conn.Open();
                 using (var rd = cmd.ExecuteReader())
                     while (rd.Read())
                     {
                         int id = rd.GetInt32(0); string code = rd.GetString(1);
-                        byKey[K(code, rd.GetString(2))] = id;
+                        byKey[K(code, rd.GetString(2), rd.GetString(3))] = id;
+                        string k2 = K(code, rd.GetString(2));
+                        if (!byKey2.TryGetValue(k2, out var l2)) byKey2[k2] = l2 = new List<int>();
+                        l2.Add(id);
                         if (!byCode.TryGetValue(code, out var l)) byCode[code] = l = new List<int>();
                         l.Add(id);
                     }
@@ -364,15 +369,20 @@ namespace Nexus.Services
                     x.Error = x.ContOwner.IsValid ? $"แถวสินค้า {x.ContOwner.RowNumber} ต้องใส่ NUMBER COIL ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {x.ContOwner.RowNumber} ไม่ผ่าน ({x.ContOwner.Error})";
                     continue;
                 }
-                if (seen.TryGetValue(K(x.Code, x.PartA), out var owner))
+                if (seen.TryGetValue(K(x.Code, x.PartA, x.PartB), out var owner))
                 {
                     if (x.CoilNo != null && owner.CoilNo != null) { x.IsCoilExtra = true; x.CoilOwner = owner; }
                     else x.Error = "ซ้ำกับแถวก่อนหน้าในไฟล์ (PRODUCT CODE + PART A เดียวกัน) - หลาย Coil ให้ใส่ NUMBER COIL ทุกแถว";
                     continue;
                 }
-                seen[K(x.Code, x.PartA)] = x;
-                if (byKey.TryGetValue(K(x.Code, x.PartA), out int id)) x.PtId = id;
-                else if (x.PartA == null && byCode.TryGetValue(x.Code, out var ids))
+                seen[K(x.Code, x.PartA, x.PartB)] = x;
+                if (byKey.TryGetValue(K(x.Code, x.PartA, x.PartB), out int id)) x.PtId = id;
+                else if (x.PartB == null && byKey2.TryGetValue(K(x.Code, x.PartA), out var ids2))
+                {
+                    if (ids2.Count == 1) x.PtId = ids2[0];
+                    else x.Error = $"PRODUCT CODE {x.Code} + PART A {x.PartA ?? "-"} มีในระบบ {ids2.Count} รายการ กรุณาใส่ PART B ให้ระบุตัวสินค้า";
+                }
+                else if (x.PartA == null && x.PartB == null && byCode.TryGetValue(x.Code, out var ids))
                 {
                     if (ids.Count == 1) x.PtId = ids[0];
                     else x.Error = $"PRODUCT CODE {x.Code} มีในระบบ {ids.Count} รายการ กรุณาใส่ PART A ให้ระบุตัวสินค้า";

@@ -98,6 +98,54 @@ function CoilDetail({ coil, where }: { coil: ApiCoil; where: string }) {
   );
 }
 
+// ตำแหน่งที่มีหลายม้วน (เช่น 1A วางได้มากกว่า 1 ลูก): การ์ดสเปคทุกม้วน · กดการ์ด = ดูรายละเอียดด้านล่าง
+function CoilCards({ list, cur, onPick }: { list: ApiCoil[]; cur?: ApiCoil; onPick: (c: ApiCoil) => void }) {
+  return (
+    <div className="grid gap-1.5">
+      <p className="text-xs font-extrabold text-ink-soft">ตำแหน่งนี้มี {list.length} ม้วน · กดการ์ดเพื่อดูรายละเอียด</p>
+      {list.map((c) => (
+        <button key={c.coilId} type="button" onClick={() => onPick(c)} className={`grid gap-0.5 rounded-lg border px-3 py-2 text-left ${c === cur ? "border-warning bg-warning/10" : "border-line/60 bg-surface"}`}>
+          <span className="flex items-center justify-between gap-2 text-sm font-extrabold text-ink">
+            <span className="truncate">{c.coilNo}</span>
+            <span className="shrink-0 tabular-nums">{qty(c.weightKg)} kg</span>
+          </span>
+          <span className="truncate text-xs font-semibold text-ink-soft">
+            {c.partCode} · {c.partName || "-"}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// เหล็กแพ็ค S1–S9: ผังตามหน้างาน (S1–S3 ฝั่ง STORE ท่อ · S7–S9 ฝั่งโต๊ะทำงาน) · ช่องละ 3 แพ็ค · ว่าง / มี / เต็ม
+const PLATE_ROWS = [["S1", "S2", "S3"], ["S4", "S5", "S6"], ["S7", "S8", "S9"]];
+const PLATE_CAP = 3;
+function PlateGrid({ list }: { list: ApiCoil[] }) {
+  const n = (s: string) => list.filter((c) => (c.locName ?? "").toUpperCase() === s).length;
+  return (
+    <div className="mb-3 grid gap-1">
+      <span className="text-center text-[10px] font-extrabold uppercase tracking-wide text-ink-soft">↑ ฝั่ง STORE ท่อ</span>
+      <div className="grid grid-cols-3 gap-1">
+        {PLATE_ROWS.flat().map((s) => {
+          const k = n(s);
+          return (
+            <div
+              key={s}
+              className={`rounded-md border py-1.5 text-center text-xs font-extrabold ${k >= PLATE_CAP ? "border-transparent bg-danger text-white" : k > 0 ? "border-transparent bg-success text-white" : "border-line bg-surface-2 text-ink-soft"}`}
+              title={k >= PLATE_CAP ? "เต็ม" : k > 0 ? "มีเหล็ก" : "ว่าง"}
+            >
+              {s}
+              <span className="block text-[10px] font-bold">{k === 0 ? "ว่าง" : `${k}/${PLATE_CAP}`}</span>
+            </div>
+          );
+        })}
+      </div>
+      <span className="text-center text-[10px] font-extrabold uppercase tracking-wide text-ink-soft">↓ ฝั่งโต๊ะทำงาน</span>
+    </div>
+  );
+}
+
 export default function Layout3DPage() {
   const toast = useToast();
   const stageRef = useRef<HTMLElement>(null);
@@ -170,7 +218,7 @@ export default function Layout3DPage() {
     const z = ZONE_BY_ID.get(h.zoneId)!;
     const text =
       h.kind === "slot"
-        ? `${h.slotId} · ${model.bySlot.get(h.slotId)?.[0]?.coilNo ?? "ว่าง"}`
+        ? `${h.slotId} · ${(model.bySlot.get(h.slotId)?.length ?? 0) > 1 ? `${model.bySlot.get(h.slotId)!.length} ม้วน` : (model.bySlot.get(h.slotId)?.[0]?.coilNo ?? "ว่าง")}`
         : h.kind === "floor"
           ? `${z.name} · ${model.byZone.get(z.id)?.find((c) => c.coilId === h.coilId)?.coilNo ?? ""}`
           : `${z.name} · ${countOf(z)}`;
@@ -211,7 +259,7 @@ export default function Layout3DPage() {
   useEffect(() => {
     const d: EngineData = { slots: {}, floors: {}, labels: {}, kg: model.kg };
     for (const [id, list] of model.bySlot) d.slots[id] = list[0].coilId;
-    for (const [id, list] of model.byZone) d.floors[id] = list.map((c) => c.coilId);
+    for (const [id, list] of model.byZone) if (id !== "PACK") d.floors[id] = list.map((c) => c.coilId); // PACK: counts in label + S1–S9 grid (no coils drawn on the pack bases)
     for (const z of STOCK_ZONES) d.labels[z.id] = countOf(z);
     engineRef.current?.setData(d);
   }, [model, countOf]);
@@ -403,6 +451,7 @@ export default function Layout3DPage() {
                               className={`min-w-0 rounded-[4px] border text-center text-[11px] font-extrabold leading-none ${row.y > 0 ? "py-2.5" : "py-1.5"} ${on ? "border-transparent bg-success text-white" : model.known.has(id) ? "border-transparent bg-surface-2 text-ink-soft" : "border-dashed border-line bg-surface text-ink-soft"} ${cur ? "ring-2 ring-warning" : ""}`}
                             >
                               {id}
+                              {(model.bySlot.get(id)?.length ?? 0) > 1 && <span className="block text-[9px] font-bold opacity-90">×{model.bySlot.get(id)!.length}</span>}
                             </button>
                           );
                         }),
@@ -419,6 +468,7 @@ export default function Layout3DPage() {
                   {(model.byZone.get(zone.id)?.length ?? 0) > zone.cap ? ` (โมเดลวาดได้ ${zone.cap} ม้วนแรก)` : ""}
                 </p>
                 {!model.known.has(zone.id) && <p className="mb-2 text-xs font-semibold text-ink-soft">ยังไม่มีตำแหน่งของโซนนี้ใน LAYOUT SETUP (ตั้งชื่อให้มีคำว่า {zone.match[0]})</p>}
+                {zone.id === "PACK" && <PlateGrid list={model.byZone.get(zone.id) ?? []} />}
                 <ul className="flex flex-col gap-1">
                   {(model.byZone.get(zone.id) ?? []).map((c) => (
                     <li key={c.coilId}>
@@ -428,7 +478,10 @@ export default function Layout3DPage() {
                         className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-left text-sm font-bold text-ink ${sel?.kind === "floor" && sel.coilId === c.coilId ? "border-warning" : "border-line/60"}`}
                       >
                         <span className="truncate">{c.coilNo}</span>
-                        <span className="shrink-0 text-xs font-semibold text-ink-soft">{c.partCode}</span>
+                        <span className="shrink-0 text-xs font-semibold text-ink-soft">
+                          {c.locName && c.locName !== zone.id ? `${c.locName} · ` : ""}
+                          {c.partCode}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -453,18 +506,7 @@ export default function Layout3DPage() {
                     {selSlot && !model.known.has(selSlot.id) ? " · ยังไม่มีตำแหน่งนี้ใน LAYOUT SETUP" : ""}
                   </p>
                 )}
-                {selSlot && slotCoils.length > 1 && (
-                  <div className="rounded-lg border border-warning/50 bg-warning/10 p-2 text-xs font-bold text-ink">
-                    ตำแหน่งนี้มี {slotCoils.length} ม้วนในระบบ (กำหนดไว้ 1 ม้วนต่อตำแหน่ง)
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {slotCoils.map((c) => (
-                        <button key={c.coilId} type="button" onClick={() => setSel({ kind: "slot", slotId: selSlot.id, coilId: c.coilId })} className={`rounded-md border px-2 py-0.5 ${c === selCoil ? "border-warning bg-surface" : "border-line/60 bg-surface"}`}>
-                          {c.coilNo}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {selSlot && slotCoils.length > 1 && <CoilCards list={slotCoils} cur={selCoil} onPick={(c) => setSel({ kind: "slot", slotId: selSlot.id, coilId: c.coilId })} />}
                 {selCoil && <CoilDetail coil={selCoil} where={selZone?.name ?? "-"} />}
               </>
             )}

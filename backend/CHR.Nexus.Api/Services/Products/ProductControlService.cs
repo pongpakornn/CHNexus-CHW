@@ -710,14 +710,14 @@ namespace Nexus.Services
         }
 
         // 🎯 ตรวจสอบค่าซ้ำในระบบผ่าน PartCode (partACode มิเรอร์จาก PartCode)
-        // PRODUCT CODE ซ้ำได้ถ้า PART A ต่างกัน -> ซ้ำจริง = PRODUCT CODE + PART A เหมือนกัน (ไม่นับแถว exceptPtId ที่กำลังแก้)
-        public async Task<bool> CheckDuplicateCodeAsync(string partACode, string partA = null, int exceptPtId = 0)
+        // ซ้ำจริง = PRODUCT CODE + PART A + PART B เหมือนกัน (ตรงกับ UX_MST_PART_CODE_PARTA · STORE-SUB ใช้ '-' แยกกันด้วย PART B · 53_StoreSub_PartB_From_ERP.sql)
+        public async Task<bool> CheckDuplicateCodeAsync(string partACode, string partA = null, int exceptPtId = 0, string partB = null)
         {
             using (IDbConnection db = new SqlConnection(_connectionString))
             {
                 string sql = @"SELECT COUNT(1) FROM Nexus.Parts WHERE PartCode = @PartACode
-                               AND ISNULL(PartA, '') = ISNULL(@PartA, '') AND PartID <> @Except";
-                int count = await db.ExecuteScalarAsync<int>(sql, new { PartACode = partACode ?? "", PartA = string.IsNullOrWhiteSpace(partA) ? null : partA.Trim(), Except = exceptPtId }).ConfigureAwait(false);
+                               AND ISNULL(PartA, '') = ISNULL(@PartA, '') AND ISNULL(PartB, '') = ISNULL(@PartB, '') AND PartID <> @Except";
+                int count = await db.ExecuteScalarAsync<int>(sql, new { PartACode = partACode ?? "", PartA = string.IsNullOrWhiteSpace(partA) ? null : partA.Trim(), PartB = string.IsNullOrWhiteSpace(partB) ? null : partB.Trim(), Except = exceptPtId }).ConfigureAwait(false);
                 return count > 0;
             }
         }

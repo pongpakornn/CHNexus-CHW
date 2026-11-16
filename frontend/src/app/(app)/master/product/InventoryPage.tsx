@@ -18,8 +18,7 @@ import { stockIcon } from "@/lib/stockIcons";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { AdminModal } from "./AdminModal";
-import { LayoutQrPicker } from "./LayoutQrPicker";
-import { createPortal } from "react-dom";
+import { LayoutPanel } from "../../admin/users/LayoutPanel";
 import { CoilPanel, type CoilRow } from "./CoilPanel";
 import { ImportReview } from "@/components/import/ImportReview";
 import type { ImportPreview } from "@/components/import/types";
@@ -85,7 +84,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const [busy, setBusy] = useState(false);
   const [coils, setCoils] = useState<Record<number, CoilRow[] | "loading">>({});
   const [admin, setAdmin] = useState(false);
-  const [layoutQr, setLayoutQr] = useState(false); // ▣ EXPORT QR CODE LAYOUT
+  const [layoutQr, setLayoutQr] = useState(false); // 📍 LAYOUT SETUP (main material stock only)
   const [tplOpen, setTplOpen] = useState(false);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [tplOptions, setTplOptions] = useState<{ stkId: number; code: string; name: string; heads: string; countCoil: boolean }[]>([]);
@@ -655,14 +654,19 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                   icon: "qr" as const,
                   onClick: openExport,
                 },
-                {
-                  key: "qr-layout",
-                  title: "EXPORT QR CODE LAYOUT",
-                  detail: "ส่งออก QR ตำแหน่งจัดเก็บ (Locations จาก LAYOUT SETUP) เลือกจากตาราง แล้ว Export PDF แบบเดียวกับ QR สินค้า",
-                  color: "#6750a4",
-                  icon: "qr" as const,
-                  onClick: () => setLayoutQr(true),
-                },
+                // 📍 LAYOUT SETUP: only on the main material stock (STOCK-MAT / STORE-MAT, by IsMain flag - rename-safe)
+                ...(filterStock?.isMain
+                  ? [
+                      {
+                        key: "qr-layout",
+                        title: "LAYOUT SETUP",
+                        detail: "สร้างตำแหน่งจัดเก็บ (Rack · Incoming · S1–S9) และ Export QR ตำแหน่งไปปริ้น",
+                        color: "#6750a4",
+                        icon: "qr" as const,
+                        onClick: () => setLayoutQr(true),
+                      },
+                    ]
+                  : []),
                 ...(can.admin
                   ? [{ key: "admin", title: "ADMIN", detail: "จัดการขั้นสูง (Admin Level 1): ลบสินค้าตามคลัง / ตั้งคอลัมน์ตาราง / รูปแบบ QR CODE", color: "#334155", icon: "admin" as const, onClick: () => setAdmin(true) }]
                   : []),
@@ -1011,7 +1015,11 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
         </div>
       </Modal>
 
-      {layoutQr && createPortal(<LayoutQrPicker onClose={() => setLayoutQr(false)} />, document.body)}
+      {layoutQr && (
+        <Modal open size="xl" title={`📍 LAYOUT SETUP • ${filterStock?.code ?? ""}`} onClose={() => setLayoutQr(false)}>
+          <LayoutPanel />
+        </Modal>
+      )}
       {/* ▣ EXPORT QR: ที่ติ๊กไว้ / ทั้งหมดในคลัง */}
       <Modal open={!!exportOpen} wide title="▣ EXPORT QR" onClose={() => setExportOpen(null)}>
         <p className="mb-4 text-sm font-semibold text-ink-soft">QR CODE ตามรูปแบบที่ตั้งไว้ของ {filterStock?.code ?? "ALL STOCKS"} (ปุ่ม ADMIN &gt; QR CODE)</p>

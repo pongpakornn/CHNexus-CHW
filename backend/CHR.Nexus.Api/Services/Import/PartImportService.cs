@@ -348,7 +348,8 @@ namespace Nexus.Services
         }
 
         // สินค้า 1 ตัว = PRODUCT CODE + PART A (PRODUCT CODE ซ้ำได้ถ้า PART A ต่างกัน เช่น STORE-PC)
-        private static string Key(string code, string partA) => (code ?? "").Trim().ToUpperInvariant() + "|" + (partA ?? "").Trim().ToUpperInvariant();
+        // + PART B: same key as UX_MST_PART_CODE_PARTA (STORE-SUB items share PRODUCT CODE '-' and differ by PART B)
+        private static string Key(string code, string partA, string partB = "") => (code ?? "").Trim().ToUpperInvariant() + "|" + (partA ?? "").Trim().ToUpperInvariant() + "|" + (partB ?? "").Trim().ToUpperInvariant();
 
         // ข้ามสินค้าที่มีในระบบแล้ว และแถวที่ซ้ำกันเองในไฟล์ (PRODUCT CODE + PART A เดียวกัน - เก็บแถวแรกไว้)
         private void ValidateAgainstDb(List<PartImportRow> rows, List<StockModel> stocks)
@@ -358,9 +359,9 @@ namespace Nexus.Services
             using (var conn = new SqlConnection(_connectionString))
             {
                 conn.Open();
-                using (var cmd = new SqlCommand("SELECT PartCode, ISNULL(PartA, '') FROM Nexus.Parts", conn))
+                using (var cmd = new SqlCommand("SELECT PartCode, ISNULL(PartA, ''), " + (Nexus.Helpers.DbSchema.HasPartB ? "ISNULL(PartB, '')" : "''") + " FROM Nexus.Parts", conn))
                 using (var rdr = cmd.ExecuteReader())
-                    while (rdr.Read()) existing.Add(Key(rdr.GetString(0), rdr.GetString(1)));
+                    while (rdr.Read()) existing.Add(Key(rdr.GetString(0), rdr.GetString(1), rdr.GetString(2)));
                 coils = CoilImportService.LoadCoils(conn);
             }
 
@@ -368,7 +369,7 @@ namespace Nexus.Services
             var first = new Dictionary<string, PartImportRow>();
             foreach (var r in rows.Where(x => x.IsValid))
             {
-                string k = Key(r.Code, r.PartA);
+                string k = Key(r.Code, r.PartA, r.PartB);
                 if (r.ContOwner != null && (!r.ContOwner.IsValid || r.ContOwner.CoilNo == null))
                     r.Error = r.ContOwner.IsValid ? $"แถวสินค้า {r.ContOwner.RowNumber} ต้องใส่ NUMBER COIL ด้วย (สินค้าหลาย Coil)" : $"สินค้าแถว {r.ContOwner.RowNumber} ไม่ผ่าน ({r.ContOwner.Error})";
                 else if (existing.Contains(k)) { r.Exists = true; r.Error = "สินค้านี้ลงทะเบียนไว้แล้ว (PRODUCT CODE + PART A) - เพิ่ม / อัพเดทผ่าน IMPORT EXCEL หน้า Store (Max-Min)"; }

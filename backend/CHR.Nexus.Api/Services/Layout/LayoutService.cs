@@ -58,6 +58,32 @@ public sealed class LayoutService
     public static string LabelText(string type, string name) => $"{type} : {name}";
 
     // ---------------------------------------------------------------- ตั้งค่ารูปแบบ QR
+    // 📦 PLATE (เหล็กแผ่น S1–S9): ช่องละ 3 แพ็ค (1 แพ็ค = 1 Number Coil) · ใช้ตอนสแกนรับเข้าที่ Multi-Scanner
+    public const string PlateType = "PLATE";
+    public const int PlateCap = 3;
+    /// <summary>Scanned layout text is a PLATE location -> (location name, coils IN there now) · otherwise null.
+    /// Counted like Layout 3D: coil still IN + its latest IN move was scanned with this location.</summary>
+    public (string Loc, int Count)? PlateLoad(string layout)
+    {
+        if (string.IsNullOrWhiteSpace(layout)) return null;
+        string key = layout.Trim();
+        var set = GetSettings();
+        using var c = Conn();
+        var locs = c.Query<string>(@"SELECT l.LocName FROM Nexus.LayoutLocations l JOIN Nexus.LayoutTypes t ON t.TypeID = l.TypeID WHERE t.TypeName = @t", new { t = PlateType }).ToList();
+        foreach (var name in locs)
+        {
+            var texts = new[] { QrText(set, PlateType, name), LabelText(PlateType, name), PlateType + " " + name, name }.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (!texts.Any(x => string.Equals(x, key, StringComparison.OrdinalIgnoreCase))) continue;
+            int n = c.ExecuteScalar<int>(@"
+                SELECT COUNT(*) FROM Nexus.Coils k
+                CROSS APPLY (SELECT TOP 1 t.Layout, m.ToStockID FROM Nexus.CoilMoves m JOIN Nexus.ScanTransactions t ON t.TransactionID = m.ScanTransactionID
+                             WHERE m.CoilID = k.CoilID AND m.Undone = 0 AND m.ToStatus = 'IN' AND m.Action <> 'CONSUME' ORDER BY m.MoveID DESC) x
+                WHERE k.Status = 'IN' AND x.ToStockID = k.StockID AND LTRIM(RTRIM(x.Layout)) IN @texts", new { texts });
+            return (name, n);
+        }
+        return null;
+    }
+
     public LayoutSettings GetSettings()
     {
         using var c = Conn();

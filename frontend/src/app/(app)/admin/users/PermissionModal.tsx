@@ -367,6 +367,8 @@ export function PermissionModal({
     ["PROFILE", "USER PROFILE", "ข้อมูลผู้ใช้", <path key="u" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5a7.5 7.5 0 0 1 15 0" />],
     ...(readOnly ? [["PERM", "PERMISSIONS", "สิทธิ์ของแต่ละระบบ", <path key="p" d="M12 3.5 4.5 6.5v5.2c0 4.4 3.1 7.8 7.5 8.8 4.4-1 7.5-4.4 7.5-8.8V6.5zM9 12l2.2 2.2L15.5 10" />] as [PTab, string, string, React.ReactNode]] : []),
   ];
+  // ACCESS CONTROL page: permissions + scan stocks only (contacts / profile live on USER ACCOUNTS)
+  if (inline) tabs.splice(0, tabs.length, ...tabs.filter((x) => x[0] === "PERM" || x[0] === "SCAN"));
   const tabName = tabs.find((x) => x[0] === tab)?.[1] ?? "";
   const pick = (t: PTab) => {
     setTab(t);
@@ -384,6 +386,7 @@ export function PermissionModal({
     <Wrap inline={inline} title={`${readOnly ? "👤" : "🔑"} ${tabName}`} onClose={onClose}>
       {/* Sidebar ติดขอบซ้ายแบบเมนูหลัก (เหมือนหน้าต่าง ADMIN) · พับเหลือไอคอนได้ · มือถือ = เมนูเลื่อนออกจากซ้าย */}
       <div className={`adm-shell ${mini ? "is-mini" : ""} ${drawer ? "is-drawer" : ""}`}>
+        {!inline && (
         <nav className="adm-nav">
           <div className="adm-nav-head">
             {burger(() => (window.matchMedia("(max-width: 767px)").matches ? setDrawer(false) : toggleMini()), mini ? "กางเมนู" : "พับเมนู")}
@@ -420,13 +423,43 @@ export function PermissionModal({
             </div>
           )}
         </nav>
-        {drawer && <div className="adm-scrim" onClick={() => setDrawer(false)} />}
+        )}
+        {!inline && drawer && <div className="adm-scrim" onClick={() => setDrawer(false)} />}
 
         <section className="adm-main">
-          <div className="adm-main-head">
-            {burger(() => setDrawer(true), "เมนู")}
-            <b>{tabName}</b>
-          </div>
+          {inline ? (
+            // in-page header: user + tabs (no sidebar)
+            <div className="pm-inline-head">
+              {u && (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="pm-avatar">{u.name.trim().slice(0, 2).toUpperCase() || "?"}</span>
+                  <span className="min-w-0">
+                    <b className="block truncate text-sm text-[#1f2350]">{u.name}</b>
+                    <span className="block truncate text-[11px] font-bold text-ink-soft">
+                      ID : {u.userId} · {u.levelText}
+                    </span>
+                  </span>
+                </span>
+              )}
+              <span className="flex flex-wrap gap-1.5 sm:ml-auto" role="tablist">
+                {tabs.map(([t, txt]) => (
+                  <button key={t} type="button" role="tab" aria-selected={tab === t} className={`fill-btn is-sm ${tab === t ? "is-on" : ""}`} onClick={() => pick(t)}>
+                    {t === "SCAN" ? "MULTI-SCANNER" : txt}
+                  </button>
+                ))}
+              </span>
+              {!readOnly && (
+                <span className="text-xs font-extrabold text-ink-soft" title="จำนวนสิทธิ์ที่เปิด">
+                  <b className="text-primary">{granted}</b> / {rows.length * FLAGS.length} GRANTED
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="adm-main-head">
+              {burger(() => setDrawer(true), "เมนู")}
+              <b>{tabName}</b>
+            </div>
+          )}
           <div className="adm-scroll">
             {!data || !u ? (
               <Loading />
