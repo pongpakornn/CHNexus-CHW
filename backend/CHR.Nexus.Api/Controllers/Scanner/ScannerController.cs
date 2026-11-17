@@ -224,7 +224,9 @@ public sealed class ScannerController : ControllerBase
         var filter = Filter(Scope(null), key, from, to, stkId, type);
         string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.Scanner, "ScanHistory");
         string file = Path.GetFileName(path);
-        int n = new ScanHistoryService().Export(filter, path);
+        int n;
+        try { n = new ScanHistoryService().Export(filter, path); }
+        catch (Exception ex) { return BadRequest(new { message = "Export ไม่สำเร็จ\n" +CHR.Nexus.Api.Web.AppController.Safe(ex, HttpContext, _me.UserId) }); }
         LogService.WriteLog(User_.UserId, "SCAN_HISTORY_EXPORT", $"Rows: {n} | {filter.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} - {filter.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} | Key: {filter.Keyword} | File: {file}", "");
         return Download(path);
     }

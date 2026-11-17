@@ -17,6 +17,7 @@ import { PickingExport, type PickingReq } from "./PickingExport";
 import { stockIcon } from "@/lib/stockIcons";
 import { api, download, upload } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
+import { useLive } from "@/lib/live";
 import { AdminModal } from "./AdminModal";
 import { LayoutPanel } from "../../admin/users/LayoutPanel";
 import { CoilPanel, type CoilRow } from "./CoilPanel";
@@ -169,6 +170,9 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
     const t = setTimeout(reload, 0);
     return () => clearTimeout(t);
   }, [reload]);
+
+  // ⚡ เครื่องอื่นแก้สินค้า = รายการอัพเดทเอง (ข้ามตอนกำลังแก้ไขสินค้าอยู่)
+  useLive(["products"], () => (editId ? undefined : reload()));
 
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const goPage = (p: number) => {

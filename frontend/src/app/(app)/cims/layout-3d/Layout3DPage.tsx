@@ -180,7 +180,7 @@ export default function Layout3DPage() {
     const t0 = setTimeout(load, 0);
     return () => clearTimeout(t0);
   }, [load]);
-  useLive(["store", "scanner", "layout"], load, 10_000);
+  useLive(["store", "scanner", "layout", "layout3d"], load, 10_000);
 
   // Coil ของแต่ละตำแหน่งในโมเดล · นอกโมเดล = สแกนตำแหน่งที่ผังนี้ไม่มี (แสดงเป็นรายการ ไม่ทิ้งเงียบ ๆ)
   const model = useMemo(() => {

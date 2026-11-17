@@ -56,6 +56,25 @@ namespace Nexus.Services
             return list;
         }
 
+        // COUNT + CHECKSUM_AGG over the columns the list shows (stkId null / <=0 = all stocks): changes when a PR is added / edited / approved / deleted
+        public string GetSignature(int? stkId)
+        {
+            bool byStock = Nexus.Helpers.DbSchema.HasPrStock && stkId.HasValue && stkId.Value > 0;
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand(@"SELECT COUNT_BIG(*), CHECKSUM_AGG(CHECKSUM(h.PRNumber, h.Status, d.RequestQuantity, h.RequestDepartment, h.TargetDepartment, h.Remark, h.IsExported, h.ApprovedDate))
+                FROM Nexus.PRHeaders h WITH (NOLOCK) LEFT JOIN Nexus.PRDetails d WITH (NOLOCK) ON d.PRNumber = h.PRNumber"
+                + (byStock ? " WHERE h.StockID = @s" : ""), conn))
+            {
+                if (byStock) cmd.Parameters.AddWithValue("@s", stkId.Value);
+                conn.Open();
+                using (var r = cmd.ExecuteReader())
+                {
+                    r.Read();
+                    return r.GetInt64(0) + ":" + (r.IsDBNull(1) ? 0 : r.GetInt32(1));
+                }
+            }
+        }
+
         // คอลัมน์ที่อาจยังไม่มี (ฐานที่ยังไม่รัน Update_20261017.sql) -> null
         private static object Col(SqlDataReader r, string name)
         {

@@ -64,6 +64,7 @@ public sealed class ActivityLogController : AppController
             LogService.WriteLog(Uid, "ACTIVITY_LOG_EXPORT", $"Rows: {n} | {f.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} - {f.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} | Key: {f.Keyword} | File: {Path.GetFileName(path)}", "");
             return Download(path);
         }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
         catch (Exception ex) { return Fail(ex, "Export ไม่สำเร็จ"); }
     }
 }

@@ -9,6 +9,9 @@ namespace CHR.Nexus.Api.Controllers;
 [Route("api/live")]
 public sealed class LiveController : AppController
 {
+    // New value on every app start: a client seeing it change knows the server restarted (versions reset)
+    private static readonly string Boot = Guid.NewGuid().ToString("N");
+
     [HttpGet("wait")]
     public async Task<IActionResult> Wait([FromQuery] string topics, [FromQuery] long? v, CancellationToken ct)
     {
@@ -20,20 +23,20 @@ public sealed class LiveController : AppController
                 var s = new StockService().GetStock(id);
                 if (s != null && Me.CanViewStock(s)) LiveWatcher.Watch(id);
             }
-        if (v == null) return Ok(new { v = LiveBus.Version, changed = Array.Empty<string>() });
+        if (v == null) return Ok(new { v = LiveBus.Version, boot = Boot, changed = Array.Empty<string>() });
 
         var deadline = DateTime.UtcNow.AddSeconds(20);
         while (!ct.IsCancellationRequested)
         {
             var next = LiveBus.Next();
             var changed = LiveBus.ChangedSince(v.Value, list);
-            if (changed.Count > 0) return Ok(new { v = LiveBus.Version, changed });
+            if (changed.Count > 0) return Ok(new { v = LiveBus.Version, boot = Boot, changed });
             var left = deadline - DateTime.UtcNow;
             if (left <= TimeSpan.Zero) break;
             try { await next.WaitAsync(left, ct); }
             catch (TimeoutException) { break; }
             catch (OperationCanceledException) { break; }
         }
-        return Ok(new { v = LiveBus.Version, changed = Array.Empty<string>() });
+        return Ok(new { v = LiveBus.Version, boot = Boot, changed = Array.Empty<string>() });
     }
 }

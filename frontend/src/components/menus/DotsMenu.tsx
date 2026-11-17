@@ -68,7 +68,7 @@ export function DotsMenu({
           setPos(null);
           setOpen((o) => !o);
         }}
-        className={`grid size-7 place-items-center rounded-full text-ink-soft transition hover:bg-black/[.06] hover:text-ink ${reveal && !open ? "opacity-0 group-hover:opacity-100 focus-visible:opacity-100" : ""} ${open ? "bg-black/[.06] text-ink" : ""}`}
+        className={`dots-btn grid size-7 place-items-center rounded-full text-ink-soft transition hover:bg-black/[.06] hover:text-ink ${reveal && !open ? "opacity-0 group-hover:opacity-100 focus-visible:opacity-100" : ""} ${open ? "bg-black/[.06] text-ink" : ""}`}
       >
         <Icon name="dots" className="size-[18px]" />
       </button>

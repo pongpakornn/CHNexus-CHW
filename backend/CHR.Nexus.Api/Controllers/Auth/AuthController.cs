@@ -70,7 +70,7 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(new { message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" });
         }
 
-        LoginGuard.Success(session.UserId);
+        LoginGuard.Success(session.UserId, ip);
         auth.UpdateLoginStats(session.UserId);
         Presence.LoggedIn(session.UserId);
         LogService.WriteLog(session.UserId, "LOGIN", "เข้าสู่ระบบสำเร็จ", global::Nexus.Core.ClientContext.Machine);

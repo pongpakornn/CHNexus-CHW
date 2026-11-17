@@ -9,6 +9,8 @@ import { deviceName } from "./api";
 type Cb = () => void;
 const subs = new Map<string, Set<Cb>>();
 let version: number | null = null;
+let boot: string | null = null;
+let hiddenAt = 0;
 let ctrl: AbortController | null = null;
 let running = false;
 let topicsKey = "";
@@ -44,10 +46,12 @@ async function loop() {
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
-      const r = (await res.json()) as { v: number; changed: string[] };
+      const r = (await res.json()) as { v: number; changed: string[]; boot?: string };
       const first = version === null;
       version = r.v;
-      if (fails > 0) fireAll(); // เพิ่งต่อกลับได้ -> ดึงข้อมูลล่าสุดทุกหัวข้อ
+      const restarted = !!r.boot && boot !== null && r.boot !== boot; // เซิร์ฟเวอร์เริ่มใหม่ = อาจพลาดสัญญาณ
+      if (r.boot) boot = r.boot;
+      if (fails > 0 || restarted) fireAll(); // เพิ่งต่อกลับได้ / เซิร์ฟเวอร์รีสตาร์ท -> ดึงข้อมูลล่าสุดทุกหัวข้อ
       else if (!first && r.changed.length) fire(r.changed);
       fails = 0;
     } catch (e) {
@@ -69,9 +73,12 @@ function restart() {
 
 if (typeof document !== "undefined")
   document.addEventListener("visibilitychange", () => {
-    if (hidden()) return void ctrl?.abort(); // ออกจากแท็บ = ปิดการรอ
-    version = null; // กลับมา = เริ่มนับใหม่ + ดึงข้อมูลล่าสุดทุกหัวข้อ
-    fireAll();
+    if (hidden()) {
+      hiddenAt = Date.now();
+      return void ctrl?.abort(); // ออกจากแท็บ = ปิดการรอ
+    }
+    version = null; // กลับมา = เริ่มนับใหม่
+    if (Date.now() - hiddenAt > 3_000) fireAll(); // กลับมาหลังซ่อน (version เริ่มใหม่ = ไม่รู้ว่าพลาดอะไร) ดึงทุกหัวข้อ · สลับแท็บแป๊บเดียว (<3 วิ) ไม่ดึง
     restart();
   });
 

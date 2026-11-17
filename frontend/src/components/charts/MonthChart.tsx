@@ -218,7 +218,7 @@ export function MonthChart({
   const tipLeftSide = hover >= 0 && sx(hover) + band / 2 + 236 > W;
   const tip = hd && (
     <div
-      className="fc-tip pointer-events-none absolute z-10 min-w-[220px] rounded-2xl border border-white/15 px-3.5 py-3 text-[#f3f7ff] shadow-[0_18px_40px_-10px_rgba(0,5,25,.45)]"
+      className="fc-tip pointer-events-none absolute z-10 min-w-[220px] max-w-[calc(100vw-24px)] rounded-2xl border border-white/15 px-3.5 py-3 text-[#f3f7ff] shadow-[0_18px_40px_-10px_rgba(0,5,25,.45)]"
       style={{
         // moves with translate (compositor) instead of left / top (layout every frame)
         left: 0,

@@ -61,7 +61,7 @@ export function LayoutPanel() {
     const t = setTimeout(load, 0);
     return () => clearTimeout(t);
   }, [load]);
-  useLive(["layout"], load);
+  useLive(["layout", "layout3d"], load);
 
   const types = useMemo(() => data?.types ?? [], [data]);
   const can = data?.can ?? { add: false, edit: false, delete: false };

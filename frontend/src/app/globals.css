@@ -173,6 +173,18 @@ html {
   textarea {
     font-size: 16px !important;
   }
+  /* touch targets >= 40px (mouse unchanged) */
+  .menu-toggle,
+  .modal-x,
+  .dots-btn,
+  .cta-btn.is-sm,
+  .field.fx-in,
+  .field[class*="h-8"],
+  .field[class*="h-9"],
+  .pill-btn[class*="h-8"] {
+    min-width: 40px;
+    min-height: 40px;
+  }
 }
 
 /* 🏆 TOP 5 ORDER (หน้า Forecast): เลขอันดับในวงไล่สีม่วง-น้ำเงินของระบบ · แถบยอดไล่สี + เงาเรือง วิ่งเข้าทีละแถว */
@@ -2282,6 +2294,7 @@ div.swap-in:has(> .show-strip) {
   top: calc(100% + 8px);
   z-index: 45;
   width: 300px;
+  max-width: calc(100vw - 24px);
   padding: 12px;
   border-radius: 18px;
   background: #fff;
@@ -11139,7 +11152,7 @@ table.lqp code {
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-width: 330px;
+  min-width: min(330px, 100%);
   border: 1px solid #e4e4e7;
   border-radius: 14px;
   padding: 4px;
@@ -13334,6 +13347,12 @@ table.lqp code {
   max-height: 56dvh;
   border: 1px solid #ece9f3;
   border-radius: 14px;
+}
+@media (max-width: 767px) {
+  .ff-table-wrap,
+  .ff-table-wrap.is-modal {
+    max-height: none;
+  }
 }
 .ff-table {
   width: 100%;
