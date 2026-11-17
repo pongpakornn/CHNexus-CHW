@@ -118,23 +118,71 @@ public sealed class PrController : AppController
 
     public sealed record ApproveRequest(int Qty, bool KeepRemainder);
 
+    // Shared by single + batch approve. Throws ArgumentException for a bad request (shown as-is), other errors bubble up.
+    private string ApproveOne(string prNo, ApproveRequest req)
+    {
+        var item = _svc.GetPRList(prNo, null).FirstOrDefault(x => x.PRNumber == prNo);
+        if (item == null) throw new ArgumentException("ไม่พบ PR");
+        if (!string.Equals(item.Status, "Waiting", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException($"{prNo} ไม่ได้อยู่ในสถานะ Waiting แล้ว ({item.Status})");
+        if (req.Qty <= 0 || req.Qty > item.QTY) throw new ArgumentException($"กรุณากรอกยอดที่อนุมัติ 1 - {item.QTY:N0}");
+        bool keep = req.Qty < item.QTY && req.KeepRemainder;
+        string newPr = _svc.ApprovePR(prNo, req.Qty, keep, Uid);
+        string detail = req.Qty == item.QTY ? $"Approved PR No: {prNo} | QTY: {req.Qty}"
+                      : $"Approved PR No: {prNo} | QTY: {item.QTY}->{req.Qty}" + (newPr != null ? $" | Remaining {item.QTY - req.Qty} -> new PR {newPr} (Waiting)" : $" | Remaining {item.QTY - req.Qty} not kept");
+        LogService.WritePRLog(Uid, "APPROVE_PR", detail, prNo);
+        return $"อนุมัติ {prNo} จำนวน {req.Qty:N0} แล้ว" + (newPr != null ? $"\nยอดที่เหลือ {item.QTY - req.Qty:N0} -> PR ใหม่ {newPr}" : "");
+    }
+
     [HttpPost("{prNo}/approve")]
     public IActionResult Approve(string prNo, [FromBody] ApproveRequest req)
     {
         if (Me?.CanApprovePR != true) return Deny("คุณไม่มีสิทธิ์ในการอนุมัติรายการนี้");
-        var item = _svc.GetPRList(prNo, null).FirstOrDefault(x => x.PRNumber == prNo);
-        if (item == null) return NotFound(new { message = "ไม่พบ PR" });
-        if (req.Qty <= 0 || req.Qty > item.QTY) return Fail($"กรุณากรอกยอดที่อนุมัติ 1 - {item.QTY:N0}");
-        bool keep = req.Qty < item.QTY && req.KeepRemainder;
-        try
-        {
-            string newPr = _svc.ApprovePR(prNo, req.Qty, keep, Uid);
-            string detail = req.Qty == item.QTY ? $"Approved PR No: {prNo} | QTY: {req.Qty}"
-                          : $"Approved PR No: {prNo} | QTY: {item.QTY}->{req.Qty}" + (newPr != null ? $" | Remaining {item.QTY - req.Qty} -> new PR {newPr} (Waiting)" : $" | Remaining {item.QTY - req.Qty} not kept");
-            LogService.WritePRLog(Uid, "APPROVE_PR", detail, prNo);
-            return Ok(new { message = $"อนุมัติ {prNo} จำนวน {req.Qty:N0} แล้ว" + (newPr != null ? $"\nยอดที่เหลือ {item.QTY - req.Qty:N0} -> PR ใหม่ {newPr}" : "") });
-        }
+        try { return Ok(new { message = ApproveOne(prNo, req) }); }
+        catch (ArgumentException ex) { return ex.Message == "ไม่พบ PR" ? NotFound(new { message = ex.Message }) : Fail(ex.Message); }
         catch (Exception ex) { return Fail(ex, "อนุมัติไม่สำเร็จ"); }
+    }
+
+    public sealed record BatchApproveItem(string PrNo, int Qty, bool KeepRemainder);
+    public sealed record BatchApproveRequest(List<BatchApproveItem> Items);
+    public sealed record BatchRejectRequest(List<string> PrNos);
+
+    // ✔ APPROVE many at once (same rules as the single approve, one by one · a failed row does not stop the rest)
+    [HttpPost("approve-batch")]
+    public IActionResult ApproveBatch([FromBody] BatchApproveRequest req)
+    {
+        if (Me?.CanApprovePR != true) return Deny("คุณไม่มีสิทธิ์ในการอนุมัติรายการนี้");
+        var items = (req?.Items ?? new()).Where(x => !string.IsNullOrWhiteSpace(x.PrNo)).GroupBy(x => x.PrNo).Select(g => g.First()).ToList();
+        if (items.Count == 0) return Fail("กรุณาเลือก PR ที่ต้องการอนุมัติ");
+        int ok = 0; var errs = new List<string>();
+        foreach (var it in items)
+        {
+            try { ApproveOne(it.PrNo, new ApproveRequest(it.Qty, it.KeepRemainder)); ok++; }
+            catch (ArgumentException ex) { errs.Add($"{it.PrNo}: {ex.Message}"); }
+            catch (Exception ex) { errs.Add($"{it.PrNo}: อนุมัติไม่สำเร็จ ({ex.Message})"); }
+        }
+        return Ok(new { ok, failed = errs.Count, message = $"อนุมัติสำเร็จ {ok} รายการ" + (errs.Count > 0 ? $"\nไม่สำเร็จ {errs.Count} รายการ\n" + string.Join("\n", errs) : "") });
+    }
+
+    [HttpPost("reject-batch")]
+    public IActionResult RejectBatch([FromBody] BatchRejectRequest req)
+    {
+        if (Me?.CanApprovePR != true) return Deny("คุณไม่มีสิทธิ์ปฏิเสธรายการนี้");
+        var list = (req?.PrNos ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        if (list.Count == 0) return Fail("กรุณาเลือก PR ที่ต้องการ Reject");
+        int ok = 0; var errs = new List<string>();
+        foreach (var no in list)
+        {
+            try
+            {
+                var cur = _svc.GetPRList(no, null).FirstOrDefault(x => x.PRNumber == no);
+                if (cur == null || !string.Equals(cur.Status, "Waiting", StringComparison.OrdinalIgnoreCase)) { errs.Add($"{no}: ไม่ได้อยู่ในสถานะ Waiting แล้ว"); continue; }
+                if (!_svc.UpdatePRStatus(no, "Rejected", Uid)) { errs.Add($"{no}: Reject ไม่สำเร็จ"); continue; }
+                LogService.WritePRLog(Uid, "REJECT_PR", $"Rejected PR No: {no}", no);
+                ok++;
+            }
+            catch (Exception ex) { BugLog.Write("PR", "ERROR", $"reject-batch {no}: {ex.Message}", null, Request.Path, Request.Method, 500, Uid, null); errs.Add($"{no}: Reject ไม่สำเร็จ"); }
+        }
+        return Ok(new { ok, failed = errs.Count, message = $"Reject สำเร็จ {ok} รายการ" + (errs.Count > 0 ? $"\nไม่สำเร็จ {errs.Count} รายการ\n" + string.Join("\n", errs) : "") });
     }
 
     [HttpPost("{prNo}/reject")]

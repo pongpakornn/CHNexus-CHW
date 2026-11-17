@@ -28,6 +28,11 @@ const METS: { k: Met; l: string }[] = [
 const val = (r: FlatRow, k: Met) => (k === "F" ? r.p.f : k === "O" ? r.p.o : k === "D" ? r.p.d : r.p.x)[r.m - 1];
 
 export default function ForecastFilePage() {
+  return <ForecastFileView />;
+}
+
+// calcOnly = used from CIMS > MAX-MIN CALC: same filters / preview, but always IMPORT + calculate MAX / MIN (no choice) and returns to Max-Min
+export function ForecastFileView({ calcOnly }: { calcOnly?: boolean }) {
   const toast = useToast();
   const reduce = useReducedMotion();
   const { me } = useAuth();
@@ -146,6 +151,7 @@ export default function ForecastFilePage() {
 
   async function startImport() {
     if (!flat.length) return toast.show("WARNING", "ยังไม่มีรายการที่จะนำเข้า (เลือกลูกค้า / เดือน)", "warn");
+    if (calcOnly) return setRun({ withCalc: true, rows: toSend() });
     try {
       setChoice(await api<CalcChoice>("/forecast/import/choice"));
     } catch (e) {
@@ -189,11 +195,11 @@ export default function ForecastFilePage() {
     <PageBody>
       <PageHeader
         icon="/icons/ForecastOrder.png"
-        title="FORECAST FILE"
+        title={calcOnly ? "IMPORT FORECAST ORDER • MAX-MIN CALC" : "FORECAST FILE"}
         subtitle={file ? `${file.fileName} • ปี ${year} • ${flat.length.toLocaleString()} แถว` : "เลือกไฟล์ FORECAST ทั้งไฟล์ แล้วกรอง / IMPORT ได้เลย"}
         actions={
-          <Link href="/master/forecast" className="fill-btn">
-            ← FORECAST / ORDER
+          <Link href={calcOnly ? "/cims/max-min" : "/master/forecast"} className="fill-btn">
+            {calcOnly ? "← MAX-MIN CALC" : "← FORECAST / ORDER"}
           </Link>
         }
       />
@@ -441,7 +447,7 @@ export default function ForecastFilePage() {
         onPick={(withCalc) => setRun({ withCalc, rows: toSend() })}
         pickLabel="NEXT ▶"
       />
-      {run && file && <ImportPreview file={file} year={year} withCalc={run.withCalc} rows={run.rows} onClose={() => setRun(null)} />}
+      {run && file && <ImportPreview doneHref={calcOnly ? "/cims/max-min" : undefined} file={file} year={year} withCalc={run.withCalc} rows={run.rows} onClose={() => setRun(null)} />}
     </PageBody>
   );
 }

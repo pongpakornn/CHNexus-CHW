@@ -93,6 +93,7 @@ public sealed class MinReportController : AppController
             bool signNow = next.HasValue && _svc.Flow(w.StockId)[next.Value - 1].Allows(Uid);
             var r = _svc.GetReport(id);
             if (next.HasValue && r != null) NotifySigners(r, next.Value, Uid);
+            try { MinReportService.WriteRemark(s, w.PartId, (int)Math.Floor(w.Days), reason); LiveBus.Publish("store:" + s.StkId, "store"); } catch { /* REMARK เขียนไม่ได้ ไม่ทำให้รายงานล้ม */ }
             LiveBus.Publish("minreport");
             string msg = $"บันทึกรายงานของ {Label(w)} แล้ว" +
                          (!next.HasValue ? "" : signNow ? $"\nกรุณาลงลายเซ็นช่อง {MinReportService.SlotName(next.Value)} ในเอกสาร" : $"\nส่งให้ลงลายเซ็นช่อง {MinReportService.SlotName(next.Value)} แล้ว");

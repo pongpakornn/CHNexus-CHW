@@ -322,6 +322,49 @@ namespace Nexus.Services
             wb.SaveAs(path);
             wb.Dispose();
         }
+        // 📤 Template Set Max-Min: look of the Actual Capacity export (navy title band + header, grey key columns, thin grid, medium frame, freeze)
+        //    NO / PART A / PART NO / PRODUCT NAME / MAX(DAY) / MIN(DAY) - ReadTemplateExcel reads it back (header row found in the top 10 rows)
+        public void ExportSetMaxMin(IEnumerable<MaxMinCalcRow> rows, string path, string stockCode)
+        {
+            var list = rows.ToList();
+            using (var wb = new XLWorkbook())
+            {
+                var ws = wb.Worksheets.Add("Set Max-Min");
+                string[] heads = { "No", "Part A", "Part No", "Product Name", "Max(Day)", "Min(Day)" };
+                Nexus.Services.ImportTemplateService.Header(ws, heads, new double[] { 7, 18, 22, 44, 12, 12 });
+                int r = 2;
+                foreach (var x in list)
+                {
+                    ws.Cell(r, 1).Value = r - 1; ws.Cell(r, 2).Value = x.PartA; ws.Cell(r, 3).Value = x.PartNo; ws.Cell(r, 4).Value = x.PartName;
+                    ws.Cell(r, 5).Value = x.DayMax; ws.Cell(r, 6).Value = x.DayMin;
+                    r++;
+                }
+                int last = r - 1, cols = heads.Length;
+                Nexus.Services.ImportTemplateService.Body(ws, last, cols);
+                Nexus.Services.ImportTemplateService.LeftAlign(ws, last, 2, 3, 4);
+                ws.Column(1).Style.Font.Bold = true;
+                ws.Row(1).InsertRowsAbove(1);
+                var band = ws.Range(1, 1, 1, cols);
+                band.Merge();
+                band.FirstCell().Value = $"CHR-Nexus - TEMPLATE SET MAX-MIN • {stockCode} • {list.Count:N0} ITEMS • {DateTime.Today:dd/MM/yyyy}";
+                band.Style.Fill.BackgroundColor = XLColor.FromHtml("#002060");
+                band.Style.Font.FontColor = XLColor.White; band.Style.Font.Bold = true; band.Style.Font.FontSize = 14;
+                band.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left; band.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Row(1).Height = 28;
+                last++;                                                   // header moved to row 2
+                ws.Range(2, 1, last, cols).Style.Font.FontName = "Aptos";
+                if (last >= 3)
+                {
+                    ws.Range(3, 1, last, 3).Style.Fill.BackgroundColor = XLColor.FromHtml("#EDEDED");   // key columns = grey
+                    for (int rr = 4; rr <= last; rr += 2) ws.Range(rr, 4, rr, cols).Style.Fill.BackgroundColor = XLColor.FromHtml("#F7F9FC");
+                    ws.Range(last, 1, last, cols).Style.Border.BottomBorder = XLBorderStyleValues.Medium;
+                }
+                ws.Range(2, 1, 2, cols).Style.Border.BottomBorder = XLBorderStyleValues.Medium;
+                ws.SheetView.Freeze(2, 2);
+                wb.SaveAs(path);
+            }
+        }
+
         // คำนวณ (Nexus.sp_MaxMin_Calculate): stkId null = ทุกคลังที่เปิด AUTO CALC / ptId = เฉพาะสินค้านั้น
         public (int Updated, int Skipped, int Stocks) Calculate(int? stkId, int? ptId, string userId)
         {

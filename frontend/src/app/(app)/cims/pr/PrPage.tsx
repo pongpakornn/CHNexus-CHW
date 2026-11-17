@@ -1,7 +1,6 @@
 "use client";
 
 import { RowAction } from "@/components/button-action/RowAction";
-import { DrawIcon } from "@/components/icons/DrawIcon";
 import { ActionMenu } from "@/components/menus/ActionMenu";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +11,7 @@ import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/
 import { api, download } from "@/lib/api";
 import { useDebounced } from "@/lib/useDebounced";
 import { ApprovedModal } from "./ApprovedModal";
+import { PrDock, type PrMode } from "./PrDock";
 import { STATUS_COLOR, type Pr } from "./types";
 import { useLive } from "@/lib/live";
 
@@ -45,7 +45,9 @@ export default function PrPage() {
   const [f, setF] = useState({ requester: "", dept: "", remark: "", target: "" });
   const [look, setLook] = useState<Record<string, string[]>>({});
   const [viewing, setViewing] = useState<Pr | null>(null);
-  const [approve, setApprove] = useState<Pr | null>(null);
+  const [mode, setMode] = useState<PrMode>("");
+  const [pick, setPick] = useState<string[]>([]);
+  const [approve, setApprove] = useState<Pr[] | null>(null);
   const [approvedOpen, setApprovedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const k = useDebounced(key, 400);
@@ -85,6 +87,7 @@ export default function PrPage() {
         sigRef.current = r.signature;
         setRows(r.rows);
         setSel((s) => s.filter((n) => r.rows.some((x) => x.prNumber === n)));
+        setPick((s) => s.filter((n) => r.rows.some((x) => x.prNumber === n && x.status === "Waiting")));
       } catch (e) {
         if (!onlyIfChanged) toast.show("ERROR", "โหลดข้อมูล PR ไม่สำเร็จ: " + (e as Error).message, "error");
       }
@@ -158,10 +161,14 @@ export default function PrPage() {
     }
   }
 
-  async function reject(p: Pr) {
-    if (!(await dlg.confirm({ title: "ยืนยัน", danger: true, ok: "REJECT", message: `คุณต้องการ Reject รายการ ${p.prNumber} ใช่หรือไม่?` }))) return;
+  async function rejectPicked() {
+    const nos = pick;
+    if (nos.length === 0) return toast.show("WARNING", "กรุณาติ๊กเลือก PR ที่ต้องการ Reject ก่อนครับ", "warn");
+    if (!(await dlg.confirm({ title: "ยืนยัน", danger: true, ok: "REJECT", message: `คุณต้องการ Reject ${nos.length.toLocaleString()} รายการ ใช่หรือไม่?\n${nos.join(", ")}` }))) return;
     try {
-      await api(`/pr/${encodeURIComponent(p.prNumber)}/reject`, { method: "POST" });
+      const r = await api<{ ok: number; message: string }>("/pr/reject-batch", { method: "POST", body: { prNos: nos } });
+      toast.show("Rejected", r.message, r.ok === nos.length ? "ok" : "warn");
+      setPick([]);
       load();
     } catch (e) {
       toast.show("ERROR", (e as Error).message, "error");
@@ -217,6 +224,7 @@ export default function PrPage() {
   );
 
   const all = rows ?? [];
+  const waiting = all.filter((r) => r.status === "Waiting");
   const allSel = all.length > 0 && all.every((r) => sel.includes(r.prNumber));
   const coil = !!stock?.countCoil;
 
@@ -353,15 +361,34 @@ export default function PrPage() {
                 SUBMIT PR
               </button>
             )}
-            <button className="cta-btn flex-1" onClick={() => setApprovedOpen(true)}>
-              APPROVED LIST
-            </button>
           </div>
         </Card>
 
         <Card
           title={`PR LIST • ${all.length.toLocaleString()}`}
         >
+          {mode && (
+            <div className={`mng-bar ${mode === "APPROVE" ? "is-add" : "is-adj"}`} style={mode === "REJECT" ? ({ "--c": "#dc2626" } as React.CSSProperties) : undefined} role="status">
+              <span className="mng-bar-ic" aria-hidden>
+                {mode === "APPROVE" ? "✔" : "✕"}
+              </span>
+              <div className="min-w-0 flex-1">
+                <b>{mode} PR • เลือกแล้ว {pick.length.toLocaleString()} รายการ</b>
+                <span>ติ๊กเลือก PR สถานะ Waiting ที่ต้องการ แล้วกดปุ่ม {mode} ด้านขวา</span>
+              </div>
+              <button
+                type="button"
+                className={`cta-btn is-sm ${mode === "APPROVE" ? "is-green" : "is-red"}`}
+                disabled={pick.length === 0}
+                onClick={() => (mode === "APPROVE" ? setApprove(all.filter((r) => pick.includes(r.prNumber))) : rejectPicked())}
+              >
+                {mode} ({pick.length})
+              </button>
+              <button type="button" className="fill-btn is-xs" onClick={() => (setMode(""), setPick([]))}>
+                ✕ EXIT
+              </button>
+            </div>
+          )}
           <div className="border-b border-line/60 p-3">
             <SearchBox value={key} onChange={setKey} placeholder="ค้นหา PR NO / รหัส / ชื่อสินค้า / ผู้ขอ" />
           </div>
@@ -374,6 +401,11 @@ export default function PrPage() {
               <table className="data-table t-center w-full">
                 <thead className="sticky top-0">
                   <tr>
+                    {mode && (
+                      <th>
+                        <input type="checkbox" aria-label="SELECT ALL WAITING" checked={waiting.length > 0 && waiting.every((r) => pick.includes(r.prNumber))} onChange={(e) => setPick(e.target.checked ? waiting.map((r) => r.prNumber) : [])} />
+                      </th>
+                    )}
                     <th>
                       <input type="checkbox" checked={allSel} onChange={(e) => setSel(e.target.checked ? all.map((r) => r.prNumber) : [])} />
                     </th>
@@ -392,6 +424,11 @@ export default function PrPage() {
                 <tbody>
                   {all.map((p) => (
                     <tr key={p.prNumber} className={viewing?.prNumber === p.prNumber ? "bg-accent-soft/40" : ""}>
+                      {mode && (
+                        <td>
+                          {p.status === "Waiting" && <input type="checkbox" aria-label={`SELECT ${p.prNumber}`} checked={pick.includes(p.prNumber)} onChange={(e) => setPick((s) => (e.target.checked ? [...s, p.prNumber] : s.filter((x) => x !== p.prNumber)))} />}
+                        </td>
+                      )}
                       <td>
                         <input type="checkbox" checked={sel.includes(p.prNumber)} onChange={(e) => setSel((s) => (e.target.checked ? [...s, p.prNumber] : s.filter((x) => x !== p.prNumber)))} />
                       </td>
@@ -416,16 +453,6 @@ export default function PrPage() {
                       <td className="whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-1">
                           <RowAction kind="view" active={viewing?.prNumber === p.prNumber} onClick={() => (viewing?.prNumber === p.prNumber ? clear() : (setViewing(p), setF({ requester: p.requester, dept: p.department, remark: p.remark, target: p.targetDept })))} />
-                          {can.approve && p.status === "Waiting" && (
-                            <>
-                              <button className="cta-btn is-green is-sm act-draw" onClick={() => setApprove(p)}>
-                                <DrawIcon kind="approve" /> APPROVE
-                              </button>
-                              <button className="cta-btn is-red is-sm act-draw" onClick={() => reject(p)}>
-                                <DrawIcon kind="reject" /> REJECT
-                              </button>
-                            </>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -437,13 +464,24 @@ export default function PrPage() {
         </Card>
       </div>
 
+      {can.approve && (
+        <PrDock
+          stockCode={stock?.code ?? "PR"}
+          mode={mode}
+          onPick={(m) => {
+            setPick([]);
+            setMode((cur) => (cur === m ? "" : m));
+          }}
+        />
+      )}
       {approve && (
         <ApproveModal
-          pr={approve}
+          prs={approve}
           onClose={() => setApprove(null)}
-          onDone={(msg) => {
+          onDone={(msg, allOk) => {
             setApprove(null);
-            toast.show("Approved", msg, "ok");
+            setPick([]);
+            toast.show("Approved", msg, allOk ? "ok" : "warn");
             load();
           }}
         />
@@ -462,64 +500,87 @@ export default function PrPage() {
   );
 }
 
-// ✔ APPROVE (PRApproveWindow): อนุมัติทั้งหมด / กำหนดยอด - ยอดที่เหลือสร้าง PR ใหม่ (Waiting) หรือไม่เก็บ
-function ApproveModal({ pr, onClose, onDone }: { pr: Pr; onClose: () => void; onDone: (msg: string) => void }) {
+// ✔ APPROVE many (PRApproveWindow): each row = full qty by default, edit the qty to approve less · remainder = new PR (Waiting) or not kept
+function ApproveModal({ prs, onClose, onDone }: { prs: Pr[]; onClose: () => void; onDone: (msg: string, allOk: boolean) => void }) {
   const toast = useToast();
   const dlg = useDialogs();
-  const [mode, setMode] = useState<"ALL" | "SET">("ALL");
-  const [q, setQ] = useState(String(pr.qty));
+  const [qs, setQs] = useState<Record<string, string>>(() => Object.fromEntries(prs.map((p) => [p.prNumber, String(p.qty)])));
   const [keep, setKeep] = useState(true);
-  const n = mode === "ALL" ? pr.qty : Number(q);
-  const partial = Number.isInteger(n) && n > 0 && n < pr.qty;
+  const [busy, setBusy] = useState(false);
+  const qtyOf = (p: Pr) => Number(qs[p.prNumber]);
+  const valid = (p: Pr) => Number.isInteger(qtyOf(p)) && qtyOf(p) > 0 && qtyOf(p) <= p.qty;
+  const partial = prs.filter((p) => valid(p) && qtyOf(p) < p.qty);
 
   async function confirm() {
-    if (!Number.isInteger(n) || n <= 0 || n > pr.qty) return toast.show("WARNING", `กรุณากรอกยอดที่อนุมัติ 1 - ${pr.qty.toLocaleString()}`, "warn");
-    const msg =
-      `อนุมัติ ${pr.prNumber}\n${pr.partName}\n\nยอดที่อนุมัติ ${n.toLocaleString()} จาก ${pr.qty.toLocaleString()} ${pr.unit}` +
-      (partial ? (keep ? `\nยอดที่เหลือ ${(pr.qty - n).toLocaleString()} จะสร้างเป็น PR ใหม่ (Waiting)` : `\nยอดที่เหลือ ${(pr.qty - n).toLocaleString()} ไม่เก็บไว้`) : "") +
-      "\n\nยืนยันการอนุมัติหรือไม่?";
+    const bad = prs.find((p) => !valid(p));
+    if (bad) return toast.show("WARNING", `${bad.prNumber}: กรุณากรอกยอดที่อนุมัติ 1 - ${bad.qty.toLocaleString()}`, "warn");
+    const msg = `อนุมัติ ${prs.length.toLocaleString()} รายการ` + (partial.length ? `\n${partial.length} รายการอนุมัติไม่เต็มยอด · ยอดที่เหลือ${keep ? "จะสร้างเป็น PR ใหม่ (Waiting)" : "ไม่เก็บไว้"}` : "") + "\n\nยืนยันการอนุมัติหรือไม่?";
     if (!(await dlg.confirm({ title: "CONFIRM APPROVE", message: msg, ok: "APPROVE" }))) return;
+    setBusy(true);
     try {
-      const r = await api<{ message: string }>(`/pr/${encodeURIComponent(pr.prNumber)}/approve`, { method: "POST", body: { qty: n, keepRemainder: partial && keep } });
-      onDone(r.message);
+      const r = await api<{ failed: number; message: string }>("/pr/approve-batch", { method: "POST", body: { items: prs.map((p) => ({ prNo: p.prNumber, qty: qtyOf(p), keepRemainder: keep })) } });
+      onDone(r.message, r.failed === 0);
     } catch (e) {
       toast.show("ERROR", "อนุมัติไม่สำเร็จ: " + (e as Error).message, "error");
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <Modal
       open
-      title={`✔ APPROVE • ${pr.prNumber}`}
+      title={`✔ APPROVE • ${prs.length.toLocaleString()} PR`}
       onClose={onClose}
       footer={
         <>
           <button className="fill-btn" onClick={onClose}>
             CANCEL
           </button>
-          <button className="cta-btn is-green" onClick={confirm}>
+          <button className="cta-btn is-green" disabled={busy} onClick={confirm}>
             ✔ CONFIRM
           </button>
         </>
       }
     >
-      <div className="mb-1 font-bold">{pr.partName}</div>
-      <div className="mb-4 text-sm text-ink-soft">
-        REQUESTED : {pr.qty.toLocaleString()} {pr.unit}
+      <div className="max-h-[50vh] overflow-auto">
+        <table className="data-table t-center w-full">
+          <thead>
+            <tr>
+              <th>PR NO</th>
+              <th>PRODUCT</th>
+              <th className="text-right">REQUESTED</th>
+              <th>APPROVE QTY</th>
+            </tr>
+          </thead>
+          <tbody>
+            {prs.map((p) => (
+              <tr key={p.prNumber}>
+                <td className="whitespace-nowrap font-extrabold text-primary">{p.prNumber}</td>
+                <td>
+                  <div>{p.partCode}</div>
+                  <div className="text-[11px] font-medium text-ink-soft">{p.partName}</div>
+                </td>
+                <td className="whitespace-nowrap text-right">
+                  {p.qty.toLocaleString()} <span className="text-[11px] text-ink-soft">{p.unit}</span>
+                </td>
+                <td>
+                  <input
+                    className={`field w-28 ${valid(p) ? "" : "border-danger"}`}
+                    inputMode="numeric"
+                    aria-label={`APPROVE QTY ${p.prNumber}`}
+                    value={qs[p.prNumber]}
+                    onChange={(e) => setQs((s) => ({ ...s, [p.prNumber]: e.target.value.replace(/\D/g, "") }))}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <label className="mb-2 flex items-center gap-2 text-sm font-bold">
-        <input type="radio" checked={mode === "ALL"} onChange={() => setMode("ALL")} /> APPROVE ALL ({pr.qty.toLocaleString()})
-      </label>
-      <label className="flex items-center gap-2 text-sm font-bold">
-        <input type="radio" checked={mode === "SET"} onChange={() => setMode("SET")} /> SET QTY
-        <input className="field ml-2 w-28" inputMode="numeric" disabled={mode !== "SET"} value={q} onChange={(e) => setQ(e.target.value.replace(/\D/g, ""))} />
-        <span className="text-ink-soft">{pr.unit}</span>
-      </label>
-      {partial && (
+      {partial.length > 0 && (
         <div className="mt-4 rounded-xl bg-surface-2 p-3 text-sm">
-          <div className="mb-2 font-extrabold">
-            REMAINING : {(pr.qty - n).toLocaleString()} {pr.unit} (approve {n.toLocaleString()} of {pr.qty.toLocaleString()})
-          </div>
+          <div className="mb-2 font-extrabold">REMAINING : {partial.length.toLocaleString()} รายการอนุมัติไม่เต็มยอด</div>
           <label className="mb-1 flex items-center gap-2 font-bold">
             <input type="radio" checked={keep} onChange={() => setKeep(true)} /> KEEP AS NEW PR (Waiting)
           </label>

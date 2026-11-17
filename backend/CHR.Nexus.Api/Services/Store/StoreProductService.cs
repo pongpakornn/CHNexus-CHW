@@ -19,67 +19,48 @@ namespace Nexus.Services
         private static bool IsOtherStock(StockModel stock) => stock != null && !stock.IsMain;
         private static bool UseStockView(StockModel stock) => stock != null && stock.StkId > 0;
 
-        public List<StoreProductModel> GetProducts(StockModel stock, string searchKeyword, string category, string filterType, int skip, int take, bool withHidden = false)
+        public List<StoreProductModel> GetProducts(StockModel stock, string searchKeyword, string category, string filterType, int skip, int take)
         {
             if (!UseStockView(stock)) return GetProducts(searchKeyword, category, filterType, skip, take);
-            var rows = QueryProducts("Nexus.vw_StockMonitoring", stock.StkId, searchKeyword, category, filterType, skip, take, stock.AllowDecimal, stock.MaxMinDecimal);
-            // HIDE mode: the view drops hidden rows -> read them from the tables (only when no status filter / category is active)
-            if (withHidden && !stock.IsLiveView && string.IsNullOrEmpty(filterType) && string.IsNullOrEmpty(category))
-            {
-                rows.AddRange(QueryHiddenProducts(stock, searchKeyword));
-                rows = rows.OrderBy(r => r.GroupKey, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.PartCode, StringComparer.OrdinalIgnoreCase).ToList();
-            }
-            return rows;
+            // hidden products are not listed here at all (show them again in Master Data > Product Control)
+            return QueryProducts("Nexus.vw_StockMonitoring", stock.StkId, searchKeyword, category, filterType, skip, take, stock.AllowDecimal, stock.MaxMinDecimal);
         }
 
-        // hidden = Parts.IsShowInMaster = 0 (main stock) / PartStocks.IsShow = 0 (other stocks), active parts only.
-        // shortcut: GroupKey = Category and StockStatus = NORMAL (grey rows), GroupBy CUSTOMER/SUPPLIER ignored - upgrade if hidden rows must sit in those groups
-        private List<StoreProductModel> QueryHiddenProducts(StockModel stock, string key)
+        // Search box suggestions: coils of this stock (NUMBER COIL / MASTER COIL, Status IN) + products by code / name. Max 10 rows.
+        public List<(string Text, string Kind, string Sub)> SearchSuggest(StockModel stock, string q)
         {
-            var list = new List<StoreProductModel>();
-            string cols = "p.PartID, p.Category, p.Supplier, p.ImageFileName, p.PartCode, p.Description, p.PackSize, p.Bin, p.Customer, p.PartA, p.PartNumber, p.Model, ";
-            string sql = stock.IsMain
-                ? $"SELECT {cols} p.MaxQuantity AS QMax, p.MinQuantity AS QMin, p.StockQuantity AS Qty, p.Remark FROM Nexus.Parts p WHERE p.IsActive = 1 AND p.IsShowInMaster = 0 "
-                : $"SELECT {cols} ps.MaxQuantity AS QMax, ps.MinQuantity AS QMin, ps.Quantity AS Qty, ps.Remark FROM Nexus.PartStocks ps JOIN Nexus.Parts p ON p.PartID = ps.PartID WHERE ps.StockID = @stk AND p.IsActive = 1 AND ps.IsShow = 0 ";
-            if (!string.IsNullOrEmpty(key)) sql += "AND (p.PartCode LIKE @key OR p.Description LIKE @key OR p.Customer LIKE @key OR p.PartA LIKE @key OR p.PartNumber LIKE @key OR p.Model LIKE @key) ";
+            var list = new List<(string, string, string)>();
+            if (!UseStockView(stock) || string.IsNullOrWhiteSpace(q)) return list;
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
-            using (var cmd = new SqlCommand(sql, conn))
             {
-                cmd.Parameters.AddWithValue("@stk", stock.StkId);
-                if (!string.IsNullOrEmpty(key)) cmd.Parameters.AddWithValue("@key", "%" + key + "%");
                 conn.Open();
-                using (var r = cmd.ExecuteReader())
-                    while (r.Read())
+                if (Nexus.Helpers.DbSchema.HasCoilRegister)
+                    using (var cmd = new SqlCommand(@"SELECT TOP 6 c.CoilNo, c.MotherCoil, p.PartCode
+                        FROM Nexus.Coils c JOIN Nexus.Parts p ON p.PartID = c.PartID
+                        WHERE c.StockID = @stk AND c.Status = 'IN' AND (c.CoilNo LIKE @k OR c.MotherCoil LIKE @k)
+                          AND c.PartID IN (SELECT PartID FROM Nexus.vw_StockMonitoring WHERE StkId = @stk)
+                        ORDER BY CASE WHEN c.CoilNo LIKE @p OR c.MotherCoil LIKE @p THEN 0 ELSE 1 END, c.CoilNo", conn))
                     {
-                        string Num(string c, bool d) => r[c] == DBNull.Value ? "" : Nexus.Helpers.Qty.Edit(Convert.ToDecimal(r[c]), d);
-                        string cat = r["Category"]?.ToString() ?? "";
-                        list.Add(new StoreProductModel
-                        {
-                            IsHidden = true,
-                            PartId = Convert.ToInt32(r["PartID"]),
-                            Category = cat,
-                            Supplier = r["Supplier"]?.ToString() ?? "",
-                            ImageFileName = r["ImageFileName"]?.ToString() ?? "",
-                            PartCode = r["PartCode"]?.ToString() ?? "",
-                            PartName = r["Description"]?.ToString() ?? "",
-                            PackSize = r["PackSize"]?.ToString() ?? "",
-                            Max = Num("QMax", stock.MaxMinDecimal),
-                            Min = Num("QMin", stock.MaxMinDecimal),
-                            Qty = Num("Qty", stock.AllowDecimal),
-                            Remark = r["Remark"]?.ToString() ?? "",
-                            Bin = r["Bin"]?.ToString() ?? "",
-                            StockStatus = "NORMAL",
-                            Customer = r["Customer"]?.ToString() ?? "",
-                            PartA = r["PartA"]?.ToString() ?? "",
-                            PartNo = r["PartNumber"]?.ToString() ?? "",
-                            Model = r["Model"]?.ToString() ?? "",
-                            StockPcs = Num("Qty", stock.AllowDecimal),
-                            StockBox = "",
-                            GroupKey = string.IsNullOrEmpty(cat) ? "-" : cat
-                        });
+                        cmd.Parameters.AddWithValue("@stk", stock.StkId);
+                        cmd.Parameters.AddWithValue("@k", "%" + q + "%");
+                        cmd.Parameters.AddWithValue("@p", q + "%");
+                        using (var r = cmd.ExecuteReader())
+                            while (r.Read())
+                            {
+                                string no = r["CoilNo"]?.ToString() ?? "", m = r["MotherCoil"]?.ToString() ?? "";
+                                bool isMaster = m.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 && no.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0;
+                                list.Add((isMaster ? m : no, isMaster ? "MASTER COIL" : "NUMBER COIL", r["PartCode"]?.ToString() ?? ""));
+                            }
                     }
+                using (var cmd = new SqlCommand("SELECT TOP 10 PartCode, PartName FROM Nexus.vw_StockMonitoring WHERE StkId = @stk AND (PartCode LIKE @k OR PartName LIKE @k) ORDER BY PartCode", conn))
+                {
+                    cmd.Parameters.AddWithValue("@stk", stock.StkId);
+                    cmd.Parameters.AddWithValue("@k", "%" + q + "%");
+                    using (var r = cmd.ExecuteReader())
+                        while (r.Read() && list.Count < 10) list.Add((r["PartCode"]?.ToString() ?? "", "PRODUCT", r["PartName"]?.ToString() ?? ""));
+                }
             }
-            return list;
+            return list.Take(10).ToList();
         }
 
         // ตัวเลือกกรองด้านบน (CATEGORY หรือ CUSTOMER ตามที่คลังจัดกลุ่ม)
@@ -258,7 +239,9 @@ namespace Nexus.Services
 
                 if (!string.IsNullOrEmpty(searchKeyword))
                     sql.Append("AND (PartCode LIKE @key OR PartName LIKE @key OR Customer LIKE @key OR PartA LIKE @key OR PartNo LIKE @key OR Model LIKE @key" +
-                               (Nexus.Helpers.DbSchema.HasPartB ? " OR PartID IN (SELECT PartID FROM Nexus.Parts WHERE PartB LIKE @key)" : "") + ") ");
+                               (Nexus.Helpers.DbSchema.HasPartB ? " OR PartID IN (SELECT PartID FROM Nexus.Parts WHERE PartB LIKE @key)" : "") +
+                               // MASTER COIL / NUMBER COIL of this stock (coils still IN) finds the product
+                               (Nexus.Helpers.DbSchema.HasCoilRegister ? " OR PartID IN (SELECT PartID FROM Nexus.Coils WHERE StockID = @stk AND Status = 'IN' AND (CoilNo LIKE @key OR MotherCoil LIKE @key))" : "") + ") ");
                 if (!string.IsNullOrEmpty(category))
                     sql.Append("AND GroupKey = @category ");
                 if (filterType == "OVER_MAX")

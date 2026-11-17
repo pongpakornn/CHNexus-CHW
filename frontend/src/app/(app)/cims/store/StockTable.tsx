@@ -13,7 +13,7 @@ import { ProductCard, useMobile, type CardLabels } from "./MobileCards";
 import { ShowCards } from "./ShowCards";
 import { StockHeader } from "./StockHeader";
 import { ProductRow, type CoilRow, type CoilState, type RowActions, type RowCfg } from "./TableRows";
-import { CategoryPicker, Pager, SearchField } from "./Toolbar";
+import { CategoryPicker, Pager, SearchField, type Suggestion } from "./Toolbar";
 import { type Counts, type Product, type Stock } from "./types";
 import { MinReportMenu } from "./MinReport";
 import { Layout3DButton } from "./Layout3DButton";
@@ -107,10 +107,24 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const [mCoil, setMCoil] = useState<{ kind: "edit" | "adjust"; row: CoilRow } | null>(null);
   const [mHistory, setMHistory] = useState(false);
   const [hideBusy, setHideBusy] = useState<number | null>(null);
+  const [picked, setPicked] = useState<ReadonlySet<number>>(new Set()); // HIDE mode: ticked PartIDs
   // เปลี่ยนตัวกรอง (การ์ด MAX / MIN / ... / หมวด / ค้นหา): ระหว่างโหลด = ตารางจางลง (out) -> ได้ข้อมูล = แถวทยอยเลื่อนเข้า (in)
   const [swap, setSwap] = useState<"idle" | "out" | "in">("idle");
   const swapT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const k = useDebounced(key, 500);
+  // search-box suggestions (NUMBER COIL / MASTER COIL / product), debounced, max 10 from the server
+  const kSug = useDebounced(key.trim(), 250);
+  const [sugg, setSugg] = useState<{ q: string; list: Suggestion[] }>({ q: "", list: [] });
+  useEffect(() => {
+    if (kSug.length < 2) return;
+    let live = true;
+    api<Suggestion[]>(`/store/${stkId}/search-suggest`, { query: { q: kSug } })
+      .then((list) => live && setSugg({ q: kSug, list }))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [stkId, kSug]);
   const tokenRef = useRef<string | null>(null);
   const liveRef = useRef<Live | null>(null);
   const editingRef = useRef(false);
@@ -152,8 +166,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
 
   // ข้อมูลทั้งคลังตามตัวกรองโหลดครั้งเดียว -> ตารางแสดงทีละหน้า (PAGE รายการ) · SHOW CARD / SHOW PRODUCTION วนครบทุกรายการ
   const query = useCallback(
-    () => api<{ token: string | null; rows: Product[] }>(`/store/${stkId}/products`, { query: { key: k, cat, filter, skip: 0, take: 100000, withHidden: manage === "HIDE" ? 1 : 0 } }),
-    [stkId, k, cat, filter, manage],
+    () => api<{ token: string | null; rows: Product[] }>(`/store/${stkId}/products`, { query: { key: k, cat, filter, skip: 0, take: 100000, } }),
+    [stkId, k, cat, filter],
   );
 
   // โหลดใหม่ทั้งชุด (keep > 0 = เรียลไทม์โหลดโครงตารางใหม่: อยู่หน้าเดิม ไม่เล่นอนิเมชันเปลี่ยนตัวกรอง)
@@ -429,8 +443,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       manage,
       coilOpen: mCoil ? { coilId: mCoil.row.coilId, kind: mCoil.kind } : null,
       hideBusy,
+      picked,
     };
-  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage, mCoil, hideBusy]);
+  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage, mCoil, hideBusy, picked]);
 
   // หลังจัดการ Coil: ยอดล่าสุด + Coil ของสินค้านั้นเปิดให้เห็นผลทันที
   const afterManage = useCallback(
@@ -538,11 +553,17 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         }
       },
       addCoil: (p) => setMAdd(p),
-      // HIDE mode: hide / show this product in this stock, then reload (hidden rows stay listed, greyed)
+      pick: (p) =>
+        setPicked((cur) => {
+          const n = new Set(cur);
+          if (!n.delete(p.partId)) n.add(p.partId);
+          return n;
+        }),
+      // HIDE mode: hide this product in this stock (it leaves the list; show it again in Master Data), then reload
       hide: async (p) => {
         setHideBusy(p.partId);
         try {
-          const res = await api<{ message: string }>(`/store/${stkId}/products/${p.partId}/show`, { method: "PUT", body: { show: !!p.isHidden, partCode: p.partCode } });
+          const res = await api<{ message: string }>(`/store/${stkId}/products/${p.partId}/show`, { method: "PUT", body: { show: false, partCode: p.partCode } });
           toast.show("SUCCESS", `${p.partCode}\n${res.message}`, "ok");
           await reload(rowsRef.current?.length ?? 0);
         } catch (e) {
@@ -781,10 +802,27 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     toast.show(title, msg, "ok");
     await afterManage(partId);
   };
+  // HIDE (n): hide every ticked product in one call
+  const hideSelected = async () => {
+    const ids = [...picked];
+    if (!ids.length) return;
+    setHideBusy(-1);
+    try {
+      const res = await api<{ message: string }>(`/store/${stkId}/products/show-batch`, { method: "PUT", body: { partIds: ids, show: false } });
+      toast.show("SUCCESS", res.message, "ok");
+      setPicked(new Set());
+      await reload(rows?.length ?? 0);
+    } catch (e) {
+      toast.show("ERROR", "ไม่สามารถซ่อนสินค้าได้\n" + (e as Error).message, "error");
+    } finally {
+      setHideBusy(null);
+    }
+  };
   // เลือกโหมด: กดซ้ำ = ออก · ADJUST = เปิด SHOW COILS ให้เห็นแถว Coil ลูกทันที
   const pickMode = (m: ManageMode) => {
     const next = manage === m ? "" : m;
     setManage(next);
+    setPicked(new Set());
     if (next === "ADJUST" && coilsOn && !showCoils) toggleShowCoils(true);
   };
 
@@ -878,7 +916,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
 
       {/* แถวเดียว: ค้นหา + หมวด + สวิตช์ SHOW (จอแคบตัดลงบรรทัดใหม่เอง) */}
       <div className="relative z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-[#e2e4f0] bg-surface px-4 py-3 shadow-[0_1px_2px_rgb(20_25_60/0.04),0_12px_30px_-24px_rgb(40_45_110/0.28)]">
-        <SearchField value={key} onChange={setKey} placeholder="Search Part Code, Part Name, Part No or Customer..." />
+        <SearchField value={key} onChange={setKey} placeholder="Search Part Code, Part Name, Part No, Customer, Master Coil or Number Coil..." suggestions={sugg.q === key.trim() ? sugg.list : []} />
         <CategoryPicker label={meta.groupLabel} allLabel={meta.allLabel} options={meta.categories} value={cat} onChange={setCat} />
         <div className="ml-auto flex flex-wrap items-center gap-4">
           <Toggle label="SHOW PRODUCTION" on={production} onChange={toggleProduction} />
@@ -901,11 +939,11 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
 
       {cards && rows && rows.length > 0 && (
         <div className={`swap-${swap}`}>
-          <ShowCards rows={rows.filter((r) => !r.isHidden)} stock={s} speed={speed} />
+          <ShowCards rows={rows} stock={s} speed={speed} />
         </div>
       )}
 
-      <ManageBar mode={manage} onExit={() => setManage("")} />
+      <ManageBar mode={manage} onExit={() => (setManage(""), setPicked(new Set()))} picked={picked.size} busy={hideBusy !== null} onHide={hideSelected} />
       {/* 🧲 MANAGE STOCK ลอยติดวงกลมโปรไฟล์ (เฉพาะคลังนี้ + ผู้มีสิทธิ์) */}
       {manageAllowed && <ManageDock stockCode={s.code} mode={manage} onPick={pickMode} onHistory={() => setMHistory(true)} />}
 

@@ -75,11 +75,7 @@ public sealed class Layout3DService
                 FROM Nexus.Coils c
                 JOIN Nexus.Parts p ON p.PartID = c.PartID
                 JOIN Nexus.Stocks s ON s.StockID = c.StockID
-                CROSS APPLY (SELECT TOP 1 t.Layout, t.TransactionDate, t.UserID, m.ToStockID
-                             FROM Nexus.CoilMoves m
-                             JOIN Nexus.ScanTransactions t ON t.TransactionID = m.ScanTransactionID
-                             WHERE m.CoilID = c.CoilID AND m.Undone = 0 AND m.ToStatus = 'IN' AND m.Action <> 'CONSUME'
-                             ORDER BY m.MoveID DESC) x
+                CROSS APPLY (" + LayoutService.LatestInMoveSql("c") + @") x
                 WHERE c.Status = 'IN' AND x.ToStockID = c.StockID AND NULLIF(LTRIM(RTRIM(x.Layout)), '') IS NOT NULL
                 ORDER BY x.TransactionDate, c.CoilID").ToList();
         }

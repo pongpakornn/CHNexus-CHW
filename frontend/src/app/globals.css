@@ -6570,6 +6570,9 @@ html:has(#chr-splash.cs-hold) .page-in > * {
   overflow: auto;
   padding: 14px;
 }
+.pk-pv-pages.is-fit {
+  max-height: calc(92dvh - 220px);
+}
 .pk-pv-stack {
   display: flex;
   flex-direction: column;

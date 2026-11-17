@@ -3,7 +3,7 @@
   --w-line: #e2e5ee;
   --w-head: #3f3f46;
   --w-we: #fef2f2;
-  --w-s1: 210px;
+  --w-s1: 230px;
   --w-s2: 56px;
 }
 
@@ -57,7 +57,8 @@
   font-size: 12px;
 }
 .wof-card-m span,
-.wof-info span,
+.wof-info > div:not(.wof-owner) > span,
+.wof-wo > span,
 .wof-fld span {
   display: inline-block;
   min-width: 62px;
@@ -398,9 +399,14 @@ thead .wof-s2 {
 .wof-item:not(:first-of-type) tr:first-child td {
   border-top: 3px solid var(--w-line);
 }
-.wof-item tr {
-  animation: wof-up 0.35s both;
-  animation-delay: calc(var(--i, 0) * 30ms);
+.wof-item td:not(.wof-s1):not(.wof-sg):not(.wof-s2):not(.wof-tot) {
+  animation: wof-fade 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@keyframes wof-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 /* ---- sign ---- */
@@ -986,4 +992,108 @@ thead .wof-s2 {
   font-size: 11.5px;
   font-weight: 700;
   max-width: 100%;
+}
+
+/* ---- sticky layering (same technique as WORKLOAD): left cells above day cells, TOTAL pinned right, header on top ---- */
+.wof-table thead tr:first-child th {
+  height: 26px;
+}
+.wof-table thead .wof-h2 th {
+  top: 26px;
+}
+.wof-table tbody td.wof-s1,
+.wof-table tbody td.wof-sg,
+.wof-table tbody td.wof-s2,
+.wof-table tfoot td.wof-s1,
+.wof-table tfoot td.wof-sg,
+.wof-table tfoot td.wof-s2 {
+  z-index: 3;
+}
+.wof-table tfoot td.wof-tot,
+.wof-table tbody td.wof-tot {
+  z-index: 3;
+  box-shadow: -4px 0 8px -4px rgb(15 23 42 / 0.18);
+}
+.wof-table tfoot td {
+  z-index: 1;
+}
+.wof-table thead th.is-today {
+  background: #6750a4;
+}
+.wof-table td.wof-sg,
+.wof-table th.wof-sg {
+  background: var(--surface);
+}
+.wof-table tfoot td.wof-sg,
+.wof-table tfoot td.wof-s1 {
+  background: #ede9fe;
+}
+.wof-wrap {
+  position: relative;
+  scroll-behavior: auto;
+}
+/* part cell like the Excel: big image · Part No · name · Part B + PACK/BOX highlighted */
+.wof-part-h {
+  align-items: flex-start;
+  gap: 10px;
+}
+.wof-part-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+.wof-part-id {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.wof-part-id b {
+  font-size: 13px;
+}
+.wof-part-id .wof-part-n {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wof-part-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.wof-tag {
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.wof-tag.is-b {
+  background: #ede9fe;
+  color: #4c1d95;
+}
+.wof-tag.is-pack {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+@media (max-width: 767px) {
+  .wof-part-img {
+    width: 36px;
+    height: 36px;
+  }
+  .wof-part-h {
+    gap: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wof-item td,
+  .wof-card,
+  .wof-kpi {
+    animation: none !important;
+  }
 }

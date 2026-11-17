@@ -36,13 +36,13 @@ type RpaResult = { done: string[]; files: { stkId: number; code: string; name: s
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 // 🕘 HISTORY (ScanHistoryWindow) - 1 หน้า = 50 รายการ / พิมพ์ค้นหาแล้วรอ 350 ms / EXPORT ปกติ หรือ EXPORT RPA
-export function HistoryModal({ onClose }: { onClose: () => void }) {
+export function HistoryModal({ onClose, initialStkId }: { onClose: () => void; initialStkId?: number }) {
   const toast = useToast();
   const now = new Date();
   const [key, setKey] = useState("");
   const [from, setFrom] = useState(iso(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(iso(now));
-  const [stkId, setStkId] = useState<string>("");
+  const [stkId, setStkId] = useState<string>(initialStkId ? String(initialStkId) : ""); // HISTORY = คลังที่เลือกสแกนอยู่ (เปลี่ยน / ดูทุกคลังได้ที่ Dropdown)
   const [type, setType] = useState("");
   const [page, setPage] = useState(0);
   const [data, setData] = useState<HistoryPage | null>(null);

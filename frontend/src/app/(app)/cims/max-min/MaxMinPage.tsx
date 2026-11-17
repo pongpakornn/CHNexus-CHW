@@ -3,12 +3,10 @@
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { GroupRow, useCollapsed } from "@/components/tables/GroupRow";
 import { ActionMenu } from "@/components/menus/ActionMenu";
-import { ChoiceCard, Glyph, GLYPH } from "@/components/buttons/ChoiceCard";
-import { CalcChoiceModal } from "@/components/modals/CalcChoiceModal";
+import { useRouter } from "next/navigation";
 import { MenuSelect } from "@/components/dropdowns/MenuSelect";
 import { Pager } from "@/components/tables/Pager";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
@@ -20,7 +18,7 @@ import { useLive } from "@/lib/live";
 
 const PAGE = 100; // แถวต่อหน้า (เหมือนหน้าคลัง)
 const PREF = "MaxMinCalc.Stock";
-type ImportMode = "DAYS" | "CALC" | "ONLY";
+type ImportMode = "DAYS";
 
 function readPref() {
   try {
@@ -52,8 +50,7 @@ export default function MaxMinPage() {
   const [dayMin, setDayMin] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
-  const [choice, setChoice] = useState<{ title: string; text: string; calc: string; only: string } | null>(null);
+  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const modeRef = useRef<ImportMode>("DAYS");
   const verRef = useRef(0);
@@ -251,14 +248,6 @@ export default function MaxMinPage() {
     });
   }
 
-  async function startForecastImport() {
-    try {
-      setChoice(await api("/forecast/import/choice"));
-    } catch (e) {
-      toast.show("ERROR", (e as Error).message, "error");
-    }
-  }
-
   function pickFile(mode: ImportMode) {
     modeRef.current = mode;
     fileRef.current?.click();
@@ -274,19 +263,14 @@ export default function MaxMinPage() {
     });
   }
 
-  async function template(kind: "DAYS" | "FORECAST") {
+  // TEMPLATE SET MAX-MIN: exports the table's products (current search) with MAX / MIN (DAY) straight away
+  function template() {
     if (!stock || !data) return;
-    setTemplateOpen(false);
-    const mon = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const days = kind === "DAYS";
-    if (days && data.rows.length === 0) return toast.show("WARNING", `ยังไม่มีสินค้าในตารางของคลัง ${stock.code} ให้สร้าง Template`, "warn");
-    const message = days
-      ? `ต้องการตั้งค่า MAX / MIN ของคลัง ${stock.code} ด้วยไฟล์ Template นี้ใช่หรือไม่?\n\n• ไฟล์จะมีสินค้าตามตาราง ${data.rows.length.toLocaleString()} รายการ พร้อมค่า MAX / MIN (DAY) ปัจจุบัน\n• กรอกหรือแก้ค่าในไฟล์ แล้วนำเข้ากลับด้วยปุ่ม IMPORT SET MAX MIN`
-      : `ต้องการสร้างไฟล์ Template สำหรับนำเข้า Forecast / Order / Delivery ใช่หรือไม่?\n\n• ไฟล์จะมีรายการของเดือน ${mon} ที่มีอยู่แล้วให้ (ไม่มีจะเป็นตารางว่าง)\n• กรอกหรือแก้ตัวเลขในไฟล์ แล้วนำเข้ากลับด้วยปุ่ม IMPORT FORECAST & ORDER\n• ระบบตรวจสอบสินค้าด้วย PART A อย่างเดียว · ตอนนำเข้าเลือกได้: IMPORT + คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว`;
-    if (!(await dlg.confirm({ title: days ? "TEMPLATE • SET MAX MIN" : "TEMPLATE • FORECAST", message, ok: "YES" }))) return;
+    if (data.rows.length === 0) return toast.show("WARNING", `ยังไม่มีสินค้าในตารางของคลัง ${stock.code} ให้สร้าง Template`, "warn");
     run("template", async () => {
-      const f = await download("/maxmin/template", { stk, kind, key: days ? k : undefined });
-      toast.show("Template", `สร้างไฟล์ Template แล้ว\n${f}`, "ok");
+      const f = await download("/maxmin/template", { stk, kind: "DAYS", key: k });
+      toast.show("Template", `สร้างไฟล์ Template Set Max-Min แล้ว
+${f}`, "ok");
     });
   }
 
@@ -345,15 +329,15 @@ export default function MaxMinPage() {
                 {
                   key: "template",
                   title: "TEMPLATE EXCEL",
-                  detail: "ไฟล์สำหรับกรอก IMPORT SET MAX MIN / IMPORT FORECAST & ORDER",
+                  detail: "ส่งออก Template Set Max-Min (No / Part A / Part No / Product Name / Max(Day) / Min(Day)) ตามตารางที่แสดง แล้วนำเข้ากลับด้วย IMPORT SET MAX MIN",
                   color: "#7c3aed",
                   icon: "template" as const,
                   disabled: !data || !!busy,
-                  onClick: () => setTemplateOpen(true),
+                  onClick: template,
                 },
                 ...(canEdit
                   ? [
-                      { key: "forecast", title: "IMPORT FORECAST & ORDER", detail: "นำเข้ายอด Forecast / Order จาก Excel เพื่อใช้คำนวณ MAX / MIN", color: "#0284c7", icon: "import" as const, disabled: !!busy, onClick: startForecastImport },
+                      { key: "forecast", title: "IMPORT FORECAST ORDER", detail: "เลือกไฟล์ FORECAST ทั้งไฟล์ กรองลูกค้า / เดือน ดูตัวอย่าง แล้วใช้คำนวณ MAX / MIN", color: "#0284c7", icon: "import" as const, disabled: !!busy, onClick: () => router.push("/cims/max-min/forecast") },
                       { key: "setmm", title: "IMPORT SET MAX MIN", detail: "นำเข้าจำนวนวันของ MAX / MIN รายสินค้าจาก Excel (ตาม Template)", color: "#16a34a", icon: "import" as const, disabled: !!busy, onClick: () => pickFile("DAYS") },
                     ]
                   : []),
@@ -518,33 +502,6 @@ export default function MaxMinPage() {
       </Card>
 
       <FormulaModal open={formulaOpen} stock={stock} selectId={data?.formula.formulaId} canEdit={canEdit} onClose={() => setFormulaOpen(false)} onChanged={() => load(true)} />
-
-      {/* 📄 TEMPLATE EXCEL: เลือกก่อนว่าจะเตรียมไฟล์ของปุ่มไหน (การ์ดแบบหน้า Store) */}
-      <Modal open={templateOpen} wide title="📄 TEMPLATE EXCEL" onClose={() => setTemplateOpen(false)}>
-        <p className="mb-4 text-sm font-semibold text-ink-soft">Stock {stock?.code} • choose the import you want to prepare a file for</p>
-        <div className="grid gap-3 md:grid-cols-2">
-          <ChoiceCard
-            color="#16a34a"
-            icon={<Glyph d={GLYPH.days} />}
-            title="SET MAX / MIN"
-            detail={`Products of the table (${total.toLocaleString()}) with current MAX (DAY) / MIN (DAY). Fill MAX / MIN (DAY) or (BOX), FORECAST / ORDER / DELIVERY in any column.`}
-            meta="USE WITH: 📥 IMPORT SET MAX MIN"
-            onClick={() => template("DAYS")}
-          />
-          <ChoiceCard
-            delay={1}
-            color="#0284c7"
-            icon={<Glyph d={GLYPH.chart} />}
-            title="FORECAST / ORDER / DELIVERY"
-            detail="One row per PART A + month (this month's rows already filled in). Products are checked by PART A only; CUSTOMER / PART NO / PRODUCT NAME come from the system."
-            meta="USE WITH: 📊 IMPORT FORECAST & ORDER (both choices)"
-            onClick={() => template("FORECAST")}
-          />
-        </div>
-      </Modal>
-
-      {/* 📊 IMPORT FORECAST & ORDER: คำนวณ MAX / MIN AUTO หรือ IMPORT อย่างเดียว */}
-      <CalcChoiceModal choice={choice} onClose={() => setChoice(null)} onPick={(calc) => pickFile(calc ? "CALC" : "ONLY")} />
     </PageBody>
   );
 }

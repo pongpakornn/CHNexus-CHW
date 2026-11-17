@@ -36,7 +36,7 @@ const ym = (m: string) => {
   return `${MON[mo - 1]} ${y}`;
 };
 
-export function ImportPreview({ file, year, withCalc, rows, onClose }: { file: FFile; year: number; withCalc: boolean; rows: SendRow[]; onClose: () => void }) {
+export function ImportPreview({ file, year, withCalc, rows, onClose, doneHref = "/master/forecast" }: { file: FFile; year: number; withCalc: boolean; rows: SendRow[]; onClose: () => void; doneHref?: string }) {
   const toast = useToast();
   const dlg = useDialogs();
   const router = useRouter();
@@ -133,7 +133,7 @@ export function ImportPreview({ file, year, withCalc, rows, onClose }: { file: F
       setBusy("กำลังอัพเดทยอด Forecast / Order / Delivery …");
       const r = await api<{ message: string; month: string | null }>("/forecast/file/apply", { method: "POST", body: { year, withCalc, rows: effective(fx), fileId: file.id, summary: false } });
       await dlg.alert({ title: "IMPORT FORECAST FILE", message: r.message, tone: r.message.includes("⚠") ? "warn" : "ok" });
-      router.push("/master/forecast");
+      router.push(doneHref);
     } catch (e) {
       dlg.alert({ title: "IMPORT", tone: "error", message: (e as Error).message });
     } finally {

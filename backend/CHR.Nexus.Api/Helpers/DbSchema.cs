@@ -368,6 +368,10 @@ namespace Nexus.Helpers
             }
         }
 
+        // 65_CoilMoves_Layout.sql: Nexus.CoilMoves.Layout (MOVE LOCATION ของ Multi-Scanner) - ยังไม่รัน = ปุ่ม MOVE LOCATION ใช้ไม่ได้ ส่วนอื่นทำงานเหมือนเดิม
+        private static bool _coilMoveLayout;
+        public static bool HasCoilMoveLayout => _coilMoveLayout || (_coilMoveLayout = HasCoilRegister && ColumnIn("Nexus.CoilMoves", "Layout") == true);
+
         // Update_20261008.sql: ทะเบียน Coil (Nexus.Coils / Nexus.CoilMoves + BarcodeFormats.CoilNoPosition)
         public static bool HasCoilRegister
         {

@@ -301,7 +301,7 @@ namespace Nexus.Services
                                     // Coil นี้ถูกรายการอื่นย้าย / ตัดต่อไปแล้ว (เช่น สร้างใน PANTA แล้วแสกนย้ายเข้า MAT)
                                     // -> ไม่ย้อน / ไม่ลบ Coil (เป็นของรายการหลังแล้ว) แค่ทำเครื่องหมายว่ารายการนี้ยกเลิก
                                     object later;
-                                    using (var cmd = new SqlCommand("SELECT TOP 1 ScanTransactionID FROM Nexus.CoilMoves WHERE CoilID = @c AND MoveID > @m AND Undone = 0 ORDER BY MoveID", conn, trans))
+                                    using (var cmd = new SqlCommand("SELECT TOP 1 ScanTransactionID FROM Nexus.CoilMoves WHERE CoilID = @c AND MoveID > @m AND Undone = 0 AND Action <> 'MOVE_LAYOUT' ORDER BY MoveID", conn, trans))
                                     {
                                         cmd.Parameters.AddWithValue("@c", m.CoilId);
                                         cmd.Parameters.AddWithValue("@m", m.MoveId);

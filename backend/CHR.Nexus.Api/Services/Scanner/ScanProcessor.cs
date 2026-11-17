@@ -14,6 +14,7 @@ public sealed class ScanRequest
     public bool Return { get; set; }
     public bool Remainder { get; set; }
     public bool Test { get; set; }
+    public bool Move { get; set; }            // 📍 MOVE LOCATION: ป้าย Coil = ย้ายไปตำแหน่ง Layout ที่สแกนไว้ (ไม่แตะยอดคลัง)
     public string EmployeeId { get; set; }
     public string Department { get; set; }
     public string Layout { get; set; }        // 📍 ตำแหน่งจัดเก็บที่สแกน QR LAYOUT ไว้ล่าสุด (คลังที่เปิดปุ่ม LAYOUT)
@@ -130,6 +131,8 @@ public sealed class ScanProcessor
         if (_scope.NotAssigned)
             return new ScanResult { Kind = "Locked", Title = "NO SCAN STOCK", Message = ScannerSetupService.WithContacts($"ยังไม่ได้กำหนดคลังสแกนให้ {Uid}\nกรุณาติดต่อ Admin") };
 
+        if (_req.Move) return ProcessMove(inputCode);
+
         if (IsReturnMode)
         {
             if (!IsTestMode && !_user.CanScanReturn)
@@ -224,6 +227,7 @@ public sealed class ScanProcessor
 
         // 🧲 ทะเบียน Coil: เลข Coil ลูก / แม่ จากป้าย + กันสแกนลูกเดิมซ้ำ
         ScanService.CoilLabel coil = null;
+        string coilNote = null;
         var coilFmt = isSupplierScan ? CoilFormatFor(supplierFmt) : null;
         if (isSupplierScan && stock.CountCoil && coilFmt != null)
         {
@@ -239,7 +243,12 @@ public sealed class ScanProcessor
                     err = $"Coil {coil.CoilNo} จ่ายออกไปแล้ว - ไม่บันทึก";
                 else if (isOut && st != null && st.Status == "IN" && st.StockId != stock.StkId)
                     err = $"Coil {coil.CoilNo} อยู่ที่คลัง {st.StockCode} ไม่ใช่คลัง {stock.Code} - ไม่บันทึก";
+                // TEST MODE ไม่บันทึกอะไรอยู่แล้ว: เช็คซ้ำ / ผิดคลังที่มีผลเฉพาะตอนบันทึกจริง = แจ้งเป็นข้อมูล แล้วจำลองผลต่อ
+                if (err != null && IsTestMode) { coilNote = "ℹ " + err.Replace(" - ไม่บันทึก", "") + "\n(ถ้าสแกนจริงจะไม่บันทึก)"; err = null; }
                 if (err != null) return ScanResult.Err(err + $"\n\nCode: {rawBarcodeFull}");
+                // สแกนออกแต่ Coil ไม่อยู่ในทะเบียน: ยอดคลังถูกตัดแต่ไม่มี Coil ถูกตัด (สแกนเข้ามีป้ายทะเบียนให้อยู่แล้ว)
+                if (isOut && st == null && DbSchema.HasCoilRegister && coilNote == null)
+                    coilNote = $"Coil {coil.CoilNo} ไม่อยู่ในทะเบียน Coil ของคลัง {stock.Code}\nตัดยอดสินค้าแล้ว แต่ไม่มี Coil ถูกตัดออกจากทะเบียน";
             }
         }
 
@@ -340,6 +349,13 @@ public sealed class ScanProcessor
         var newItem = NewItem(result, stock, IsTestMode ? "TEST" : (isOut ? "OUT" : "IN"), rawBarcodeFull);
         var res = new ScanResult { Kind = IsTestMode ? "Test" : "Saved", Item = ScanRowDto.From(newItem) };
 
+        if (coilNote != null)
+        {
+            res.Title = IsTestMode ? "TEST INFO" : "COIL NOT REGISTERED";
+            res.Message = coilNote;
+            if (!IsTestMode) res.Kind = "SavedWarning";
+        }
+
         // ⚠ / ✅ ผลการตัดคลังต้นทาง
         if (deductResult != null && deductResult.Short && deductResult.MotherCoil != null)
         {
@@ -377,6 +393,54 @@ public sealed class ScanProcessor
                           $"รับเข้า {stock.Code} เต็มจำนวน {Qty.Plain(deductResult.RequestedQty)} แล้ว กรุณาตรวจสอบยอด {deductResult.SourceCode}";
         }
         return res;
+    }
+
+    // 📍 MOVE LOCATION: ป้าย Coil (Number Coil) -> ย้ายตำแหน่งจัดเก็บไปที่ Layout ที่สแกนไว้ · สิทธิ์ = เหมือนสแกนเข้าของคลังนั้น · TEST = จำลอง ไม่บันทึก
+    private ScanResult ProcessMove(string inputCode)
+    {
+        string raw = inputCode.Trim(), layout = (_req.Layout ?? "").Trim();
+        if (!DbSchema.HasLayout || (!IsTestMode && !DbSchema.HasCoilMoveLayout))
+            return ScanResult.Err("MOVE LOCATION ยังใช้ไม่ได้ (ฐานข้อมูลยังไม่ได้รัน 65_CoilMoves_Layout.sql)\nกรุณาติดต่อ Admin");
+        if (!IsTestMode && !_user.CanViewScanIn)
+            return new ScanResult { Kind = "Denied", Title = "ACCESS DENIED", Message = "คุณไม่มีสิทธิ์ย้ายตำแหน่ง (ใช้สิทธิ์เดียวกับสแกนเข้า - ใช้ได้เฉพาะ TEST MODE)" };
+        if (layout.Length == 0)
+        {
+            var w = ScanResult.Warn("กรุณาสแกน QR LAYOUT (ตำแหน่งปลายทาง) ก่อน แล้วค่อยสแกนป้าย Coil ที่ต้องการย้าย", "SCAN LAYOUT FIRST");
+            w.Focus = "layout";
+            return w;
+        }
+        if (layout.Length > 120) layout = layout[..120];
+
+        // เลข Coil: จากป้าย Supplier ตามรูปแบบที่ตั้งไว้ · ไม่ตรงรูปแบบใดเลย = ใช้ข้อความที่สแกนเป็นเลข Number Coil
+        string coilNo = null;
+        var fmt = MatchSupplier(raw, null, out _, out _);
+        var coilFmt = CoilFormatFor(fmt);
+        if (coilFmt != null) coilFmt.ReadCoil(raw, out coilNo, out _);
+        if (string.IsNullOrWhiteSpace(coilNo)) coilNo = raw;
+
+        var st = _scanService.FindCoil(coilNo);
+        if (st == null) return ScanResult.Err($"ไม่พบ Coil {coilNo} ในทะเบียน - ไม่ย้าย\n\nCode: {raw}");
+        if (st.Status != "IN") return ScanResult.Err($"Coil {coilNo} จ่ายออกไปแล้ว - ไม่ย้าย\n\nCode: {raw}");
+        var stock = ScopeStocks.FirstOrDefault(s => s.StkId == st.StockId);
+        if (stock == null || !stock.CanScanIn) return ScanResult.Err($"Coil {coilNo} อยู่ที่คลัง {st.StockCode} ซึ่งไม่ได้อยู่ในสิทธิ์สแกนเข้าของคุณ - ไม่ย้าย\n\nCode: {raw}");
+        if (!_scope.AskLayout.Contains(stock.StkId)) return ScanResult.Err($"คลัง {stock.Code} ไม่ได้เปิดใช้ LAYOUT - ไม่ย้าย\n\nCode: {raw}");
+
+        // 📦 PLATE S1–S9 เต็ม (3 แพ็ค) -> ย้ายเข้าไม่ได้ (ไม่นับ Coil ตัวนี้เองถ้าอยู่ตำแหน่งนี้อยู่แล้ว)
+        if (new LayoutService().PlateLoad(layout, st.CoilId) is { } pl && pl.Count >= LayoutService.PlateCap)
+            return ScanResult.Warn($"ตำแหน่ง {pl.Loc} เต็มแล้ว ({pl.Count}/{LayoutService.PlateCap} แพ็ค)\nกรุณาสแกน QR ตำแหน่งอื่น เช่น S ช่องถัดไป\n\nCode: {raw}", "LAYOUT FULL");
+
+        var (partCode, partName) = _scanService.PartLabel(st.PartId);
+        if (!IsTestMode)
+        {
+            _scanService.MoveCoilLayout(st, layout, Uid);
+            LogService.WriteLog(Uid, "MOVE_LOCATION", $"{stock.Code} | Coil {coilNo} -> {layout}", partCode);
+        }
+        var item = NewItem(new ScanItemModel { PartId = st.PartId, PartCode = partCode, PartName = partName, Qty = 0, Layout = layout }, stock, IsTestMode ? "TEST" : "MOVE", raw);
+        return new ScanResult
+        {
+            Kind = IsTestMode ? "Test" : "Saved", Item = ScanRowDto.From(item),
+            Toast = ($"📍 MOVE {coilNo}", $"→ {layout}\n{partCode}  ({stock.Code}){(IsTestMode ? " (TEST)" : "")}", true)
+        };
     }
 
     // 🔄 โหมดคืนเหล็ก

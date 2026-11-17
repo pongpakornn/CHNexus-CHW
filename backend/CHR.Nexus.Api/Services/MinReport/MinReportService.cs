@@ -2,6 +2,7 @@
 using Microsoft.Data.SqlClient;
 using Nexus.Core;
 using Nexus.Helpers;
+using Nexus.Models;
 
 namespace Nexus.Services;
 
@@ -387,6 +388,10 @@ public sealed class MinReportService
             foreach (var b in below)
             {
                 bool known = open.Remove(b.PartID, out int wid);
+                // ขาดช่วงนานเกิน MaxGap = ไม่ต่อเนื่อง -> ปิดช่วงเก่า (แถวทดสอบไม่ปิด) แล้วเริ่มนับใหม่
+                if (known && !Continuous(openById[wid].LastSeen, now)
+                    && c.Execute("UPDATE Nexus.MinWatch SET ResolvedAt = LastSeen WHERE WatchID = @wid AND ResolvedAt IS NULL AND ISNULL(Source, '') <> 'TEST'", new { wid }) > 0)
+                { known = false; changed++; }
                 if (known)
                 {
                     var o = openById[wid];
@@ -474,9 +479,8 @@ public sealed class MinReportService
                     r.Moves = d.Sum(x => x.Moves);
                 }
         }
-        int stuck = GetSettings().StuckDays;
         foreach (var r in rows.Where(r => r.ResolvedAt == null && r.LastReportAt.HasValue))
-            r.NextAlertAt = (r.LastMoveAt > r.LastReportAt ? r.LastMoveAt.Value : r.LastReportAt.Value).AddDays(stuck);
+            r.NextAlertAt = r.LastReportAt.Value.AddDays(1);
         ApplyDisplay(rows);
         return rows;
     }
@@ -490,11 +494,28 @@ public sealed class MinReportService
                                          LEFT JOIN Nexus.Parts p ON p.PartID = w.PartID
                                          OUTER APPLY (SELECT TOP 1 r0.ReportedAt, r0.Reason FROM Nexus.MinReports r0 WHERE r0.ReportID = w.ReportID) lr ";
 
-    // ยังไม่รายงาน หรือ 🔁 รายงานแล้วแต่ยังใต้ MIN และ "ไม่มีการเคลื่อนไหว" ครบ StuckDays วัน = ต้องรายงานติดตามอีกครั้ง
-    //   นับจากเวลาล่าสุดของ (รายงาน / ยอดเปลี่ยน LastMoveAt) · ยอดกลับไม่ต่ำกว่า MIN = รอบถูกปิด (ResolvedAt) ไม่แจ้งอีก
-    private static string DueReport => DbSchema.HasMinMove
-        ? "(w.ReportID IS NULL OR (CASE WHEN w.LastMoveAt > lr.ReportedAt THEN w.LastMoveAt ELSE lr.ReportedAt END) <= DATEADD(DAY, -@stuckDays, GETDATE()))"
-        : "(w.ReportID IS NULL OR lr.ReportedAt <= DATEADD(DAY, -@stuckDays, GETDATE()))";
+    // ยังไม่รายงาน หรือ 🔁 รายงานแล้วแต่ยังใต้ MIN และผ่านไปครบ 1 วันนับจากรายงานล่าสุด = เตือนให้รายงานซ้ำ "ทุกวัน" จนกว่ายอด >= MIN
+    //   ยอดกลับไม่ต่ำกว่า MIN = รอบถูกปิด (ResolvedAt) ไม่แจ้งอีก · กลับมาต่ำใหม่ = เริ่มนับ 3 วันใหม่
+    private const string DueReport = "(w.ReportID IS NULL OR lr.ReportedAt <= DATEADD(DAY, -1, GETDATE()))";
+
+    // ต่อเนื่อง = เห็นสินค้าใต้ MIN ครั้งล่าสุดไม่เกิน 1 ชม. (Sweep ทำงานอย่างน้อยทุก 5 นาที) · ขาดช่วงนานกว่านี้ (ระบบดับ) = ไม่รู้ว่าพ้น MIN ไปหรือเปล่า -> ปิดช่วงเก่า นับ 3 วันใหม่
+    public static readonly TimeSpan MaxGap = TimeSpan.FromHours(1);
+    public static bool Continuous(DateTime lastSeen, DateTime now) => now < lastSeen || now - lastSeen <= MaxGap;
+
+    // ✍ รายงานแล้ว = เขียนเหตุผลลง REMARK ของสินค้า (RemarkAutoClear ลบให้เองเมื่อยอดไม่ต่ำกว่า MIN) · คลังที่แสดงสดจาก StorePC = อ่านอย่างเดียว ข้าม
+    public static void WriteRemark(StockModel s, int partId, int days, string reason)
+    {
+        if (s == null || s.IsLiveView) return;
+        string text = $"ต่ำกว่า MIN {days} วัน: {reason}";
+        if (text.Length > 300) text = text[..300];
+        // empty / earlier MIN text = replace · a remark someone typed = kept, MIN reason appended after it
+        const string merge = "CASE WHEN ISNULL(LTRIM({0}), '') = '' OR {0} LIKE N'ต่ำกว่า MIN%' THEN @t ELSE LEFT({0} + N' | ' + @t, 500) END";
+        string sql = s.IsMain
+            ? $"UPDATE Nexus.Parts SET Remark = {string.Format(merge, "Remark")} WHERE PartID = @pt"
+            : $"UPDATE Nexus.PartStocks SET Remark = {string.Format(merge, "Remark")}, UpdatedDate = GETDATE() WHERE StockID = @stk AND PartID = @pt";
+        using var c = Conn();
+        c.Execute(sql, new { t = text, pt = partId, stk = s.StkId });
+    }
 
     public List<MinWatchRow> Pending(IEnumerable<int> stockIds, int stuckDays, bool all = false)
     {

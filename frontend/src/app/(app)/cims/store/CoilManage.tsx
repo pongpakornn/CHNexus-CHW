@@ -25,7 +25,7 @@ const kgNum = (s: string) => parseNum((s ?? "").replace(/,/g, ""));
 const ton = (kg: number | null) => (kg === null || Number.isNaN(kg) ? "-" : (kg / 1000).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }));
 
 // แถบบอกโหมดเหนือตาราง + ปุ่มออก
-export function ManageBar({ mode, onExit }: { mode: ManageMode; onExit: () => void }) {
+export function ManageBar({ mode, onExit, picked = 0, busy = false, onHide }: { mode: ManageMode; onExit: () => void; picked?: number; busy?: boolean; onHide?: () => void }) {
   if (!mode) return null;
   const add = mode === "ADD";
   const hide = mode === "HIDE";
@@ -36,8 +36,13 @@ export function ManageBar({ mode, onExit }: { mode: ManageMode; onExit: () => vo
       </span>
       <div className="min-w-0 flex-1">
         <b>{add ? "ADD MASTER COIL / NUMBER COIL" : hide ? "HIDE PRODUCT" : "ADJUST STOCK"}</b>
-        <span>{add ? "กดปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Number Coil ที่ยังไม่มีในคลัง" : hide ? "กดปุ่มตาท้ายแถวเพื่อซ่อนสินค้านี้ออกจากคลัง · สินค้าที่ซ่อนอยู่แสดงเป็นสีจาง กดอีกครั้งเพื่อแสดงคืน" : "เปิด Coil ของสินค้า แล้วใช้ปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก"}</span>
+        <span>{add ? "กดปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Number Coil ที่ยังไม่มีในคลัง" : hide ? "ติ๊กเลือกหลายรายการแล้วกด HIDE (n) หรือกดปุ่มตาท้ายแถวเพื่อซ่อนทีละรายการ · สินค้าที่ซ่อนจะไม่แสดงในคลังนี้อีก · แสดงคืนได้ที่ MASTER DATA > PRODUCT CONTROL" : "เปิด Coil ของสินค้า แล้วใช้ปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก"}</span>
       </div>
+      {hide && (
+        <button type="button" className="fill-btn is-xs" disabled={picked === 0 || busy} onClick={onHide}>
+          HIDE ({picked})
+        </button>
+      )}
       <button type="button" className="fill-btn is-xs" onClick={onExit}>
         ✕ EXIT
       </button>

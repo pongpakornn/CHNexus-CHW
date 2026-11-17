@@ -113,6 +113,8 @@ export default function ScannerPage() {
   const [locked, setLocked] = useState<string | null>(null);
   const [deductView, setDeductView] = useState<"deducted" | "not" | null>(null);
   const [showAdjust, setShowAdjust] = useState(false);
+  const [move, setMove] = useState(false); // 📍 MOVE LOCATION: สแกน QR LAYOUT ปลายทาง แล้วสแกน Coil ทีละม้วน = ย้ายตำแหน่ง (ไม่แตะยอด)
+  const moveRef = useRef(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const empRef = useRef<HTMLInputElement>(null);
@@ -288,13 +290,13 @@ export default function ScannerPage() {
       case "Test":
         if (r.item) {
           setLast(r.item);
-          if (r.kind === "Test") setTestRows((l) => [{ ...r.item!, layout: ctxRef.current?.layout?.enabled ? layoutRef.current || null : null }, ...l].slice(0, 12));
+          if (r.kind === "Test" || r.item.status === "MOVE") setTestRows((l) => [{ ...r.item!, layout: ctxRef.current?.layout?.enabled ? layoutRef.current || null : null }, ...l].slice(0, 12));
           else {
             setToday((t) => (t ? { ...t, rows: [r.item!, ...t.rows] } : t));
             loadToday(false).catch(() => {});
           }
         }
-        if (r.kind === "SavedWarning") toast.show(r.title ?? "WARNING", r.message ?? "", "warn");
+        if (r.kind === "SavedWarning" || (r.kind === "Test" && r.message)) toast.show(r.title ?? "WARNING", r.message ?? "", "warn");
         if (r.toastTitle) toast.show(r.toastTitle, r.toastMessage ?? "", r.toastOk ? "ok" : "warn");
         break;
       case "Error":
@@ -342,7 +344,7 @@ export default function ScannerPage() {
     try {
       const r = await api<ScanResult>("/scanner/scan", {
         method: "POST",
-        body: { ...p, ...modesRef.current, employeeId: employee, department, layout: c.layout?.enabled ? layoutRef.current : "", clientScope: readScope() },
+        body: { ...p, ...modesRef.current, ...(moveRef.current ? { out: false, return: false, remainder: false, move: true } : {}), employeeId: employee, department, layout: c.layout?.enabled ? layoutRef.current : "", clientScope: readScope() },
       });
       handle(r, p);
     } catch (e) {
@@ -399,6 +401,11 @@ export default function ScannerPage() {
   // ---------------------------------------------------------------- โหมด (กฎเดียวกับ setter ใน ViewModel)
   function toggle(key: keyof Modes) {
     const m = { ...modes };
+    if (moveRef.current && key !== "test") {
+      moveRef.current = false;
+      setMove(false);
+      setTestRows([]);
+    } // เปิดโหมดอื่น = ออกจาก MOVE
     if (key === "out") {
       if (m.out && ctx?.modes.outOnly) return;
       m.out = !m.out;
@@ -419,6 +426,20 @@ export default function ScannerPage() {
     focusScan();
   }
 
+  function toggleMove() {
+    const on = !moveRef.current;
+    moveRef.current = on;
+    setMove(on);
+    if (on) {
+      const m = { ...modes, out: false, return: false, remainder: false };
+      setModes(m);
+      loadContext(m).catch(() => {});
+      toast.show("📍 MOVE LOCATION", layoutRef.current ? `ย้ายไปที่ : ${layoutRef.current}
+สแกนป้าย Coil ได้เลย` : "สแกน QR LAYOUT (ตำแหน่งปลายทาง) แล้วสแกนป้าย Coil ทีละม้วน", "ok");
+    } else setTestRows([]);
+    focusScan();
+  }
+
   // ---------------------------------------------------------------- แสดงผล
   const modeStatus = modes.out ? "OUT" : modes.return ? "RETURN" : "IN";
   const rows = useMemo(
@@ -433,8 +454,8 @@ export default function ScannerPage() {
   const multi = !!ctx?.scope.isMulti;
   const notAssigned = !!ctx?.scope.notAssigned;
   // สีประจำโหมด (ช่องสแกน / ป้ายโหมด / ตัวเลข QTY) + ชื่อโหมดบนหัว
-  const tone = modes.test ? "var(--warning)" : modes.out ? "var(--scanout)" : modes.return ? "var(--return)" : modes.remainder ? "var(--teal)" : "var(--success)";
-  const modeLabel = modes.test ? "TEST" : modes.out ? "OUT" : modes.return ? "RETURN" : modes.remainder ? "REMAINDER" : "IN";
+  const tone = move ? "var(--info)" : modes.test ? "var(--warning)" : modes.out ? "var(--scanout)" : modes.return ? "var(--return)" : modes.remainder ? "var(--teal)" : "var(--success)";
+  const modeLabel = move ? "MOVE" : modes.test ? "TEST" : modes.out ? "OUT" : modes.return ? "RETURN" : modes.remainder ? "REMAINDER" : "IN";
   const codeHeader = ctx?.codeHeader ?? "PRODUCT CODE";
   const layoutOn = !!ctx?.layout?.enabled;
   const extras = (ctx?.who.askEmployee ? 1 : 0) + (ctx?.who.askDepartment ? 1 : 0) + (layoutOn ? 1 : 0);
@@ -476,6 +497,11 @@ export default function ScannerPage() {
                 {modes.remainder ? "CANCEL REMAINDER" : "REMAINDER"}
               </ModeBtn>
             )}
+            {layoutOn && (
+              <ModeBtn color="var(--info)" on={move} icon="adjust" onClick={toggleMove} disabled={notAssigned}>
+                {move ? "EXIT MOVE" : "MOVE LOCATION"}
+              </ModeBtn>
+            )}
             <ModeBtn color="var(--warning)" on={modes.test} icon="test" onClick={() => toggle("test")} disabled={notAssigned}>
               {modes.test ? "EXIT TEST" : "TEST MODE"}
             </ModeBtn>
@@ -509,7 +535,8 @@ export default function ScannerPage() {
         {/* แถบโหมดที่เปิดอยู่ (เลื่อนลงมา) */}
         <div className="mt-3 flex flex-col gap-2 empty:hidden">
           {modes.test && <Banner color="var(--warning)" icon="test">TEST MODE ACTIVE (NOT SAVED) — ทดลองสแกน ไม่บันทึกยอด</Banner>}
-          {modes.out && <Banner color="var(--scanout)" icon="out">SCAN OUT MODE — ตัดสต็อกออก</Banner>}
+          {move && <Banner color="var(--info)" icon="adjust">MOVE LOCATION MODE — สแกน QR LAYOUT ปลายทาง แล้วสแกนป้าย Coil ทีละม้วน (ไม่เปลี่ยนยอดคลัง)</Banner>}
+          {modes.out && !move && <Banner color="var(--scanout)" icon="out">SCAN OUT MODE — ตัดสต็อกออก</Banner>}
           {modes.return && <Banner color="var(--return)" icon="return">RETURN MODE — คืนเหล็กเข้าคลัง (กรอกจำนวนเอง)</Banner>}
           {modes.remainder && <Banner color="var(--teal)" icon="remainder">REMAINDER MODE — กรอกจำนวนเศษเอง ไม่นับกล่อง</Banner>}
           {notAssigned && <Banner color="var(--danger)" icon="not">ยังไม่ได้เลือกคลังของ UserID นี้ กรุณาติดต่อ Admin</Banner>}
@@ -682,9 +709,9 @@ export default function ScannerPage() {
                   <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8" />
                 </svg>
               </span>
-              {modes.test ? "TEST SCAN RESULT (NOT SAVED)" : "DAILY SCAN ( IN / OUT )"}
+              {modes.test ? "TEST SCAN RESULT (NOT SAVED)" : move ? "MOVE LOCATION RESULT" : "DAILY SCAN ( IN / OUT )"}
             </h3>
-            <span className="sc-count">{(modes.test ? testRows : rows).length.toLocaleString()} รายการ</span>
+            <span className="sc-count">{(modes.test || move ? testRows : rows).length.toLocaleString()} รายการ</span>
           </div>
           <div className="max-h-[min(520px,60dvh)] overflow-auto">
             <table className="data-table t-center w-full">
@@ -698,7 +725,7 @@ export default function ScannerPage() {
                 </tr>
               </thead>
               <tbody>
-                {(modes.test ? testRows : rows).map((r, i) => (
+                {(modes.test || move ? testRows : rows).map((r, i) => (
                   <tr key={`${r.time}-${r.code}-${i}`} className="sc-row">
                     {layoutOn && <td className="whitespace-nowrap">{r.layout ? <span className="sc-layout-tag">📍 {r.layout}</span> : <span className="text-ink-soft">-</span>}</td>}
                     <td>
@@ -713,7 +740,7 @@ export default function ScannerPage() {
                     <td className="whitespace-nowrap text-xs font-bold text-ink-soft">{fmtDate(r.time, "th-TH", undefined, "time")}</td>
                   </tr>
                 ))}
-                {(modes.test ? testRows : rows).length === 0 && (
+                {(modes.test || move ? testRows : rows).length === 0 && (
                   <tr>
                     <td colSpan={layoutOn ? 5 : 4}>
                       <EmptyRow />
@@ -877,7 +904,7 @@ export default function ScannerPage() {
           }}
         />
       )}
-      {showHistory && <HistoryModal onClose={() => (setShowHistory(false), focusScan())} />}
+      {showHistory && <HistoryModal initialStkId={scopeStocks.length === 1 ? scopeStocks[0].stkId : undefined} onClose={() => (setShowHistory(false), focusScan())} />}
       {deductView && (
         <DeductModal
           deducted={deductView === "deducted"}

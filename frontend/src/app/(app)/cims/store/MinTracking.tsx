@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/modals/Modal";
 import { DateRange } from "@/components/forms/DateRange";
 import { Empty, Loading } from "@/components/layout/Page";
@@ -14,6 +14,7 @@ import type { Stock } from "./types";
 // 📈 MIN TRACKING (ปุ่ม MIN REPORT ของคลัง): ติดตามการเคลื่อนไหวของสินค้าที่อยู่ใต้ MIN
 //   ทุกช่วงที่ใต้ MIN ในช่วงวันที่เลือก: ยังค้าง (แดง) / กลับเป็นเขียวแล้ว (เขียว) · ยอดตอนเริ่ม -> ตอนนี้ · อัพเดทกี่ครั้ง · รายงานกี่ครั้ง
 //   ยังไม่เขียว = บอกเหตุผล (ยอด < MIN ขาดอีกเท่าไร · รายงานล่าสุดว่าอะไร) · กดแถว = ยอดรายวัน (วันไหน ยอดต้นวัน -> ล่าสุด · อัพเดทกี่ครั้ง · MIN / MAX)
+//   ตารางหน้าตาเดียวกับตาราง Store (data-table store-table) · กาง / พับด้วย .fold (grid-template-rows + opacity) ไม่แตะความสูงตรง ๆ
 //   ⚡ เรียลไทม์: ยอดเปลี่ยน / รายงาน = โหลดใหม่เอง (หัวข้อ minreport)
 type Day = { day: string; firstQty: number | null; lastQty: number | null; min: number | null; max: number | null; moves: number; updatedAt: string };
 type Row = {
@@ -65,8 +66,8 @@ function why(r: Row, stuck: number) {
   if (r.reportCount === 0) parts.push(r.days >= stuck ? `ค้างครบ ${stuck} วันแล้ว รอรายงานสาเหตุ` : `เฝ้าดู (ครบ ${stuck} วันจะแจ้งเตือน)`);
   else {
     parts.push(`รายงานแล้ว ${r.reportCount} ครั้ง · ล่าสุด ${dt(r.lastReportAt)}${r.lastReason ? ` : ${r.lastReason}` : ""}`);
-    // 🔁 แจ้งเตือนอีกครั้งเมื่อไม่มีการเคลื่อนไหวครบ StuckDays วัน (นับจากรายงาน / ยอดเปลี่ยนล่าสุด)
-    if (r.nextAlertAt) parts.push(`ไม่มีการเคลื่อนไหวครบ ${stuck} วัน จะแจ้งเตือนอีกครั้ง ${dt(r.nextAlertAt)}`);
+    // 🔁 ยังใต้ MIN = เตือนให้รายงานซ้ำทุกวัน จนกว่ายอดจะพ้น MIN
+    if (r.nextAlertAt) parts.push(`เตือนให้รายงานซ้ำทุกวัน · ครั้งถัดไป ${dt(r.nextAlertAt)}`);
   }
   return parts.join(" · ");
 }
@@ -138,113 +139,139 @@ export function TrackingModal({ stock: s, onClose, toastErr }: { stock: Stock; o
         ) : list.length === 0 ? (
           <Empty>ไม่มีสินค้าที่อยู่ใต้ MIN ในช่วงวันที่นี้</Empty>
         ) : (
-          <div className="mrp-list">
-            {list.map((r, i) => {
-              const title = titleOf(r);
-              const q = r.resolvedAt ? (r.resolvedQty ?? r.qty) : (r.nowQty ?? r.qty);
-              const stillUnder = !r.resolvedAt && (r.nowStatus == null || UNDER.has(r.nowStatus));
-              const isOpen = open === r.watchId;
-              return (
-                <div key={r.watchId} className={`mrp-row is-hist mtk-row ${r.resolvedAt ? "is-ok" : "is-late"} ${isOpen ? "is-open" : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}>
-                  <button type="button" className="mrp-main mtk-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : r.watchId)}>
-                    <span className="mrp-no">{i + 1}</span>
-                    {/* การ์ดแบบหน้าต่างแจ้งเตือน: รูปสินค้า · บรรทัด 1 / 2 ตาม SETUP · ลูกค้า / Supplier */}
-                    <div className="mrp-part has-img">
-                      <span className="mrp-img" aria-hidden>
-                        {r.partId > 0 && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={`/api/images/part/${r.partId}`} alt="" loading="lazy" draggable={false} onError={(e) => (e.currentTarget.style.display = "none")} />
-                        )}
-                      </span>
-                      <div className="mrp-part-tx">
-                        <b className={title ? "" : "is-none"}>{title || "ไม่มีรหัส"}</b>
-                        <span>{subOf(r)}</span>
-                        <div className="mrp-tags">
-                          {r.customer && <i>CUSTOMER : {r.customer}</i>}
-                          {r.supplier && <i>SUPPLIER : {r.supplier}</i>}
-                          <i className={r.resolvedAt ? "is-ok" : "is-follow"}>{r.resolvedAt ? "🟢 อัพเดทแล้ว" : "🔴 ยังไม่อัพเดท"}</i>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mrp-nums">
-                      <span>
-                        <small>เริ่ม</small>
-                        <b>{n0(r.startQty ?? null)}</b>
-                      </span>
-                      <span>
-                        <small>{r.resolvedAt ? "ตอนเขียว" : "ตอนนี้"}</small>
-                        <b>{n0(q)}</b>
-                      </span>
-                      <span className={(diff(r.startQty, q) ?? 0) > 0 ? "mtk-up" : (diff(r.startQty, q) ?? 0) < 0 ? "mtk-down" : ""}>
-                        <small>อัพเดท</small>
-                        <b>{signed(diff(r.startQty, q))}</b>
-                      </span>
-                      <span className="is-min">
-                        <small>MIN</small>
-                        <b>{n0(r.min)}</b>
-                      </span>
-                      <span>
-                        <small>MAX</small>
-                        <b>{n0(r.max)}</b>
-                      </span>
-                    </div>
-                    <div className="mrp-time">
-                      <small>ใต้ MIN ตั้งแต่</small>
-                      <b>{dt(r.belowSince)}</b>
-                      <small>ถึง {r.resolvedAt ? dt(r.resolvedAt) : "ตอนนี้ (ยังค้าง)"}</small>
-                      <small>{r.resolvedAt ? `นาน ${span(r.belowSince, r.resolvedAt, now)}` : `ค้างมา ${span(r.belowSince, null, now)}`}</small>
-                      {r.lastMoveAt && <small>ยอดเปลี่ยนล่าสุด {dt(r.lastMoveAt)}</small>}
-                      <small>
-                        อัพเดท {r.moves} ครั้ง · รายงาน {r.reportCount} ครั้ง
-                      </small>
-                    </div>
-                  </button>
-                  <p className={`mtk-why ${r.resolvedAt ? "is-ok" : stillUnder ? "is-bad" : "is-wait"}`}>
-                    {!r.resolvedAt && !stillUnder ? "🟡 ยอดตอนนี้พ้น MIN แล้ว รอระบบปิดรอบเฝ้าดู (ไม่เกิน 5 นาที)" : why(r, data.stuckDays)}
-                  </p>
-                  <div className={`fold ${isOpen ? "" : "is-closed"}`}>
-                    <div>
-                      {r.daily.length === 0 ? (
-                        <p className="mtk-note">ยังไม่มียอดรายวันของช่วงนี้ (เริ่มเก็บตั้งแต่ 14/11/2026)</p>
-                      ) : (
-                        <div className="mtk-days" role="table" aria-label="ยอดรายวัน">
-                          <div className="mtk-d is-head" role="row">
-                            <span>วันที่</span>
-                            <span>ยอดต้นวัน</span>
-                            <span>ยอดล่าสุด</span>
-                            <span>เปลี่ยน</span>
-                            <span>อัพเดท</span>
-                            <span>MIN</span>
-                            <span>MAX</span>
-                            <span>ขาด MIN</span>
+          <div className="mt-3 max-h-[60dvh] overflow-auto rounded-2xl border border-line/60 bg-surface shadow-sm">
+            <table className="data-table store-table t-center w-full">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th className="w-16">NO</th>
+                  <th className="text-left">PRODUCT</th>
+                  <th className="text-right">เริ่ม</th>
+                  <th className="text-right">ตอนนี้</th>
+                  <th className="text-right">อัพเดท</th>
+                  <th className="text-right">MIN</th>
+                  <th className="text-right">MAX</th>
+                  <th>ใต้ MIN ตั้งแต่</th>
+                  <th className="text-left">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((r, i) => {
+                  const title = titleOf(r);
+                  const q = r.resolvedAt ? (r.resolvedQty ?? r.qty) : (r.nowQty ?? r.qty);
+                  const stillUnder = !r.resolvedAt && (r.nowStatus == null || UNDER.has(r.nowStatus));
+                  const isOpen = open === r.watchId;
+                  const dq = diff(r.startQty, q);
+                  const toggle = () => setOpen(isOpen ? null : r.watchId);
+                  return (
+                    <Fragment key={r.watchId}>
+                      <tr
+                        className={`mat-row cursor-pointer ${isOpen ? "is-open" : ""}`}
+                        aria-expanded={isOpen}
+                        tabIndex={0}
+                        onClick={toggle}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggle();
+                          }
+                        }}
+                      >
+                        <td className="text-center font-bold text-ink-soft">
+                          <span className="inline-flex items-center gap-2">
+                            <span className={`row-chev ${isOpen ? "is-open" : ""}`} aria-hidden>
+                              <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 3l5 5-5 5" />
+                              </svg>
+                            </span>
+                            {i + 1}
+                          </span>
+                        </td>
+                        <td className="min-w-[240px] text-left">
+                          <div className="flex items-center gap-2">
+                            <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-white" aria-hidden>
+                              {r.partId > 0 && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={`/api/images/part/${r.partId}`} alt="" loading="lazy" decoding="async" draggable={false} className="size-12 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+                              )}
+                            </span>
+                            <div className="min-w-0">
+                              <b className={`block font-extrabold ${title ? "text-primary" : "text-ink-soft"}`}>{title || "ไม่มีรหัส"}</b>
+                              <span className="block font-semibold">{subOf(r)}</span>
+                              {(r.customer || r.supplier) && (
+                                <small className="block text-ink-soft">{[r.customer && `CUSTOMER : ${r.customer}`, r.supplier && `SUPPLIER : ${r.supplier}`].filter(Boolean).join(" · ")}</small>
+                              )}
+                            </div>
                           </div>
-                          {r.daily.map((d) => {
-                            const ch = diff(d.firstQty, d.lastQty);
-                            const short = d.lastQty != null && d.min != null ? d.min - d.lastQty : null;
-                            return (
-                              <div key={d.day} className="mtk-d" role="row">
-                                <span data-l="วันที่">{dd(d.day)}</span>
-                                <span data-l="ยอดต้นวัน">{n0(d.firstQty)}</span>
-                                <span data-l="ยอดล่าสุด">{n0(d.lastQty)}</span>
-                                <span data-l="เปลี่ยน" className={ch && ch > 0 ? "mtk-up" : ch && ch < 0 ? "mtk-down" : ""}>
-                                  {signed(ch)}
-                                </span>
-                                <span data-l="อัพเดท">{d.moves} ครั้ง</span>
-                                <span data-l="MIN">{n0(d.min)}</span>
-                                <span data-l="MAX">{n0(d.max)}</span>
-                                <span data-l="ขาด MIN" className={short != null && short > 0 ? "mtk-down" : "mtk-up"}>
-                                  {short == null ? "-" : short > 0 ? n0(short) : "✔ ครบ"}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                        </td>
+                        <td className="text-right font-bold tabular-nums">{n0(r.startQty ?? null)}</td>
+                        <td className="text-right font-bold tabular-nums">{n0(q)}</td>
+                        <td className={`text-right font-bold tabular-nums ${(dq ?? 0) > 0 ? "mtk-up" : (dq ?? 0) < 0 ? "mtk-down" : ""}`}>{signed(dq)}</td>
+                        <td className="text-right font-bold tabular-nums">{n0(r.min)}</td>
+                        <td className="text-right font-bold tabular-nums">{n0(r.max)}</td>
+                        <td className="whitespace-nowrap text-[12px] font-semibold">
+                          {dt(r.belowSince)}
+                          <small className="block text-ink-soft">{r.resolvedAt ? `ถึง ${dt(r.resolvedAt)} · นาน ${span(r.belowSince, r.resolvedAt, now)}` : `ค้างมา ${span(r.belowSince, null, now)}`}</small>
+                          <small className="block text-ink-soft">
+                            อัพเดท {r.moves} ครั้ง · รายงาน {r.reportCount} ครั้ง
+                          </small>
+                        </td>
+                        <td className="min-w-[260px] text-left">
+                          <p className={`mtk-why !m-0 ${r.resolvedAt ? "is-ok" : stillUnder ? "is-bad" : "is-wait"}`}>
+                            {!r.resolvedAt && !stillUnder ? "🟡 ยอดตอนนี้พ้น MIN แล้ว รอระบบปิดรอบเฝ้าดู (ไม่เกิน 5 นาที)" : why(r, data.stuckDays)}
+                          </p>
+                        </td>
+                      </tr>
+                      {/* ยอดรายวัน: .fold = grid-template-rows 1fr/0fr + opacity (ไม่แตะ height / top) · contain กันไม่ให้ re-layout ทั้งตาราง */}
+                      <tr className="hover:!bg-transparent">
+                        <td colSpan={9} className="!border-0 !p-0">
+                          <div className={`fold ${isOpen ? "" : "is-closed"}`} style={{ contain: "layout paint" }} aria-hidden={!isOpen}>
+                            <div>
+                              {/* ค้างไว้ในหน้าตลอด -> พับลงแล้วเนื้อหาไม่หายก่อนแอนิเมชันจบ */}
+                              {(r.daily.length === 0 ? (
+                                  <p className="mtk-note px-4 pb-3">ยังไม่มียอดรายวันของช่วงนี้ (เริ่มเก็บตั้งแต่ 14/11/2026)</p>
+                                ) : (
+                                  <div className="mtk-days px-4 pb-3" role="table" aria-label="ยอดรายวัน">
+                                    <div className="mtk-d is-head" role="row">
+                                      <span>วันที่</span>
+                                      <span>ยอดต้นวัน</span>
+                                      <span>ยอดล่าสุด</span>
+                                      <span>เปลี่ยน</span>
+                                      <span>อัพเดท</span>
+                                      <span>MIN</span>
+                                      <span>MAX</span>
+                                      <span>ขาด MIN</span>
+                                    </div>
+                                    {r.daily.map((d) => {
+                                      const ch = diff(d.firstQty, d.lastQty);
+                                      const short = d.lastQty != null && d.min != null ? d.min - d.lastQty : null;
+                                      return (
+                                        <div key={d.day} className="mtk-d" role="row">
+                                          <span data-l="วันที่">{dd(d.day)}</span>
+                                          <span data-l="ยอดต้นวัน">{n0(d.firstQty)}</span>
+                                          <span data-l="ยอดล่าสุด">{n0(d.lastQty)}</span>
+                                          <span data-l="เปลี่ยน" className={ch && ch > 0 ? "mtk-up" : ch && ch < 0 ? "mtk-down" : ""}>
+                                            {signed(ch)}
+                                          </span>
+                                          <span data-l="อัพเดท">{d.moves} ครั้ง</span>
+                                          <span data-l="MIN">{n0(d.min)}</span>
+                                          <span data-l="MAX">{n0(d.max)}</span>
+                                          <span data-l="ขาด MIN" className={short != null && short > 0 ? "mtk-down" : "mtk-up"}>
+                                            {short == null ? "-" : short > 0 ? n0(short) : "✔ ครบ"}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

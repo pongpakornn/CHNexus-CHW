@@ -531,6 +531,33 @@ namespace Nexus.Services
             public string Status { get; set; }
         }
 
+        public (string Code, string Name) PartLabel(int partId)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand("SELECT PartCode, Description FROM Nexus.Parts WHERE PartID = @id", conn))
+            {
+                cmd.Parameters.AddWithValue("@id", partId);
+                conn.Open();
+                using (var r = cmd.ExecuteReader())
+                    return r.Read() ? (r[0] as string, r[1] as string) : (null, null);
+            }
+        }
+
+        // 📍 MOVE LOCATION: เปลี่ยนตำแหน่งจัดเก็บของ Coil ที่อยู่ในคลัง = เพิ่ม CoilMoves (MOVE_LAYOUT) 1 แถว · ไม่แตะยอดสินค้า / ScanTransactions (Layout 3D อ่านแถวล่าสุด)
+        public void MoveCoilLayout(CoilState coil, string layout, string userId)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand(@"INSERT INTO Nexus.CoilMoves (CoilID, Action, FromStockID, FromPartID, FromStatus, FromWeightKG, ToStockID, ToPartID, ToStatus, WeightKG, UserID, Layout)
+                                              SELECT CoilID, 'MOVE_LAYOUT', StockID, PartID, 'IN', WeightKG, StockID, PartID, 'IN', WeightKG, @u, @l FROM Nexus.Coils WHERE CoilID = @c AND Status = 'IN'", conn))
+            {
+                cmd.Parameters.AddWithValue("@c", coil.CoilId);
+                cmd.Parameters.AddWithValue("@u", (object)userId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@l", layout);
+                conn.Open();
+                if (cmd.ExecuteNonQuery() != 1) throw new InvalidOperationException("Coil is no longer IN stock");
+            }
+        }
+
         // Coil ลูกนี้อยู่ที่ไหน (null = ยังไม่มีในทะเบียน)
         public CoilState FindCoil(string coilNo)
         {

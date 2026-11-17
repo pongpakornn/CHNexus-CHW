@@ -133,7 +133,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
   const nTiles = (has("MAXMIN") ? 2 : 0) + ["BOX", "QTY", "PCS"].filter(has).length;
 
   return (
-    <article data-pid={p.partId} className={`mc-card ${off ? "is-off" : ""} ${p.isHidden ? "opacity-45 grayscale" : ""}`} style={{ "--tone": tone.line } as React.CSSProperties}>
+    <article data-pid={p.partId} className={`mc-card ${off ? "is-off" : ""}`} style={{ "--tone": tone.line } as React.CSSProperties}>
       <div className="flex items-start gap-3">
         {has("IMAGE") && (
           <span className="mc-img">
@@ -158,7 +158,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
           {has("NAME") && <div className="mt-0.5 text-[13px] font-semibold leading-snug text-ink-soft">{p.partName}</div>}
         </div>
         {cfg.manage === "ADD" && <AddCoilButton onClick={() => act.addCoil(p)} />}
-        {cfg.manage === "HIDE" && <HideButton hidden={!!p.isHidden} busy={cfg.hideBusy === p.partId} onClick={() => act.hide(p)} />}
+        {cfg.manage === "HIDE" && <HideButton busy={cfg.hideBusy === p.partId} picked={cfg.picked.has(p.partId)} onPick={() => act.pick(p)} onClick={() => act.hide(p)} />}
         {cfg.cols.includes("STATUS") && <StatusLamp status={p.stockStatus} size={24} className="shrink-0" />}
       </div>
 
