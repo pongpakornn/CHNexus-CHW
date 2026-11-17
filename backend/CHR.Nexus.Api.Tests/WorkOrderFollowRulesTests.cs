@@ -18,14 +18,28 @@ public class WorkOrderFollowRulesTests
     public void NullQtyClearsAndIsValid() => Assert.Null(WorkOrderFollowRules.CheckCell("PL", 3, null, 30));
 
     [Fact]
-    public void BoxesAndPack()
+    public void PackAndAchievement()
     {
-        Assert.Equal(2.5m, WorkOrderFollowRules.Boxes(500, 200));
-        Assert.Null(WorkOrderFollowRules.Boxes(500, 0));
-        Assert.Null(WorkOrderFollowRules.Boxes(null, 200));
         Assert.Equal(1200, WorkOrderFollowRules.ParsePack("1,200"));
         Assert.Null(WorkOrderFollowRules.ParsePack("abc"));
-        Assert.Equal(6m, WorkOrderFollowRules.Total(new[] { 1m, 2m, 3m }));
+        Assert.Equal(50m, WorkOrderFollowRules.Achievement(200, 100));
+        Assert.Null(WorkOrderFollowRules.Achievement(0, 100));
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("DRAFT", true)]
+    [InlineData("REJECTED", true)]
+    [InlineData("SENT", false)]
+    [InlineData("APPROVED", false)]
+    public void Editable(string status, bool ok) => Assert.Equal(ok, WorkOrderFollowRules.Editable(status));
+
+    [Fact]
+    public void CurrentStep()
+    {
+        Assert.Equal(2, WorkOrderFollowRules.CurrentStep(new[] { (1, "SIGNED"), (2, "PENDING"), (3, "PENDING") }));
+        Assert.Null(WorkOrderFollowRules.CurrentStep(new[] { (1, "SIGNED"), (2, "REJECTED"), (3, "PENDING") }));
+        Assert.Null(WorkOrderFollowRules.CurrentStep(new[] { (1, "SIGNED") }));
     }
 
     [Fact]

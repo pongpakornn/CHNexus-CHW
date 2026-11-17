@@ -172,7 +172,7 @@ export function ChatBubble({
                 ) : wofDoc ? (
                   <>
                     {wofDoc.text}
-                    <a href={`/pc/wof/${wofDoc.id}`} className="mr-chat-doc mt-1.5 block text-center">
+                    <a href={`/pc/wof/${wofDoc.id}${wofDoc.month ? `?month=${wofDoc.month}` : ""}`} className="mr-chat-doc mt-1.5 block text-center">
                       ✍ เปิดแผ่นงาน WORK ORDER FOLLOW
                     </a>
                   </>
