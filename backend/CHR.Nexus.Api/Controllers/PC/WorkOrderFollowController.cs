@@ -5,323 +5,474 @@ using Nexus.Services;
 
 namespace CHR.Nexus.Api.Controllers;
 
-// WORK ORDER FOLLOW (SystemID PC_WOF): monthly follow sheet per customer + work order
-//   view = PC_WOF VIEW · create = ADD · edit (fields / items / cells) = owner, editors or Level 1 and sheet not locked
-//   sign flow = PREPARE / CHECK / APPROVE (requested user signs with their stored signature) · APPROVE signed = locked · editing clears CHECK
+// WORK ORDER FOLLOW v2 (SystemID PC_WOF): plan = owner + customer, parts persist, quantities per month
+//   view = PC_WOF VIEW · create plan = ADD · edit = owner, editors or Level 1 (month locked while SENT / APPROVED)
+//   SEND -> flow steps from PC.Flows 'WOF' (sequential, several users per step = any can sign) · reject = editable again
+//   setup (flow) = PC_WOF APPROVE or Level 1
 [Route("api/pcwof")]
 public sealed class WorkOrderFollowController : AppController
 {
     private readonly WorkOrderFollowService _svc = new();
 
-    private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง WORK ORDER FOLLOW (database/nexus/61_PC_WorkOrderFollow.sql)");
+    private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง WORK ORDER FOLLOW (database/nexus/62_PC_WorkOrderFollow_v2.sql)");
     private bool IsAdmin => Me?.UserLevel == 1;
+    private bool CanSetup => IsAdmin || Me?.CanApprovePcWof == true;
     private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     private static string Clip(string s, int n) { s = (s ?? "").Trim(); return s.Length > n ? s[..n] : s; }
+    private static string Ym(DateTime d) => d.ToString("yyyy-MM");
 
-    private bool IsOwner(WoSheet s) => Same(s.OwnerUserId, Uid);
-    private bool CanEdit(WoSheet s) => IsAdmin || IsOwner(s) || _svc.IsEditor(s.SheetId, Uid);
+    private bool IsOwner(WoPlan p) => Same(p.OwnerUserId, Uid);
+    private bool CanEdit(WoPlan p) => IsAdmin || IsOwner(p) || _svc.IsEditor(p.PlanId, Uid);
 
-    // null = allowed to edit, else the error result
-    private IActionResult EditGuard(WoSheet s)
+    // null = allowed to edit the plan (parts / remarks / order), else the error result
+    private IActionResult EditGuard(WoPlan p)
     {
-        if (s == null) return Fail("ไม่พบเอกสารนี้");
-        if (!CanEdit(s)) return Deny("คุณไม่มีสิทธิ์แก้ไขเอกสารนี้ (เฉพาะเจ้าของ / ผู้แก้ไขที่ถูกเพิ่ม)");
-        if (_svc.IsLocked(s.SheetId)) return Fail("เอกสารถูกอนุมัติ (APPROVE) แล้ว แก้ไขไม่ได้");
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        if (!CanEdit(p)) return Deny("คุณไม่มีสิทธิ์แก้ไขแผนนี้ (เฉพาะเจ้าของ / ผู้แก้ไขที่ถูกเพิ่ม)");
         return null;
     }
 
-    // after any edit: touch + clear CHECK signature (logged)
-    private void Edited(WoSheet s)
+    // plan edit + the month is still open (DRAFT / REJECTED)
+    private IActionResult MonthGuard(WoPlan p, DateTime month)
     {
-        if (_svc.Touch(s.SheetId)) LogService.WriteLog(Uid, "PC_WOF_CHECK_CLEARED", $"Sheet #{s.SheetId} {s.CustomerName} / {s.WorkOrderNo} {s.MonthStart:yyyy-MM} | CHECK signature cleared by edit", s.WorkOrderNo);
+        if (EditGuard(p) is { } e) return e;
+        var m = _svc.GetMonth(p.PlanId, month);
+        if (!WorkOrderFollowRules.Editable(m?.Status)) return Fail("เดือนนี้ส่งขออนุมัติแล้ว (SENT / APPROVED) แก้ไขไม่ได้");
+        return null;
     }
 
-    private object SheetDto(WoSheet s, Dictionary<string, string> names, List<string> editors, int items, List<WoSign> signs) => new
+    private object PlanDto(WoPlan p, Dictionary<string, string> names, List<string> editors, int items, WoMonth m, WoSums sums) => new
     {
-        sheetId = s.SheetId, month = s.MonthStart.ToString("yyyy-MM"), s.CustomerCode, s.CustomerName, s.WorkOrderNo,
-        owner = new { userId = s.OwnerUserId, name = names.GetValueOrDefault(s.OwnerUserId, s.OwnerUserId) },
+        planId = p.PlanId, p.CustomerCode, p.CustomerName,
+        owner = new { userId = p.OwnerUserId, name = names.GetValueOrDefault(p.OwnerUserId, p.OwnerUserId) },
         editors = editors.Select(u => new { userId = u, name = names.GetValueOrDefault(u, u) }),
         items,
-        signs = signs.Select(g => new { g.Role, g.RequestedTo, g.SignedBy, g.SignedAt })
+        month = new { workOrderNo = m?.WorkOrderNo ?? "", status = m?.Status ?? "DRAFT" },
+        progress = new { order = sums?.Order ?? 0, produced = (sums?.ProdD ?? 0) + (sums?.ProdN ?? 0), delivered = sums?.Del ?? 0 }
     };
 
-    private List<object> Dtos(List<WoSheet> sheets)
+    private List<object> Dtos(List<WoPlan> plans, DateTime month)
     {
-        var ids = sheets.Select(s => s.SheetId).ToList();
-        var ed = _svc.Editors(ids); var cnt = _svc.ItemCounts(ids); var sg = _svc.Signs(ids);
-        var names = _svc.Names(sheets.Select(s => s.OwnerUserId).Concat(ed.Values.SelectMany(x => x)));
-        return sheets.Select(s => SheetDto(s, names, ed.GetValueOrDefault(s.SheetId) ?? new(), cnt.GetValueOrDefault(s.SheetId), sg.Where(g => g.SheetId == s.SheetId).ToList())).ToList();
+        var ids = plans.Select(p => p.PlanId).ToList();
+        var ed = _svc.Editors(ids); var cnt = _svc.ItemCounts(ids, month); var mo = _svc.Months(ids, month); var sums = _svc.Sums(month, ids).ToDictionary(s => s.PlanId);
+        var names = _svc.Names(plans.Select(p => p.OwnerUserId).Concat(ed.Values.SelectMany(x => x)));
+        return plans.Select(p => PlanDto(p, names, ed.GetValueOrDefault(p.PlanId) ?? new(), cnt.GetValueOrDefault(p.PlanId), mo.GetValueOrDefault(p.PlanId), sums.GetValueOrDefault(p.PlanId))).ToList();
     }
 
     [HttpGet("meta")]
     public IActionResult Meta()
     {
         if (Me == null) return Deny();
-        return Ok(new { ready = DbSchema.HasPcWof, can = new { view = Me.CanViewPcWof, add = Me.CanAddPcWof, approve = Me.CanApprovePcWof }, me = new { userId = Uid, name = Me.UserName } });
+        return Ok(new { ready = DbSchema.HasPcWof, can = new { view = Me.CanViewPcWof, add = Me.CanAddPcWof, approve = Me.CanApprovePcWof, setup = CanSetup && Me.CanViewPcWof }, me = new { userId = Uid, name = Me.UserName } });
     }
 
-    [HttpGet("sheets")]
-    public IActionResult Sheets([FromQuery] string month)
+    [HttpGet("customers")]
+    public IActionResult Customers()
+    {
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        return Ok(_svc.Customers().Select(c => new { code = c.Code, name = c.Name }));
+    }
+
+    [HttpGet("plans")]
+    public IActionResult Plans([FromQuery] string month, [FromQuery] string owner = "all")
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
         if (!WorkOrderFollowRules.TryMonth(month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
-        return Ok(Dtos(_svc.Sheets(m)));
+        return Ok(Dtos(_svc.Plans(Same(owner, "me") ? Uid : null), m));
     }
 
-    public sealed record SheetCreate(string Month, string CustomerCode, string CustomerName, string WorkOrderNo);
+    public sealed record PlanCreate(string CustomerCode);
 
-    [HttpPost("sheets")]
-    public IActionResult Create([FromBody] SheetCreate req)
+    [HttpPost("plans")]
+    public IActionResult Create([FromBody] PlanCreate req)
     {
         if (Me?.CanAddPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        if (req == null || !WorkOrderFollowRules.TryMonth(req.Month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
-        string code = Clip(req.CustomerCode, 50), name = Clip(req.CustomerName, 200), wo = Clip(req.WorkOrderNo, 100);
-        if (name.Length == 0 || wo.Length == 0) return Fail("กรุณาระบุลูกค้าและ Work Order");
+        string code = Clip(req?.CustomerCode, 50);
+        string name = code.Length == 0 ? null : _svc.CustomerName(code);
+        if (name == null) return Fail("ไม่พบลูกค้านี้ใน Master Data");
+        if (_svc.PlanExists(Uid, code)) return Fail("คุณมีแผนของลูกค้านี้อยู่แล้ว");
         try
         {
-            int id = _svc.Create(m, code, name, wo, Uid);
-            LogService.WriteLog(Uid, "PC_WOF_CREATE", $"Sheet #{id} | {name} / {wo} | {m:yyyy-MM}", wo);
-            return Ok(new { sheetId = id });
+            int id = _svc.CreatePlan(Uid, code, name);
+            LogService.WriteLog(Uid, "PC_WOF_PLAN_CREATE", $"Plan #{id} | {code} {name}", code);
+            return Ok(new { planId = id });
         }
-        catch (Exception ex) { return Fail(ex, "สร้างเอกสารไม่สำเร็จ"); }
+        catch (Exception ex) { return Fail(ex, "สร้างแผนไม่สำเร็จ"); }
     }
 
-    public sealed record SheetUpdate(string CustomerCode, string CustomerName, string WorkOrderNo, List<string> Editors);
+    public sealed record PlanUpdate(List<string> Editors);
 
-    [HttpPut("sheets/{id:int}")]
-    public IActionResult Update(int id, [FromBody] SheetUpdate req)
+    [HttpPut("plans/{id:int}")]
+    public IActionResult Update(int id, [FromBody] PlanUpdate req)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (s == null) return Fail("ไม่พบเอกสารนี้");
-        if (!IsAdmin && !IsOwner(s)) return Deny("เฉพาะเจ้าของเอกสารเท่านั้นที่แก้ไขข้อมูลเอกสาร / ผู้แก้ไขได้");
-        if (_svc.IsLocked(id)) return Fail("เอกสารถูกอนุมัติ (APPROVE) แล้ว แก้ไขไม่ได้");
-        string code = Clip(req?.CustomerCode, 50), name = Clip(req?.CustomerName, 200), wo = Clip(req?.WorkOrderNo, 100);
-        if (name.Length == 0 || wo.Length == 0) return Fail("กรุณาระบุลูกค้าและ Work Order");
-        var editors = (req.Editors ?? new()).Select(u => (u ?? "").Trim()).Where(u => u.Length > 0 && !Same(u, s.OwnerUserId)).Distinct(StringComparer.OrdinalIgnoreCase).Take(50).ToList();
+        var p = _svc.GetPlan(id);
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        if (!IsAdmin && !IsOwner(p)) return Deny("เฉพาะเจ้าของแผนเท่านั้นที่เพิ่ม / ลบผู้แก้ไขได้");
+        var editors = (req?.Editors ?? new()).Select(u => (u ?? "").Trim()).Where(u => u.Length > 0 && !Same(u, p.OwnerUserId)).Distinct(StringComparer.OrdinalIgnoreCase).Take(50).ToList();
         try
         {
             var bad = editors.Where(u => !_svc.UserExists(u)).ToList();
             if (bad.Count > 0) return Fail("ไม่พบผู้ใช้: " + string.Join(", ", bad));
-            _svc.Update(id, code, name, wo, editors);
-            LogService.WriteLog(Uid, "PC_WOF_UPDATE", $"Sheet #{id} | {name} / {wo} | Editors: {string.Join(", ", editors)}", wo);
-            Edited(s);
+            _svc.SetEditors(id, editors);
+            LogService.WriteLog(Uid, "PC_WOF_PLAN_EDITORS", $"Plan #{id} | {p.CustomerCode} | Editors: {string.Join(", ", editors)}", p.CustomerCode);
             return Ok();
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
     }
 
-    [HttpDelete("sheets/{id:int}")]
+    [HttpDelete("plans/{id:int}")]
     public IActionResult Delete(int id)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (s == null) return Fail("ไม่พบเอกสารนี้");
-        if (!IsAdmin && !IsOwner(s)) return Deny("เฉพาะเจ้าของเอกสารเท่านั้นที่ลบได้");
-        if (!IsAdmin && _svc.IsLocked(id)) return Fail("เอกสารถูกอนุมัติ (APPROVE) แล้ว ลบได้เฉพาะ Admin");
+        var p = _svc.GetPlan(id);
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        if (!IsAdmin && !IsOwner(p)) return Deny("เฉพาะเจ้าของแผนเท่านั้นที่ลบได้");
+        if (!IsAdmin && _svc.AnyApproved(id)) return Fail("แผนนี้มีเดือนที่อนุมัติแล้ว ลบได้เฉพาะ Admin");
         try
         {
-            _svc.Delete(id);
-            LogService.WriteLog(Uid, "PC_WOF_DELETE", $"Sheet #{id} | {s.CustomerName} / {s.WorkOrderNo} | {s.MonthStart:yyyy-MM}", s.WorkOrderNo);
+            _svc.DeletePlan(id);
+            LogService.WriteLog(Uid, "PC_WOF_PLAN_DELETE", $"Plan #{id} | {p.CustomerCode} {p.CustomerName} | Owner: {p.OwnerUserId}", p.CustomerCode);
             return Ok();
         }
         catch (Exception ex) { return Fail(ex, "ลบไม่สำเร็จ"); }
     }
 
-    [HttpGet("sheets/{id:int}")]
-    public IActionResult Get(int id)
+    // rows exist -> built from them (history), titles / users from the current flow; none -> flow steps as PREVIEW
+    private object ApprovalsDto(int planId, DateTime month)
+    {
+        var flow = _svc.Flow(); var ap = _svc.Approvals(planId, month);
+        var names = _svc.Names(flow.Select(f => f.UserId).Concat(ap.Select(a => a.SignedBy)));
+        object Users(int step) => flow.Where(f => f.StepNo == step).Select(f => new { userId = f.UserId, name = names.GetValueOrDefault(f.UserId, f.UserId) }).ToList();
+        string Title(int step) => flow.FirstOrDefault(f => f.StepNo == step)?.Title ?? $"Step {step}";
+        if (ap.Count == 0)
+            return flow.Select(f => f.StepNo).Distinct().OrderBy(x => x).Select(st => new { stepNo = st, title = Title(st), users = Users(st), status = "PREVIEW", signedBy = (object)null, signedAt = (DateTime?)null, remark = (string)null }).ToList();
+        return ap.OrderBy(a => a.StepNo).Select(a => new
+        {
+            stepNo = a.StepNo, title = Title(a.StepNo), users = Users(a.StepNo), status = a.Status,
+            signedBy = a.SignedBy == null ? null : (object)new { userId = a.SignedBy, name = names.GetValueOrDefault(a.SignedBy, a.SignedBy) }, signedAt = a.SignedAt, remark = a.Remark
+        }).ToList();
+    }
+
+    [HttpGet("plans/{id:int}")]
+    public IActionResult Get(int id, [FromQuery] string month)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (s == null) return Fail("ไม่พบเอกสารนี้");
-        var cells = _svc.Cells(id);
-        var items = _svc.Items(id).Select(i => new
+        if (!WorkOrderFollowRules.TryMonth(month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var p = _svc.GetPlan(id);
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        var mo = _svc.GetMonth(id, m);
+        var cells = _svc.Cells(id, m);
+        var items = _svc.Items(id, m).Select(i => new
         {
-            i.ItemId, i.SortNo, i.PartId, i.IntCode, i.PartName, i.PartNo, i.Material, i.PcsPerBox, i.BarColor, i.Remark,
-            cells = cells.GetValueOrDefault(i.ItemId) ?? new()
+            i.ItemId, i.SortNo, i.PartId, i.PartCode, i.PartA, i.PartB, i.PartNo, i.PartName, i.PackSize, i.Remark,
+            imageUrl = ImageUrl(i.ImageFileName), cells = cells.GetValueOrDefault(i.ItemId) ?? new()
         }).ToList();
-        return Ok(new { sheet = Dtos(new() { s })[0], canEdit = CanEdit(s) && !_svc.IsLocked(id), items });
+        return Ok(new
+        {
+            plan = Dtos(new() { p }, m)[0],
+            canEdit = CanEdit(p) && WorkOrderFollowRules.Editable(mo?.Status),
+            month = new { workOrderNo = mo?.WorkOrderNo ?? "", status = mo?.Status ?? "DRAFT", approvals = ApprovalsDto(id, m) },
+            items
+        });
     }
 
-    public sealed record ItemAdd(int PartId, string IntCode, string BarColor, string Remark);
+    private static string ImageUrl(string f) => string.IsNullOrWhiteSpace(f) ? null : $"/api/images/file?name={Uri.EscapeDataString(f)}";
 
-    [HttpPost("sheets/{id:int}/items")]
+    public sealed record MonthSet(string Month, string WorkOrderNo);
+
+    [HttpPut("plans/{id:int}/month")]
+    public IActionResult SetMonth(int id, [FromBody] MonthSet req)
+    {
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        if (req == null || !WorkOrderFollowRules.TryMonth(req.Month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var p = _svc.GetPlan(id);
+        if (MonthGuard(p, m) is { } err) return err;
+        string wo = Clip(req.WorkOrderNo, 100);
+        try
+        {
+            _svc.SetWorkOrder(id, m, wo);
+            LogService.WriteLog(Uid, "PC_WOF_MONTH", $"Plan #{id} | {p.CustomerCode} | {Ym(m)} | W/O: {wo}", wo);
+            return Ok();
+        }
+        catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
+    }
+
+    [HttpGet("parts")]
+    public IActionResult Parts([FromQuery] string customer, [FromQuery] string q)
+    {
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        string c = Clip(customer, 50);
+        if (c.Length == 0) return Fail("กรุณาเลือกลูกค้า");
+        return Ok(_svc.SearchParts(c, Clip(q, 100)).Select(p => new { p.PartId, p.PartCode, p.PartA, p.PartB, p.PartNo, p.PartName, p.PackSize, imageUrl = ImageUrl(p.ImageFileName) }));
+    }
+
+    // item writes: plan edit + month format; locked = month M (update / order) or any month from M (add / delete: they change later months too)
+    private IActionResult ItemGuard(WoPlan p, string month, bool fromHere, out DateTime m)
+    {
+        m = default;
+        if (!WorkOrderFollowRules.TryMonth(month, out m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        if (EditGuard(p) is { } e) return e;
+        bool locked = fromHere ? _svc.LockedFrom(p.PlanId, m) : !WorkOrderFollowRules.Editable(_svc.GetMonth(p.PlanId, m)?.Status);
+        return locked ? Fail("เดือนนี้ (หรือเดือนถัดไป) ส่งขออนุมัติ / อนุมัติแล้ว แก้ไขสินค้าไม่ได้") : null;
+    }
+
+    public sealed record ItemAdd(int PartId, string Month);
+
+    [HttpPost("plans/{id:int}/items")]
     public IActionResult AddItem(int id, [FromBody] ItemAdd req)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (EditGuard(s) is { } err) return err;
-        var p = req == null ? null : _svc.GetPart(req.PartId);
-        if (p == null) return Fail("ไม่พบสินค้านี้ใน Part Information");
+        var pl = _svc.GetPlan(id);
+        if (pl == null) return Fail("ไม่พบแผนนี้");
+        if (ItemGuard(pl, req?.Month, true, out var m) is { } err) return err;
+        var p = _svc.GetPart(req.PartId, pl.CustomerCode);
+        if (p == null) return Fail("ไม่พบสินค้านี้ในลูกค้าของแผน");
+        if (_svc.HasItemPart(id, p.PartId, m)) return Fail("สินค้านี้อยู่ในแผนแล้ว");
         try
         {
-            int itemId = _svc.AddItem(id, new WorkOrderFollowService.ItemRow
+            int itemId = _svc.AddItem(id, m, new WorkOrderFollowService.ItemRow
             {
-                PartId = p.PartId, IntCode = Clip(req.IntCode, 50), PartName = Clip(p.Description, 200), PartNo = Clip(p.PartNumber, 100), Material = Clip(p.Category, 100),
-                PcsPerBox = WorkOrderFollowRules.ParsePack(p.PackSize), BarColor = Clip(req.BarColor, 20), Remark = Clip(req.Remark, 500)
+                PartId = p.PartId, PartCode = Clip(p.PartCode, 100), PartA = Clip(p.PartA, 100), PartB = Clip(p.PartB, 100), PartNo = Clip(p.PartNo, 100), PartName = Clip(p.PartName, 200),
+                PackSize = WorkOrderFollowRules.ParsePack(p.PackSize), ImageFileName = p.ImageFileName
             });
-            LogService.WriteLog(Uid, "PC_WOF_ITEM_ADD", $"Sheet #{id} | Item #{itemId} | {p.PartCode} {p.Description}", p.PartCode);
-            Edited(s);
+            LogService.WriteLog(Uid, "PC_WOF_ITEM_ADD", $"Plan #{id} | Item #{itemId} | {p.PartCode} {p.PartName} | From {Ym(m)}", p.PartCode);
+            _svc.Touch(id);
             return Ok(new { itemId });
         }
         catch (Exception ex) { return Fail(ex, "เพิ่มสินค้าไม่สำเร็จ"); }
     }
 
-    public sealed record ItemUpdate(string IntCode, string BarColor, string Remark, int? PcsPerBox);
+    public sealed record ItemUpdate(string Remark, int? PackSize, string Month);
 
     [HttpPut("items/{itemId:int}")]
     public IActionResult UpdateItem(int itemId, [FromBody] ItemUpdate req)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var it = _svc.GetItem(itemId, out int sid);
+        var it = _svc.GetItem(itemId, out int pid);
         if (it == null) return Fail("ไม่พบรายการนี้");
-        var s = _svc.GetSheet(sid);
-        if (EditGuard(s) is { } err) return err;
-        if (req?.PcsPerBox is < 1 or > 10_000_000) return Fail("จำนวนชิ้น/กล่องไม่ถูกต้อง");
+        if (ItemGuard(_svc.GetPlan(pid), req?.Month, false, out _) is { } err) return err;
+        if (req?.PackSize is < 1 or > 10_000_000) return Fail("จำนวนชิ้น/กล่องไม่ถูกต้อง");
         try
         {
-            it.IntCode = Clip(req?.IntCode, 50); it.BarColor = Clip(req?.BarColor, 20); it.Remark = Clip(req?.Remark, 500); it.PcsPerBox = req?.PcsPerBox;
+            it.Remark = Clip(req?.Remark, 500); it.PackSize = req?.PackSize;
             _svc.UpdateItem(it);
-            LogService.WriteLog(Uid, "PC_WOF_ITEM_UPDATE", $"Sheet #{sid} | Item #{itemId} | {it.PartName} | Pcs/Box: {it.PcsPerBox}", it.IntCode);
-            Edited(s);
+            LogService.WriteLog(Uid, "PC_WOF_ITEM_UPDATE", $"Plan #{pid} | Item #{itemId} | {it.PartName} | Pack: {it.PackSize}", it.PartCode);
+            _svc.Touch(pid);
             return Ok();
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
     }
 
     [HttpDelete("items/{itemId:int}")]
-    public IActionResult DeleteItem(int itemId)
+    public IActionResult DeleteItem(int itemId, [FromQuery] string month)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var it = _svc.GetItem(itemId, out int sid);
+        var it = _svc.GetItem(itemId, out int pid);
         if (it == null) return Fail("ไม่พบรายการนี้");
-        var s = _svc.GetSheet(sid);
-        if (EditGuard(s) is { } err) return err;
+        if (ItemGuard(_svc.GetPlan(pid), month, true, out var m) is { } err) return err;
         try
         {
-            _svc.DeleteItem(itemId);
-            LogService.WriteLog(Uid, "PC_WOF_ITEM_DELETE", $"Sheet #{sid} | Item #{itemId} | {it.PartName}", it.IntCode);
-            Edited(s);
+            bool hard = _svc.DeleteItem(itemId, pid, m);
+            LogService.WriteLog(Uid, "PC_WOF_ITEM_DELETE", $"Plan #{pid} | Item #{itemId} | {it.PartName} | {(hard ? "deleted" : "ended before " + Ym(m))}", it.PartCode);
+            _svc.Touch(pid);
             return Ok();
         }
         catch (Exception ex) { return Fail(ex, "ลบไม่สำเร็จ"); }
     }
 
-    public sealed record OrderReq(List<int> Ids);
+    public sealed record OrderReq(List<int> Ids, string Month);
 
-    [HttpPost("sheets/{id:int}/items/order")]
+    [HttpPost("plans/{id:int}/items/order")]
     public IActionResult Order(int id, [FromBody] OrderReq req)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (EditGuard(s) is { } err) return err;
-        var ids = (req?.Ids ?? new()).Distinct().ToList();
-        var own = _svc.ItemIds(id).ToHashSet();
-        if (ids.Any(i => !own.Contains(i))) return Fail("รายการไม่ตรงกับเอกสาร");
+        var p = _svc.GetPlan(id);
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        if (ItemGuard(p, req?.Month, false, out var m) is { } err) return err;
+        var ids = (req.Ids ?? new()).Distinct().ToList();
+        var own = _svc.ItemIds(id, m).ToHashSet();
+        if (ids.Any(i => !own.Contains(i))) return Fail("รายการไม่ตรงกับแผน");
         try
         {
             _svc.Reorder(id, ids);
-            LogService.WriteLog(Uid, "PC_WOF_ITEM_ORDER", $"Sheet #{id} | {ids.Count} items reordered", s.WorkOrderNo);
+            LogService.WriteLog(Uid, "PC_WOF_ITEM_ORDER", $"Plan #{id} | {ids.Count} items reordered", p.CustomerCode);
             return Ok();
         }
         catch (Exception ex) { return Fail(ex, "บันทึกลำดับไม่สำเร็จ"); }
     }
 
     public sealed record CellEdit(int ItemId, string RowKey, int Day, decimal? Qty);
+    public sealed record CellsReq(string Month, List<CellEdit> Cells);
 
-    [HttpPut("sheets/{id:int}/cells")]
-    public IActionResult Cells(int id, [FromBody] List<CellEdit> req)
+    [HttpPut("plans/{id:int}/cells")]
+    public IActionResult Cells(int id, [FromBody] CellsReq req)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (EditGuard(s) is { } err) return err;
-        if (req == null || req.Count == 0) return Ok(new { saved = 0 });
-        if (req.Any(c => c == null)) return Fail("ข้อมูลช่องไม่ถูกต้อง");
-        if (req.Count > 2000) return Fail("ส่งข้อมูลครั้งละไม่เกิน 2,000 ช่อง");
-        int days = DateTime.DaysInMonth(s.MonthStart.Year, s.MonthStart.Month);
-        var own = _svc.ItemIds(id).ToHashSet();
-        foreach (var c in req)
+        if (req == null || !WorkOrderFollowRules.TryMonth(req.Month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var p = _svc.GetPlan(id);
+        if (MonthGuard(p, m) is { } err) return err;
+        var cells = req.Cells;
+        if (cells == null || cells.Count == 0) return Ok(new { saved = 0 });
+        if (cells.Any(c => c == null)) return Fail("ข้อมูลช่องไม่ถูกต้อง");
+        if (cells.Count > 2000) return Fail("ส่งข้อมูลครั้งละไม่เกิน 2,000 ช่อง");
+        int days = DateTime.DaysInMonth(m.Year, m.Month);
+        var own = _svc.ItemIds(id, m).ToHashSet();
+        foreach (var c in cells)
         {
-            if (!own.Contains(c.ItemId)) return Fail("รายการไม่ตรงกับเอกสาร");
+            if (!own.Contains(c.ItemId)) return Fail("รายการไม่ตรงกับแผน");
             if (WorkOrderFollowRules.CheckCell(c.RowKey, c.Day, c.Qty, days) is { } msg) return Fail(msg);
         }
         try
         {
-            _svc.SaveCells(req.Select(c => (c.ItemId, c.RowKey, c.Day, c.Qty)));
-            LogService.WriteLog(Uid, "PC_WOF_CELLS", $"Sheet #{id} | {s.CustomerName} / {s.WorkOrderNo} | {req.Count} cells", s.WorkOrderNo);
-            Edited(s);
-            return Ok(new { saved = req.Count });
+            _svc.SaveCells(id, m, cells.Select(c => (c.ItemId, c.RowKey, c.Day, c.Qty)));
+            LogService.WriteLog(Uid, "PC_WOF_CELLS", $"Plan #{id} | {p.CustomerCode} | {Ym(m)} | {cells.Count} cells", p.CustomerCode);
+            _svc.Touch(id);
+            return Ok(new { saved = cells.Count });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
     }
 
-    [HttpGet("parts")]
-    public IActionResult Parts([FromQuery] string q)
+    // ---------------------------------------------------------------- flow (SETUP FLOW)
+    [HttpGet("flow")]
+    public IActionResult GetFlow()
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        return Ok(_svc.SearchParts(Clip(q, 100)).Select(p => new
+        var f = _svc.Flow();
+        var names = _svc.Names(f.Select(x => x.UserId));
+        return Ok(f.GroupBy(x => x.StepNo).OrderBy(g => g.Key).Select(g => new
         {
-            p.PartId, p.PartA, p.PartCode, partNo = p.PartNumber, name = p.Description, p.PackSize, p.Customer
+            stepNo = g.Key, title = g.First().Title, users = g.Select(x => new { userId = x.UserId, name = names.GetValueOrDefault(x.UserId, x.UserId) })
         }));
     }
 
-    // ---------------------------------------------------------------- sign (MIN REPORT style: request -> chat + bell -> requested user signs)
-    public sealed record SignReq(string Role, string UserId);
+    public sealed record FlowStep(int StepNo, string Title, List<string> UserIds);
 
-    [HttpPost("sheets/{id:int}/sign/request")]
-    public IActionResult SignRequest(int id, [FromBody] SignReq req)
+    [HttpPut("flow")]
+    public IActionResult SetFlow([FromBody] List<FlowStep> req)
     {
-        if (Me?.CanViewPcWof != true) return Deny();
+        if (Me?.CanViewPcWof != true || !CanSetup) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (EditGuard(s) is { } err) return err;
-        string role = (req?.Role ?? "").Trim().ToUpperInvariant(), to = (req?.UserId ?? "").Trim();
-        if (!WorkOrderFollowRules.Roles.Contains(role)) return Fail("ช่องลายเซ็นไม่ถูกต้อง");
-        if (to.Length == 0 || !_svc.UserExists(to)) return Fail("ไม่พบผู้ใช้ที่ต้องการขอลายเซ็น");
-        if (!_svc.UserCan(to, role == "APPROVE")) return Fail(role == "APPROVE" ? "ผู้ใช้นี้ไม่มีสิทธิ์ APPROVE ของ WORK ORDER FOLLOW" : "ผู้ใช้นี้ไม่มีสิทธิ์ดู WORK ORDER FOLLOW");
+        if (req == null || req.Any(s => s == null)) return Fail("ข้อมูลไม่ถูกต้อง");
+        if (req.Count > 10) return Fail("ตั้งขั้นตอนได้ไม่เกิน 10 ขั้น");
+        if (_svc.AnySent()) return Fail("มีงานรอเซ็นอยู่ ไม่สามารถแก้ FLOW ได้ กรุณาให้เซ็นหรือตีกลับก่อน");
+        var steps = new List<(int, string, List<string>)>();
+        int n = 0;
+        foreach (var s in req.OrderBy(s => s.StepNo))
+        {
+            n++;
+            var users = (s.UserIds ?? new()).Select(u => (u ?? "").Trim()).Where(u => u.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (users.Count == 0) return Fail($"ขั้นที่ {n} ยังไม่ได้เลือกผู้อนุมัติ");
+            if (users.Count > 20) return Fail($"ขั้นที่ {n} เลือกผู้อนุมัติได้ไม่เกิน 20 คน");
+            var bad = users.Where(u => !_svc.UserExists(u) || !_svc.UserCan(u, false)).ToList();
+            if (bad.Count > 0) return Fail($"ผู้ใช้ไม่พบ หรือไม่มีสิทธิ์ดู WORK ORDER FOLLOW: {string.Join(", ", bad)}");
+            string title = Clip(s.Title, 100);
+            steps.Add((n, title.Length == 0 ? $"Step {n}" : title, users));
+        }
         try
         {
-            _svc.RequestSign(id, role, to, Uid);
-            LogService.WriteLog(Uid, "PC_WOF_SIGN_REQUEST", $"Sheet #{id} | {s.CustomerName} / {s.WorkOrderNo} | {role} -> {to}", s.WorkOrderNo);
-            Notify(s, role, to, Uid);
-            return Ok(new { message = $"ส่งให้ {to} ลงลายเซ็นช่อง {role} แล้ว" });
+            _svc.SaveFlow(steps);
+            LogService.WriteLog(Uid, "PC_WOF_FLOW", string.Join(" > ", steps.Select(s => $"{s.Item1}.{s.Item2}[{string.Join(",", s.Item3)}]")), "WOF");
+            return Ok();
         }
-        catch (Exception ex) { return Fail(ex, "ส่งขอลายเซ็นไม่สำเร็จ"); }
+        catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
     }
 
-    public sealed record SignDo(string Role);
+    // ---------------------------------------------------------------- send / approve / reject
+    public sealed record MonthReq(string Month, string Remark);
 
-    [HttpPost("sheets/{id:int}/sign")]
-    public IActionResult Sign(int id, [FromBody] SignDo req)
+    [HttpPost("plans/{id:int}/send")]
+    public IActionResult Send(int id, [FromBody] MonthReq req)
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        var s = _svc.GetSheet(id);
-        if (s == null) return Fail("ไม่พบเอกสารนี้");
-        string role = (req?.Role ?? "").Trim().ToUpperInvariant();
-        if (!WorkOrderFollowRules.Roles.Contains(role)) return Fail("ช่องลายเซ็นไม่ถูกต้อง");
-        if (role == "APPROVE" && !Me.CanApprovePcWof) return Deny("คุณไม่มีสิทธิ์ APPROVE");
-        if (role != "APPROVE" && _svc.IsLocked(id)) return Fail("เอกสารถูกอนุมัติ (APPROVE) แล้ว ลงลายเซ็นเพิ่มไม่ได้");
+        if (req == null || !WorkOrderFollowRules.TryMonth(req.Month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var p = _svc.GetPlan(id);
+        if (MonthGuard(p, m) is { } err) return err;
+        var mo = _svc.GetMonth(id, m);
+        if (string.IsNullOrWhiteSpace(mo?.WorkOrderNo)) return Fail("กรุณาระบุเลข Work Order ของเดือนนี้ก่อนส่งขออนุมัติ");
+        if (_svc.ItemCounts(new[] { id }, m).GetValueOrDefault(id) == 0) return Fail("แผนนี้ยังไม่มีสินค้า");
+        var flow = _svc.Flow();
+        if (flow.Count == 0) return Fail("ยังไม่ได้ตั้งค่า FLOW การอนุมัติ (PC › SETUP FLOW) กรุณาติดต่อ Admin");
+        try
+        {
+            var steps = flow.Select(f => f.StepNo).Distinct().OrderBy(x => x).ToList();
+            _svc.Send(id, m, Uid, steps);
+            LogService.WriteLog(Uid, "PC_WOF_SEND", $"Plan #{id} | {p.CustomerCode} | {Ym(m)} | W/O: {mo.WorkOrderNo} | {steps.Count} steps", mo.WorkOrderNo);
+            Notify(p, m, mo.WorkOrderNo, flow.Where(f => f.StepNo == steps[0]).Select(f => f.UserId), steps[0], Uid);
+            return Ok(new { message = "ส่งขออนุมัติแล้ว\nเดือนนี้ถูกล็อกจนกว่าจะอนุมัติ / ตีกลับ" });
+        }
+        catch (Exception ex) { return Fail(ex, "ส่งขออนุมัติไม่สำเร็จ"); }
+    }
+
+    // shared checks for approve / reject: returns the step the caller may act on, or an error
+    private IActionResult ActGuard(int id, string month, out WoPlan p, out DateTime m, out WoMonth mo, out int step)
+    {
+        p = null; mo = null; step = 0; m = default;
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        if (!WorkOrderFollowRules.TryMonth(month, out m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        p = _svc.GetPlan(id);
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        mo = _svc.GetMonth(id, m);
+        if (mo?.Status != "SENT") return Fail("เดือนนี้ไม่ได้อยู่ระหว่างรออนุมัติ");
+        var cur = WorkOrderFollowRules.CurrentStep(_svc.Approvals(id, m).Select(a => (a.StepNo, a.Status)));
+        if (cur == null) return Fail("ไม่มีขั้นที่รอลงลายเซ็น");
+        if (!_svc.Flow().Any(f => f.StepNo == cur && Same(f.UserId, Uid))) return Deny("ขั้นนี้ไม่ได้ขอให้คุณลงลายเซ็น");
+        step = cur.Value;
+        return null;
+    }
+
+    [HttpPost("plans/{id:int}/approve")]
+    public IActionResult Approve(int id, [FromBody] MonthReq req)
+    {
+        if (ActGuard(id, req?.Month, out var p, out var m, out var mo, out int step) is { } err) return err;
         if (!SignatureStore.Has(Uid)) return Fail("คุณยังไม่มีลายเซ็นในระบบ\nกรุณาบันทึกลายเซ็นก่อนที่ วงกลมโปรไฟล์ › ลายเซ็นของฉัน");
         try
         {
-            if (!_svc.Sign(id, role, Uid)) return Fail("ช่องนี้ไม่ได้ขอให้คุณลงลายเซ็น หรือลงลายเซ็นไปแล้ว");
-            LogService.WriteLog(Uid, "PC_WOF_SIGN", $"Sheet #{id} | {s.CustomerName} / {s.WorkOrderNo} | Signed: {role}", s.WorkOrderNo);
-            NotifyDone(s, role, Uid);
-            return Ok(new { message = $"ลงลายเซ็นช่อง {role} แล้ว" + (role == "APPROVE" ? "\nเอกสารถูกล็อก แก้ไขไม่ได้แล้ว" : "") });
+            var ap = _svc.Approvals(id, m);
+            bool last = ap.All(a => a.StepNo <= step);
+            if (!_svc.Sign(id, m, step, Uid, Clip(req?.Remark, 500), last)) return Fail("ขั้นนี้ลงลายเซ็นไปแล้ว");
+            LogService.WriteLog(Uid, "PC_WOF_APPROVE", $"Plan #{id} | {p.CustomerCode} | {Ym(m)} | W/O: {mo.WorkOrderNo} | Step {step}" + (last ? " | APPROVED" : ""), mo.WorkOrderNo);
+            if (last) NotifyOwner(p, m, mo.WorkOrderNo, "✔ WORK ORDER FOLLOW อนุมัติครบทุกขั้นแล้ว", Uid);
+            else
+            {
+                int next = ap.Where(a => a.StepNo > step && a.Status == "PENDING").Min(a => a.StepNo);
+                Notify(p, m, mo.WorkOrderNo, _svc.Flow().Where(f => f.StepNo == next).Select(f => f.UserId), next, Uid);
+            }
+            return Ok(new { message = last ? "ลงลายเซ็นแล้ว\n✔ อนุมัติครบทุกขั้น เดือนนี้ถูกล็อก" : $"ลงลายเซ็นขั้นที่ {step} แล้ว\nส่งต่อให้ขั้นถัดไป" });
         }
         catch (Exception ex) { return Fail(ex, "ลงลายเซ็นไม่สำเร็จ"); }
+    }
+
+    [HttpPost("plans/{id:int}/reject")]
+    public IActionResult Reject(int id, [FromBody] MonthReq req)
+    {
+        if (ActGuard(id, req?.Month, out var p, out var m, out var mo, out int step) is { } err) return err;
+        string remark = Clip(req?.Remark, 500);
+        if (remark.Length == 0) return Fail("กรุณาระบุเหตุผลที่ตีกลับ");
+        try
+        {
+            if (!_svc.Reject(id, m, step, Uid, remark)) return Fail("ขั้นนี้ดำเนินการไปแล้ว");
+            LogService.WriteLog(Uid, "PC_WOF_REJECT", $"Plan #{id} | {p.CustomerCode} | {Ym(m)} | W/O: {mo.WorkOrderNo} | Step {step} | {remark}", mo.WorkOrderNo);
+            NotifyOwner(p, m, mo.WorkOrderNo, $"✖ WORK ORDER FOLLOW ถูกตีกลับ: {remark}", Uid);
+            return Ok(new { message = "ตีกลับแล้ว เจ้าของแผนแก้ไขและส่งใหม่ได้" });
+        }
+        catch (Exception ex) { return Fail(ex, "ตีกลับไม่สำเร็จ"); }
     }
 
     [HttpGet("sign/queue")]
@@ -330,35 +481,61 @@ public sealed class WorkOrderFollowController : AppController
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return Ok(Array.Empty<object>());
         var q = _svc.Queue(Uid);
-        var names = _svc.Names(q.Select(r => r.RequestedBy));
+        var names = _svc.Names(q.Select(r => r.SentBy));
         return Ok(q.Select(r => new
         {
-            r.SheetId, r.Role, r.CustomerName, r.WorkOrderNo, month = r.MonthStart.ToString("yyyy-MM"),
-            requestedBy = new { userId = r.RequestedBy, name = names.GetValueOrDefault(r.RequestedBy, r.RequestedBy) }, r.RequestedAt
+            r.PlanId, month = Ym(r.MonthStart), r.StepNo, r.Title, r.CustomerName, r.WorkOrderNo,
+            requestedBy = new { userId = r.SentBy, name = names.GetValueOrDefault(r.SentBy ?? "", r.SentBy) }, requestedAt = r.SentAt
         }));
     }
 
-    // chat card to the requested user (bell shows it via /api/notifications) · chat failure never blocks the flow
-    private static void Notify(WoSheet s, string role, string to, string from)
+    // ---------------------------------------------------------------- dashboard
+    [HttpGet("dashboard")]
+    public IActionResult Dashboard([FromQuery] string month)
     {
-        if (!DbSchema.HasChat || Same(to, from)) return;
-        try
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        if (!WorkOrderFollowRules.TryMonth(month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var plans = _svc.Plans(null);
+        var ids = plans.Select(p => p.PlanId).ToList();
+        var sums = _svc.Sums(m, ids);
+        var mo = _svc.Months(ids, m);
+        decimal order = sums.Sum(s => s.Order), prod = sums.Sum(s => s.ProdD + s.ProdN);
+        string St(int id) => mo.GetValueOrDefault(id)?.Status ?? "DRAFT";
+        var byStatus = new[] { "DRAFT", "SENT", "APPROVED", "REJECTED" }.ToDictionary(s => s, s => ids.Count(i => St(i) == s));
+        return Ok(new
         {
-            var chat = new ChatService();
-            if (chat.UserExists(to))
-                chat.Send(from, to, $"✍ WORK ORDER FOLLOW รอลงลายเซ็นช่อง {role}\n{s.CustomerName} · {s.WorkOrderNo} · {s.MonthStart:yyyy-MM}\n[[WOF:{s.SheetId}]]");
-        }
-        catch { /* chat unavailable: bell still shows it */ }
+            plans = plans.Count,
+            parts = _svc.ItemCounts(ids, m).Values.Sum(),
+            totals = new { pl = sums.Sum(s => s.Pl), or = sums.Sum(s => s.Or), order, prodD = sums.Sum(s => s.ProdD), prodN = sums.Sum(s => s.ProdN), del = sums.Sum(s => s.Del) },
+            achievement = WorkOrderFollowRules.Achievement(order, prod),
+            pending = byStatus["SENT"],
+            byCustomer = plans.GroupBy(p => p.CustomerCode).Select(g =>
+            {
+                var gs = sums.Where(s => g.Any(p => p.PlanId == s.PlanId)).ToList();
+                return new { code = g.Key, name = g.First().CustomerName, order = gs.Sum(s => s.Order), produced = gs.Sum(s => s.ProdD + s.ProdN), delivered = gs.Sum(s => s.Del) };
+            }).OrderBy(x => x.code),
+            byStatus
+        });
     }
 
-    private static void NotifyDone(WoSheet s, string role, string from)
+    // ---------------------------------------------------------------- notify (chat card; bell reads the queue) · chat failure never blocks the flow
+    private static void Notify(WoPlan p, DateTime m, string wo, IEnumerable<string> to, int step, string from)
     {
-        if (!DbSchema.HasChat || Same(s.OwnerUserId, from)) return;
+        if (!DbSchema.HasChat) return;
+        string body = $"✍ WORK ORDER FOLLOW รอลงลายเซ็น (ขั้นที่ {step})\n{p.CustomerName} · {wo} · {Ym(m)}\n[[WOF:{p.PlanId}:{Ym(m)}]]";
+        foreach (var u in to.Where(u => !Same(u, from)).Distinct(StringComparer.OrdinalIgnoreCase))
+            try { var chat = new ChatService(); if (chat.UserExists(u)) chat.Send(from, u, body); }
+            catch { /* chat unavailable: bell still shows it */ }
+    }
+
+    private static void NotifyOwner(WoPlan p, DateTime m, string wo, string head, string from)
+    {
+        if (!DbSchema.HasChat || Same(p.OwnerUserId, from)) return;
         try
         {
             var chat = new ChatService();
-            if (chat.UserExists(s.OwnerUserId))
-                chat.Send(from, s.OwnerUserId, $"✔ WORK ORDER FOLLOW ลงลายเซ็นช่อง {role} แล้ว\n{s.CustomerName} · {s.WorkOrderNo} · {s.MonthStart:yyyy-MM}\n[[WOF:{s.SheetId}]]");
+            if (chat.UserExists(p.OwnerUserId)) chat.Send(from, p.OwnerUserId, $"{head}\n{p.CustomerName} · {wo} · {Ym(m)}\n[[WOF:{p.PlanId}:{Ym(m)}]]");
         }
         catch { /* ignore */ }
     }

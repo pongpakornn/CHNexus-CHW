@@ -239,6 +239,7 @@
   background: #7f1d1d;
 }
 .wof-s1,
+.wof-sg,
 .wof-s2 {
   position: sticky;
   z-index: 2;
@@ -250,13 +251,33 @@
   min-width: var(--w-s1);
   max-width: var(--w-s1);
 }
-.wof-s2 {
+.wof-sg {
   left: var(--w-s1);
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  padding: 0 !important;
+  text-align: center !important;
+}
+.wof-pl {
+  background: #ede9fe !important;
+  color: #4c1d95;
+  font-size: 10px;
+  font-weight: 800;
+}
+.wof-pl span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  letter-spacing: 0.1em;
+}
+.wof-s2 {
+  left: calc(var(--w-s1) + 22px);
   width: var(--w-s2);
   min-width: var(--w-s2);
   box-shadow: 4px 0 8px -4px rgb(15 23 42 / 0.18);
 }
 thead .wof-s1,
+thead .wof-sg,
 thead .wof-s2 {
   z-index: 4;
 }
@@ -573,4 +594,396 @@ thead .wof-s2 {
   .wof-page > div:first-child .cta-btn {
     flex: 1 1 auto;
   }
+}
+
+/* ---- v2 ---- */
+.wof-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 99px;
+  background: var(--surface-2);
+}
+.wof-seg button {
+  padding: 5px 14px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  transition: background-color 0.25s, color 0.25s;
+}
+.wof-seg button.is-on {
+  background: var(--accent);
+  color: #fff;
+}
+.wof-chip.is-bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.wof-owner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wof-owner .wof-chip {
+  margin-left: auto;
+}
+.wof-av {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+.wof-owner-tx {
+  display: grid;
+  line-height: 1.25;
+  min-width: 0;
+}
+.wof-owner-tx b {
+  font-size: 13px;
+}
+.wof-owner-tx small {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.wof-bar {
+  display: grid;
+  grid-template-columns: 74px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.wof-bar i {
+  height: 7px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.wof-bar u {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #6750a4, #4f46e5);
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.wof-bar u.is-del {
+  background: linear-gradient(90deg, #0d9488, #14b8a6);
+}
+.wof-bar b {
+  text-align: right;
+  color: var(--ink);
+}
+.wof-lock.is-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+.wof-lock.is-bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.wof-wo {
+  display: grid;
+  gap: 2px;
+}
+.wof-wo input {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.wof-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+.wof-step {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-width: 170px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.wof-step.is-done {
+  border-top-color: #16a34a;
+}
+.wof-step.is-cur {
+  border-top-color: #d97706;
+  box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
+}
+.wof-step small {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.wof-step .wof-chip {
+  justify-self: start;
+}
+.wof-sig {
+  height: 44px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+}
+.wof-flow-act {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wof-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.wof-pager button {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 800;
+}
+.wof-pager button.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.wof-pager button:disabled {
+  opacity: 0.35;
+}
+.wof-pager small {
+  margin-left: 8px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.wof-wrap.is-busy {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+/* grouped header like WORKLOAD */
+.wof-table thead th.wof-band {
+  background: var(--w-head);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.wof-table thead .wof-h2 th {
+  top: 27px;
+  background: #52525b;
+}
+.wof-table thead .wof-h2 th.is-we {
+  background: #7f1d1d;
+}
+.wof-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  font-weight: 800;
+  background: #ede9fe;
+  color: #3b0764;
+}
+.wof-table tfoot td.is-we {
+  background: #fde8e8;
+}
+.wof-table tfoot .wof-s1 {
+  z-index: 3;
+}
+.wof-sumlab {
+  vertical-align: middle;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+.wof-part-img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.wof-pick-row.is-part {
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.wof-pick-row.is-part img,
+.wof-noimg {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.wof-pick-row.is-part:disabled {
+  opacity: 0.55;
+}
+.wof-pick-row.is-sel {
+  border-color: var(--accent);
+  background: #f5f3ff;
+}
+.wof-pick-tx {
+  display: grid;
+  min-width: 0;
+}
+.wof-pick-tx small {
+  grid-column: auto;
+}
+
+/* ---- dashboard + setup ---- */
+.wof-kpis {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.wof-kpi {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--k, var(--accent));
+  border-radius: 16px;
+  background: var(--surface);
+  animation: wof-up 0.45s both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.wof-kpi span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.wof-kpi b {
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.wof-dash-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+}
+.wof-dash-grid > * {
+  min-width: 0;
+}
+.wof-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.wof-tbl th,
+.wof-tbl td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.wof-tbl th:first-child,
+.wof-tbl td:first-child {
+  text-align: left;
+}
+.wof-tbl th {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+}
+.wof-steps {
+  display: grid;
+  gap: 12px;
+}
+.wof-stepcard {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.wof-stepcard-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.wof-stepcard-h input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.wof-apprs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wof-appr {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 99px;
+  background: #ede9fe;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.wof-appr button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 11px;
+}
+.wof-appr.is-nosign {
+  background: #fef3c7;
+}
+@media (max-width: 767px) {
+  .wof-bar {
+    grid-template-columns: 64px 1fr 36px;
+  }
+  .wof-step {
+    flex: 1 1 100%;
+  }
+  .wof-table thead .wof-h2 th {
+    top: 25px;
+  }
+  .wof-table tfoot td {
+    position: static;
+  }
+}
+@media print {
+  .wof-table tfoot td {
+    position: static;
+  }
+  .wof-flow-act {
+    display: none;
+  }
+}
+.wof-pickuser {
+  padding: 4px 8px;
+  border: 1px dashed var(--accent);
+  border-radius: 99px;
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 700;
+  max-width: 100%;
 }

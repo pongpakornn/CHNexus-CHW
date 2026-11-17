@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { daysIn, isLocked, parseQty, rowTotal, stOf } from "./pcwof";
+import { currentStep, daysIn, editableStatus, parseQty, pctOf, rowTotal, stOf } from "./pcwof";
 
 describe("pcwof helpers", () => {
-  it("ST. rounds up and is null without pcsPerBox", () => {
+  it("ST. rounds up and is null without packSize", () => {
     expect(stOf(101, 50)).toBe(3);
     expect(stOf(100, 50)).toBe(2);
     expect(stOf(0, 50)).toBe(0);
@@ -19,9 +19,15 @@ describe("pcwof helpers", () => {
     expect(parseQty("-1")).toBeUndefined();
     expect(parseQty("x")).toBeUndefined();
   });
-  it("days in month / lock", () => {
+  it("days in month / status / current step / pct", () => {
     expect(daysIn("2024-02")).toBe(29);
-    expect(isLocked([{ role: "APPROVE", requestedTo: "a", signedBy: "a", signedAt: "x" }])).toBe(true);
-    expect(isLocked([{ role: "APPROVE", requestedTo: "a", signedBy: null, signedAt: null }])).toBe(false);
+    expect(editableStatus("DRAFT")).toBe(true);
+    expect(editableStatus("SENT")).toBe(false);
+    const a = (n: number, st: string) => ({ stepNo: n, title: "", users: [], status: st, signedBy: st === "SIGNED" ? "x" : null, signedAt: null });
+    expect(currentStep([a(2, "PENDING"), a(1, "SIGNED")])?.stepNo).toBe(2);
+    expect(currentStep([a(1, "SIGNED")])).toBeNull();
+    expect(currentStep([a(1, "PREVIEW")])).toBeNull();
+    expect(pctOf(1, 3)).toBe(33.3);
+    expect(pctOf(1, 0)).toBe(0);
   });
 });

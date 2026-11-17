@@ -243,3 +243,20 @@ Sheet: Workload/Capacity-style grid (sticky part column, 8 rows per part, days 1
 
 ## Team
 designer (sonnet, spec only) -> backend + frontend agents in parallel on the agreed API -> tester (calc) + reviewer -> commit after OK.
+
+---
+
+# WORK ORDER FOLLOW v2 (owner redesign 2026-11-17) — replaces the monthly-sheet model
+PC Digital Workspace = landing with system cards (first card: Work Order Follow, icon images/systems/work-order-follow.webp);
+  PC landing sidebar: SYSTEMS + SETUP FLOW (approval flow setup like MIN REPORT setup).
+Work Order Follow sidebar: DASHBOARD · WORK ORDER FOLLOW.
+Plan (Register Plan) = owner + customer (Master.Customers code -> name auto); parts persist across months (picked from
+  Nexus.Parts filtered by Parts.Customer = customer code: Part No, Part Name, image, Part A/B, PackSize); month switch keeps
+  the parts, only quantities differ; remove part = others move up. Grid like PP Workload, 5-6 parts per page + pager,
+  rows/totals as the Excel, autosave. Owner + editors edit, everyone else view. Card per plan shows the owner (UserID/name).
+  SEND FOR SIGN button -> flow from SETUP FLOW (steps of approvers, sequential, MIN REPORT style notify + signature image).
+Dashboard: month KPIs (plans, parts, order/plan, produced D+N, delivered, achievement %, pending approvals, per customer).
+DB script 62 (approved by owner): drop the empty v1 PC tables (only 2 owner test sheets) and create
+  PC.WoPlans, PC.WoEditors, PC.WoItems (persistent), PC.WoMonths (plan+month: W/O no, status), PC.WoCells (+MonthStart),
+  PC.Flows (steps/approvers), PC.WoApprovals (plan+month+step).
+Team: backend + frontend agents (resume, they know v1) -> reviewer -> commit after owner OK.

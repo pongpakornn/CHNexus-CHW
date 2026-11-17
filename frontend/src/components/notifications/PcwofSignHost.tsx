@@ -10,7 +10,7 @@ import { PC_PERM } from "@/lib/menu";
 import type { PcMeta, PcQueue } from "@/lib/pcwof";
 import { useToast } from "@/components/notifications/Toasts";
 
-// ✍ WORK ORDER FOLLOW รอลงลายเซ็น: คิวของฉัน (/pcwof/sign/queue) · ครั้งแรกจำไว้เฉย ๆ · มีรายการใหม่ = Toast (กด = เปิดชีท) · ทุกหน้า
+// ✍ WORK ORDER FOLLOW รอลงลายเซ็น: คิวของฉัน (/pcwof/sign/queue) · ครั้งแรกจำไว้เฉย ๆ · มีรายการใหม่ = Toast (กด = เปิดแผน) · ทุกหน้า
 export function PcwofSignHost() {
   const { me } = useAuth();
   return me?.can[PC_PERM] ? <Host /> : null;
@@ -27,7 +27,7 @@ function Host() {
       if (ready.current === null) ready.current = (await api<PcMeta>("/pcwof/meta")).ready;
       if (!ready.current) return; // DB not installed yet
       const q = await sharedGet<PcQueue[]>("/pcwof/sign/queue");
-      const key = (x: PcQueue) => `${x.sheetId}|${x.role}`;
+      const key = (x: PcQueue) => `${x.planId}|${x.month ?? ""}|${x.stepNo ?? ""}`;
       const first = seen.current === null;
       const prev = seen.current ?? new Set<string>();
       seen.current = new Set(q.map(key));
@@ -35,8 +35,8 @@ function Host() {
         q.filter((x) => !prev.has(key(x)))
           .slice(0, 3)
           .forEach((x) =>
-            toast.show(`✍ WORK ORDER FOLLOW รอลงลายเซ็น (${x.role})`, `${x.customerName ?? ""} ${x.workOrderNo ?? ""} ${x.month ?? ""}\nกดเพื่อเปิดชีท`.trim(), "warn", {
-              onClick: () => router.push(`/pc/wof/${x.sheetId}`),
+            toast.show(`✍ WORK ORDER FOLLOW รอลงลายเซ็น${x.title ? ` (${x.title})` : ""}`, `${x.customerName ?? ""} ${x.workOrderNo ?? ""} ${x.month ?? ""}\nกดเพื่อเปิดแผน`.trim(), "warn", {
+              onClick: () => router.push(`/pc/wof/${x.planId}${x.month ? `?month=${x.month}` : ""}`),
               ms: 12000,
             }),
           );

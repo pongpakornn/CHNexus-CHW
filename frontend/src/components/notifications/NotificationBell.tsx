@@ -62,7 +62,10 @@ export function NotificationBell() {
     if (href.startsWith("#chat:")) return openChat(href.slice(6));
     // #minsign:ID = เปิดเอกสาร MIN REPORT ใบนั้นให้ลงลายเซ็น
     if (href.startsWith("#minsign:")) return openMinSign(Number(href.slice(9)));
-    if (href.startsWith("#wofsign:")) return router.push(`/pc/wof/${Number(href.slice(9))}`); // WORK ORDER FOLLOW sheet
+    if (href.startsWith("#wofsign:")) {
+      const [pid, m] = href.slice(9).split(":"); // #wofsign:planId:yyyy-MM
+      return router.push(`/pc/wof/${Number(pid)}${m ? `?month=${m}` : ""}`);
+    } // WORK ORDER FOLLOW sheet
     router.push(href);
   };
   const total = data?.items.reduce((s, i) => s + i.count, 0) ?? 0;

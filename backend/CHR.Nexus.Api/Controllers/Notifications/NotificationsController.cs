@@ -89,8 +89,8 @@ public sealed class NotificationsController : AppController
                     detail = "กดรายการ = เปิดเอกสาร แล้วลงลายเซ็น",
                     rows = wof.Take(10).Select(r => new
                     {
-                        label = $"{r.CustomerName} · {r.WorkOrderNo}", sub = $"{r.Role} · {r.MonthStart:yyyy-MM} · จาก {r.RequestedBy}",
-                        count = 1, href = $"#wofsign:{r.SheetId}"
+                        label = $"{r.CustomerName} · {r.WorkOrderNo}", sub = $"ขั้นที่ {r.StepNo} {r.Title} · {r.MonthStart:yyyy-MM} · จาก {r.SentBy}",
+                        count = 1, href = $"#wofsign:{r.PlanId}:{r.MonthStart:yyyy-MM}"
                     })
                 });
         }
