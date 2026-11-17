@@ -716,7 +716,7 @@ namespace Nexus.Services
             using (IDbConnection db = new SqlConnection(_connectionString))
             {
                 string sql = @"SELECT COUNT(1) FROM Nexus.Parts WHERE PartCode = @PartACode
-                               AND ISNULL(PartA, '') = ISNULL(@PartA, '') AND ISNULL(PartB, '') = ISNULL(@PartB, '') AND PartID <> @Except";
+                               AND ISNULL(PartA, '') = ISNULL(@PartA, '')" + (Nexus.Helpers.DbSchema.HasPartB ? " AND ISNULL(PartB, '') = ISNULL(@PartB, '')" : "") + " AND PartID <> @Except";
                 int count = await db.ExecuteScalarAsync<int>(sql, new { PartACode = partACode ?? "", PartA = string.IsNullOrWhiteSpace(partA) ? null : partA.Trim(), PartB = string.IsNullOrWhiteSpace(partB) ? null : partB.Trim(), Except = exceptPtId }).ConfigureAwait(false);
                 return count > 0;
             }

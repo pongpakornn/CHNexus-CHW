@@ -72,7 +72,8 @@ public sealed class LayoutService
         var locs = c.Query<string>(@"SELECT l.LocName FROM Nexus.LayoutLocations l JOIN Nexus.LayoutTypes t ON t.TypeID = l.TypeID WHERE t.TypeName = @t", new { t = PlateType }).ToList();
         foreach (var name in locs)
         {
-            var texts = new[] { QrText(set, PlateType, name), LabelText(PlateType, name), PlateType + " " + name, name }.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            bool shared = c.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.LayoutLocations l JOIN Nexus.LayoutTypes t ON t.TypeID = l.TypeID WHERE l.LocName = @name AND t.TypeName <> @t", new { name, t = PlateType }) > 0;
+            var texts = new[] { QrText(set, PlateType, name), LabelText(PlateType, name), PlateType + " " + name }.Concat(shared ? Array.Empty<string>() : new[] { name }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(); // bare "S1" only if no other type has S1
             if (!texts.Any(x => string.Equals(x, key, StringComparison.OrdinalIgnoreCase))) continue;
             int n = c.ExecuteScalar<int>(@"
                 SELECT COUNT(*) FROM Nexus.Coils k

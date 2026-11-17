@@ -442,6 +442,7 @@ public sealed class ProductsController : AppController
     [HttpPut("{ptId:int}")]
     public async Task<IActionResult> Update(int ptId, [FromBody] ProductForm f)
     {
+        if (ptId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" }); // never fall back to PartCode ('-' is shared by many STORE-SUB items)
         if (Me?.CanEditProduct != true) return Deny("คุณไม่มีสิทธิ์แก้ไขสินค้า");
         var stocks = _stocks.GetStocks();
         var inStocks = StocksOf(f.OldCode ?? f.PartCode, ptId);
@@ -491,6 +492,7 @@ public sealed class ProductsController : AppController
     [HttpPost("{ptId:int}/toggle")]
     public IActionResult Toggle(int ptId, [FromBody] ToggleRequest req)
     {
+        if (ptId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" }); // never fall back to PartCode ('-' is shared by many STORE-SUB items)
         if (Me?.CanEditProduct != true) return Deny();
         var ts = req.StkId.HasValue ? _stocks.GetStocks().FirstOrDefault(s => s.StkId == req.StkId.Value) : _stocks.GetStocks().FirstOrDefault(s => s.IsMain);
         if (ts != null && !Me.CanEditStock(ts)) return Deny($"คุณไม่มีสิทธิ์แก้ไขคลัง {ts.Code}");
