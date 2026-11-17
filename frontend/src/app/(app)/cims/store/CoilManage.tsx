@@ -28,14 +28,15 @@ const ton = (kg: number | null) => (kg === null || Number.isNaN(kg) ? "-" : (kg 
 export function ManageBar({ mode, onExit }: { mode: ManageMode; onExit: () => void }) {
   if (!mode) return null;
   const add = mode === "ADD";
+  const hide = mode === "HIDE";
   return (
-    <div className={`mng-bar ${add ? "is-add" : "is-adj"}`} role="status">
+    <div className={`mng-bar ${add ? "is-add" : "is-adj"}`} style={hide ? ({ "--c": "#64748b" } as React.CSSProperties) : undefined} role="status">
       <span className="mng-bar-ic" aria-hidden>
-        {add ? "＋" : "⚖"}
+        {add ? "＋" : hide ? "◌" : "⚖"}
       </span>
       <div className="min-w-0 flex-1">
-        <b>{add ? "ADD MASTER COIL / NUMBER COIL" : "ADJUST STOCK"}</b>
-        <span>{add ? "กดปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Number Coil ที่ยังไม่มีในคลัง" : "เปิด Coil ของสินค้า แล้วใช้ปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก"}</span>
+        <b>{add ? "ADD MASTER COIL / NUMBER COIL" : hide ? "HIDE PRODUCT" : "ADJUST STOCK"}</b>
+        <span>{add ? "กดปุ่ม ＋ ที่บรรทัด PD CODE เพื่อเพิ่ม Master Coil / Number Coil ที่ยังไม่มีในคลัง" : hide ? "กดปุ่มตาท้ายแถวเพื่อซ่อนสินค้านี้ออกจากคลัง · สินค้าที่ซ่อนอยู่แสดงเป็นสีจาง กดอีกครั้งเพื่อแสดงคืน" : "เปิด Coil ของสินค้า แล้วใช้ปุ่ม EDIT / TRANSFER / ADJUST ที่แถว Coil ลูก"}</span>
       </div>
       <button type="button" className="fill-btn is-xs" onClick={onExit}>
         ✕ EXIT

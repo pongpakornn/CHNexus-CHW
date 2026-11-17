@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { Empty, Loading, PageBody } from "@/components/layout/Page";
@@ -99,35 +99,13 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const [animOpen, setAnimOpen] = useState<Set<number>>(new Set()); // แถว Coil ที่เพิ่งกดเปิด (เล่นอนิเมชันกางลง)
   const [loop, setLoop] = useState(false);
   const [busy, setBusy] = useState(false);
-  // 🧲 MANAGE STOCK: โหมด (ADD / ADJUST) + หน้าต่างที่เปิดอยู่
+  // 🧲 MANAGE STOCK: โหมด (ADD / ADJUST / HIDE) + หน้าต่างที่เปิดอยู่
   const [manage, setManage] = useState<ManageMode>("");
-  // 🙈 MANAGE STOCK HIDE: per browser + per stock (stock setting ShowManageStock hides it for everyone)
-  const hideKey = `nexus.manageHidden.${stkId}`;
-  const manageHidden = useSyncExternalStore(
-    (cb) => (window.addEventListener("nexus-manage-hidden", cb), () => window.removeEventListener("nexus-manage-hidden", cb)),
-    () => {
-      try {
-        return localStorage.getItem(hideKey) === "1";
-      } catch {
-        return false;
-      }
-    },
-    () => false,
-  );
-  const setManageHidden = (v: boolean) => {
-    try {
-      if (v) localStorage.setItem(hideKey, "1");
-      else localStorage.removeItem(hideKey);
-    } catch {
-      /* not remembered, this page only */
-    }
-    if (v) setManage("");
-    window.dispatchEvent(new Event("nexus-manage-hidden"));
-  };
   const manageAllowed = !!meta?.canManage && meta?.stock.showManageStock !== false;
   const [mAdd, setMAdd] = useState<Product | null>(null);
   const [mCoil, setMCoil] = useState<{ kind: "edit" | "adjust"; row: CoilRow } | null>(null);
   const [mHistory, setMHistory] = useState(false);
+  const [hideBusy, setHideBusy] = useState<number | null>(null);
   // เปลี่ยนตัวกรอง (การ์ด MAX / MIN / ... / หมวด / ค้นหา): ระหว่างโหลด = ตารางจางลง (out) -> ได้ข้อมูล = แถวทยอยเลื่อนเข้า (in)
   const [swap, setSwap] = useState<"idle" | "out" | "in">("idle");
   const swapT = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -170,8 +148,8 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
 
   // ข้อมูลทั้งคลังตามตัวกรองโหลดครั้งเดียว -> ตารางแสดงทีละหน้า (PAGE รายการ) · SHOW CARD / SHOW PRODUCTION วนครบทุกรายการ
   const query = useCallback(
-    () => api<{ token: string | null; rows: Product[] }>(`/store/${stkId}/products`, { query: { key: k, cat, filter, skip: 0, take: 100000 } }),
-    [stkId, k, cat, filter],
+    () => api<{ token: string | null; rows: Product[] }>(`/store/${stkId}/products`, { query: { key: k, cat, filter, skip: 0, take: 100000, withHidden: manage === "HIDE" ? 1 : 0 } }),
+    [stkId, k, cat, filter, manage],
   );
 
   // โหลดใหม่ทั้งชุด (keep > 0 = เรียลไทม์โหลดโครงตารางใหม่: อยู่หน้าเดิม ไม่เล่นอนิเมชันเปลี่ยนตัวกรอง)
@@ -437,7 +415,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     const mat = mStock.stockType === "MATERIAL" || (!mStock.stockType && mStock.countCoil);
     return {
       cols: mCols,
-      width: mCols.reduce((a, c) => a + (c === "MAXMIN" ? 2 : 1), 0),
+      width: mCols.reduce((a, c) => a + (c === "MAXMIN" ? 2 : 1), 0) + (manage === "HIDE" ? 1 : 0),
       coilKeys: keys,
       coilsOn,
       rowToggle: mat && coilsOn,
@@ -446,8 +424,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       isLiveView: mStock.isLiveView,
       manage,
       coilOpen: mCoil ? { coilId: mCoil.row.coilId, kind: mCoil.kind } : null,
+      hideBusy,
     };
-  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage, mCoil]);
+  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage, mCoil, hideBusy]);
 
   // หลังจัดการ Coil: ยอดล่าสุด + Coil ของสินค้านั้นเปิดให้เห็นผลทันที
   const afterManage = useCallback(
@@ -555,6 +534,19 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
         }
       },
       addCoil: (p) => setMAdd(p),
+      // HIDE mode: hide / show this product in this stock, then reload (hidden rows stay listed, greyed)
+      hide: async (p) => {
+        setHideBusy(p.partId);
+        try {
+          const res = await api<{ message: string }>(`/store/${stkId}/products/${p.partId}/show`, { method: "PUT", body: { show: !!p.isHidden, partCode: p.partCode } });
+          toast.show("SUCCESS", `${p.partCode}\n${res.message}`, "ok");
+          await reload(rowsRef.current?.length ?? 0);
+        } catch (e) {
+          toast.show("ERROR", "ไม่สามารถซ่อน / แสดงสินค้าได้\n" + (e as Error).message, "error");
+        } finally {
+          setHideBusy(null);
+        }
+      },
       // 🚚 TRANSFER: ยืนยัน -> สแกนออกจากคลังนี้ (บันทึกที่ Multi-Scanner) · EDIT / ADJUST = เปิดหน้าต่าง
       coilAct: async (a, r) => {
         if (a !== "transfer") return setMCoil((c) => (c?.row.coilId === r.coilId && c.kind === a ? null : { kind: a, row: r })); // 2nd click (red X) cancels
@@ -722,9 +714,6 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     ));
 
   const menu: MenuAction[] = [
-    ...(manageAllowed && manageHidden
-      ? [{ key: "showManage", title: "SHOW MANAGE STOCK", detail: `แสดงปุ่ม MANAGE STOCK ของ ${s.code} ในเครื่องนี้อีกครั้ง`, color: "#6750a4", icon: "import" as const, onClick: () => setManageHidden(false) }]
-      : []),
     {
       key: "export",
       title: "EXPORT EXCEL",
@@ -757,7 +746,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                 {
                   key: "penta",
                   title: pentaBusy ? "กำลังตรวจไฟล์…" : "IMPORT PENTA STOCK",
-                  detail: `ตรวจไฟล์ PentaOnlineStock (.xlsx) เทียบกับ Coil ของ CHR-Nexus · กรอง ใหม่ / น้ำหนักเปลี่ยน / เหมือนเดิม / ผิด · ยังไม่บันทึกยอด`,
+                  detail: `ตรวจไฟล์ PentaOnlineStock (.xlsx) เทียบกับ Coil ของ CHR-Nexus · กรอง ใหม่ / น้ำหนักเปลี่ยน / เหมือนเดิม / ผิด · IMPORT = อัพเดทน้ำหนัก / เพิ่ม Coil (ใส่ PD CODE) ที่เลือก`,
                   color: "#ea580c",
                   icon: "import",
                   busy: pentaBusy,
@@ -840,7 +829,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                 }}
               />
             )}
-            {penta && <ImportReview key={penta.file} preview={penta} applyUrl="" readOnly picking={pentaBusy} onPick={() => pentaRef.current?.click()} onClose={() => setPenta(null)} onDone={() => setPenta(null)} />}
+            {penta && <ImportReview key={penta.file} preview={penta} applyUrl={`/store/${stkId}/penta/apply`} picking={pentaBusy} onPick={() => pentaRef.current?.click()} onClose={() => setPenta(null)} onDone={() => setPenta(null)} />}
           </>
         }
       />
@@ -884,13 +873,13 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
 
       {cards && rows && rows.length > 0 && (
         <div className={`swap-${swap}`}>
-          <ShowCards rows={rows} stock={s} speed={speed} />
+          <ShowCards rows={rows.filter((r) => !r.isHidden)} stock={s} speed={speed} />
         </div>
       )}
 
       <ManageBar mode={manage} onExit={() => setManage("")} />
       {/* 🧲 MANAGE STOCK ลอยติดวงกลมโปรไฟล์ (เฉพาะคลังนี้ + ผู้มีสิทธิ์) */}
-      {manageAllowed && !manageHidden && <ManageDock stockCode={s.code} mode={manage} onPick={pickMode} onHistory={() => setMHistory(true)} onHide={() => setManageHidden(true)} />}
+      {manageAllowed && <ManageDock stockCode={s.code} mode={manage} onPick={pickMode} onHistory={() => setMHistory(true)} />}
 
       <div ref={wrapRef}>
       <div
@@ -928,6 +917,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                     </th>
                   ),
                 )}
+                {manage === "HIDE" && <th className="text-center">HIDE</th>}
               </tr>
             </thead>
             <tbody ref={bodyRef} data-slide>{body(false)}</tbody>

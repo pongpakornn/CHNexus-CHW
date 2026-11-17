@@ -15,6 +15,7 @@ namespace Nexus.Models
 
         // PartID (คลังอื่นที่ไม่ใช่คลังหลัก)
         public int PartId { get; set; }
+        public bool IsHidden { get; set; }   // HIDE mode only: row is hidden from this stock
 
         // คอลัมน์เสริมที่คลังเลือกแสดงได้ (CUSTOMER / PART A / PART NO / STOCK (BOX) / STOCK (PCS))
         public string Customer { get; set; }

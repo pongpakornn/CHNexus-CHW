@@ -48,7 +48,7 @@ function subscribeSize(cb: () => void) {
 }
 const sizeNow = () => `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`;
 
-export function ManageDock({ stockCode, mode, onPick, onHistory, onHide }: { stockCode: string; mode: ManageMode; onPick: (m: "ADD" | "ADJUST") => void; onHistory: () => void; onHide: () => void }) {
+export function ManageDock({ stockCode, mode, onPick, onHistory }: { stockCode: string; mode: ManageMode; onPick: (m: "ADD" | "ADJUST" | "HIDE") => void; onHistory: () => void }) {
   const corner = useSyncExternalStore(subscribeCorner, readCorner, () => "br" as Corner);
   const profile = useBubbleCorner();
   const size = useSyncExternalStore(subscribeSize, sizeNow, () => "0x0");
@@ -79,7 +79,7 @@ export function ManageDock({ stockCode, mode, onPick, onHistory, onHide }: { sto
 
   if (!w) return null;
   const on = mode !== "";
-  const label = mode === "ADD" ? "ADD MASTER COIL" : mode === "ADJUST" ? "ADJUST STOCK" : "MANAGE STOCK";
+  const label = mode === "ADD" ? "ADD MASTER COIL" : mode === "ADJUST" ? "ADJUST STOCK" : mode === "HIDE" ? "HIDE PRODUCT" : "MANAGE STOCK";
   const top = corner[0] === "t";
   const right = corner[1] === "r";
   // มุมเดียวกับวงกลมโปรไฟล์ = ซ้อนถัดไป (มุมบน = ใต้โปรไฟล์ · มุมล่าง = เหนือโปรไฟล์)
@@ -121,7 +121,7 @@ export function ManageDock({ stockCode, mode, onPick, onHistory, onHide }: { sto
     {
       key: "HIDE",
       title: "HIDE",
-      detail: `ซ่อนปุ่ม MANAGE STOCK ของ ${stockCode} ในเครื่องนี้ · เปิดคืนที่เมนู ⋯ › SHOW MANAGE STOCK`,
+      detail: `เปิดปุ่มตาท้ายแถวสินค้า · ซ่อน / แสดงสินค้าในคลัง ${stockCode} (สินค้าที่ซ่อนอยู่แสดงเป็นสีจาง)`,
       color: "#64748b",
       icon: <path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4M6.2 6.2C3.9 7.6 2.5 10 2 12c1 2.5 5 7 10 7a9.8 9.8 0 0 0 5.8-1.8M9.9 9.9a3 3 0 0 0 4.2 4.2" />,
     },
@@ -138,7 +138,7 @@ export function ManageDock({ stockCode, mode, onPick, onHistory, onHide }: { sto
   const tap = () => {
     if (on) {
       setOpen(false);
-      onPick(mode as "ADD" | "ADJUST");
+      onPick(mode);
     } else setOpen((o) => !o);
   };
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -191,7 +191,6 @@ export function ManageDock({ stockCode, mode, onPick, onHistory, onHide }: { sto
                 onClick={() => {
                   setOpen(false);
                   if (it.key === "HISTORY") onHistory();
-                  else if (it.key === "HIDE") onHide();
                   else onPick(it.key);
                 }}
               >
