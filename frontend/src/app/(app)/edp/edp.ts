@@ -37,7 +37,7 @@ export type Card = {
   origHg: number | null;
 };
 // planSig = ลายเซ็นแผน (ค่าที่ใช้คิดเวลาเท่านั้น) ส่งกลับตอนสลับการ์ด กันสลับทับแผนที่เครื่องอื่นแก้ไปแล้ว (SUB-14)
-export type CardsRes = { status: string | null; sig: string; planSig?: string; cards: Card[] };
+export type CardsRes = { status: string | null; sig: string; planSig?: string; cards: Card[]; reopen?: { id: number; by: string; at: string; text: string } | null };
 
 // ช่วงเวลา "HH:mm-HH:mm" -> [ต้น, ปลาย]
 export const split = (t: string | null): [string, string] => {

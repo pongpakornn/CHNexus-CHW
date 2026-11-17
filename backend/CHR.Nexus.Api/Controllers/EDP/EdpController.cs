@@ -47,7 +47,7 @@ public sealed class EdpController : AppController
     [HttpGet("cards")]
     public IActionResult Cards(DateTime date, string shift, int? round) =>
         Guard(Me?.CanViewEdpSubmit == true || Me?.CanViewEdpSetting == true)
-        ?? Ok(new { status = Sh(shift) == EdpService.AllDay ? null : _svc.Status(date, Sh(shift)), sig = _svc.Signature(date, Sh(shift)), planSig = _svc.PlanSignature(date, Sh(shift)), cards = _svc.Cards(date, Sh(shift), round) });
+        ?? Ok(new { status = Sh(shift) == EdpService.AllDay ? null : _svc.Status(date, Sh(shift)), sig = _svc.Signature(date, Sh(shift)), planSig = _svc.PlanSignature(date, Sh(shift)), cards = _svc.Cards(date, Sh(shift), round), reopen = Sh(shift) != EdpService.AllDay && _svc.Status(date, Sh(shift)) == "IN PROGRESS" ? _svc.LastReopen(date, Sh(shift)) : null });
 
     [HttpGet("signature")]
     public IActionResult Signature(DateTime date, string shift) =>
@@ -94,6 +94,21 @@ public sealed class EdpController : AppController
         LogService.WriteLog(Uid, "EDP_FINISH_SHIFT", $"ปิดกะ {Sh(r.Shift)} วันที่ {r.Date:dd/MM/yyyy} (COMPLETED)", $"{r.Date:yyyyMMdd}-{Sh(r.Shift)}");
         return Ok(new { message = $"ปิดกะ {Sh(r.Shift)} วันที่ {r.Date:dd/MM/yyyy} แล้ว" });
     }, "ปิดกะไม่สำเร็จ");
+
+    public sealed record ReopenReq(DateTime Date, string Shift, string Reason);
+
+    // ↩ FINISH pressed by mistake: back to IN PROGRESS (MARK again) · reason required, shown to everyone who opens the plan
+    [HttpPost("reopen")]
+    public IActionResult Reopen([FromBody] ReopenReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
+    {
+        string sh = (r?.Shift ?? "").Trim().ToUpperInvariant();
+        if (sh is not ("DAY" or "NIGHT")) throw new InvalidOperationException("กะต้องเป็น DAY หรือ NIGHT");
+        string reason = (r.Reason ?? "").Trim();
+        if (reason.Length is < 3 or > 200) throw new InvalidOperationException("กรุณาระบุเหตุผลที่ย้อนกลับแผน (3-200 ตัวอักษร)");
+        if (_svc.Reopen(r.Date, sh) == 0) throw new InvalidOperationException("แผนนี้ไม่ได้อยู่ในสถานะ COMPLETED แล้ว");
+        LogService.WriteLog(Uid, "EDP_REOPEN_SHIFT", $"ย้อนกลับแผน {sh} วันที่ {r.Date:dd/MM/yyyy} (COMPLETED -> IN PROGRESS) · เหตุผล: {reason}", $"{r.Date:yyyyMMdd}-{sh}");
+        return Ok(new { message = $"ย้อนกลับแผน {sh} วันที่ {r.Date:dd/MM/yyyy} แล้ว · กด MARK ต่อได้" });
+    }, "ย้อนกลับแผนไม่สำเร็จ");
 
     [HttpPost("mark")]
     public IActionResult Mark([FromBody] MarkReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>

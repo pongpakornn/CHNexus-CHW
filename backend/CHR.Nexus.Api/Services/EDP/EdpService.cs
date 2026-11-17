@@ -240,7 +240,7 @@ public sealed class EdpService
         using var c = Conn();
         return c.QuerySingle<string>(@"
             SELECT CONCAT(COUNT(*), ':', ISNULL(CHECKSUM_AGG(CHECKSUM(D.PLD_ID, D.PT_ID, D.QTY_PLAN, D.HG_PLAN, D.TIME_START, D.TIME_END,
-                                                                     D.IS_VISIBLE, D.ROUND_ID, D.IS_DONE, D.HG_ACT, D.IS_PROBLEM, D.REMARK)), 0))
+                                                                     D.IS_VISIBLE, D.ROUND_ID, D.IS_DONE, D.HG_ACT, D.IS_PROBLEM, D.REMARK, H.STAT)), 0))
             FROM EDP.PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID
             WHERE H.PLH_DATE = @date AND (@shift = 'ALL' OR H.SHIFT = @shift)", new { date = date.Date, shift });
     }
@@ -283,6 +283,25 @@ public sealed class EdpService
     {
         using var c = Conn();
         c.Execute("UPDATE EDP.PlanHeaders SET STAT = 'COMPLETED' WHERE PLH_DATE = @date AND (@shift = 'ALL' OR SHIFT = @shift)", new { date = date.Date, shift });
+    }
+
+    // ↩ REOPEN: COMPLETED -> IN PROGRESS (FINISH pressed by mistake) · reason lives in Nexus.SystemLogs (EDP_REOPEN_SHIFT)
+    public int Reopen(DateTime date, string shift)
+    {
+        using var c = Conn();
+        return c.Execute("UPDATE EDP.PlanHeaders SET STAT = 'IN PROGRESS' WHERE PLH_DATE = @date AND SHIFT = @shift AND STAT = 'COMPLETED'", new { date = date.Date, shift });
+    }
+
+    public sealed record ReopenInfo(int Id, string By, DateTime At, string Text);
+
+    // latest reopen of this plan (shown once on the page so everyone knows why it came back)
+    public ReopenInfo LastReopen(DateTime date, string shift)
+    {
+        using var c = Conn();
+        return c.QueryFirstOrDefault<ReopenInfo>(@"SELECT TOP 1 L.LogID AS Id, ISNULL(U.FullName, L.UserID) AS [By], L.LogDate AS At, L.Description AS Text
+                                                    FROM Nexus.SystemLogs L LEFT JOIN Nexus.Users U ON U.UserID = L.UserID
+                                                    WHERE L.ActionType = 'EDP_REOPEN_SHIFT' AND L.Reference = @ref ORDER BY L.LogID DESC",
+                                                 new { @ref = $"{date:yyyyMMdd}-{shift}" });
     }
 
     public void Mark(int pldId, int qtyAct, int hgAct)

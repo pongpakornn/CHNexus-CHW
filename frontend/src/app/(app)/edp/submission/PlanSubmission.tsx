@@ -69,6 +69,7 @@ export default function PlanSubmission() {
   const snooze = useRef(0); // CANCEL on the OPERATOR popup = ask again after 10 min
   const sig = useRef("");
   const auto = useRef(true); // เปิดหน้าครั้งแรก: แผนที่ START แล้ว = ข้ามหน้าเลือกแผน (ครั้งเดียว · กด CHANGE PLAN แล้วไม่เด้งกลับ)
+  const lastStat = useRef<{ key: string; stat: string } | null>(null); // plan started on another screen (status turns IN PROGRESS) = show the cards here too
   const next = useRef(false); // FINISH กะ DAY แล้ว: โหลดกะ NIGHT เสร็จ = เริ่มงานต่อให้เลย (ไม่มีแผน = แจ้ง PLAN NOT FOUND)
 
   // โหลดครั้งเดียว (ไม่ผูกกับ toast = แจ้งเตือนแล้วไม่รีเซ็ตกะที่เลือก) · แผนที่ START ไว้จำใน session
@@ -108,7 +109,10 @@ export default function PlanSubmission() {
         const r = await api<CardsRes>("/edp/cards", { query: { date, shift } });
         sig.current = r.sig;
         setData(r);
-        if (auto.current) {
+        const key = `${date}|${shift}`;
+        const turned = lastStat.current?.key === key && lastStat.current.stat !== "IN PROGRESS" && r.status === "IN PROGRESS";
+        lastStat.current = { key, stat: r.status ?? "" };
+        if (auto.current || turned) {
           auto.current = false;
           if (r.status === "IN PROGRESS" && r.cards.some((c) => c.isVisible && c.partNo)) setStarted(true);
         }
@@ -284,6 +288,45 @@ export default function PlanSubmission() {
     }
   }
 
+  // ↩ FINISH pressed by mistake: reason required -> back to IN PROGRESS (MARK again) · everyone opening the plan sees the reason once
+  async function reopen() {
+    if (shift === "ALL") return toast.show("WARNING", "เลือกกะ DAY หรือ NIGHT ก่อนย้อนกลับแผน", "warn");
+    const reason = await dlg.prompt({
+      title: "↩ REOPEN PLAN",
+      message: `ย้อนกลับแผน ${dmy(date)} กะ ${shift} ให้กด MARK ได้อีกครั้ง
+กรุณาระบุเหตุผล (เช่น กด FINISHED ผิด)`,
+      placeholder: "เหตุผลที่ย้อนกลับแผน",
+      required: "กรุณาระบุเหตุผล",
+      ok: "REOPEN",
+    });
+    if (!reason?.trim()) return;
+    try {
+      const r = await api<{ message: string }>("/edp/reopen", { method: "POST", body: { date, shift, reason: reason.trim() } });
+      toast.show("REOPENED", r.message, "ok");
+      setStarted(true);
+      await load(true);
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    }
+  }
+
+  // 📢 plan came back from COMPLETED: tell each viewer why (once per browser per reopen)
+  const reopenId = data?.reopen?.id;
+  useEffect(() => {
+    const ro = data?.reopen;
+    if (!ro || data?.status !== "IN PROGRESS" || Date.now() - new Date(ro.at).getTime() > 86_400_000) return;
+    const k = `edp.reopenSeen.${ro.id}`;
+    try {
+      if (localStorage.getItem(k)) return;
+      localStorage.setItem(k, "1");
+    } catch {}
+    dlg.alert({ title: "↩ แผนถูกย้อนกลับ", tone: "warn", message: `${ro.text}
+โดย ${ro.by} · ${new Date(ro.at).toLocaleString("th-TH")}
+
+กลับสู่หน้าแผนแล้ว กด MARK ได้ตามปกติ` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reopenId]);
+
   // ปิดกะ (ExecuteFinalSubmit): DAY = ปิดแล้วไปกะ NIGHT ต่อ · NIGHT = จบของวันนี้ · ALL = ปิดทั้ง 2 กะ
   async function finish() {
     const left = cards.filter((c) => !c.isDone && !c.isProblem).length;
@@ -328,7 +371,7 @@ export default function PlanSubmission() {
         />
       )}
       {!started ? (
-        <Picker date={date} onDate={setDate} shift={shift} onShift={(s) => (setShift(s), setRound(null))} meta={meta} round={round} onRound={setRound} dates={dates} data={data} cards={shown} onStart={start} />
+        <Picker date={date} onDate={setDate} shift={shift} onShift={(s) => (setShift(s), setRound(null))} meta={meta} round={round} onRound={setRound} dates={dates} data={data} cards={shown} onStart={start} onReopen={canSubmit && shift !== "ALL" ? reopen : undefined} />
       ) : (
         <>
           <EdpBar date={date} onDate={setDate} shift={shift} onShift={(s) => (setShift(s), setRound(null))} rounds={meta.rounds} round={round} onRound={setRound}>
@@ -346,6 +389,11 @@ export default function PlanSubmission() {
             {canSubmit && cards.length > 0 && !closed && (
               <button type="button" className="cta-btn is-green" onClick={finish}>
                 ✔ FINISH SHIFT
+              </button>
+            )}
+            {canSubmit && closed && shift !== "ALL" && (
+              <button type="button" className="cta-btn is-orange" onClick={reopen}>
+                ↩ REOPEN PLAN
               </button>
             )}
           </EdpBar>
@@ -470,6 +518,7 @@ function Picker({
   data,
   cards,
   onStart,
+  onReopen,
 }: {
   date: string;
   onDate: (d: string) => void;
@@ -482,6 +531,7 @@ function Picker({
   data: CardsRes | null;
   cards: Card[];
   onStart: () => void;
+  onReopen?: () => void;
 }) {
   const done = cards.filter((c) => c.isDone).length;
   const rs = meta.rounds.filter((r) => r.shift === shift);
@@ -547,6 +597,11 @@ function Picker({
           </span>
         ) : (
           <span>ไม่พบแผนของวันที่ / กะ / รอบนี้ · ตั้งแผนที่หน้า PLAN SETTING</span>
+        )}
+        {data?.status === "COMPLETED" && onReopen && cards.length > 0 && (
+          <button type="button" className="cta-btn is-orange" onClick={onReopen} title="กด FINISHED ผิด = ย้อนกลับให้กด MARK ได้ (ต้องระบุเหตุผล)">
+            ↩ REOPEN PLAN
+          </button>
         )}
         <motion.button type="button" className="edp-start" disabled={!data || cards.length === 0} onClick={onStart} whileTap={{ scale: 0.97 }}>
           {data?.status === "IN PROGRESS" ? "▶ CONTINUE PLAN" : "▶ START PLANNING"}
