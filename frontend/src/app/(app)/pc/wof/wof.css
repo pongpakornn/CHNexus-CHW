@@ -1097,3 +1097,150 @@ thead .wof-s2 {
     animation: none !important;
   }
 }
+
+/* ---- sticky block v3: 3 fixed-width left columns (PART | PL | ROW) via <colgroup>, identical in thead / tbody / tfoot ---- */
+.wof-page {
+  --w-g: 24px;
+  --w-s2: 64px;
+  --w-day: 46px;
+  --w-tot: 64px;
+}
+.wof-table {
+  table-layout: fixed;
+  width: calc(var(--w-s1) + var(--w-g) + var(--w-s2) + var(--nd, 31) * var(--w-day) + var(--w-tot));
+  min-width: 0;
+}
+.wof-c1 {
+  width: var(--w-s1);
+}
+.wof-cg {
+  width: var(--w-g);
+}
+.wof-c2 {
+  width: var(--w-s2);
+}
+.wof-cd {
+  width: var(--w-day);
+}
+.wof-ct {
+  width: var(--w-tot);
+}
+.wof-table td.wof-s1,
+.wof-table th.wof-s1 {
+  left: 0;
+}
+.wof-table td.wof-sg,
+.wof-table th.wof-sg {
+  left: var(--w-s1);
+  width: var(--w-g);
+  min-width: var(--w-g);
+  max-width: var(--w-g);
+  overflow: hidden;
+}
+.wof-table td.wof-s2,
+.wof-table th.wof-s2 {
+  left: calc(var(--w-s1) + var(--w-g));
+  width: var(--w-s2);
+  min-width: var(--w-s2);
+  max-width: var(--w-s2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wof-table td.wof-s2 {
+  background: #f5f3ff;
+}
+.wof-table th.wof-tot,
+.wof-table td.wof-tot {
+  right: 0;
+  width: var(--w-tot);
+  min-width: var(--w-tot);
+  background: #f4f4f9;
+}
+.wof-table thead th {
+  z-index: 4;
+}
+.wof-table thead th.wof-s1,
+.wof-table thead th.wof-sg,
+.wof-table thead th.wof-s2,
+.wof-table thead th.wof-tot {
+  z-index: 7;
+  background: var(--w-head);
+}
+.wof-table tbody td.wof-s1,
+.wof-table tbody td.wof-sg,
+.wof-table tbody td.wof-s2,
+.wof-table tbody td.wof-tot,
+.wof-table tfoot td.wof-s1,
+.wof-table tfoot td.wof-sg,
+.wof-table tfoot td.wof-s2,
+.wof-table tfoot td.wof-tot {
+  z-index: 5;
+}
+.wof-table td.wof-pl {
+  padding: 0 !important;
+  text-align: center !important;
+  vertical-align: middle;
+}
+.wof-pl span {
+  display: inline-block;
+  writing-mode: vertical-rl;
+  transform: none;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+/* part image: whole product visible (contain), bigger, click = lightbox */
+.wof-part-imgbtn {
+  display: block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.wof-part-img {
+  display: block;
+  width: 96px;
+  height: 72px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.wof-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(15 23 42 / 0.72);
+  cursor: zoom-out;
+  outline: none;
+}
+.wof-zoom img {
+  max-width: min(92vw, 900px);
+  max-height: 86dvh;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 16px;
+  padding: 8px;
+}
+@media (max-width: 767px) {
+  .wof-page {
+    --w-s2: 54px;
+    --w-day: 44px;
+  }
+  .wof-part-img {
+    width: 56px;
+    height: 44px;
+  }
+}
+@media print {
+  .wof-table {
+    table-layout: auto;
+    width: 100%;
+  }
+  .wof-zoom {
+    display: none;
+  }
+}
