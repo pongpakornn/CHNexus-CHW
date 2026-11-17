@@ -4,7 +4,7 @@ import { Fragment, memo, useState } from "react";
 import { Loading } from "@/components/layout/Page";
 import { StatusLamp } from "./StatusLamp";
 import { STATUS_COLOR, type Product } from "./types";
-import { AddCoilButton, CoilActions, type CoilAct, type ManageMode } from "./CoilManageButtons";
+import { AddCoilButton, CoilActions, HideButton, type CoilAct, type ManageMode } from "./CoilManageButtons";
 
 export type CoilRow = { coilId: number; partId: number; isMother: boolean; no: string; coilNo: string; motherCoil: string; weight: string; ton: string; received: string; remark?: string | null };
 export type Field = "max" | "min" | "qty" | "stockBox" | "stockPcs" | "remark";
@@ -24,6 +24,8 @@ export type RowCfg = {
   manage: ManageMode;
   /** Coil row whose EDIT / ADJUST modal is open (its button shows the red X) */
   coilOpen: { coilId: number; kind: CoilAct } | null;
+  /** HIDE mode: PartID being saved (its eye button is disabled) */
+  hideBusy: number | null;
 };
 
 // คำสั่งจากแถว -> หน้าตาราง (อ็อบเจกต์คงที่ ไม่ทำให้แถววาดใหม่)
@@ -37,6 +39,7 @@ export type RowActions = {
   saveCoilRemark: (r: CoilRow, v: string) => void;
   addCoil: (p: Product) => void;
   coilAct: (a: CoilAct, r: CoilRow) => void;
+  hide: (p: Product) => void;
 };
 
 const COIL_HEAD: Record<string, string> = { NO: "NO.", COILNO: "NUMBER COIL", MOTHER: "MASTER COIL", COIL: "STOCK (COIL)", TON: "WEIGHT (TON)", RECEIVED: "RECEIVED", REMARK: "REMARK" };
@@ -184,10 +187,15 @@ export const ProductRow = memo(function ProductRow({
     <>
       <tr
         data-pid={p.partId}
-        className={`${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${cfg.rowToggle ? "mat-row cursor-pointer" : ""} ${cfg.rowToggle && open ? "is-open" : ""}`}
+        className={`${p.isHidden ? "opacity-45 grayscale" : ""} ${p.stockStatus === "NO_CONFIG" ? "bg-[#f2f4f5] text-[#adb5bd] [&_img]:opacity-25" : ""} ${cfg.rowToggle ? "mat-row cursor-pointer" : ""} ${cfg.rowToggle && open ? "is-open" : ""}`}
         onClick={cfg.rowToggle ? (e) => !(e.target as HTMLElement).closest("input, button, [data-edit]") && act.toggle(p) : undefined}
       >
         {cfg.cols.map(cell)}
+        {cfg.manage === "HIDE" && (
+          <td className="text-center">
+            <HideButton hidden={!!p.isHidden} busy={cfg.hideBusy === p.partId} onClick={() => act.hide(p)} />
+          </td>
+        )}
       </tr>
       {coil && <CoilPanel partId={p.partId} list={coil} cfg={cfg} closing={closing} anim={anim} act={act} />}
     </>

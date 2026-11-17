@@ -244,18 +244,18 @@ public sealed class StoreController : AppController
     {
         cf,
         p.PartId, p.PartCode, p.PartName, p.Customer, p.PartA, p.PartB, p.PartNo, p.Model, p.Category, p.Supplier, p.Bin, p.GroupKey,
-        p.PackSize, p.Max, p.Min, p.Qty, p.StockBox, p.StockPcs, p.Remark, p.StockStatus, p.Priority,
+        p.PackSize, p.Max, p.Min, p.Qty, p.StockBox, p.StockPcs, p.Remark, p.StockStatus, p.Priority, p.IsHidden,
         imageUrl = string.IsNullOrWhiteSpace(p.ImageFileName) ? null : $"/api/images/file?name={Uri.EscapeDataString(p.ImageFileName)}"
     };
 
     [HttpGet("{stkId:int}/products")]
-    public IActionResult Products(int stkId, [FromQuery] string key, [FromQuery] string cat, [FromQuery] string filter, [FromQuery] int skip = 0, [FromQuery] int take = 100)
+    public IActionResult Products(int stkId, [FromQuery] string key, [FromQuery] string cat, [FromQuery] string filter, [FromQuery] int skip = 0, [FromQuery] int take = 100, [FromQuery] int withHidden = 0)
     {
         if (Me?.CanViewStore != true) return Deny();
         var s = VisibleStock(stkId);
         if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
         string catFilter = string.IsNullOrEmpty(cat) || cat == AllLabel(s) ? "" : cat;
-        var rows = _products.GetProducts(s, key ?? "", catFilter, filter ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 100000));
+        var rows = _products.GetProducts(s, key ?? "", catFilter, filter ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 100000), withHidden == 1 && Me.CanManageCoils(s));
         // ➕ ค่าช่องกรอกเพิ่มเองที่เปิดแสดงในตารางคลังนี้
         var cfIds = VisibleColumns(s).Where(CustomFields.IsKey).Select(CustomFields.IdOf).ToList();
         if (cfIds.Count == 0) return Ok(new { token = _products.GetChangeToken(s), rows = rows.Select(p => Row(p)) });
@@ -362,6 +362,24 @@ public sealed class StoreController : AppController
             return _products.UpdateProductMaster(stock, p.PartCode, p.Remark, maxVal, minVal, qtyVal, boxVal, partId) ? Ok() : Fail("ไม่สามารถบันทึกข้อมูลได้");
         }
         catch (Exception ex) { return Fail(ex, "ไม่สามารถบันทึกข้อมูลได้"); }
+    }
+
+    public sealed record ShowRequest(bool Show, string PartCode);
+
+    // MANAGE STOCK > HIDE: hide / show one product in this stock (main stock = Parts.IsShowInMaster, others = PartStocks.IsShow)
+    [HttpPut("{stkId:int}/products/{partId:int}/show")]
+    public IActionResult SetShow(int stkId, int partId, [FromBody] ShowRequest req)
+    {
+        if (partId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" });
+        if (Me?.CanViewStore != true) return Deny();
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        if (s.IsLiveView) return Fail(StockModel.LiveViewMessage);
+        if (!Me.CanManageCoils(s)) return Deny($"คุณไม่มีสิทธิ์ MANAGE STOCK ของคลัง {s.Code}");
+        // PartID decides the row (PartCode is only for the log: '-' is shared by many items)
+        if (!new ProductControlService().UpdateShowStatus(req.PartCode ?? "", req.Show, Uid, s.StkId, partId)) return Fail("บันทึกไม่สำเร็จ");
+        LogService.WriteLog(Uid, "STORE_SHOW_HIDE", $"| Stock: {s.Code} | {(req.Show ? "SHOW" : "HIDE")} | PartID: {partId}", req.PartCode);
+        return Ok(new { message = req.Show ? "แสดงรายการแล้ว" : "ซ่อนรายการแล้ว" });
     }
 
     // 🧲 แถว Coil ย่อยของสินค้า (คลิก PD CODE) - แถบ Master Coil + Coil ลูก ข้อความตาม CoilRowsView (น้ำหนักทศนิยมตามคลัง)
@@ -575,10 +593,34 @@ public sealed class StoreController : AppController
             using (var wb = new ClosedXML.Excel.XLWorkbook(path)) rows = PentaStockImportService.Parse(wb.Worksheets.First());
             TryDelete(path);
             var dto = PentaStockImportService.Preview(rows, s.StkId, PentaStockImportService.LoadCoils());
-            return Ok(new ImportPreviewDto("", file.FileName, $"PENTA STOCK · {s.Code}", dto, new List<ImportErrorDto>()));
+            string id = _uploads.Put("", file.FileName, Uid, "penta:" + s.StkId, new PentaStockImportService.State(s.StkId, file.FileName, rows));
+            return Ok(new ImportPreviewDto(id, file.FileName, $"PENTA STOCK · {s.Code}", dto, new List<ImportErrorDto>()));
         }
         catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
         catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
+    }
+
+    // 📥 IMPORT PENTA STOCK apply: CHANGED = coil weight · NEW (with PD CODE) = add coil · excluded / SAME untouched
+    [HttpPost("{stkId:int}/penta/apply")]
+    public IActionResult PentaApply(int stkId, [FromBody] ImportApplyRequest req)
+    {
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny();
+        if (Me?.CanViewStore != true) return Deny();
+        if (s.IsLiveView || !s.InSupplierImport) return Fail($"คลัง {s.Code} ไม่ได้เปิดใช้ IMPORT PENTA STOCK");
+        if (!Me.CanImportStock(s)) return Deny("คุณไม่มีสิทธิ์ Import ข้อมูลเข้าคลังนี้");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "penta:" + stkId);
+        if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
+        try
+        {
+            _uploads.Remove(req.Id);   // one apply per preview (double click / second tab = "ไฟล์หมดเวลา")
+            var r = PentaStockImportService.Apply((PentaStockImportService.State)it.State, s, req, Uid);
+            LogService.WriteLog(Uid, "PENTA_STOCK_IMPORT", $"{s.Code} · File: {it.FileName} | Updated: {r.Updated} | Added: {r.Added} | Same: {r.Same} | Skipped: {r.Skipped} | Errors: {r.Errors.Count}", "PENTA-IMPORT");
+            string msg = $"IMPORT PENTA STOCK {s.Code}: อัพเดทน้ำหนัก {r.Updated:N0} · เพิ่ม Coil {r.Added:N0} · เหมือนเดิม {r.Same:N0} · ข้าม {r.Skipped:N0}"
+                       + (r.Errors.Count > 0 ? $"\n⚠ ไม่สำเร็จ {r.Errors.Count} รายการ:\n" + string.Join("\n", r.Errors.Take(10)) : "");
+            return Ok(new { message = msg });
+        }
+        catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ"); }
     }
 
     [HttpPost("{stkId:int}/import/apply")]

@@ -200,3 +200,23 @@ reviewer (sonnet): before commit (touches stock data + permissions).
 3. FORECAST FILE: FILTER + table always shown (empty/disabled until a file is read).
    IMPORT PENTA STOCK: review modal opens first with empty cards + "เลือกไฟล์" inside (same idea).
 Team: build solo (small edits) · reviewer (sonnet) before commit (PR trigger + permissions) · tester: dept mapping helper.
+
+---
+
+# 2026-11-17 system audit -> fix plan (waiting for OK)
+Reports: scratchpad audit_realtime_perf.md · audit_security.md · audit_responsive.md (read-only audits; nothing changed).
+
+## Batch 1 — small, safe, high value (effort S each)
+Security: Next.js 16.4.2 -> 16.4.6 (install) · client IP from last X-Forwarded-For · login lock per user+IP (+ sweep old keys) ·
+  CSRF: check Origin on writes · rate-limit change-password · cap Activity Log / Scan History export (range, rows, 60 s).
+Realtime: Master Product page listens live · Layout 3D listens to "layout3d" · tab focus refetch only after >30 s hidden ·
+  boot id so clients refetch after an app restart · PR page: cheap /pr/signature instead of full list every 15 s.
+Responsive: iPad hover-only buttons (store cards) · allow pinch-zoom · touch targets >= 40px on touch screens ·
+  .md-seg min-width on 360px phones · forecast table nested scroll on phones · popups past the right edge.
+## Batch 2 — medium (effort M)
+LiveBus: stop the global "data" topic waking every page on any write · one shared MIN/alert hook (drop 60 s duplicates) ·
+LiveWatcher token cost per watched stock · Excel upload guard (uncompressed size, one import at a time) + attachment quota ·
+custom tables (forecast/pp/workload/chem lists) card mode on phones.
+## Batch 3 — large, needs CIMS together
+Password hashing + min length (Users table shared with CIMS).
+Team: build solo/frontend+backend agents per batch · reviewer + tester before each commit.
