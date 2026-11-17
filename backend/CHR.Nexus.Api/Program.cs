@@ -96,6 +96,16 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 builder.WebHost.ConfigureKestrel(k => k.AddServerHeader = false); // 🛡 ไม่บอกชนิด Server
 
 var app = builder.Build();
+LoginGuard.OnLocked = CHR.Nexus.Api.Web.LoginLockAlert.Send;
+// real UserID (PK lookup) -> lock key; unknown ID = no per-account lock / alert
+LoginGuard.Canonical = uid =>
+{
+    using var c = new Microsoft.Data.SqlClient.SqlConnection(GlobalConfig.ConnStr);
+    using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT TOP 1 UserID FROM Nexus.Users WHERE UserID = @u", c);
+    cmd.Parameters.AddWithValue("@u", uid ?? "");
+    c.Open();
+    return cmd.ExecuteScalar() as string;
+};
 CHR.Nexus.Api.Web.DropWarn.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("LogDrop");
 
 app.UseMiddleware<SecurityMiddleware>(); // 🛡 Security headers · กันคำขอบันทึกจากเว็บภายนอก (CSRF) · จำกัดคำขอต่อเครื่อง

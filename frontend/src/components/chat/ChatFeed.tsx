@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { chatView, openChat, openSupport, refreshNotifications, topicOf } from "@/lib/support";
 import { useToast } from "@/components/notifications/Toasts";
-import { minTokenOf, openMinSign } from "@/lib/minSign";
+import { LOCKS_TOKEN, minTokenOf, openMinSign } from "@/lib/minSign";
 
 // 🔔 ข้อความใหม่ = Toast "ใครส่งอะไรมา" + กระดิ่งอัพเดททันที (ทำงานเบื้องหลังตลอดเวลาที่ Login)
 //   ครั้งแรกจำเลขข้อความล่าสุดไว้ก่อน (ไม่เด้งของเก่าย้อนหลัง) · กด Toast = เปิดแชทนั้น
@@ -56,7 +56,8 @@ export function ChatFeed() {
             if (!mr.text.startsWith("✍")) toast.show(`💬 ${m.fromName}`, mr.text.slice(0, 120), "chat", { onClick: () => openMinSign(mr.id) });
             return;
           }
-          const short = m.body.length > 240 ? m.body.slice(0, 240) + "…" : m.body;
+          const clean = m.body.replace(LOCKS_TOKEN, "").trim();
+          const short = clean.length > 240 ? clean.slice(0, 240) + "…" : clean;
           const att = attachOf(m);
           const text = att && (short === "📷 รูปภาพ" || short.startsWith("📎 ")) ? "" : short;
           const info = { name: m.fromName, attach: att, time: hm(m.at) };
