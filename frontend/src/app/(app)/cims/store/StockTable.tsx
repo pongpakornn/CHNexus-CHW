@@ -18,6 +18,8 @@ import { type Counts, type Product, type Stock } from "./types";
 import { MinReportMenu } from "./MinReport";
 import { Layout3DButton } from "./Layout3DButton";
 import { ManageDock } from "./ManageDock";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 import { AddCoilModal, AdjustCoilModal, EditCoilModal, ManageBar, ManageHistoryModal, type ManageMode } from "./CoilManage";
 
 type Meta = {
@@ -114,6 +116,10 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const bodyRef = useRef<HTMLDivElement & HTMLTableSectionElement>(null);
   const verRef = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  // 📥 IMPORT PENTA STOCK (stock setting InSupplierImport): supplier file -> review only (no write yet)
+  const pentaRef = useRef<HTMLInputElement>(null);
+  const [penta, setPenta] = useState<ImportPreview | null>(null);
+  const [pentaBusy, setPentaBusy] = useState(false);
   const rowsRef = useRef<Product[] | null>(null);
   const coilsRef = useRef(coils);
   const showCoilsRef = useRef(showCoils);
@@ -719,7 +725,19 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
             icon: "template",
             onClick: () => template(false),
           },
-          ...(s.countCoil && meta.hasCoilRegister
+          ...(s.inSupplierImport
+            ? [
+                {
+                  key: "penta",
+                  title: pentaBusy ? "กำลังตรวจไฟล์…" : "IMPORT PENTA STOCK",
+                  detail: `ตรวจไฟล์ PentaOnlineStock (.xlsx) เทียบกับ Coil ของ CHR-Nexus · กรอง ใหม่ / น้ำหนักเปลี่ยน / เหมือนเดิม / ผิด · ยังไม่บันทึกยอด`,
+                  color: "#ea580c",
+                  icon: "import",
+                  busy: pentaBusy,
+                  onClick: () => pentaRef.current?.click(),
+                },
+              ]
+            : s.countCoil && meta.hasCoilRegister
             ? [
                 {
                   key: "coil",
@@ -774,6 +792,28 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                 }}
               />
             )}
+            {meta.canImport && s.inSupplierImport && (
+              <input
+                ref={pentaRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f || pentaBusy) return;
+                  setPentaBusy(true);
+                  try {
+                    setPenta(await upload<ImportPreview>(`/store/${stkId}/penta`, f));
+                  } catch (err) {
+                    toast.show("ERROR", (err as Error).message, "error");
+                  } finally {
+                    setPentaBusy(false);
+                  }
+                }}
+              />
+            )}
+            {penta && <ImportReview preview={penta} applyUrl="" readOnly onClose={() => setPenta(null)} onDone={() => setPenta(null)} />}
           </>
         }
       />

@@ -145,3 +145,44 @@ To do: grep `app/(app)/**/page.tsx` for pages not under `PageBody`/`.page-in` an
 
 ## Not checked (unsure)
 Forecast apply LiveBus, forecast/order table names, `ProductionPlanController` workload/excel style, whether every page already uses `PageBody`, how `Me.can` flags are built server-side, `CreatePartTemplate` yellow cells/Guide detail.
+
+---
+
+# PENTA STOCK IMPORT for STORE-MAT / STORE-PANTA (2026-11-17, waiting for OK)
+
+Goal: import the supplier file `PentaOnlineStock_*.xlsx` (sheet "Penta Online Stock", 36 columns, 1 row = 1 coil)
+into a review screen like FORECAST / ORDER (shared `components/import/ImportReview` + `ImportReviewDto`), from the
+EXCEL menu of STORE-MAT and STORE-PANTA only. Which columns get written to stock is decided by the owner after slice 1.
+
+## File check (17-11-2026 09:00, 682 coils)
+| MAT_TYPE | match, same KG | match, KG differs | match, coil 0 KG | not in CHR-Nexus |
+|---|---|---|---|---|
+| MC Mother Coil (327) | 212 | 12 | 61 | 42 |
+| FG Finish Goods / slit (355) | 11 | 264 | 2 | 78 |
+Match order: MAT_NO = Number Coil -> COIL_NO = coil -> COIL_NO = Master Coil. FG "KG differs" is mostly a slit row
+matched to its mother coil (REMAIN_WT of the slit vs the mother weight), so FG needs its own rule (owner decides).
+
+## Slices
+1. DB `56_Stock_SupplierImport.sql`: `Nexus.Stocks.InSupplierImport BIT NOT NULL DEFAULT 0`; set 1 for STORE-MAT, STORE-PANTA.
+   Stock settings (StockEditor, add/edit stock): checkbox "IMPORT PENTA STOCK (ใช้กับคลังนี้)" next to IMPORT EXCEL.
+2. Backend `Services/Store/PentaStockImportService.cs` + `POST /store/{id}/penta/preview`:
+   read by header name (not position), key = MAT_NO (fallback COIL_NO), status SAME / CHANGED (KG old -> new) / NEW
+   (coil not in register) / DUPLICATE / INVALID, fields shown: COIL_NO, MAT_NO, MAT_TYPE, MAT_SPEC, DESCRIPTION,
+   REMAIN_QTY, REMAIN_WT, STATUS, ZONE, PD CODE, NEXUS KG. Permission = CanImportStock + flag on. Read only.
+3. Frontend: StockTable EXCEL menu -> when flag on, "TEMPLATE COIL" item is replaced by "IMPORT PENTA STOCK"
+   (other stocks unchanged). Opens ImportReview (filter cards, search, view rows, exclude, export).
+4. (after owner picks columns) `POST /store/{id}/penta/apply`: one transaction, per-coil update of the chosen fields,
+   CoilManageLog + SystemLogs, recount like RecountCoils. Until then the IMPORT button is hidden (preview only).
+
+## Team
+backend + frontend: solo by tech lead (small, reuses ImportReview) · tester: parser + matcher unit test ·
+reviewer (sonnet): before commit (touches stock data + permissions).
+
+## Approval Sheet
+1. Run DB script 56 (adds 1 column, sets 2 stocks) — undo: drop column.
+2. Build slices 1-3 (preview only, writes nothing to stock).
+3. Commit / push / copy to .56 after review.
+
+## Owner questions (needed for slice 4, not for 1-3)
+- Which columns update CHR-Nexus (REMAIN_WT -> coil KG? STATUS / ZONE -> remark?) and for which MAT_TYPE.
+- Coils not in CHR-Nexus (120): add them (needs PD CODE: from MAT_SPEC/DESCRIPTION?) or only report.

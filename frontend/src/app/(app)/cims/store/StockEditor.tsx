@@ -58,6 +58,7 @@ const NEW_STOCK: Partial<Stock> = {
   showCoilRowsSetting: true,
   cardStyleSetting: "IMAGE",
   inExcel: true,
+  inSupplierImport: false,
   inSysQr: true,
   outSysQr: true,
   inPickList: false,
@@ -292,6 +293,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               {check("inSupplier", "SUPPLIER LABEL")}
               {check("inSysQr", "SYSTEM QR")}
               {check("inExcel", "IMPORT EXCEL (TEMPLATE MAX-MIN / COIL)")}
+              {check("inSupplierImport", "IMPORT PENTA STOCK (แทน TEMPLATE COIL)")}
             </div>
             <div className="grid gap-2">
               <div className="text-xs font-extrabold text-danger">OUT (จ่ายออก)</div>

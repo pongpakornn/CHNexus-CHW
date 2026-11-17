@@ -438,6 +438,7 @@ namespace Nexus.Services
             code = (code ?? "").Trim();
             name = (name ?? "").Trim();
             if (code.Length == 0) return new PartPick { Error = "กรุณากรอก PRODUCT CODE" };
+            if (code == "-") return new PartPick { Error = "PRODUCT CODE \"-\" ใช้ระบุสินค้าไม่ได้ (STORE-SUB ใช้ร่วมกันหลายรายการ) กรุณาเลือกสินค้าจากรายการ" };
             string ps = (packSize ?? "").Trim();
             if (ps.Length > 0 && !ps.All(char.IsDigit)) return new PartPick { Error = "PACKSIZE ต้องเป็นตัวเลข" };
             var stock = new StockService().GetStocks().FirstOrDefault(s => s.StkId == stockId);

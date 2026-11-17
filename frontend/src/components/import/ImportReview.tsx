@@ -23,7 +23,8 @@ const isCheck = (r: ImportRow) => r.status === "DUPLICATE" || r.status === "SIMI
 
 // Generic import review: summary cards -> row list (view / edit / exclude / pick existing) -> IMPORT confirm.
 // Map value: existing key = use that one; "" = keep as new (SIMILAR rows).
-export function ImportReview({ preview, applyUrl, onDone, onClose, warn }: { preview: ImportPreview; applyUrl: string; onDone: () => void; onClose: () => void; warn?: string }) {
+// readOnly = review / filter only (no IMPORT button), e.g. PENTA STOCK until its columns are decided
+export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnly }: { preview: ImportPreview; applyUrl: string; onDone: () => void; onClose: () => void; warn?: string; readOnly?: boolean }) {
   const dlg = useDialogs();
   const toast = useToast();
   const reduce = useReducedMotion();
@@ -53,7 +54,7 @@ export function ImportReview({ preview, applyUrl, onDone, onClose, warn }: { pre
 
   async function close() {
     if (busy) return;
-    if (dirty && !(await dlg.confirm({ title: "ปิดหน้าต่าง", message: "มีการแก้ไข / เลือกรายการไว้ ต้องการปิดและทิ้งการเปลี่ยนแปลงใช่หรือไม่?", ok: "CLOSE", danger: true }))) return;
+    if (dirty && !readOnly && !(await dlg.confirm({ title: "ปิดหน้าต่าง", message: "มีการแก้ไข / เลือกรายการไว้ ต้องการปิดและทิ้งการเปลี่ยนแปลงใช่หรือไม่?", ok: "CLOSE", danger: true }))) return;
     onClose();
   }
 
@@ -117,7 +118,7 @@ export function ImportReview({ preview, applyUrl, onDone, onClose, warn }: { pre
     <Modal
       open
       size="xl"
-      title={`📥 เตรียม IMPORT • ${preview.title}`}
+      title={readOnly ? `🔎 ตรวจไฟล์ • ${preview.title}` : `📥 เตรียม IMPORT • ${preview.title}`}
       onClose={close}
       footer={
         <>
@@ -130,9 +131,11 @@ export function ImportReview({ preview, applyUrl, onDone, onClose, warn }: { pre
           <button type="button" className="btn-ghost" disabled={busy} onClick={close}>
             CANCEL
           </button>
-          <button type="button" className="btn bg-accent" disabled={busy || c.ready === 0} onClick={doImport}>
-            {busy ? <span className="ff-spin is-sm" aria-label="กำลังทำงาน" /> : `📥 IMPORT (${c.ready.toLocaleString()})`}
-          </button>
+          {!readOnly && (
+            <button type="button" className="btn bg-accent" disabled={busy || c.ready === 0} onClick={doImport}>
+              {busy ? <span className="ff-spin is-sm" aria-label="กำลังทำงาน" /> : `📥 IMPORT (${c.ready.toLocaleString()})`}
+            </button>
+          )}
         </>
       }
     >

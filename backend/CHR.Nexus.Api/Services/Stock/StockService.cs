@@ -36,7 +36,8 @@ namespace Nexus.Services
             + (Nexus.Helpers.DbSchema.HasCardStyle ? ", s.CardStyle" : ", CAST(NULL AS NVARCHAR(10)) AS CardStyle")
             + (Nexus.Helpers.DbSchema.HasPartB ? ", s.ShowColPartB" : ", CAST(0 AS BIT) AS ShowColPartB")
             + (Nexus.Helpers.DbSchema.HasNotSetButton ? ", s.NotSetButton" : ", CAST(0 AS BIT) AS NotSetButton")
-            + (Nexus.Helpers.DbSchema.HasStockType ? ", s.StockType" : ", CAST(NULL AS NVARCHAR(20)) AS StockType");
+            + (Nexus.Helpers.DbSchema.HasStockType ? ", s.StockType" : ", CAST(NULL AS NVARCHAR(20)) AS StockType")
+            + (Nexus.Helpers.DbSchema.HasSupplierImport ? ", s.InSupplierImport" : ", CAST(0 AS BIT) AS InSupplierImport");
 
         // คลังทั้งหมด (คลังหลักอยู่บนสุด) พร้อมจำนวนรายการสินค้าในแต่ละคลัง
         // ⚡ แคชรายการคลังร่วมกันทุกคน (อายุสูงสุด 5 วินาที) · ทุกจุดที่บันทึก / แก้ / ลบคลังเรียก InvalidateStocks() ทันที
@@ -253,7 +254,8 @@ namespace Nexus.Services
                 MaxMinDecimalSetting = rdr["MaxMinDecimal"] == DBNull.Value ? (bool?)null : Convert.ToBoolean(rdr["MaxMinDecimal"]),
                 CardStyleSetting = rdr["CardStyle"] == DBNull.Value ? null : rdr["CardStyle"].ToString(),
                 NotSetButton = Convert.ToBoolean(rdr["NotSetButton"]),
-                StockType = rdr["StockType"] == DBNull.Value ? null : rdr["StockType"].ToString()
+                StockType = rdr["StockType"] == DBNull.Value ? null : rdr["StockType"].ToString(),
+                InSupplierImport = Convert.ToBoolean(rdr["InSupplierImport"])
             };
         }
 
@@ -295,12 +297,12 @@ namespace Nexus.Services
                         INSERT INTO Nexus.Stocks (StockCode, StockName, Unit, IsMain, UseMaxMin,
                             ShowColImage, ShowColCode, ShowColName, ShowColQuantity, ShowColRemark,
                             InPickList, InSupplier, InSystemQR, InExcel, OutPickList, OutSupplier, OutSystemQR,
-                            GroupBy, MaxMinBasis, ShowColCustomer, ShowColPartA, ShowColPartB, ShowColPartNumber, ShowColStockBox, ShowColStockPcs, ShowColNo, ShowColModel, OutExcel, AllowDecimal, CountCoil, ColumnOrder, ShowCoilRows, CoilRowColumns, MaxMinDecimal, CardStyle, NotSetButton, StockType,
+                            GroupBy, MaxMinBasis, ShowColCustomer, ShowColPartA, ShowColPartB, ShowColPartNumber, ShowColStockBox, ShowColStockPcs, ShowColNo, ShowColModel, OutExcel, AllowDecimal, CountCoil, ColumnOrder, ShowCoilRows, CoilRowColumns, MaxMinDecimal, CardStyle, NotSetButton, StockType, InSupplierImport,
                             SortNo, CreatedBy)
                         VALUES (@code, @name, @unit, 0, @maxmin,
                             @cimg, @ccode, @cname, @cqty, @crmk,
                             @ipl, @isup, @isys, @ixls, @opl, @osup, @osys,
-                            @grp, @mmb, @ccust, @cparta, @cpartb, @cpartno, @cbox, @cpcs, @cno, @cmodel, @oxls, @dec, @coil, @corder, @csub, @ccols, @mmdec, @card, @nset, @stype,
+                            @grp, @mmb, @ccust, @cparta, @cpartb, @cpartno, @cbox, @cpcs, @cno, @cmodel, @oxls, @dec, @coil, @corder, @csub, @ccols, @mmdec, @card, @nset, @stype, @supimp,
                             (SELECT ISNULL(MAX(SortNo), 0) + 1 FROM Nexus.Stocks), @uid);
                         SELECT CAST(SCOPE_IDENTITY() AS INT);";
                     if (!Nexus.Helpers.DbSchema.HasAllowDecimal) sql = sql.Replace(" AllowDecimal,", "").Replace(" @dec,", "");
@@ -312,6 +314,7 @@ namespace Nexus.Services
                     if (!Nexus.Helpers.DbSchema.HasNotSetButton) sql = sql.Replace(" NotSetButton,", "").Replace(" @nset,", "");
                     if (!Nexus.Helpers.DbSchema.HasPartB) sql = sql.Replace(" ShowColPartB,", "").Replace(" @cpartb,", "");
                     if (!Nexus.Helpers.DbSchema.HasStockType) sql = sql.Replace(" StockType,", "").Replace(" @stype,", "");
+                    if (!Nexus.Helpers.DbSchema.HasSupplierImport) sql = sql.Replace(" InSupplierImport,", "").Replace(" @supimp,", "");
 
                     int newId;
                     using (var cmd = new SqlCommand(sql, conn, trans))
@@ -363,7 +366,7 @@ namespace Nexus.Services
                             OutPickList = @opl, OutSupplier = @osup, OutSystemQR = @osys,
                             GroupBy = @grp, MaxMinBasis = @mmb, ShowColCustomer = @ccust, ShowColPartA = @cparta, ShowColPartB = @cpartb,
                             ShowColPartNumber = @cpartno, ShowColStockBox = @cbox, ShowColStockPcs = @cpcs,
-                                 ShowColNo = @cno, ShowColModel = @cmodel, OutExcel = @oxls, AllowDecimal = @dec, CountCoil = @coil, ColumnOrder = @corder, ShowCoilRows = @csub, CoilRowColumns = @ccols, MaxMinDecimal = @mmdec, CardStyle = @card, NotSetButton = @nset, StockType = @stype,
+                                 ShowColNo = @cno, ShowColModel = @cmodel, OutExcel = @oxls, AllowDecimal = @dec, CountCoil = @coil, ColumnOrder = @corder, ShowCoilRows = @csub, CoilRowColumns = @ccols, MaxMinDecimal = @mmdec, CardStyle = @card, NotSetButton = @nset, StockType = @stype, InSupplierImport = @supimp,
                             UpdatedBy = @uid, UpdatedDate = GETDATE()
                         WHERE StockID = @id";
                     if (!Nexus.Helpers.DbSchema.HasAllowDecimal) sql = sql.Replace(" AllowDecimal = @dec,", "");
@@ -375,6 +378,7 @@ namespace Nexus.Services
                     if (!Nexus.Helpers.DbSchema.HasNotSetButton) sql = sql.Replace(" NotSetButton = @nset,", "");
                     if (!Nexus.Helpers.DbSchema.HasPartB) sql = sql.Replace(" ShowColPartB = @cpartb,", "");
                     if (!Nexus.Helpers.DbSchema.HasStockType) sql = sql.Replace(" StockType = @stype,", "");
+                    if (!Nexus.Helpers.DbSchema.HasSupplierImport) sql = sql.Replace(" InSupplierImport = @supimp,", "");
 
                     using (var cmd = new SqlCommand(sql, conn, trans))
                     {
@@ -446,6 +450,7 @@ namespace Nexus.Services
             cmd.Parameters.AddWithValue("@ccols", string.IsNullOrWhiteSpace(s.CoilRowColumns) ? (object)DBNull.Value : s.CoilRowColumns);
             cmd.Parameters.AddWithValue("@nset", s.NotSetButton);
             cmd.Parameters.AddWithValue("@stype", string.IsNullOrWhiteSpace(s.StockType) ? (object)DBNull.Value : s.StockType);
+            cmd.Parameters.AddWithValue("@supimp", s.InSupplierImport);
         }
 
         private static void SaveFormatLinks(SqlConnection conn, SqlTransaction trans, int stkId, IEnumerable<int> fmtIds)

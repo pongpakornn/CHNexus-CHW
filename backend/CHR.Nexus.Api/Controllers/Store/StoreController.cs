@@ -312,6 +312,7 @@ public sealed class StoreController : AppController
     [HttpPut("{stkId:int}/products/{partId:int}")]
     public IActionResult Edit(int stkId, int partId, [FromBody] EditRequest p)
     {
+        if (partId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" }); // never fall back to PartCode ('-' is shared)
         if (Me?.CanViewStore != true) return Deny();
         var stock = VisibleStock(stkId);
         if (stock == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
@@ -555,6 +556,30 @@ public sealed class StoreController : AppController
     }
 
     public sealed record ApplyRequest(string Id, string Kind);
+
+    // 📥 IMPORT PENTA STOCK: supplier file review (stocks with InSupplierImport) · preview only, writes nothing
+    [HttpPost("{stkId:int}/penta")]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> PentaPreview(int stkId, IFormFile file)
+    {
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny();
+        if (s.IsLiveView) return Fail(StockModel.LiveViewMessage);
+        if (!s.InSupplierImport) return Fail($"คลัง {s.Code} ไม่ได้เปิดใช้ IMPORT PENTA STOCK (ตั้งค่าคลัง)");
+        if (!Me.CanImportStock(s)) return Deny("คุณไม่มีสิทธิ์ Import ข้อมูลเข้าคลังนี้");
+        string path;
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
+        try
+        {
+            List<PentaStockImportService.Src> rows;
+            using (var wb = new ClosedXML.Excel.XLWorkbook(path)) rows = PentaStockImportService.Parse(wb.Worksheets.First());
+            TryDelete(path);
+            var dto = PentaStockImportService.Preview(rows, s.StkId, PentaStockImportService.LoadCoils());
+            return Ok(new ImportPreviewDto("", file.FileName, $"PENTA STOCK · {s.Code}", dto, new List<ImportErrorDto>()));
+        }
+        catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
+        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
+    }
 
     [HttpPost("{stkId:int}/import/apply")]
     public IActionResult ImportApply(int stkId, [FromBody] ApplyRequest req)
