@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { api, download } from "@/lib/api";
 import { useLive } from "@/lib/live";
+import { sharedGet } from "@/lib/sharedGet";
 import { ReportPreview, dt, n0, span, titleOf, useNow, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { IC, Ico, PendingRow } from "@/components/notifications/MinPending";
 
@@ -36,7 +37,7 @@ function MinReportAlertHost() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api<Alerts>("/minreport/alerts");
+      const r = await sharedGet<Alerts>("/minreport/alerts");
       if (r.now) skew.current = new Date(r.now).getTime() - Date.now();
       setData(r);
       setHidden(false);
@@ -47,7 +48,7 @@ function MinReportAlertHost() {
 
   useEffect(() => {
     const first = setTimeout(load, 1500);
-    const t = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
+    const t = setInterval(() => document.visibilityState === "visible" && load(), 300_000);
     return () => (clearTimeout(first), clearInterval(t));
   }, [load]);
   useLive(["minreport"], load);

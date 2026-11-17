@@ -1375,14 +1375,13 @@ BEGIN TRAN;
     UPDATE x SET PartID = c.PartID FROM #mm x JOIN #c c ON c.Code = x.Code WHERE x.PartID IS NULL;
 
     -- 2) visible in the store · name only when empty · quantities / MAX / MIN untouched
-    UPDATE P SET IsShowInMaster = 1 FROM Nexus.Parts P JOIN #c c ON c.PartID = P.PartID WHERE c.InMat = 1 AND ISNULL(P.IsShowInMaster, 0) = 0;
-    DECLARE @showMat INT = @@ROWCOUNT;
+    -- (one-time: existing items were made visible on 17-11-2026 · not repeated so a re-run never undoes MANAGE STOCK > HIDE)
+    DECLARE @showMat INT = 0;
     UPDATE P SET Description = c.Name FROM Nexus.Parts P JOIN #c c ON c.PartID = P.PartID WHERE ISNULL(LTRIM(P.Description), '') = '';
     DECLARE @names INT = @@ROWCOUNT;
-    UPDATE S SET IsShow = 1, UpdatedDate = GETDATE() FROM Nexus.PartStocks S JOIN #c c ON c.PartID = S.PartID WHERE c.InPanta = 1 AND S.StockID = 16 AND ISNULL(S.IsShow, 0) = 0;
-    DECLARE @showPanta INT = @@ROWCOUNT;
+    DECLARE @showPanta INT = 0;
     INSERT INTO Nexus.PartStocks (StockID, PartID, Quantity, MaxQuantity, MinQuantity, IsShow)
-    SELECT 16, c.PartID, 0, 0, 0, 1 FROM #c c WHERE c.InPanta = 1 AND NOT EXISTS (SELECT 1 FROM Nexus.PartStocks S WHERE S.PartID = c.PartID AND S.StockID = 16);
+    SELECT 16, c.PartID, 0, 0, 0, 1 FROM #c c JOIN Nexus.Parts P ON P.PartID = c.PartID AND P.Category = '4L' WHERE c.InPanta = 1 AND NOT EXISTS (SELECT 1 FROM Nexus.PartStocks S WHERE S.PartID = c.PartID AND S.StockID = 16);
     DECLARE @addPanta INT = @@ROWCOUNT;
 
     -- 3) master coils: 0 KG, no Number Coil, no recount

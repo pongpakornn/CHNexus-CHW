@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Nexus.Models;
 using Nexus.Services;
 
 namespace CHR.Nexus.Api.Web;
@@ -54,10 +55,24 @@ public sealed class LiveWatcher : BackgroundService
 
     public LiveWatcher(ILogger<LiveWatcher> log) => _log = log;
 
-    public static void Watch(int stkId) => Watched[stkId] = DateTime.UtcNow;
+    // เงียบนานเกิน 30 วินาที (ไม่มีการบันทึก / ไม่พบการเปลี่ยน / ไม่มีคลังใหม่) = เช็คทุก 3 วินาที · มีเมื่อไรกลับมาทุก 1 วินาที
+    private static long _activeTicks = DateTime.UtcNow.Ticks;
+    private static void Active() => Interlocked.Exchange(ref _activeTicks, DateTime.UtcNow.Ticks);
+    private static readonly ConcurrentDictionary<int, (StockModel S, DateTime At)> StockCache = new();   // ตั้งค่าคลังไม่ค่อยเปลี่ยน · ไม่ต้องโหลดทุกวินาที
+
+    public static void Watch(int stkId)
+    {
+        if (!Watched.ContainsKey(stkId)) Active();
+        Watched[stkId] = DateTime.UtcNow;
+    }
 
     // มีการบันทึก -> เช็คเดี๋ยวนี้ (ไม่ต้องรอรอบ 1 วินาที)
-    public static void Poke() => Interlocked.Exchange(ref _poke, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+    public static void Poke()
+    {
+        Active();
+        StockCache.Clear();
+        Interlocked.Exchange(ref _poke, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+    }
 
     // คลังที่แสดงสดจาก StorePC (อ่านผ่าน View ข้ามฐาน): เช็คไม่ถี่กว่าทุก 5 วินาที · เวลาที่เช็คล่าสุดต่อคลัง
     private static readonly ConcurrentDictionary<int, DateTime> LiveViewChecked = new();
@@ -68,7 +83,8 @@ public sealed class LiveWatcher : BackgroundService
         var lastRun = DateTime.MinValue;
         while (!ct.IsCancellationRequested)
         {
-            try { await Task.WhenAny(Task.Delay(1000, ct), _poke.Task); }
+            int tick = DateTime.UtcNow.Ticks - Interlocked.Read(ref _activeTicks) > TimeSpan.FromSeconds(30).Ticks ? 2000 : 1000;   // idle 30 s = check every 2 s (external StorePC changes still show within ~2 s)
+            try { await Task.WhenAny(Task.Delay(tick, ct), _poke.Task); }
             catch (OperationCanceledException) { break; }
             // รวมการบันทึกที่มาติด ๆ กันเป็นรอบเดียว · และเว้นอย่างน้อย 300 มิลลิวินาทีจากรอบก่อน (ถูก Poke รัว ๆ ก็ไม่ถล่มฐานข้อมูล)
             int wait = (int)Math.Max(60, 300 - (DateTime.UtcNow - lastRun).TotalMilliseconds);
@@ -88,7 +104,7 @@ public sealed class LiveWatcher : BackgroundService
                 {
                     string now = Token(id);
                     if (now == null) continue;   // คลัง StorePC ยังไม่ถึงรอบเช็ค (5 วินาที) · ใช้ Token เดิม
-                    if (Last.TryGetValue(id, out var was) && was != now) LiveBus.Publish("store:" + id, "store");
+                    if (Last.TryGetValue(id, out var was) && was != now) { Active(); LiveBus.Publish("store:" + id, "store"); }
                     Last[id] = now;
                 }
                 catch (Exception ex)
@@ -108,7 +124,13 @@ public sealed class LiveWatcher : BackgroundService
     // Token เดียวกับที่หน้าคลังใช้อยู่ (ตัวเลข + ตั้งค่า + โครงตาราง + Coil) - คลังถูกลบ = "-"
     private static string Token(int stkId)
     {
-        var s = new StockService().GetStock(stkId);
+        StockModel s;
+        if (StockCache.TryGetValue(stkId, out var c) && DateTime.UtcNow - c.At < TimeSpan.FromSeconds(15)) s = c.S;
+        else
+        {
+            s = new StockService().GetStock(stkId);
+            if (s != null) StockCache[stkId] = (s, DateTime.UtcNow);
+        }
         if (s == null) return "-";
         if (s.IsLiveView)
         {
@@ -127,6 +149,8 @@ public sealed class LivePublishMiddleware
     public LivePublishMiddleware(RequestDelegate next) => _next = next;
 
     private static readonly HashSet<string> OwnTopicAreas = new(StringComparer.OrdinalIgnoreCase) { "log", "chat", "support" };
+    // หมวดที่ไม่มีจอ "data" (Dashboard / คลัง / PR / PICK LIST / SCANNER / MAX-MIN / FORECAST / USERS) แสดงข้อมูลของมัน · แจ้งแค่ชื่อหมวด (จอที่ฟังหมวดนั้นยังอัพเดททันที)
+    private static readonly HashSet<string> NoDataAreas = new(StringComparer.OrdinalIgnoreCase) { "notifications", "buglog", "edp", "chem", "profile", "signature" };
     private static readonly HashSet<string> PrefPaths = new(StringComparer.OrdinalIgnoreCase) { "/api/products/filter", "/api/products/default-stocks", "/api/pr/stock",
         "/api/forecast/file/read", "/api/forecast/file/preview", "/api/forecast/file/check", "/api/forecast/file/export",
         "/api/pp/pcs/import", "/api/pp/workload/excel" };   // 📂 FORECAST FILE: อ่าน / ตรวจ / ส่งออก ไม่ได้เปลี่ยนข้อมูล
@@ -143,7 +167,9 @@ public sealed class LivePublishMiddleware
         if (PrefPaths.Contains(path.Value?.TrimEnd('/') ?? "") || AuditMiddleware.PrefPaths.Contains(path.Value?.TrimEnd('/') ?? "")) return;
         // Log เปิดหน้า / แชท = แจ้งเฉพาะจอที่แสดงเรื่องนั้น (ไม่ใช่ "data" -> จอทุกคนไม่ต้องโหลดใหม่ทุกครั้งที่มีคนเปลี่ยนหน้า)
         if (OwnTopicAreas.Contains(area)) { LiveBus.Publish(area); return; }
-        LiveBus.Publish(area.Length > 0 ? new[] { "data", area } : new[] { "data" });
+        // "log" = จอ Activity Log (Audit เขียนทุกการบันทึก) · หมวดที่ไม่กระทบตัวเลข / รายการของจอกลาง = แจ้งเฉพาะหมวดตัวเอง ไม่ปลุก "data"
+        if (NoDataAreas.Contains(area)) { LiveBus.Publish(area, "log"); return; }
+        LiveBus.Publish(area.Length > 0 ? new[] { "data", area, "log" } : new[] { "data", "log" });
         LiveWatcher.Poke();
     }
 }

@@ -87,7 +87,7 @@ export default function UsersPage() {
 
   // ⚡ เรียลไทม์ 3 วินาที (คงคำค้นไว้)
   useLive(
-    ["data"],
+    ["data", "profile", "signature"],
     async () => {
       const r = await api<{ token: string }>("/users/token");
       if (tokenRef.current && r.token !== tokenRef.current) load(true);

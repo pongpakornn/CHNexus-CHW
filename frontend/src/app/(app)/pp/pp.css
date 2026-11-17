@@ -2895,3 +2895,8 @@ thead .pp-stick {
 .pp-stage svg .pp-bar, .pp-stage svg .pp-mark { will-change: opacity; }
 /* 📸 แผนของเดือนตาม Excel (เดือนย้อนหลัง) */
 .pp-note.is-snap { color: #3730a3; background: #eef2ff; border-color: #c7d2fe; }
+
+/* phone card mode (FitTables data-stack): totals row has no column labels -> hide */
+.pp-table.is-stacked tfoot {
+  display: none;
+}

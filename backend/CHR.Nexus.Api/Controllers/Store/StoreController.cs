@@ -590,7 +590,7 @@ public sealed class StoreController : AppController
         try
         {
             List<PentaStockImportService.Src> rows;
-            using (var wb = new ClosedXML.Excel.XLWorkbook(path)) rows = PentaStockImportService.Parse(wb.Worksheets.First());
+            using (var wb = new ClosedXML.Excel.XLWorkbook(path)) rows = PentaStockImportService.ParseBook(wb);
             TryDelete(path);
             var dto = PentaStockImportService.Preview(rows, s.StkId, PentaStockImportService.LoadCoils());
             string id = _uploads.Put("", file.FileName, Uid, "penta:" + s.StkId, new PentaStockImportService.State(s.StkId, file.FileName, rows));
@@ -598,6 +598,65 @@ public sealed class StoreController : AppController
         }
         catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
         catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
+    }
+
+    public sealed record PentaPickingRequest(string Id, List<string> Keys, Dictionary<string, Dictionary<string, string>> Edits);
+
+    // 🏷 IMPORT PENTA STOCK review > QR PICK LIST: Pick List cards (same shape as /products/picking) for the ticked coils · writes nothing, keeps the review cached
+    //   part = matched coil's part / FG mother's part / typed PD CODE (unique in this stock) · QR scans like the stock's normal label (MOTHER = COIL_NO, COILNO = MAT_NO / COIL_NO)
+    [HttpPost("{stkId:int}/penta/picking")]
+    public IActionResult PentaPicking(int stkId, [FromBody] PentaPickingRequest req)
+    {
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny();
+        if (s.IsLiveView || !s.InSupplierImport || !s.PentaPicking) return Fail($"คลัง {s.Code} ไม่ได้เปิดใช้ QR PICK LIST (ตั้งค่าคลัง)");
+        if (!Me.CanImportStock(s)) return Deny("คุณไม่มีสิทธิ์ Import ข้อมูลเข้าคลังนี้");
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "penta:" + stkId);
+        if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
+        var keys = new HashSet<string>(req.Keys ?? new(), StringComparer.Ordinal);
+        if (keys.Count == 0) return Fail("กรุณาเลือกรายการที่ต้องการพิมพ์อย่างน้อย 1 รายการครับ");
+        try
+        {
+            var st = (PentaStockImportService.State)it.State;
+            var coils = PentaStockImportService.LoadCoils();
+            var byNo = coils.GroupBy(c => c.CoilNo.Trim().ToUpperInvariant()).ToDictionary(g => g.Key, g => g.First());
+            var byMother = coils.Where(c => c.MotherCoil != "").ToLookup(c => c.MotherCoil.Trim().ToUpperInvariant());
+            var inStock = new ProductControlService().GetInventoryForQR("", stkId);
+            List<ProductControlModel> all = null;   // parts of other stocks, only loaded when a matched coil sits elsewhere
+            var lay = new ProductControlLayoutService().GetAll() is var g0 && g0.TryGetValue(stkId, out var l0) ? l0 : ProductControlColumns.Default(stkId);
+            var qrFields = lay.QrFields.ToList();
+            string T(string v) => string.IsNullOrWhiteSpace(v) || v.Trim() == "-" ? "" : v.Trim();
+            string Ed(string key, string f) => req.Edits != null && req.Edits.TryGetValue(key, out var e) && e.TryGetValue(f, out var v) ? v?.Trim() : null;
+            var cards = new List<object>(); var skipped = new List<string>();
+            foreach (var r in st.Rows.Where(r => keys.Contains(r.Key)))
+            {
+                string name = r.MatNo ?? r.CoilNo ?? $"แถว {r.Row}";
+                if (r.Error != null || r.Superseded) { skipped.Add($"{name}: แถวไม่ถูกต้อง / ซ้ำ"); continue; }
+                var (c, _) = PentaStockImportService.Match(r, stkId, byNo, byMother);
+                ProductControlModel p;
+                if (c != null) p = inStock.FirstOrDefault(x => x.PtId == c.PartId) ?? (all ??= new ProductControlService().GetInventoryForQR("", null)).FirstOrDefault(x => x.PtId == c.PartId);
+                else
+                {
+                    string pd = Ed(r.Key, PentaStockImportService.FPd);
+                    var hit = string.IsNullOrEmpty(pd) ? new() : inStock.Where(x => string.Equals(x.PartCode?.Trim(), pd, StringComparison.OrdinalIgnoreCase)).ToList();
+                    p = hit.Count == 1 ? hit[0] : null;
+                }
+                if (p == null) { skipped.Add($"{name}: ไม่พบสินค้า (ใส่ PD CODE ของคลังนี้)"); continue; }
+                bool fg = r.MatType == "FG" && r.MatNo != null;
+                string coilNo = (fg ? r.MatNo : r.CoilNo ?? r.MatNo).Trim(), mother = (r.CoilNo ?? coilNo).Trim();
+                var wText = Ed(r.Key, PentaStockImportService.FWeight);
+                decimal? wt = wText != null && decimal.TryParse(wText, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out var w) ? w : r.Wt;
+                var own = new Dictionary<int, (List<string> Mothers, List<string> Coils)> { [p.PtId] = (new() { mother }, new() { coilNo }) };
+                string grp = lay.GroupBy == "CUSTOMER" ? p.Customer : lay.GroupBy == "SUPPLIER" ? p.CustomerCode : p.Category;
+                cards.Add(new
+                {
+                    ptId = p.PtId, code = T(p.PartCode), partNo = T(p.PartNo), name = T(p.PartName), partA = T(p.PartA), customer = T(p.Customer),
+                    packSize = wt?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "", group = T(grp), qr = QrFormat.Content(p, qrFields, own, lay.QrSep)
+                });
+            }
+            return Ok(new { unit = "KG", units = new FieldPresetService().GetUnits().Select(u => u.Unit).ToList(), items = cards, skipped });
+        }
+        catch (Exception ex) { return Fail(ex, "โหลดข้อมูล QR PICK LIST ไม่สำเร็จ"); }
     }
 
     // 📥 IMPORT PENTA STOCK apply: CHANGED = coil weight · NEW (with PD CODE) = add coil · excluded / SAME untouched

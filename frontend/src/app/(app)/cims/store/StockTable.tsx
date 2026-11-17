@@ -18,6 +18,7 @@ import { type Counts, type Product, type Stock } from "./types";
 import { MinReportMenu } from "./MinReport";
 import { Layout3DButton } from "./Layout3DButton";
 import { ManageDock } from "./ManageDock";
+import { PickingExport, type PickData, type PickingReq } from "@/app/(app)/master/product/PickingExport";
 import { ImportReview } from "@/components/import/ImportReview";
 import type { ImportPreview } from "@/components/import/types";
 import { AddCoilModal, AdjustCoilModal, EditCoilModal, ManageBar, ManageHistoryModal, type ManageMode } from "./CoilManage";
@@ -122,6 +123,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const pentaRef = useRef<HTMLInputElement>(null);
   const [penta, setPenta] = useState<ImportPreview | null>(null);
   const [pentaBusy, setPentaBusy] = useState(false);
+  // 🏷 QR PICK LIST of ticked / listed review rows: cards come ready from the server (no re-fetch in PickingExport)
+  const [pentaPick, setPentaPick] = useState<{ req: PickingReq; data: PickData } | null>(null);
+  const pentaSource = useMemo(() => (pentaPick ? () => Promise.resolve(pentaPick.data) : undefined), [pentaPick]);
   const rowsRef = useRef<Product[] | null>(null);
   const coilsRef = useRef(coils);
   const showCoilsRef = useRef(showCoils);
@@ -829,7 +833,31 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                 }}
               />
             )}
-            {penta && <ImportReview key={penta.file} preview={penta} applyUrl={`/store/${stkId}/penta/apply`} picking={pentaBusy} onPick={() => pentaRef.current?.click()} onClose={() => setPenta(null)} onDone={() => setPenta(null)} />}
+            {penta && (
+              <ImportReview
+                key={penta.file}
+                preview={penta}
+                applyUrl={`/store/${stkId}/penta/apply`}
+                picking={pentaBusy}
+                onPick={() => pentaRef.current?.click()}
+                onClose={() => setPenta(null)}
+                onDone={() => setPenta(null)}
+                extra={!s.pentaPicking ? undefined : {
+                  label: "🏷 QR PICK LIST",
+                  onRun: async (keys, edits) => {
+                    if (!keys.length) return toast.show("QR PICK LIST", "ไม่มีรายการให้พิมพ์", "warn");
+                    try {
+                      const d = await api<PickData & { skipped: string[] }>(`/store/${stkId}/penta/picking`, { method: "POST", body: { id: penta.id, keys, edits } });
+                      if (d.skipped.length) toast.show("QR PICK LIST", `ข้าม ${d.skipped.length} รายการ\n${d.skipped.slice(0, 8).join("\n")}${d.skipped.length > 8 ? "\n…" : ""}`, "warn");
+                      if (d.items.length) setPentaPick({ req: { mode: "SELECTED", ids: [], stkId: Number(stkId), stockName: penta.title }, data: d });
+                    } catch (e) {
+                      toast.show("ERROR", (e as Error).message, "error");
+                    }
+                  },
+                }}
+              />
+            )}
+            <PickingExport req={pentaPick?.req ?? null} source={pentaSource} onClose={() => setPentaPick(null)} />
           </>
         }
       />

@@ -132,11 +132,11 @@ function PlateGrid({ list }: { list: ApiCoil[] }) {
           return (
             <div
               key={s}
-              className={`rounded-md border py-1.5 text-center text-xs font-extrabold ${k >= PLATE_CAP ? "border-transparent bg-danger text-white" : k > 0 ? "border-transparent bg-success text-white" : "border-line bg-surface-2 text-ink-soft"}`}
+              className={`rounded-md border py-1.5 text-center text-xs font-extrabold ${k > PLATE_CAP ? "border-danger bg-danger text-white ring-2 ring-danger/40" : k >= PLATE_CAP ? "border-transparent bg-danger text-white" : k > 0 ? "border-transparent bg-success text-white" : "border-line bg-surface-2 text-ink-soft"}`}
               title={k >= PLATE_CAP ? "เต็ม" : k > 0 ? "มีเหล็ก" : "ว่าง"}
             >
               {s}
-              <span className="block text-[10px] font-bold">{k === 0 ? "ว่าง" : `${k}/${PLATE_CAP}`}</span>
+              <span className="block text-[10px] font-bold">{k === 0 ? "ว่าง" : k > PLATE_CAP ? `เก็บเกิน ${k}/${PLATE_CAP}` : `${k}/${PLATE_CAP}`}</span>
             </div>
           );
         })}

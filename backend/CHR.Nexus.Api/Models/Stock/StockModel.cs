@@ -67,6 +67,7 @@ namespace Nexus.Models
         public string StockType { get; set; }
         public bool InSupplierImport { get; set; }
         public bool ShowManageStock { get; set; } = true;
+        public bool PentaPicking { get; set; }
         public string CardStyle
         {
             get
