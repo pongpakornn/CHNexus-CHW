@@ -253,6 +253,55 @@ namespace Nexus.Services
             }
         }
 
+        // 🏢 PR department per user (Nexus.DepartmentUsers): name without the "@..." suffix of the scanner list
+        public static string DeptName(string n) { n = (n ?? "").Trim(); int i = n.IndexOf('@'); return (i >= 0 ? n[..i] : n).Trim(); }
+
+        public Dictionary<string, string> GetDepartmentUsers()
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!DbSchema.HasDepartmentUsers) return map;
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("SELECT UserID, DepartmentName FROM Nexus.DepartmentUsers", conn);
+            conn.Open();
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) map[r.GetString(0)] = r.GetString(1);
+            return map;
+        }
+
+        public static string DepartmentOf(string userId)
+        {
+            if (!DbSchema.HasDepartmentUsers || string.IsNullOrWhiteSpace(userId)) return null;
+            using var conn = new SqlConnection(GlobalConfig.ConnStr);
+            using var cmd = new SqlCommand("SELECT DepartmentName FROM Nexus.DepartmentUsers WHERE UserID = @u", conn);
+            cmd.Parameters.AddWithValue("@u", userId);
+            conn.Open();
+            return cmd.ExecuteScalar() as string;
+        }
+
+        // members of one department = exactly userIds (a user moves here from another department; unticked users leave it)
+        public void SetDepartmentUsers(string dept, IList<string> userIds, string by)
+        {
+            dept = DeptName(dept);
+            using var conn = new SqlConnection(_cs);
+            conn.Open();
+            using var tr = conn.BeginTransaction();
+            using (var del = new SqlCommand("DELETE FROM Nexus.DepartmentUsers WHERE DepartmentName = @d", conn, tr))
+            {
+                del.Parameters.AddWithValue("@d", dept);
+                del.ExecuteNonQuery();
+            }
+            foreach (var u in userIds.Select(x => (x ?? "").Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase))
+                using (var up = new SqlCommand(@"UPDATE Nexus.DepartmentUsers SET DepartmentName = @d, UpdatedBy = @by, UpdatedDate = GETDATE() WHERE UserID = @u;
+                                                 IF @@ROWCOUNT = 0 INSERT INTO Nexus.DepartmentUsers (UserID, DepartmentName, UpdatedBy) VALUES (@u, @d, @by);", conn, tr))
+                {
+                    up.Parameters.AddWithValue("@u", u);
+                    up.Parameters.AddWithValue("@d", dept);
+                    up.Parameters.AddWithValue("@by", (object)by ?? DBNull.Value);
+                    up.ExecuteNonQuery();
+                }
+            tr.Commit();
+        }
+
         // ☎ ผู้ติดต่อ Admin (Nexus.AdminContacts) - หลายคนได้ เรียงตาม SortNo
         public class AdminContact
         {

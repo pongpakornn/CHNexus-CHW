@@ -67,6 +67,26 @@ public sealed class EdpController : AppController
         return Ok(new { });
     }, "เริ่มกะไม่สำเร็จ");
 
+    // 👷 OPERATOR ต่อกะ (START PLAN กะ DAY · กะ NIGHT เข้ามาตอนแผนเริ่มแล้ว) · ยังไม่รัน 59_EDP_Shift_Operator.sql = ready:false (หน้าจอข้ามการถาม)
+    [HttpGet("operator")]
+    public IActionResult GetOperator(DateTime date, string shift) => Guard(Me?.CanViewEdpSubmit == true) ?? Run(() =>
+        DbSchema.HasEdpOperator ? Ok(new { ready = true, code = _svc.Operator(date, Sh(shift)) }) : Ok(new { ready = false }), "โหลด OPERATOR ไม่สำเร็จ");
+
+    public sealed record OperatorReq(DateTime Date, string Shift, string Code);
+
+    [HttpPost("operator")]
+    public IActionResult SetOperator([FromBody] OperatorReq r) => Guard(Me?.CanViewEdpSubmit == true) ?? Run(() =>
+    {
+        if (!DbSchema.HasEdpOperator) return Ok(new { saved = false });
+        string sh = (r?.Shift ?? "").Trim().ToUpperInvariant();
+        if (sh is not ("DAY" or "NIGHT")) throw new InvalidOperationException("กะต้องเป็น DAY หรือ NIGHT");
+        string code = (r.Code ?? "").Trim();
+        if (code.Length is 0 or > 30) throw new InvalidOperationException("กรุณากรอกรหัสพนักงาน (OPERATOR) ไม่เกิน 30 ตัวอักษร");
+        _svc.SetOperator(r.Date, Sh(r.Shift), code, Uid);
+        LogService.WriteLog(Uid, "EDP_SHIFT_OPERATOR", $"OPERATOR {code} กะ {Sh(r.Shift)} วันที่ {r.Date:dd/MM/yyyy}", $"{r.Date:yyyyMMdd}-{Sh(r.Shift)}");
+        return Ok(new { saved = true });
+    }, "บันทึก OPERATOR ไม่สำเร็จ");
+
     [HttpPost("finish")]
     public IActionResult Finish([FromBody] ShiftReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
     {

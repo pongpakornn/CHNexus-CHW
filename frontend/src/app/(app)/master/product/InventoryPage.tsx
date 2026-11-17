@@ -395,7 +395,8 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
       const cf = Object.fromEntries(fieldKeys.filter((k) => k.startsWith("CF") && cfDefs.some((d) => d.key === k)).map((k) => [k, form.cf[k] ?? ""]));
       const body = { ...form, cf, partWeight: showPartWeight ? form.partWeight : undefined, inMain, otherStockIds: others, filterStkId: filter, oldCode };
       const r = await api<{ message: string; deduct?: DeductMore | null }>(isEdit ? `/products/${editId}` : "/products", { method: isEdit ? "PUT" : "POST", body });
-      await dlg.alert({ title: isEdit ? "SAVE CHANGES" : "REGISTER", message: r.message, tone: r.message.includes("⚠") ? "warn" : "ok" });
+      if (r.message.includes("⚠")) await dlg.alert({ title: isEdit ? "SAVE CHANGES" : "REGISTER", message: r.message, tone: "warn" });
+      else toast.show(isEdit ? "SAVE CHANGES" : "REGISTER", r.message, "ok");
       // 📋 สินค้านี้มีป้ายค้างที่ NOT DEDUCTED (ผูก PD CODE ให้แล้ว) -> ถามว่าจะรับเข้า + ตัดคลังต้นทางเลยไหม
       await askCutPending(dlg, r.deduct, form.partCode.trim());
       clear();

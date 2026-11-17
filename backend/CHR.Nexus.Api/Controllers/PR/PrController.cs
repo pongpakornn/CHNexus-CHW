@@ -38,6 +38,7 @@ public sealed class PrController : AppController
             stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.CountCoil }),
             selected = pick?.StkId,
             userName = Me.UserName,
+            myDept = ScannerSetupService.DepartmentOf(Uid),
             today = DateTime.Today.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture),
             noStockText = stocks.Count == 0 && DbSchema.HasPrStock
                 ? "⚠ No stock keeps PR yet - ask the Admin to switch it on in User Management → SETUP → PR SETTINGS   " + ScannerSetupService.AdminContacts().Replace("\n", "   ")

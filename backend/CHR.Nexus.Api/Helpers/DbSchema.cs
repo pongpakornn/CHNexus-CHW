@@ -263,6 +263,10 @@ namespace Nexus.Helpers
         private static bool _edpSkip;
         public static bool HasEdpDailySkip => _edpSkip || (_edpSkip = HasEdpDaily && TableExists("EDP.PlanDailySkips") == true);
 
+        // 👷 EDP OPERATOR ต่อกะ (59_EDP_Shift_Operator.sql): EDP.ShiftOperators
+        private static bool _edpOperator;
+        public static bool HasEdpOperator => _edpOperator || (_edpOperator = HasEdp && TableExists("EDP.ShiftOperators") == true);
+
         // ⏰ EDP ALERT (29_EDP_Alert.sql): EDP.AlertSettings (แจ้งเตือนการ์ดเลยเวลา)
         private static bool _edpAlert;
         public static bool HasEdpAlert => _edpAlert || (_edpAlert = HasEdp && TableExists("EDP.AlertSettings") == true);
@@ -426,6 +430,14 @@ namespace Nexus.Helpers
         // database/nexus/56_Stock_SupplierImport.sql: Nexus.Stocks.InSupplierImport (IMPORT PENTA STOCK in the EXCEL menu)
         private static bool? _supplierImport;
         public static bool HasSupplierImport => _supplierImport ?? (_supplierImport = ColumnExists("InSupplierImport")) ?? false;
+
+        // database/nexus/57_Stock_ShowManage.sql: Nexus.Stocks.ShowManageStock (MANAGE STOCK button shown for everyone)
+        private static bool? _showManage;
+        public static bool HasShowManageStock => _showManage ?? (_showManage = ColumnExists("ShowManageStock")) ?? false;
+
+        // database/nexus/58_PR_Department_Users.sql: Nexus.DepartmentUsers (UserID -> PR department)
+        private static bool? _deptUsers;
+        public static bool HasDepartmentUsers => _deptUsers ?? (_deptUsers = TableExists("Nexus.DepartmentUsers")) ?? false;
 
         // Update_20261010d.sql: Nexus.Stocks.CardStyle (การ์ดสินค้า มีรูป / ไม่มีรูป / ปิด)
         private static bool? _cardStyle;

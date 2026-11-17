@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { api } from "@/lib/api";
+import { fadeUp } from "@/lib/motion";
 import { useLive } from "@/lib/live";
 import { NOTIFY_REFRESH, openChat, openSupport } from "@/lib/support";
 import { openMinHistory, openMinSign } from "@/lib/minSign";
@@ -63,6 +65,7 @@ export function NotificationBell() {
     router.push(href);
   };
   const total = data?.items.reduce((s, i) => s + i.count, 0) ?? 0;
+  const msgs = (data?.items ?? []).filter((n) => n.key === "CHAT" || n.key === "SUPPORT").flatMap((n) => n.rows.map((r) => ({ ...r, key: n.key + r.href })));
 
   return (
     <div ref={box} className="relative">
@@ -105,6 +108,23 @@ export function NotificationBell() {
               <small>รอฉันเซ็น · ลงนามครบแล้ว (ย้อนหลัง)</small>
             </span>
           </button>
+          {/* 💬 ข้อความแชทล่าสุด: ชื่อผู้ส่ง + ตัวอย่างข้อความ (ตัดคำ) · ไล่เข้ามาทีละแถว (ลดการเคลื่อนไหว = จางอย่างเดียว) */}
+          {msgs.length > 0 && (
+            <ul className="mb-1 space-y-0.5 px-0.5">
+              {msgs.map((m, i) => (
+                <motion.li key={m.key} variants={fadeUp} initial="hidden" animate="show" custom={i}>
+                  <button type="button" onClick={() => go(m.href)} className="flex w-full cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-black/5 active:scale-[0.98]">
+                    <Icon name="chat" className="mt-0.5 size-4 shrink-0 text-info" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-bold text-ink">{m.label}</span>
+                      {m.sub && <span className="block truncate text-[11px] font-semibold text-ink-soft/80">{m.sub}</span>}
+                    </span>
+                    {m.count > 1 && <span className="shrink-0 rounded-full bg-danger px-1.5 text-[10px] font-extrabold text-white">{m.count}</span>}
+                  </button>
+                </motion.li>
+              ))}
+            </ul>
+          )}
           <SlideMenu
             side="right"
             empty="ไม่มีเรื่องที่ต้องจัดการ"

@@ -95,7 +95,8 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
     setBusy(true);
     try {
       const res = await api<{ message: string; warn: boolean }>(`/scanner/adjust/${r.txId}/qty`, { method: "POST", body: { qty: n, reason } });
-      await dlg.alert({ title: "EDIT SCAN QTY", message: res.message, tone: res.warn ? "warn" : "ok" });
+      if (res.warn) await dlg.alert({ title: "EDIT SCAN QTY", message: res.message, tone: "warn" });
+      else toast.show("EDIT SCAN QTY", res.message, "ok");
       onChanged();
       await load();
     } catch (e) {
@@ -117,7 +118,8 @@ export function AdjustModal({ onClose, onChanged }: { onClose: () => void; onCha
     setBusy(true);
     try {
       const res = await api<{ message: string; level: "ok" | "warn" | "error" }>("/scanner/adjust/cancel", { method: "POST", body: { txIds: picked.map((r) => r.txId), reason } });
-      await dlg.alert({ title: "DELETE SCAN", message: res.message, tone: res.level });
+      if (res.level === "ok") toast.show("DELETE SCAN", res.message, "ok");
+      else await dlg.alert({ title: "DELETE SCAN", message: res.message, tone: res.level });
       setSel([]);
       onChanged();
       await load();

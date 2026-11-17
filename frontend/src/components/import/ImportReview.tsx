@@ -24,7 +24,8 @@ const isCheck = (r: ImportRow) => r.status === "DUPLICATE" || r.status === "SIMI
 // Generic import review: summary cards -> row list (view / edit / exclude / pick existing) -> IMPORT confirm.
 // Map value: existing key = use that one; "" = keep as new (SIMILAR rows).
 // readOnly = review / filter only (no IMPORT button), e.g. PENTA STOCK until its columns are decided
-export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnly }: { preview: ImportPreview; applyUrl: string; onDone: () => void; onClose: () => void; warn?: string; readOnly?: boolean }) {
+// onPick = file button inside the window (window opens empty first, cards fill after the file is read)
+export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnly, onPick, picking }: { preview: ImportPreview; applyUrl: string; onDone: () => void; onClose: () => void; warn?: string; readOnly?: boolean; onPick?: () => void; picking?: boolean }) {
   const dlg = useDialogs();
   const toast = useToast();
   const reduce = useReducedMotion();
@@ -140,6 +141,11 @@ export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnl
       }
     >
       <div className="grid gap-3">
+        {onPick && (
+          <button type="button" className="ff-drop" disabled={picking} onClick={onPick}>
+            <b>{picking ? "กำลังตรวจไฟล์…" : preview.file ? `📂 ${preview.file} · กดเพื่อเลือกไฟล์ใหม่` : "📂 เลือกไฟล์ (.xlsx)"}</b>
+          </button>
+        )}
         {warn && <div className="ir-warn">⚠ {warn}</div>}
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={view} initial={slide} animate={{ opacity: 1, x: 0 }} exit={slide} transition={{ duration: 0.3, ease: EASE }}>

@@ -235,8 +235,9 @@ export default function ForecastFilePage() {
       </div>
 
       <AnimatePresence initial={false}>
-        {file && (
-          <motion.div key={file.id} initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE }} className="grid gap-4">
+        {/* FILTER + table always shown (empty until a file is read) */}
+        {(
+          <motion.div key={file?.id ?? "empty"} initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE }} className="grid gap-4">
             {/* 2️⃣ ตัวกรอง */}
             <Card title="FILTER" bodyClass="p-4">
               <div className="grid gap-4">
@@ -244,9 +245,9 @@ export default function ForecastFilePage() {
                   <div className="ff-lab">
                     <span>
                       ลูกค้า (Sheet) • {sel.size} จาก {sheets.length}
-                      {isRef ? ` (ตาม ${file.ref?.name})` : ""}
+                      {isRef ? ` (ตาม ${file?.ref?.name})` : ""}
                     </span>
-                    {file.ref && (
+                    {file?.ref && (
                       <button type="button" className={`ff-mini ${isRef ? "is-on" : ""}`} onClick={() => (setSel(new Set(sheets.filter((s) => refNames.has(s.name)).map((s) => s.name))), setPage(0))}>
                         ตาม {file.ref.name}
                       </button>
@@ -290,7 +291,7 @@ export default function ForecastFilePage() {
                   <label className="ff-year">
                     <span className="ff-lab">ปีของไฟล์</span>
                     <input type="number" className="field" min={2000} max={2100} value={year} onChange={(e) => setYear(Math.max(2000, Math.min(2100, Number(e.target.value) || year)))} />
-                    <small>{file.year ? `ระบบอ่านได้ ${file.year} (จากหัวคอลัมน์ DEC'${String(file.year - 1).slice(2)})` : "ไม่พบปีในไฟล์ - ตรวจสอบก่อน IMPORT"}</small>
+                    <small>{!file ? "เลือกไฟล์ก่อน" : file.year ? `ระบบอ่านได้ ${file.year} (จากหัวคอลัมน์ DEC'${String(file.year - 1).slice(2)})` : "ไม่พบปีในไฟล์ - ตรวจสอบก่อน IMPORT"}</small>
                   </label>
                 </div>
 
@@ -359,7 +360,7 @@ export default function ForecastFilePage() {
             {/* 3️⃣ ตาราง (แบบ Template FORECAST ORDER) */}
             <Card title={`ITEMS • ${flat.length.toLocaleString()}`} bodyClass="p-0">
               {flat.length === 0 ? (
-                <Empty>{!sel.size ? "ยังไม่ได้เลือกลูกค้า" : !selM.length ? "ยังไม่ได้เลือกเดือน" : "ไม่พบรายการ"}</Empty>
+                <Empty>{!file ? "เลือกไฟล์ FORECAST ด้านบนก่อน แล้วข้อมูลจะแสดงที่นี่" : !sel.size ? "ยังไม่ได้เลือกลูกค้า" : !selM.length ? "ยังไม่ได้เลือกเดือน" : "ไม่พบรายการ"}</Empty>
               ) : (
                 <>
                   <div className="ff-table-wrap">

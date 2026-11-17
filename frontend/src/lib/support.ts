@@ -15,6 +15,9 @@ export function openChat(chatWith?: string) {
   window.dispatchEvent(new CustomEvent<SupportOpen>(SUPPORT_EVENT, { detail: { tab: "chat", chatWith } }));
 }
 
+/** บทสนทนาที่เปิดอยู่ตอนนี้ (DirectChat / SupportChat เป็นคนตั้ง) - ChatFeed ไม่เด้ง Toast ซ้ำของห้องนั้น */
+export const chatView: { dm: string | null; sup: number | null } = { dm: null, sup: null };
+
 export function refreshNotifications() {
   window.dispatchEvent(new Event(NOTIFY_REFRESH));
 }
