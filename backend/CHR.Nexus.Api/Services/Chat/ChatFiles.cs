@@ -7,6 +7,18 @@ namespace CHR.Nexus.Api.Web;
 public static class ChatFiles
 {
     public const long MaxBytes = 25L * 1024 * 1024;
+    public const long UserQuotaBytes = 500L * 1024 * 1024;
+
+    private static long UsedBytes(string folder)
+    {
+        long n = 0;
+        foreach (var root in new[] { FilesRoot, ImagesRoot })
+        {
+            string d = System.IO.Path.Combine(root ?? "", folder);
+            if (Directory.Exists(d)) foreach (var f in new DirectoryInfo(d).EnumerateFiles()) n += f.Length;
+        }
+        return n;
+    }
 
     private static readonly HashSet<string> ImageExt = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp" };
     private static readonly HashSet<string> Blocked = new(StringComparer.OrdinalIgnoreCase)
@@ -41,6 +53,7 @@ public static class ChatFiles
         string root = image ? ImagesRoot : FilesRoot;
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return (null, "ไม่พบโฟลเดอร์เก็บไฟล์แชท กรุณาติดต่อ Admin");
 
+        if (UsedBytes(folder) + file.Length > UserQuotaBytes) return (null, "พื้นที่ไฟล์แนบของคุณเต็ม (สูงสุด 500 MB) กรุณาติดต่อ Admin");
         string rel = System.IO.Path.Combine(folder, Guid.NewGuid().ToString("N") + ext.ToLowerInvariant());
         string full = System.IO.Path.Combine(root, rel);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(full)!);

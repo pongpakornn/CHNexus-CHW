@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { fmtDate } from "@/lib/format";
 import { usePathname, useRouter } from "next/navigation";
-import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
+import { sharedGet } from "@/lib/sharedGet";
 import { useAuth } from "@/lib/auth";
 
 // ✍ CHEMICAL CONTROL รออนุมัติ : ใบบันทึกที่ FLOW (User Management › SETUP › SIGN FLOW › CHEMICAL CONTROL) ส่งมาถึงคิวเรา
@@ -32,7 +32,7 @@ function Host({ uid }: { uid: string }) {
 
   const load = useCallback(async () => {
     try {
-      setQ(await api<Q[]>("/chem/sheets/inbox"));
+      setQ(await sharedGet<Q[]>("/chem/sheets/inbox"));
     } catch {
       /* รอบหน้าลองใหม่ */
     }
@@ -45,7 +45,7 @@ function Host({ uid }: { uid: string }) {
       /* ไม่มี storage */
     }
     const first = setTimeout(load, 1500);
-    const t = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
+    const t = setInterval(() => document.visibilityState === "visible" && load(), 300_000);
     const tick = setInterval(() => setNow(Date.now()), 30_000);
     return () => (clearTimeout(first), clearInterval(t), clearInterval(tick));
   }, [load, uid]);

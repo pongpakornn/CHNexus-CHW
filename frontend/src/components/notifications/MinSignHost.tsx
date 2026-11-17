@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, download } from "@/lib/api";
 import { useLive } from "@/lib/live";
+import { sharedGet } from "@/lib/sharedGet";
 import { MIN_HISTORY_EVENT, MIN_SIGN_EVENT, openMinSign } from "@/lib/minSign";
 import { useAuth } from "@/lib/auth";
 import { SignatureModal } from "@/components/profile/SignatureModal";
@@ -50,7 +51,7 @@ export function MinSignHost() {
   // คิวรอเซ็น: ครั้งแรกจำไว้เฉย ๆ (กระดิ่งแสดงอยู่แล้ว) · รอบต่อไปมีรายการใหม่ = Toast
   const poll = useCallback(async () => {
     try {
-      const q = await api<Q[]>("/minreport/sign/queue");
+      const q = await sharedGet<Q[]>("/minreport/sign/queue");
       const first = seen.current === null;
       const prev = seen.current ?? new Set<number>();
       const fresh = q.filter((x) => !prev.has(x.reportId));
@@ -69,7 +70,7 @@ export function MinSignHost() {
   }, [toast]);
   useEffect(() => {
     const t0 = setTimeout(poll, 2500);
-    const t = setInterval(() => document.visibilityState === "visible" && poll(), 60_000);
+    const t = setInterval(() => document.visibilityState === "visible" && poll(), 300_000);
     return () => (clearTimeout(t0), clearInterval(t));
   }, [poll]);
   useLive(["minreport"], poll);

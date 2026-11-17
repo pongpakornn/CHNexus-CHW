@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useLive } from "@/lib/live";
+import { sharedGet } from "@/lib/sharedGet";
 import { springSoft } from "@/lib/motion";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
@@ -64,7 +65,7 @@ function EdpAlertHost({ path }: { path: string }) {
 
   const load = useCallback(async () => {
     try {
-      const c = await api<Cfg>("/edp/alert");
+      const c = await sharedGet<Cfg>("/edp/alert");
       const sv = c.now ? new Date(c.now).getTime() : NaN;
       if (Number.isFinite(sv)) setSkew(sv - Date.now()); // bad server time = keep the old skew (NaN would break snooze)
       setCfg(c);

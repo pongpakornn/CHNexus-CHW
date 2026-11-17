@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
+import { sharedGet } from "@/lib/sharedGet";
 import { useAuth } from "@/lib/auth";
 import { openMinSign } from "@/lib/minSign";
 import { dt } from "@/components/print/MinReportSheet";
@@ -34,7 +34,7 @@ function Host({ uid }: { uid: string }) {
 
   const load = useCallback(async () => {
     try {
-      setQ(await api<Q[]>("/minreport/sign/queue"));
+      setQ(await sharedGet<Q[]>("/minreport/sign/queue"));
     } catch {
       /* รอบหน้าลองใหม่ */
     }
@@ -47,7 +47,7 @@ function Host({ uid }: { uid: string }) {
       /* ไม่มี storage */
     }
     const first = setTimeout(load, 3000);
-    const t = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
+    const t = setInterval(() => document.visibilityState === "visible" && load(), 300_000);
     const tick = setInterval(() => setNow(Date.now()), 30_000);
     return () => (clearTimeout(first), clearInterval(t), clearInterval(tick));
   }, [load, uid]);

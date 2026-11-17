@@ -59,6 +59,7 @@ const NEW_STOCK: Partial<Stock> = {
   cardStyleSetting: "IMAGE",
   inExcel: true,
   inSupplierImport: false,
+  pentaPicking: false,
   showManageStock: true,
   inSysQr: true,
   outSysQr: true,
@@ -295,6 +296,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
               {check("inSysQr", "SYSTEM QR")}
               {check("inExcel", "IMPORT EXCEL (TEMPLATE MAX-MIN / COIL)")}
               {check("inSupplierImport", "IMPORT PENTA STOCK (แทน TEMPLATE COIL)")}
+              {check("pentaPicking", "QR PICK LIST (ในหน้า IMPORT PENTA STOCK)")}
               {check("showManageStock", "แสดงปุ่ม MANAGE STOCK (ทุกคน)")}
             </div>
             <div className="grid gap-2">

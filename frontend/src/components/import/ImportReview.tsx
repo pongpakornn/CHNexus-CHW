@@ -25,7 +25,7 @@ const isCheck = (r: ImportRow) => r.status === "DUPLICATE" || r.status === "SIMI
 // Map value: existing key = use that one; "" = keep as new (SIMILAR rows).
 // readOnly = review / filter only (no IMPORT button), e.g. PENTA STOCK until its columns are decided
 // onPick = file button inside the window (window opens empty first, cards fill after the file is read)
-export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnly, onPick, picking }: { preview: ImportPreview; applyUrl: string; onDone: () => void; onClose: () => void; warn?: string; readOnly?: boolean; onPick?: () => void; picking?: boolean }) {
+export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnly, onPick, picking, extra }: { preview: ImportPreview; applyUrl: string; onDone: () => void; onClose: () => void; warn?: string; readOnly?: boolean; onPick?: () => void; picking?: boolean; extra?: { label: string; onRun: (keys: string[], edits: Edits) => void } }) {
   const dlg = useDialogs();
   const toast = useToast();
   const reduce = useReducedMotion();
@@ -132,6 +132,12 @@ export function ImportReview({ preview, applyUrl, onDone, onClose, warn, readOnl
           <button type="button" className="btn-ghost" disabled={busy} onClick={close}>
             CANCEL
           </button>
+          {/* no per-row ticks: runs on the rows of the open list (home = every row) that are not "ไม่ใช้" */}
+          {extra && view !== "errors" && (
+            <button type="button" className="btn-ghost" disabled={busy || rows.length === 0} onClick={() => extra.onRun((view === "home" ? rows : listOf(view)).filter((r) => !exclude.includes(r.key)).map((r) => r.key), edits)}>
+              {extra.label}
+            </button>
+          )}
           {!readOnly && (
             <button type="button" className="btn bg-accent" disabled={busy || c.ready === 0} onClick={doImport}>
               {busy ? <span className="ff-spin is-sm" aria-label="กำลังทำงาน" /> : `📥 IMPORT (${c.ready.toLocaleString()})`}

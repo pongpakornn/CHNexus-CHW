@@ -315,7 +315,7 @@ export default function MachineProducts() {
                 <Empty>{rows.length ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มี Product ของเครื่องนี้"}</Empty>
               ) : (
                 <div className="pp-scroll pp-prod is-tall">
-                  <table className="pp-table">
+                  <table className="pp-table" data-stack>
                     <thead>
                       <tr>
                         <th>NO.</th>

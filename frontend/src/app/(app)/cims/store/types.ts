@@ -41,6 +41,7 @@ export type Stock = {
   inSysQr: boolean;
   inExcel: boolean;
   inSupplierImport: boolean;
+  pentaPicking?: boolean;
   showManageStock?: boolean;
   outPickList: boolean;
   outSupplier: boolean;

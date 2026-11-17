@@ -435,6 +435,10 @@ namespace Nexus.Helpers
         private static bool? _showManage;
         public static bool HasShowManageStock => _showManage ?? (_showManage = ColumnExists("ShowManageStock")) ?? false;
 
+        // database/nexus/60_Stock_PentaPicking.sql: Nexus.Stocks.PentaPicking (QR PICK LIST in the Penta review)
+        private static bool? _pentaPicking;
+        public static bool HasPentaPicking => _pentaPicking ?? (_pentaPicking = ColumnExists("PentaPicking")) ?? false;
+
         // database/nexus/58_PR_Department_Users.sql: Nexus.DepartmentUsers (UserID -> PR department)
         private static bool? _deptUsers;
         public static bool HasDepartmentUsers => _deptUsers ?? (_deptUsers = TableExists("Nexus.DepartmentUsers")) ?? false;

@@ -24,6 +24,13 @@ public sealed class PentaStockImportService
 
     private static readonly string[] Required = { "COIL_NO", "MAT_NO", "REMAIN_WT" };
 
+    // 2nd Penta layout "STOCK_CHR" (sheets MC + FG): MILL NO = mother coil, LABEL NO = coil / slit number, REMAIN WT = weight
+    private static readonly Dictionary<string, string> Alias = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["COIL_NO"] = "MILL NO", ["MAT_NO"] = "LABEL NO", ["REMAIN_WT"] = "REMAIN WT", ["REMAIN_QTY"] = "REMAIN QTY",
+        ["STATUS_CODE_DESC"] = "STATUS CODE", ["MAT_SPEC"] = "MAT SPEC", ["DESCRIPTION"] = "SIZE", ["RCV_DATE"] = "IN DATE",
+    };
+
     public static bool IsPentaFile(IXLWorksheet ws)
     {
         var heads = Heads(ws);
@@ -40,15 +47,39 @@ public sealed class PentaStockImportService
             string h = c.GetString().Trim().ToUpperInvariant();
             if (h.Length > 0 && !map.ContainsKey(h)) map[h] = c.Address.ColumnNumber;
         }
+        foreach (var (k, v) in Alias) if (!map.ContainsKey(k) && map.TryGetValue(v, out int i)) map[k] = i;
         return map;
     }
 
     // ---------------------------------------------------------------- PARSE
+    // every sheet with the Penta columns (Online Stock = 1 sheet · STOCK_CHR = sheets MC + FG, MAT_TYPE = sheet name)
+    public static List<Src> ParseBook(XLWorkbook wb)
+    {
+        var sheets = wb.Worksheets.Where(IsPentaFile).ToList();
+        if (!sheets.Any(w => SheetType(w) != null)) sheets = sheets.Take(1).ToList();   // Online Stock: first sheet only (as before), copies / backup tabs ignored
+        if (sheets.Count == 0) throw new InvalidOperationException("ไม่ใช่ไฟล์ Stock ของ Penta · ต้องมีคอลัมน์ COIL_NO / MAT_NO / REMAIN_WT (Online Stock) หรือ MILL NO / LABEL NO / REMAIN WT (STOCK_CHR)");
+        return Finish(sheets.SelectMany(ws => Raw(ws, sheets.Count > 1 ? ws.Name.Trim() + " " : "")).ToList());
+    }
+
     public static List<Src> Parse(IXLWorksheet ws)
     {
         var h = Heads(ws);
         var missing = Required.Where(x => !h.ContainsKey(x)).ToList();
         if (missing.Count > 0) throw new InvalidOperationException("ไม่ใช่ไฟล์ Penta Online Stock · ไม่พบคอลัมน์: " + string.Join(", ", missing));
+        return Finish(Raw(ws, ""));
+    }
+
+    // STOCK_CHR sheets: name contains FG / MC (e.g. "MC", "FG", "Stock FG")
+    private static string SheetType(IXLWorksheet ws)
+    {
+        string n = ws.Name.ToUpperInvariant();
+        return n.Contains("FG") ? "FG" : n.Contains("MC") ? "MC" : null;
+    }
+
+    private static List<Src> Raw(IXLWorksheet ws, string sheetTag)
+    {
+        var h = Heads(ws);
+        string sheetType = SheetType(ws);
         string Get(IXLRow r, string col)
         {
             if (!h.TryGetValue(col, out int i)) return null;
@@ -71,14 +102,26 @@ public sealed class PentaStockImportService
             string err = coil == null && mat == null ? "ไม่มี COIL_NO / MAT_NO"
                        : wtText != null && wt == null ? $"REMAIN_WT ไม่ใช่ตัวเลข ({wtText})"
                        : wt < 0 ? "REMAIN_WT ติดลบ" : null;
-            string key = err != null ? $"ROW{n}" : (mat ?? coil).ToUpperInvariant();
-            raw.Add(new(key, n, coil, mat, Get(r, "MAT_TYPE"), Get(r, "MAT_SPEC"), Get(r, "DESCRIPTION"), Get(r, "REMAIN_QTY"), wt,
+            string key = err != null ? $"ROW{sheetTag.Trim()}{n}" : (mat ?? coil).ToUpperInvariant();
+            raw.Add(new(key, n, coil, mat, Get(r, "MAT_TYPE") ?? sheetType, Get(r, "MAT_SPEC"), Get(r, "DESCRIPTION"), Get(r, "REMAIN_QTY"), wt,
                         Get(r, "STATUS_CODE_DESC"), Get(r, "ZONE"), Get(r, "RCV_DATE"), err, false));
         }
+        return raw;
+    }
+
+    private static List<Src> Finish(List<Src> raw)
+    {
         if (raw.Count == 0) throw new InvalidOperationException("ไม่พบแถวข้อมูลในไฟล์");
-        // same MAT_NO twice: bottom row wins, earlier rows become DUPLICATE
-        var lastOf = raw.Where(x => x.Error == null).GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.Max(x => x.Row));
-        return raw.Select(x => x.Error == null && x.Row != lastOf[x.Key] ? x with { Key = x.Key + "#" + x.Row, Superseded = true } : x).ToList();
+        // same MAT_NO twice (any sheet): bottom / last row wins, earlier rows become DUPLICATE
+        var lastOf = raw.Select((x, i) => (x, i)).Where(t => t.x.Error == null).GroupBy(t => t.x.Key).ToDictionary(g => g.Key, g => g.Max(t => t.i));
+        var used = new HashSet<string>(raw.Select(x => x.Key));
+        return raw.Select((x, i) => x.Error == null && i != lastOf[x.Key] ? x with { Key = Unique(x.Key + "#" + x.Row, used), Superseded = true } : x).ToList();
+    }
+
+    private static string Unique(string k, HashSet<string> used)
+    {
+        string u = k; for (int i = 2; !used.Add(u); i++) u = k + "-" + i;   // same row number on two sheets
+        return u;
     }
 
     // ---------------------------------------------------------------- MATCH
@@ -126,6 +169,14 @@ public sealed class PentaStockImportService
                              $"ไม่มีใน CHR-Nexus · ใส่ PD CODE ของคลังนี้ แล้วระบบเพิ่ม{(s.MatType == "FG" ? $" NUMBER COIL {s.MatNo} (MASTER {s.CoilNo})" : $" MASTER COIL {s.CoilNo}")} · ไม่ใส่ = ข้าม", null));
                 continue;
             }
+            if (FgChild(s, c, how, stkId))
+            {
+                f.Insert(0, new(FWeight, null, Kg(s.Wt), true));
+                f.Insert(1, new(FPd, null, c.PartCode, true));
+                list.Add(new(s.Key, ImportReview.New, s.MatNo, sub, f,
+                             $"FG ม้วนสลิท · เพิ่ม NUMBER COIL {s.MatNo} ใต้ MASTER {s.CoilNo} (PD CODE {c.PartCode}) · ตัว MASTER COIL เองปรับเป็นน้ำหนัก MC ในไฟล์ (ไม่มี = 0 KG)", null));
+                continue;
+            }
             f.Insert(0, new(FWeight, Kg(c.WeightKG), Kg(s.Wt) ?? Kg(c.WeightKG), true));
             f.Insert(1, new("PD CODE", c.PartCode, c.PartCode));
             f.Insert(2, new("NEXUS COIL", c.CoilNo, c.CoilNo));
@@ -133,7 +184,6 @@ public sealed class PentaStockImportService
             var notes = new List<string> { "จับคู่: " + how };
             if (c.StockId != stkId) notes.Add($"อยู่คลัง {c.StockCode}");
             if (c.Status != "IN") notes.Add($"สถานะใน CHR-Nexus: {c.Status}");
-            if (how == "COIL_NO = MASTER COIL" || (how == "COIL_NO = COIL" && s.MatType == "FG")) notes.Add("น้ำหนักเทียบกับม้วนแม่ (ไฟล์เป็นม้วนสลิท)");
             string why = Why(s, c, how, stkId);
             if (why != null) { list.Add(new(s.Key, ImportReview.Invalid, s.MatNo ?? s.CoilNo, sub, f, string.Join(" · ", notes) + " · " + why, null)); continue; }
             bool same = s.Wt == null || Math.Abs(s.Wt.Value - c.WeightKG) < 0.5m;
@@ -142,12 +192,15 @@ public sealed class PentaStockImportService
         return list;
     }
 
-    // a matched coil is only updated when it is this row's own coil, IN this stock (null = ok)
+    // a matched coil is only updated when it is IN this stock (null = ok)
     public static string Why(Src s, Coil c, string how, int stkId) =>
         c.StockId != stkId ? "ไม่อัพเดท (Coil อยู่คนละคลัง)"
         : c.Status != "IN" ? "ไม่อัพเดท (Coil ไม่ได้อยู่ในคลังแล้ว)"
-        : how == "COIL_NO = MASTER COIL" || (how == "COIL_NO = COIL" && s.MatType == "FG") ? "ไม่อัพเดท (FG ม้วนสลิท อ้างถึงม้วนแม่ · ยังไม่กำหนดกติกา FG)"
         : null;
+
+    // FG slit row whose own MAT_NO is not registered but its mother (COIL_NO) is IN this stock = add it as a Number Coil under the mother
+    public static bool FgChild(Src s, Coil c, string how, int stkId) =>
+        s.MatType == "FG" && s.MatNo != null && c != null && how != "MAT_NO = NUMBER COIL" && c.StockId == stkId && c.Status == "IN";
 
     // ---------------------------------------------------------------- APPLY (re-matches against the current register)
     public static ApplyResult Apply(State st, StockModel stock, ImportApplyRequest req, string uid)
@@ -158,7 +211,10 @@ public sealed class PentaStockImportService
         var skip = new HashSet<string>(req?.Exclude ?? new(), StringComparer.Ordinal);
         string Ed(string key, string field) => req?.Edits != null && req.Edits.TryGetValue(key, out var e) && e.TryGetValue(field, out var v) ? v?.Trim() : null;
         int upd = 0, add = 0, same = 0, skipped = 0; var errors = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // a coil touched once per apply (same coil twice in the file = later row skipped)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // mothers whose FG slits were really handled in this apply (added / valid existing child IN this stock) -> master's own weight = MC weight or 0
+        var fgMothers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var touched = new HashSet<int>();   // coils already written in the main loop
 
         using var conn = new SqlConnection(GlobalConfig.ConnStr);
         conn.Open();
@@ -168,11 +224,13 @@ public sealed class PentaStockImportService
             string wText = Ed(s.Key, FWeight);
             decimal? wt = wText != null && decimal.TryParse(wText, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var w) ? w : s.Wt;
             var (c, how) = Match(s, st.StkId, byNo, byMother);
+            bool child = FgChild(s, c, how, st.StkId);
             try
             {
-                if (c != null)
+                if (c != null && !child)
                 {
                     if (Why(s, c, how, st.StkId) != null || !seen.Add(c.CoilNo)) { skipped++; continue; }
+                    if (s.MatType == "FG" && s.CoilNo != null && how == "MAT_NO = NUMBER COIL") fgMothers.Add(s.CoilNo.Trim());
                     if (wt == null || wt <= 0 || Math.Abs(wt.Value - c.WeightKG) < 0.5m) { same++; continue; }
                     var kg = Qty.Round(wt.Value, stock.AllowDecimal);
                     using var tr = conn.BeginTransaction();
@@ -180,14 +238,14 @@ public sealed class PentaStockImportService
                     { errors.Add($"{c.CoilNo}: Coil เปลี่ยนไปแล้วระหว่างตรวจไฟล์ (ไม่ได้อัพเดท)"); continue; }
                     Log(conn, tr, stock, c.PartId, c.PartCode, c.CoilId, c.CoilNo, c.MotherCoil, "EDIT", c.WeightKG, kg, st.File, uid);
                     CoilImportService.RecountCoils(conn, tr, c.PartId, st.StkId, stock.IsMain);
-                    tr.Commit(); upd++;
+                    tr.Commit(); upd++; touched.Add(c.CoilId);
                 }
                 else
                 {
-                    string pd = Ed(s.Key, FPd);
+                    string pd = Ed(s.Key, FPd) ?? (child ? c.PartCode : null);
                     if (string.IsNullOrEmpty(pd) || wt == null || wt <= 0) { skipped++; continue; }
                     bool fg = s.MatType == "FG" && s.MatNo != null;
-                    string coilNo = (fg ? s.MatNo : s.CoilNo).Trim(), mother = (s.CoilNo ?? coilNo).Trim();
+                    string coilNo = (fg ? s.MatNo : s.CoilNo ?? s.MatNo).Trim(), mother = (s.CoilNo ?? coilNo).Trim();
                     if (!seen.Add(coilNo)) { skipped++; continue; }
                     using var tr = conn.BeginTransaction();
                     if (conn.ExecuteScalar<int>("SELECT COUNT(*) FROM Nexus.Coils WHERE CoilNo = @coilNo", new { coilNo }, tr) > 0)
@@ -202,9 +260,31 @@ public sealed class PentaStockImportService
                     int id = conn.ExecuteScalar<int>("SELECT CoilID FROM Nexus.Coils WHERE CoilNo = @coilNo", new { coilNo }, tr);
                     Log(conn, tr, stock, partId, pd, id, coilNo, mother, "ADD", 0, kg, st.File, uid);
                     tr.Commit(); add++;
+                    if (child) fgMothers.Add(mother);
                 }
             }
             catch (Exception ex) { errors.Add($"{s.MatNo ?? s.CoilNo}: {ex.Message}"); }
+        }
+
+        // 🧲 mother cut into FG slits: the master's own row keeps only what is still whole (MC row of the file) - otherwise 0 KG (no double count)
+        foreach (var m in fgMothers)
+        {
+            if (!byNo.TryGetValue(m.ToUpperInvariant(), out var mc) || mc.StockId != st.StkId || mc.Status != "IN" || !string.Equals(mc.CoilNo.Trim(), m, StringComparison.OrdinalIgnoreCase)) continue;
+            var whole = st.Rows.FirstOrDefault(r => r.Error == null && !r.Superseded && r.MatType == "MC" && string.Equals(r.CoilNo?.Trim(), m, StringComparison.OrdinalIgnoreCase) && !skip.Contains(r.Key));
+            if (touched.Contains(mc.CoilId)) continue;   // MC row already set it in the main loop
+            string wEd = whole == null ? null : Ed(whole.Key, FWeight);
+            decimal? wWhole = wEd != null && decimal.TryParse(wEd, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var we) ? we : whole?.Wt;
+            decimal kg = Qty.Round(wWhole ?? 0, stock.AllowDecimal);
+            if (Math.Abs(kg - mc.WeightKG) < 0.5m) continue;
+            try
+            {
+                using var tr = conn.BeginTransaction();
+                if (conn.Execute("UPDATE Nexus.Coils SET WeightKG = @kg, UpdatedDate = GETDATE() WHERE CoilID = @id AND Status = 'IN' AND StockID = @stk", new { kg, id = mc.CoilId, stk = st.StkId }, tr) != 1) continue;
+                Log(conn, tr, stock, mc.PartId, mc.PartCode, mc.CoilId, mc.CoilNo, mc.MotherCoil, "EDIT", mc.WeightKG, kg, st.File + " (FG slit: master = MC or 0)", uid);
+                CoilImportService.RecountCoils(conn, tr, mc.PartId, st.StkId, stock.IsMain);
+                tr.Commit(); upd++;
+            }
+            catch (Exception ex) { errors.Add($"{m}: {ex.Message}"); }
         }
         return new(upd, add, same, skipped, errors);
     }

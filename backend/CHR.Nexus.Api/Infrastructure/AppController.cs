@@ -90,16 +90,24 @@ public abstract class AppController : ControllerBase
     {
         if (file == null || file.Length == 0) throw new InvalidOperationException("กรุณาเลือกไฟล์ Excel");
         string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext == ".xls") throw new InvalidOperationException("ไฟล์ .xls (Excel รุ่นเก่า) ระบบอ่านไม่ได้\nกรุณาเปิดไฟล์ใน Excel › Save As › Excel Workbook (.xlsx) แล้วเลือกไฟล์ใหม่");
         if (ext != ".xlsx" && ext != ".xlsm") throw new InvalidOperationException("รองรับเฉพาะไฟล์ Excel (.xlsx)");
+        using var zs = file.OpenReadStream();
+        ExcelUploadGuard.ValidateZip(zs);
     }
 
     // sensitive uploads (users = plain-text passwords): kept in memory only, never written to the upload folder
     protected static async Task<byte[]> ReadUpload(IFormFile file)
     {
         CheckUpload(file);
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms);
-        return ms.ToArray();
+        string key = await ExcelUploadGuard.AcquireAsync();
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            return ms.ToArray();
+        }
+        finally { ExcelUploadGuard.Release(key); }
     }
 
     // startup: files left by a recycle / crash (cache entries die with the process, so nothing deletes them)
@@ -120,13 +128,19 @@ public abstract class AppController : ControllerBase
         string dir = UploadDir;
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, $"{Guid.NewGuid():N}_{Path.GetFileName(file.FileName)}");
-        await using var fs = System.IO.File.Create(path);
-        await file.CopyToAsync(fs);
+        await ExcelUploadGuard.AcquireAsync(path);
+        try
+        {
+            await using var fs = System.IO.File.Create(path);
+            await file.CopyToAsync(fs);
+        }
+        catch { ExcelUploadGuard.Release(path); throw; }
         return path;
     }
 
     protected static void TryDelete(string path)
     {
+        ExcelUploadGuard.Release(path);
         try { if (!string.IsNullOrEmpty(path)) System.IO.File.Delete(path); } catch { }
     }
 }

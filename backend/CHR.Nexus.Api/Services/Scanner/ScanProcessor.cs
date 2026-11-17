@@ -487,8 +487,8 @@ public sealed class ScanProcessor
             return $"กรุณาสแกน QR LAYOUT (ตำแหน่งจัดเก็บ) ก่อน แล้วค่อยสแกนป้ายลูกค้า\nคลัง {stock.Code} ต้องบันทึกตำแหน่งที่จัดเก็บ";
         }
         if (layout?.Length > 120) layout = layout[..120];
-        // 📦 PLATE S1–S9 full (3 packs) -> scan another location (scan-in only)
-        if (lay && layout.Length > 0 && !IsScanOutMode)
+        // 📦 PLATE S1–S9 full (3 packs) -> scan another location (normal scan-in only · return / remainder may go over: Layout shows "เก็บเกิน")
+        if (lay && layout.Length > 0 && !IsScanOutMode && !IsReturnMode && !IsRemainderMode)
         {
             var load = new LayoutService().PlateLoad(layout);
             if (load is { } pl && pl.Count >= LayoutService.PlateCap)

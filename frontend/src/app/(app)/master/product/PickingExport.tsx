@@ -56,9 +56,12 @@ function writeJson(k: string, v: unknown) {
   }
 }
 
-export function PickingExport({ req, onClose }: { req: PickingReq | null; onClose: () => void }) {
+export type PickData ={ unit: string; units: string[]; items: Row[] };
+
+// source = preloaded cards (e.g. PENTA STOCK review) used instead of the /products/picking fetch
+export function PickingExport({ req, onClose, source }: { req: PickingReq | null; onClose: () => void; source?: () => Promise<PickData> }) {
   const toast = useToast();
-  const [data, setData] = useState<{ unit: string; units: string[]; items: Row[] } | null>(null);
+  const [data, setData] = useState<PickData | null>(null);
   const [layout, setLayout] = useState<Layout>("A4-10");
   const [prefix, setPrefix] = useState("A");
   const [start, setStart] = useState("0001");
@@ -83,7 +86,7 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
       const lg = readJson<Logo>(logoKey(req.stkId));
       setLogo(lg === "CHR" || lg === "CHW" ? lg : /CHW/i.test(req.stockName) ? "CHW" : "CHR");
     });
-    api<{ unit: string; units: string[]; items: Row[] }>("/products/picking", { method: "POST", body: req })
+    (source ? source() : api<PickData>("/products/picking", { method: "POST", body: req }))
       .then((d) => {
         if (!alive) return;
         setData(d);
@@ -97,7 +100,7 @@ export function PickingExport({ req, onClose }: { req: PickingReq | null; onClos
     return () => {
       alive = false;
     };
-  }, [req, toast, onClose]);
+  }, [req, source, toast, onClose]);
 
   const cards = useMemo<Card[]>(
     () =>
