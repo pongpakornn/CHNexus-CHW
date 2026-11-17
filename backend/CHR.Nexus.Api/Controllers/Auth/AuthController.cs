@@ -28,6 +28,7 @@ public sealed class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("login")]
+    [RequestSizeLimit(8_192)]
     public IActionResult Login([FromBody] LoginRequest req)
     {
         if (string.IsNullOrWhiteSpace(req?.UserId) || string.IsNullOrEmpty(req.Password))

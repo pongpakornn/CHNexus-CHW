@@ -22,6 +22,8 @@ import type { ImportPreview } from "@/components/import/types";
 
 const LEVEL_TONE: Record<number, string> = { 1: "var(--danger)", 2: "var(--accent)", 3: "var(--info)" };
 
+type LoginLock = { userId: string; name: string; fails: number; lockCount: number; lockedUntil: string };
+
 // 👥 USER MANAGEMENT (UserManagementView): การ์ดผู้ใช้ - ดู / เพิ่ม / แก้ไข / ลบ / กำหนดสิทธิ์ / Import / ALERT CONTACT
 export default function UsersPage() {
   const toast = useToast();
@@ -39,6 +41,9 @@ export default function UsersPage() {
   const { me: auth } = useAuth();
   const canLog = !!auth && (auth.userLevel === 1 || !!auth.can.activityLog);
   const [busy, setBusy] = useState(false);
+  // 🔓 ล็อกชั่วคราว (รหัสผ่านผิดหลายครั้ง) - แยกจากช่อง LOCK ถาวร
+  const [locks, setLocks] = useState<LoginLock[]>([]);
+  const [locksOpen, setLocksOpen] = useState(false);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const tokenRef = useRef("");
@@ -50,6 +55,7 @@ export default function UsersPage() {
         setUsers(r.users);
         setCan(r.can);
         setMe(r.me);
+        if (r.can.edit) setLocks(await api<LoginLock[]>("/users/login-locks").catch(() => []));
       } catch (e) {
         if (!live) toast.show("ERROR", "โหลดรายชื่อผู้ใช้งานไม่สำเร็จ\n" + (e as Error).message, "error");
       }
@@ -61,6 +67,23 @@ export default function UsersPage() {
     const t = setTimeout(load, 0);
     return () => clearTimeout(t);
   }, [load]);
+
+  // ?locks=1 (ลิงก์จากแจ้งเตือน Admin) = เปิดหน้าต่างปลดล็อกทันที
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("locks") !== "1") return;
+    const t = setTimeout(() => setLocksOpen(true), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  async function unlock(l: LoginLock) {
+    try {
+      const r = await api<{ message: string }>(`/users/login-locks/${encodeURIComponent(l.userId)}/unlock`, { method: "POST" });
+      toast.show("Unlocked", r.message, "ok");
+      setLocks((x) => x.filter((y) => y.userId !== l.userId));
+    } catch (e) {
+      toast.show("WARNING", (e as Error).message, "warn");
+    }
+  }
 
   // ⚡ เรียลไทม์ 3 วินาที (คงคำค้นไว้)
   useLive(
@@ -200,6 +223,11 @@ export default function UsersPage() {
         <span className="rounded-full bg-primary px-3 py-1 text-xs font-extrabold text-white">{users.length.toLocaleString()} USERS</span>
         <span className="rounded-full bg-success px-3 py-1 text-xs font-extrabold text-white">{online.toLocaleString()} ONLINE</span>
         <span className="rounded-full bg-danger px-3 py-1 text-xs font-extrabold text-white">{locked.toLocaleString()} LOCKED</span>
+        {can.edit && (
+          <button type="button" onClick={() => setLocksOpen(true)} className={`rounded-full px-3 py-1 text-xs font-extrabold text-white ${locks.length ? "bg-warning" : "bg-ink-soft"}`} title="บัญชีที่ถูกล็อกชั่วคราวเพราะใส่รหัสผ่านผิดหลายครั้ง">
+            🔓 LOGIN LOCKS ({locks.length})
+          </button>
+        )}
       </div>
 
       {list.length === 0 ? (
@@ -379,6 +407,31 @@ export default function UsersPage() {
             setContact(null);
           }}
         />
+      )}
+      {locksOpen && (
+        <Modal open title={`🔓 LOGIN LOCKS (${locks.length})`} onClose={() => setLocksOpen(false)}>
+          {locks.length === 0 ? (
+            <Empty>ไม่มีบัญชีที่ถูกล็อกชั่วคราว</Empty>
+          ) : (
+            <ul className="divide-y divide-line">
+              {locks.map((l) => (
+                <li key={l.userId} className="flex flex-wrap items-center gap-2 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-extrabold">
+                      {l.userId} <span className="font-semibold text-ink-soft">{l.name}</span>
+                    </div>
+                    <div className="text-xs text-ink-soft">
+                      ผิด {l.fails} ครั้ง · ล็อกครั้งที่ {l.lockCount} · ถึง {new Date(l.lockedUntil + "Z").toLocaleString("th-TH", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => unlock(l)} className="rounded-full bg-success px-3 py-1 text-xs font-extrabold text-white">
+                    UNLOCK
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
       )}
       {logOpen && (
         <Modal open size="xl" title="🕘 ACTIVITY LOG • ทุกระบบ" onClose={() => setLogOpen(false)}>

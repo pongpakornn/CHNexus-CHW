@@ -14,6 +14,10 @@ export function minTokenOf(body: string): { text: string; id: number } | null {
   return m ? { text: body.replace(MIN_TOKEN, "").trim(), id: Number(m[1]) } : null;
 }
 
+// 🔒 แจ้ง Admin: บัญชีถูกล็อกชั่วคราว -> [[LOCKS]] = ปุ่มเปิดหน้าปลดล็อก (ส่งโดยระบบ ผู้ใช้ทั่วไปไม่เห็น)
+export const LOCKS_TOKEN = "[[LOCKS]]";
+export const LOCKS_URL = "/admin/users?locks=1";
+
 // 📁 ประวัติ MIN REPORT ของฉัน (กระดิ่ง) - MinSignHost เปิดหน้าต่าง
 export const MIN_HISTORY_EVENT = "nexus:minsign-history";
 export function openMinHistory() {

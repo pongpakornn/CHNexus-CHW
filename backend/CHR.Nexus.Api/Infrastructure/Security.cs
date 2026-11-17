@@ -6,7 +6,7 @@ namespace CHR.Nexus.Api.Web;
 // 🛡 ความปลอดภัยของ API (ไม่แตะฐานข้อมูล / ระบบอื่น · ทำงานในหน่วยความจำ เบา ไม่หน่วงผู้ใช้)
 //   1) SecurityHeaders : กันฝังหน้าใน iframe (Clickjacking) · กันเดาชนิดไฟล์ · ไม่ส่ง Referrer ออกนอก · JSON ไม่ถูก Cache
 //   2) CSRF guard      : คำสั่งบันทึก (POST / PUT / PATCH / DELETE) ที่ Browser บอกว่ามาจาก "เว็บอื่น" (Sec-Fetch-Site: cross-site) = ปฏิเสธ
-//   3) LoginGuard      : รหัสผ่านผิดติดกัน 5 ครั้ง / UserID หรือ 20 ครั้ง / เครื่อง ใน 15 นาที = ล็อกชั่วคราว 15 นาที (กันเดารหัส Brute-force)
+//   3) LoginGuard      : รหัสผ่านผิด 5 ครั้ง / UserID (ทุกเครื่อง) หรือ 20 ครั้ง / เครื่อง ใน 15 นาที = ล็อกชั่วคราว 15 -> 30 -> 60... นาที (กันเดารหัส Brute-force)
 //   4) TokenRevoke     : Logout แล้ว Token เดิมใช้ไม่ได้อีก (แม้ถูกขโมยไป) · ปลดสถานะค้าง / ล็อกบัญชี = Session หายทันทีอยู่แล้ว
 //   5) RequestLimit    : จำกัดจำนวนคำขอต่อเครื่อง (กันยิงถล่ม API) - long-poll เรียลไทม์ไม่นับ
 public static class ClientIp
@@ -110,25 +110,45 @@ public sealed class SecurityMiddleware
     }
 }
 
-// 🔐 กันเดารหัสผ่าน: นับครั้งที่ผิดต่อ UserID และต่อเครื่อง ภายใน 15 นาที
+// 🔐 กันเดารหัสผ่าน: ผิด 5 ครั้งใน 15 นาที / UserID (ทุกเครื่องรวมกัน) = ล็อกชั่วคราว 15 -> 30 -> 60 -> 120 นาที... (ทบเท่าตัว สูงสุด 24 ชม.)
+//    Login สำเร็จ หรือ Admin ปลดล็อก = เริ่มนับใหม่ทั้งหมด · แยกกันต่อเครื่อง (IP) 20 ครั้ง / 15 นาที · เก็บในหน่วยความจำ (Server รีสตาร์ท = ล้าง)
 public static class LoginGuard
 {
-    private const int MaxPerUser = 5, MaxPerIp = 20;
+    private const int MaxPerUser = 5, MaxPerIp = 20, MaxLockMinutes = 24 * 60;
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
-    private static readonly ConcurrentDictionary<string, List<DateTime>> Fails = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, List<DateTime>> Fails = new(StringComparer.OrdinalIgnoreCase);   // fail times: "u:UID" and "ip:IP"
+    private static readonly ConcurrentDictionary<string, Lockout> Locks = new(StringComparer.OrdinalIgnoreCase);        // escalation state per UserID
+
+    private sealed class Lockout { public int Count; public DateTime Until; public int Fails; }
+
+    /// <summary>Raised once at the moment an account becomes locked: (userId, ip, fails, lockCount, minutes). Wired in Program.cs.</summary>
+    public static Action<string, string, int, int, int> OnLocked;
+
+    /// <summary>UserID as stored in the DB, or null when no such user (wired in Program.cs). Not set (tests) = the typed ID.</summary>
+    public static Func<string, string> Canonical;
+
+    // unknown UserID = null: only the per-IP counter applies (no per-account lock, no admin alert, no memory per random ID)
+    private static string Canon(string uid)
+    {
+        if (Canonical == null) return uid;
+        try { return Canonical(uid); } catch { return uid; }
+    }
 
     private static long _sweepAt;
+    private static readonly TimeSpan CleanLapse = TimeSpan.FromHours(1);   // no lock for 1 h = escalation starts over at 15 min
 
-    /// <summary>Lock key for one account from one machine: a stranger elsewhere cannot lock the owner out.</summary>
-    public static string UserKey(string uid, string ip) => "u:" + uid + "|" + ip;
+    /// <summary>15, 30, 60, 120 ... minutes (doubling), capped at 24 h.</summary>
+    public static int LockMinutes(int lockCount) => (int)Math.Min(MaxLockMinutes, 15L << Math.Clamp(lockCount - 1, 0, 20));
 
-    // Drop keys whose newest failure is older than the window (at most once a minute) so the dictionary cannot grow forever
+    // Drop stale entries (at most once a minute) so the dictionaries cannot grow forever
     private static void Sweep()
     {
         long now = Environment.TickCount64, last = Interlocked.Read(ref _sweepAt);
         if (now - last < 60000 || Interlocked.CompareExchange(ref _sweepAt, now, last) != last) return;
         var cut = DateTime.UtcNow - Window;
         foreach (var (k, l) in Fails) { bool old; lock (l) old = l.Count == 0 || l.Max() < cut; if (old) Fails.TryRemove(k, out _); }
+        // escalation memory kept while a lock is active or lapsed < 1 h ago (only real UserIDs get an entry)
+        foreach (var (k, o) in Locks) { bool old; lock (o) old = o.Until < DateTime.UtcNow - CleanLapse; if (old) Locks.TryRemove(k, out _); }
     }
 
     private static int Count(string key)
@@ -141,34 +161,77 @@ public static class LoginGuard
         }
     }
 
+    private static string Msg(string who, int min) =>
+        $"{who}ใส่รหัสผ่านผิดหลายครั้ง ระบบล็อกชั่วคราวเพื่อความปลอดภัย\nกรุณาลองใหม่ในอีก {Math.Max(1, min)} นาที หรือติดต่อ Admin";
+
     /// <summary>ถูกล็อกชั่วคราวอยู่ = ข้อความแจ้ง (null = เข้าได้)</summary>
     public static string Blocked(string uid, string ip)
     {
-        if (Count(UserKey(uid, ip)) >= MaxPerUser) return Wait(UserKey(uid, ip), "บัญชีนี้");
-        if (Count("ip:" + ip) >= MaxPerIp) return Wait("ip:" + ip, "เครื่องนี้");
+        string k = Canon(uid);
+        if (k != null && Locks.TryGetValue(k, out var o))
+        {
+            DateTime until; lock (o) until = o.Until;
+            if (until > DateTime.UtcNow) return Msg("บัญชีนี้", (int)Math.Ceiling((until - DateTime.UtcNow).TotalMinutes));
+        }
+        if (Count("ip:" + ip) >= MaxPerIp)
+        {
+            DateTime first; var l = Fails["ip:" + ip];
+            lock (l) first = l.Count == 0 ? DateTime.UtcNow : l.Min();
+            return Msg("เครื่องนี้", (int)Math.Ceiling((first + Window - DateTime.UtcNow).TotalMinutes));
+        }
         return null;
-    }
-
-    private static string Wait(string key, string who)
-    {
-        DateTime first;
-        var l = Fails[key];
-        lock (l) first = l.Min();
-        int min = Math.Max(1, (int)Math.Ceiling((first + Window - DateTime.UtcNow).TotalMinutes));
-        return $"{who}ใส่รหัสผ่านผิดหลายครั้ง ระบบล็อกชั่วคราวเพื่อความปลอดภัย\nกรุณาลองใหม่ในอีก {min} นาที หรือติดต่อ Admin";
     }
 
     public static void Fail(string uid, string ip)
     {
         Sweep();
-        foreach (var k in new[] { UserKey(uid, ip), "ip:" + ip })
+        var li = Fails.GetOrAdd("ip:" + ip, _ => new List<DateTime>());
+        lock (li) li.Add(DateTime.UtcNow);
+
+        uid = Canon(uid);
+        if (uid == null) return;
+        var l = Fails.GetOrAdd("u:" + uid, _ => new List<DateTime>());
+        int fails = 0, lockCount = 0, minutes = 0;
+        lock (l)
         {
-            var l = Fails.GetOrAdd(k, _ => new List<DateTime>());
-            lock (l) l.Add(DateTime.UtcNow);
+            l.Add(DateTime.UtcNow);
+            l.RemoveAll(t => t < DateTime.UtcNow - Window);
+            if (l.Count >= MaxPerUser)
+            {
+                var o = Locks.GetOrAdd(uid, _ => new Lockout());
+                lock (o)
+                {
+                    if (o.Until <= DateTime.UtcNow)   // newly locked (a lock already running is not extended or re-announced)
+                    {
+                        if (o.Until < DateTime.UtcNow - CleanLapse) o.Count = 0;   // last lock lapsed long ago = start over
+                        o.Count++; o.Fails = l.Count; minutes = LockMinutes(o.Count);
+                        o.Until = DateTime.UtcNow.AddMinutes(minutes);
+                        fails = o.Fails; lockCount = o.Count;
+                        l.Clear();
+                    }
+                }
+            }
         }
+        if (lockCount > 0) { try { OnLocked?.Invoke(uid, ip, fails, lockCount, minutes); } catch { /* alert is best effort */ } }
     }
 
-    public static void Success(string uid, string ip) => Fails.TryRemove(UserKey(uid, ip), out _);
+    /// <summary>Right password (or admin unlock): fail count and escalation start over.</summary>
+    public static bool Reset(string uid)
+    {
+        uid = Canon(uid) ?? uid;
+        Fails.TryRemove("u:" + uid, out _);
+        return Locks.TryRemove(uid, out _);
+    }
+
+    public static void Success(string uid, string ip) => Reset(uid);
+
+    /// <summary>Accounts locked right now.</summary>
+    public static List<(string UserId, int Fails, int LockCount, DateTime LockedUntil)> Active()
+    {
+        var list = new List<(string, int, int, DateTime)>();
+        foreach (var (k, o) in Locks) lock (o) if (o.Until > DateTime.UtcNow) list.Add((k, o.Fails, o.Count, o.Until));
+        return list.OrderBy(x => x.Item4).ToList();
+    }
 }
 
 // 🚪 Logout = Token ที่ออกก่อนเวลานี้ของผู้ใช้นี้ใช้ไม่ได้อีก (เก็บในหน่วยความจำ · Server รีสตาร์ท = Token หมดอายุตามเวลาเดิม)

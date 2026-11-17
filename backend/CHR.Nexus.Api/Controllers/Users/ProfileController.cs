@@ -73,9 +73,11 @@ public sealed class ProfileController : AppController
     }
 
     [HttpPost("password")]
+    [RequestSizeLimit(8_192)]
     public IActionResult Password([FromBody] PasswordDto f)
     {
         if (Me == null) return Deny();
+        if (f?.Current?.Length > 128 || f?.Next?.Length > 128 || f?.Confirm?.Length > 128) return Fail("รหัสผ่านยาวเกินกำหนด (ไม่เกิน 128 ตัวอักษร)");
         if (string.IsNullOrEmpty(f?.Current)) return Fail("กรุณากรอกรหัสผ่านปัจจุบัน");
         if (string.IsNullOrEmpty(f.Next)) return Fail("กรุณากรอกรหัสผ่านใหม่");
         if (f.Next.Length < 4) return Fail("รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร");

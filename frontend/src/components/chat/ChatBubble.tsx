@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DotsMenu, type DotsItem } from "@/components/menus/DotsMenu";
 import { Icon } from "@/components/icons";
-import { minTokenOf, openMinSign } from "@/lib/minSign";
+import { LOCKS_TOKEN, LOCKS_URL, minTokenOf, openMinSign } from "@/lib/minSign";
 
 // 💬 กล่องข้อความของแชท (แบบ IG)
 //   ⋯ ทุกข้อความ = กดอีโมจิตอบ · ข้อความของฉันเพิ่ม แก้ไข / ลบ · แก้ไขในกล่องเดิม (Enter = บันทึก, Esc = ยกเลิก)
@@ -160,7 +160,14 @@ export function ChatBubble({
                 className={`whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed ${bubbleClass}`}
                 style={side === "bot" && tone ? { borderColor: `color-mix(in srgb, ${tone} 30%, transparent)` } : undefined}
               >
-                {minDoc ? (
+                {text.includes(LOCKS_TOKEN) ? (
+                  <>
+                    {text.replace(LOCKS_TOKEN, "").trim()}
+                    <a href={LOCKS_URL} className="mr-chat-doc mt-1.5 block text-center">
+                      🔓 เปิดหน้าปลดล็อก (USER MANAGEMENT)
+                    </a>
+                  </>
+                ) : minDoc ? (
                   <>
                     {minDoc.text}
                     <button type="button" className="mr-chat-doc" onClick={() => openMinSign(minDoc.id)}>

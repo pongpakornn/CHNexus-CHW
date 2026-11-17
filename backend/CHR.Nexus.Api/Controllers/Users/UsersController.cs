@@ -52,6 +52,26 @@ public sealed class UsersController : AppController
         return Ok(new { ready = true, items = new UserOrgService().All() });
     }
 
+    // 🔒 ล็อกชั่วคราว (รหัสผ่านผิดหลายครั้ง · ในหน่วยความจำ) - แยกจากช่อง LOCK ถาวร (Users.IsLocked)
+    [HttpGet("login-locks")]
+    public IActionResult LoginLocks()
+    {
+        if (Me?.CanEditUser != true) return Deny();
+        var active = LoginGuard.Active();
+        var names = active.Count == 0 ? new Dictionary<string, string>() : _svc.GetUsers().ToDictionary(u => u.UserId, u => u.Name, StringComparer.OrdinalIgnoreCase);
+        return Ok(active.Select(a => new { userId = a.UserId, name = names.GetValueOrDefault(a.UserId) ?? "", fails = a.Fails, lockCount = a.LockCount, lockedUntil = a.LockedUntil }));
+    }
+
+    [HttpPost("login-locks/{userId}/unlock")]
+    public IActionResult UnlockLogin(string userId)
+    {
+        if (Me?.CanEditUser != true) return Deny();
+        if (string.IsNullOrWhiteSpace(userId) || userId.Length > 50) return Fail("USER ID ไม่ถูกต้อง");
+        bool had = LoginGuard.Reset(userId.Trim());
+        LogService.WriteLog(Uid, "LOGIN_UNLOCK", $"ปลดล็อกชั่วคราวของ {userId.Trim()}{(had ? "" : " (ไม่มีรายการล็อกอยู่แล้ว)")}", userId.Trim());
+        return Ok(new { message = $"ปลดล็อก {userId.Trim()} แล้ว" });
+    }
+
     [HttpGet("token")]
     public IActionResult Token()
     {
