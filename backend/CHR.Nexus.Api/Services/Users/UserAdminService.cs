@@ -104,6 +104,7 @@ namespace Nexus.Services
             ("PpSetup",        "Master Data › Production Plan STD", "VIEW = open  •  ADD = add machine / product  •  EDIT = edit STD / Plan SPH / product  •  DEL = delete"),
             ("ChemRecord",     "Chemical Control › Inspection Record", "VIEW = dashboard / control chart / export  •  ADD = record readings / corrective action / submit  •  EDIT = edit or delete others' readings / actions"),
             ("ChemSetup",      "Chemical Control › Parameter Setup", "VIEW = open  •  ADD = new parameter  •  EDIT = spec / control limits / check times  •  DEL = delete"),
+            ("PC_WOF",      "Production Control › Work Order Follow", "VIEW = open  •  ADD = create sheet  •  APPROVE = sign as APPROVE (editing = sheet owner / editors)"),
             ("PackingCard", "Pick List",                  "VIEW = open the page"),
             ("MAXMINCALC",  "Max-Min Calculator",         "VIEW = open  •  EDIT = edit / import / calculate"),
             ("ForecastOrder", "Forecast / Order / Delivery", "VIEW = open + export  •  ADD = import forecast / order / delivery"),

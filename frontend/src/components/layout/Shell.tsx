@@ -10,6 +10,7 @@ import { Icon } from "@/components/icons";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MinReportAlert } from "@/components/notifications/MinReportAlert";
 import { EdpAlert } from "@/components/notifications/EdpAlert";
+import { PcwofSignHost } from "@/components/notifications/PcwofSignHost";
 import { MinSignHost } from "@/components/notifications/MinSignHost";
 import { MinSignAlert } from "@/components/notifications/MinSignAlert";
 import { ChemSignAlert } from "@/components/notifications/ChemSignAlert";
@@ -77,7 +78,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* Sidebar จอใหญ่: กล่องนอกเลื่อนกว้าง 80 <-> 260 ส่วนข้างในกว้าง 260 ตลอด (ซ่อนส่วนเกิน) = ไอคอนอยู่ที่เดิม ตัวหนังสือไม่ถูกบีบ */}
       <aside className="sb-panel hidden shrink-0 overflow-hidden bg-sidebar shadow-xl backdrop-blur md:flex" style={{ width: open ? 260 : 80 }}>
         <div className="flex h-full w-[260px] shrink-0 flex-col">
-          <SidebarBrand compact={!open} system={sys === "cims" ? "CIMS" : sys === "edp" ? "EDP" : sys === "pp" ? "PLAN" : sys === "chem" ? "CHEM" : undefined} />
+          <SidebarBrand compact={!open} system={sys === "cims" ? "CIMS" : sys === "edp" ? "EDP" : sys === "pp" ? "PLAN" : sys === "chem" ? "CHEM" : sys === "pc" ? "PC" : undefined} />
           <Suspense>
             <SidebarNav items={items} compact={!open} onExpand={() => setOpen(true)} />
           </Suspense>
@@ -89,7 +90,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className={`fixed inset-0 z-50 md:hidden ${mobile ? "" : "pointer-events-none"}`} aria-hidden={!mobile} inert={!mobile}>
         <div className={`sb-dim absolute inset-0 bg-black/40 ${mobile ? "opacity-100" : "opacity-0"}`} onClick={() => setMobile(false)} />
         <aside className={`sb-drawer absolute inset-y-0 left-0 flex w-[260px] flex-col bg-sidebar shadow-2xl backdrop-blur ${mobile ? "translate-x-0" : "-translate-x-full"}`}>
-          <SidebarBrand compact={false} system={sys === "cims" ? "CIMS" : sys === "edp" ? "EDP" : sys === "pp" ? "PLAN" : sys === "chem" ? "CHEM" : undefined} />
+          <SidebarBrand compact={false} system={sys === "cims" ? "CIMS" : sys === "edp" ? "EDP" : sys === "pp" ? "PLAN" : sys === "chem" ? "CHEM" : sys === "pc" ? "PC" : undefined} />
           <Suspense>
             <SidebarNav items={items} compact={false} onNavigate={() => setMobile(false)} />
           </Suspense>
@@ -145,6 +146,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <MinSignAlert />
       <ChemSignAlert />
       <MinSignHost />
+      <PcwofSignHost />
     </div>
   );
 }

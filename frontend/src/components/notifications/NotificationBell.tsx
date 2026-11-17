@@ -16,7 +16,7 @@ type Row = { label: string; sub?: string; count: number; href: string };
 type Item = { key: string; tone: Tone; title: string; count: number; detail: string; rows: Row[] };
 type Data = { total: number; items: Item[]; time: string };
 
-const ICON: Record<string, IconName> = { MIN: "triangle", MINREPORT: "document", MINSIGN: "pencil", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
+const ICON: Record<string, IconName> = { MIN: "triangle", MINREPORT: "document", MINSIGN: "pencil", WOFSIGN: "pencil", PR: "docCheck", DEDUCT: "sync", SUPPORT: "chat", CHAT: "chat" };
 const POLL_MS = 30000;
 
 export function NotificationBell() {
@@ -40,7 +40,7 @@ export function NotificationBell() {
       window.removeEventListener(NOTIFY_REFRESH, load);
     };
   }, [load]);
-  useLive(["minreport"], load); // มีรายการค้าง MIN ใหม่ / รายงานแล้ว = ตัวเลขอัพเดททันที
+  useLive(["minreport", "pcwof"], load); // มีรายการค้าง MIN ใหม่ / รายงานแล้ว = ตัวเลขอัพเดททันที
 
   // ปิดเมื่อกดนอกกล่อง / Esc
   useEffect(() => {
@@ -62,6 +62,7 @@ export function NotificationBell() {
     if (href.startsWith("#chat:")) return openChat(href.slice(6));
     // #minsign:ID = เปิดเอกสาร MIN REPORT ใบนั้นให้ลงลายเซ็น
     if (href.startsWith("#minsign:")) return openMinSign(Number(href.slice(9)));
+    if (href.startsWith("#wofsign:")) return router.push(`/pc/wof/${Number(href.slice(9))}`); // WORK ORDER FOLLOW sheet
     router.push(href);
   };
   const total = data?.items.reduce((s, i) => s + i.count, 0) ?? 0;

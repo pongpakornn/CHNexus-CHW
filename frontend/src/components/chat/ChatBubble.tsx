@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DotsMenu, type DotsItem } from "@/components/menus/DotsMenu";
 import { Icon } from "@/components/icons";
+import { wofTokenOf } from "@/lib/pcwof";
 import { LOCKS_TOKEN, LOCKS_URL, minTokenOf, openMinSign } from "@/lib/minSign";
 
 // 💬 กล่องข้อความของแชท (แบบ IG)
@@ -50,6 +51,7 @@ export function ChatBubble({
   const text = typeof body === "string" ? body : "";
   // ✍ เอกสาร MIN REPORT ที่ส่งมาในแชท ([[MINREPORT:id]]) = ปุ่มเปิดเอกสาร / ลงลายเซ็น
   const minDoc = text ? minTokenOf(text) : null;
+  const wofDoc = text ? wofTokenOf(text) : null; // [[WOF:id]] = WORK ORDER FOLLOW sign request
 
   async function save() {
     if (editing === null || !onEdit) return;
@@ -165,6 +167,13 @@ export function ChatBubble({
                     {text.replace(LOCKS_TOKEN, "").trim()}
                     <a href={LOCKS_URL} className="mr-chat-doc mt-1.5 block text-center">
                       🔓 เปิดหน้าปลดล็อก (USER MANAGEMENT)
+                    </a>
+                  </>
+                ) : wofDoc ? (
+                  <>
+                    {wofDoc.text}
+                    <a href={`/pc/wof/${wofDoc.id}`} className="mr-chat-doc mt-1.5 block text-center">
+                      ✍ เปิดแผ่นงาน WORK ORDER FOLLOW
                     </a>
                   </>
                 ) : minDoc ? (

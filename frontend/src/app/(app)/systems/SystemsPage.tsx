@@ -15,7 +15,6 @@ const TITLE = ["Choose Your", "Workspace"];
 
 // 🚧 ระบบที่กำลังพัฒนา: แสดงการ์ดไว้ก่อน (ทุกคนเห็น) กดแล้วแจ้งว่าอยู่ระหว่างการอัพเดทระบบ · เปิดใช้จริง = ย้ายไปเพิ่มใน lib/menu.ts (SYSTEMS)
 const SOON: { key: string; name: string; sub: string; art: string; color: string }[] = [
-  { key: "pc-workspace", name: "PC Digital Workspace", sub: "Production Planning & TPS", art: "/images/systems/pc-workspace.webp", color: "#4f46e5" },
   { key: "scheduling", name: "Production Scheduling & Work Order", sub: "Plan · Work Order", art: "/images/systems/scheduling.webp", color: "#2563eb" },
   { key: "kanban", name: "Kanban Control", sub: "Production Order · Work Call", art: "/images/systems/kanban.webp", color: "#0284c7" },
   { key: "bom", name: "Product Structure (BOM)", sub: "Process · Work Order · Kanban", art: "/images/systems/bom.webp", color: "#6750a4" },

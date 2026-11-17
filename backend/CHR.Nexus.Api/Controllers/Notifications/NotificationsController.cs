@@ -78,6 +78,23 @@ public sealed class NotificationsController : AppController
                 });
         }
 
+        // WORK ORDER FOLLOW: sheets waiting for my signature (signed = disappears)
+        if (global::Nexus.Helpers.DbSchema.HasPcWof && Me.CanViewPcWof)
+        {
+            var wof = new WorkOrderFollowService().Queue(Uid);
+            if (wof.Count > 0)
+                items.Add(new
+                {
+                    key = "WOFSIGN", tone = "warning", title = "WORK ORDER FOLLOW รอลงลายเซ็น", count = wof.Count,
+                    detail = "กดรายการ = เปิดเอกสาร แล้วลงลายเซ็น",
+                    rows = wof.Take(10).Select(r => new
+                    {
+                        label = $"{r.CustomerName} · {r.WorkOrderNo}", sub = $"{r.Role} · {r.MonthStart:yyyy-MM} · จาก {r.RequestedBy}",
+                        count = 1, href = $"#wofsign:{r.SheetId}"
+                    })
+                });
+        }
+
         if (Me.CanViewPR)
         {
             var waiting = LiveCache.Get("pr-list", TimeSpan.FromSeconds(15), () => new PRService().GetPRList("", null)).Where(p => string.Equals(p.Status, "Waiting", StringComparison.OrdinalIgnoreCase)).ToList();

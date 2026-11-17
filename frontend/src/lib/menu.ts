@@ -15,7 +15,7 @@ export type MenuItem = {
   stockType?: string; // เมนูย่อยเป็นรายชื่อคลังประเภทนี้ (โหลดจาก /master/menu)
 };
 
-export type SystemKey = "root" | "cims" | "edp" | "pp" | "chem";
+export type SystemKey = "root" | "cims" | "edp" | "pp" | "chem" | "pc";
 
 // การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · art = ภาพประกอบการ์ด · color = สีแถบ/เงาการ์ด · desc = tooltip
 export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
@@ -214,7 +214,22 @@ export const CHEM: SystemDef = {
 };
 
 // การ์ดหน้าเลือกระบบ (ลำดับที่แสดง)
-export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, CHEM, MASTER, ADMIN];
+// 🗂 PC DIGITAL WORKSPACE: ตาราง WORK ORDER FOLLOW รายเดือนต่อลูกค้า (แผน / สั่งผลิต / ผลิตได้ / ส่งของ) · ลงลายเซ็น PREPARE · CHECK · APPROVE
+export const PC_PERM = "PC_WOF"; // key ใน Me.can (ต้องตรงกับ backend Auth/MeDto.cs)
+export const PC: SystemDef = {
+  key: "pc-workspace",
+  label: "PC DIGITAL WORKSPACE",
+  name: "PC Digital Workspace",
+  sub: "Production Planning & TPS",
+  art: "/images/systems/pc-workspace.webp",
+  title: "PC • WORK ORDER FOLLOW",
+  desc: "ตามงาน Work Order รายเดือนต่อลูกค้า: แผน · สั่งผลิต · ผลิตได้ · ส่งของ · ลงลายเซ็น PREPARE / CHECK / APPROVE",
+  icon: "/icons/ForecastOrder.png",
+  color: "#4f46e5",
+  menu: [{ href: "/pc/wof", label: "WORK ORDER FOLLOW", title: "PC • WORK ORDER FOLLOW", icon: "/icons/ForecastOrder.png", can: PC_PERM }],
+};
+
+export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, CHEM, PC, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 // USER MANAGEMENT ใต้ MASTER DATA (เห็นเฉพาะผู้มีสิทธิ์ userMgmt) + เข้าได้จาก SELECT SYSTEM เหมือนเดิม
@@ -223,8 +238,9 @@ export const CIMS_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CIMS.menu];
 export const EDP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...EDP.menu];
 export const PP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...PP.menu];
 export const CHEM_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CHEM.menu];
+export const PC_MENU: MenuItem[] = [SYSTEMS_ITEM, ...PC.menu];
 // Sidebar ของแต่ละระบบ
-export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : sys === "chem" ? CHEM_MENU : ROOT_MENU);
+export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : sys === "chem" ? CHEM_MENU : sys === "pc" ? PC_MENU : ROOT_MENU);
 
 // เห็นเมนูไหนบ้างตามสิทธิ์ (กลุ่มที่ไม่มีเมนูย่อยเหลือ = ซ่อนทั้งกลุ่ม)
 export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuItem[] {
@@ -240,12 +256,12 @@ export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) =
 
 // ระบบของหน้าปัจจุบัน: /cims = CIMS · /master = คงระบบที่มา (ไม่ระบุ) · /admin และอื่น ๆ = ROOT
 export const systemOf = (path: string): SystemKey | null =>
-  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/master") ? null : "root";
+  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/pc/") || path === "/pc" ? "pc" : path.startsWith("/master") ? null : "root";
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
   const flat = (m: MenuItem): MenuItem[] => [...(m.children ?? []).flatMap(flat), m]; // เมนูย่อยก่อน = ตรงที่สุด
-  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap(flat);
+  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...PC_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap(flat);
   const type = new URLSearchParams(search).get("type");
   // ตรงที่สุดก่อน: path ตรงเป๊ะ > path ยาวกว่า (เช่น /master/workdays/company ไม่ไปไฮไลต์ /master/workdays)
   let best: MenuItem | undefined;

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { chatView, openChat, openSupport, refreshNotifications, topicOf } from "@/lib/support";
 import { useToast } from "@/components/notifications/Toasts";
+import { WOF_TOKEN } from "@/lib/pcwof";
 import { LOCKS_TOKEN, minTokenOf, openMinSign } from "@/lib/minSign";
 
 // 🔔 ข้อความใหม่ = Toast "ใครส่งอะไรมา" + กระดิ่งอัพเดททันที (ทำงานเบื้องหลังตลอดเวลาที่ Login)
@@ -51,6 +52,7 @@ export function ChatFeed() {
           // ห้องที่เปิดอยู่ (และหน้าต่างมองเห็น) = เห็นข้อความอยู่แล้ว ไม่ต้อง Toast
           if (document.visibilityState === "visible" && (m.kind === "dm" ? chatView.dm === m.from : m.threadId !== null && chatView.sup === m.threadId)) return;
           // ✍ เอกสาร MIN REPORT ในแชท: คำขอลงลายเซ็น = MinSignHost แจ้งเอง (ไม่เด้งซ้ำ) · อื่น ๆ = กดแล้วเปิดเอกสาร
+          if (WOF_TOKEN.test(m.body)) return; // WORK ORDER FOLLOW sign request: PcwofSignHost alerts it
           const mr = m.kind === "dm" ? minTokenOf(m.body) : null;
           if (mr) {
             if (!mr.text.startsWith("✍")) toast.show(`💬 ${m.fromName}`, mr.text.slice(0, 120), "chat", { onClick: () => openMinSign(mr.id) });
