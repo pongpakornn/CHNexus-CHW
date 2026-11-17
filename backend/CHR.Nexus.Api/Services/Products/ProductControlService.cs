@@ -545,7 +545,7 @@ namespace Nexus.Services
                             var used = new List<string>();
                             using (SqlCommand cmd = new SqlCommand(@"SELECT c.CoilNo, c.Status FROM Nexus.Coils c JOIN Nexus.Parts p ON p.PartID = c.PartID
                                                                      WHERE ((@PtId > 0 AND p.PartID = @PtId) OR (@PtId = 0 AND p.PartCode = @PartACode))
-                                                                       AND (c.Status <> 'IN' OR EXISTS (SELECT 1 FROM Nexus.CoilMoves m WHERE m.CoilID = c.CoilID AND m.Action NOT IN ('REGISTER', 'IMPORT', 'EDIT')))", conn, trans))
+                                                                       AND (c.Status <> 'IN' OR EXISTS (SELECT 1 FROM Nexus.CoilMoves m WHERE m.CoilID = c.CoilID AND m.Action NOT IN ('REGISTER', 'IMPORT', 'EDIT', 'MOVE_LAYOUT')))", conn, trans))
                             {
                                 cmd.Parameters.AddWithValue("@PartACode", partACode);
                                 cmd.Parameters.AddWithValue("@PtId", ptId);

@@ -63,7 +63,7 @@ public sealed class LayoutService
     public const int PlateCap = 3;
     /// <summary>Scanned layout text is a PLATE location -> (location name, coils IN there now) · otherwise null.
     /// Counted like Layout 3D: coil still IN + its latest IN move was scanned with this location.</summary>
-    public (string Loc, int Count)? PlateLoad(string layout)
+    public (string Loc, int Count)? PlateLoad(string layout, int? exceptCoilId = null)
     {
         if (string.IsNullOrWhiteSpace(layout)) return null;
         string key = layout.Trim();
@@ -77,13 +77,23 @@ public sealed class LayoutService
             if (!texts.Any(x => string.Equals(x, key, StringComparison.OrdinalIgnoreCase))) continue;
             int n = c.ExecuteScalar<int>(@"
                 SELECT COUNT(*) FROM Nexus.Coils k
-                CROSS APPLY (SELECT TOP 1 t.Layout, m.ToStockID FROM Nexus.CoilMoves m JOIN Nexus.ScanTransactions t ON t.TransactionID = m.ScanTransactionID
-                             WHERE m.CoilID = k.CoilID AND m.Undone = 0 AND m.ToStatus = 'IN' AND m.Action <> 'CONSUME' ORDER BY m.MoveID DESC) x
-                WHERE k.Status = 'IN' AND x.ToStockID = k.StockID AND LTRIM(RTRIM(x.Layout)) IN @texts", new { texts });
+                CROSS APPLY (" + LatestInMoveSql("k") + @") x
+                WHERE k.Status = 'IN' AND x.ToStockID = k.StockID AND LTRIM(RTRIM(x.Layout)) IN @texts AND (@ex IS NULL OR k.CoilID <> @ex)", new { texts, ex = exceptCoilId });
             return (name, n);
         }
         return null;
     }
+
+    /// <summary>Latest IN-move of a coil = where it sits (Layout, TransactionDate, UserID, ToStockID). A MOVE_LAYOUT move (Nexus.CoilMoves.Layout) counts like a scan.</summary>
+    public static string LatestInMoveSql(string coil) => Nexus.Helpers.DbSchema.HasCoilMoveLayout
+        ? $@"SELECT TOP 1 COALESCE(m.Layout, t.Layout) AS Layout, COALESCE(t.TransactionDate, m.MoveDate) AS TransactionDate, COALESCE(t.UserID, m.UserID) AS UserID, m.ToStockID
+             FROM Nexus.CoilMoves m LEFT JOIN Nexus.ScanTransactions t ON t.TransactionID = m.ScanTransactionID
+             WHERE m.CoilID = {coil}.CoilID AND m.Undone = 0 AND m.ToStatus = 'IN' AND m.Action <> 'CONSUME' AND (m.ScanTransactionID IS NOT NULL OR m.Layout IS NOT NULL)
+             ORDER BY m.MoveID DESC"
+        : $@"SELECT TOP 1 t.Layout, t.TransactionDate, t.UserID, m.ToStockID
+             FROM Nexus.CoilMoves m JOIN Nexus.ScanTransactions t ON t.TransactionID = m.ScanTransactionID
+             WHERE m.CoilID = {coil}.CoilID AND m.Undone = 0 AND m.ToStatus = 'IN' AND m.Action <> 'CONSUME'
+             ORDER BY m.MoveID DESC";
 
     public LayoutSettings GetSettings()
     {

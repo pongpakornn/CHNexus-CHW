@@ -340,7 +340,7 @@ public sealed class MaxMinController : AppController
         try
         {
             string path = ImportTemplateService.NewPath(ImportTemplateService.Systems.MaxMinCalc,
-                days ? $"{stock.Code}_Max-MinCal_Template" : "ForecastOrder_" + DateTime.Today.ToString("yyyy-MM", Inv) + "_Template");
+                days ? $"{stock.Code}_Template_Set_Max-Min" : "ForecastOrder_" + DateTime.Today.ToString("yyyy-MM", Inv) + "_Template");
             int count;
             if (days)
             {
@@ -348,7 +348,7 @@ public sealed class MaxMinController : AppController
                 var rows = _svc.GetRows(stock, f, key ?? "");
                 if (rows.Count == 0) return Fail($"ยังไม่มีสินค้าในตารางของคลัง {stock.Code} ให้สร้าง Template");
                 count = rows.Count;
-                _svc.ExportDays(rows, path);
+                _svc.ExportSetMaxMin(rows, path, stock.Code);
             }
             else
             {

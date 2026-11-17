@@ -10,7 +10,7 @@ import { DateRange } from "@/components/forms/DateRange";
 import { GroupRow, useCollapsed } from "@/components/tables/GroupRow";
 import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
 import { QrImage } from "@/components/print/QrImage";
-import { type CardOpts, type Layout, LAYOUTS, LayoutOption, SheetPreview, Sheets, fitTexts, makePdf } from "@/components/print/PickSheets";
+import { type CardOpts, type Layout, LAYOUTS, LayoutOption, SheetPreview, Sheets, fitTexts } from "@/components/print/PickSheets";
 import { api, download } from "@/lib/api";
 import { fmtDate, isoDate, today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
@@ -76,9 +76,9 @@ export default function PickListPage() {
   const [sel, setSel] = useState<string[]>([]);
   const [preview, setPreview] = useState<PickCard | null>(null);
   const [mobilePreview, setMobilePreview] = useState(false);
-  const [printOpen, setPrintOpen] = useState(false); // หน้าต่าง PREVIEW (เลือกรูปแบบ + ดูแผ่นจริง) ก่อน PRINT / EXPORT PDF
+  const [printOpen, setPrintOpen] = useState(false); // หน้าต่าง PREVIEW (เลือกรูปแบบ + ดูแผ่นจริง) ก่อน PRINT
   const [layout, setLayout] = useState<Layout>("A4-10");
-  const [printing, setPrinting] = useState<{ items: PickCard[]; layout: Layout; mode: "print" | "pdf" } | null>(null);
+  const [printing, setPrinting] = useState<{ items: PickCard[]; layout: Layout } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [collapsed, toggleGroup] = useCollapsed();
   const printRef = useRef<HTMLDivElement>(null);
@@ -177,17 +177,11 @@ export default function PickListPage() {
 
   function print() {
     setPrintOpen(false);
-    setPrinting({ items: picked, layout, mode: "print" });
-  }
-
-  // ⬇ EXPORT PDF: วาดแผ่นเดียวกับที่พิมพ์ (A4 / ฉลาก 62 × 40) แล้วแปลงเป็น PDF ในเครื่อง - ไม่บันทึกว่าพิมพ์แล้ว
-  function exportPdf() {
-    setPrintOpen(false);
-    setPrinting({ items: picked, layout, mode: "pdf" });
+    setPrinting({ items: picked, layout });
   }
 
   function openPreview() {
-    if (picked.length === 0) return toast.show("WARNING", "กรุณาติ๊กเลือกรายการที่ต้องการพิมพ์ / Export PDF ก่อนครับ", "warn");
+    if (picked.length === 0) return toast.show("WARNING", "กรุณาติ๊กเลือกรายการที่ต้องการพิมพ์ก่อนครับ", "warn");
     setPrintOpen(true);
   }
 
@@ -199,17 +193,6 @@ export default function PickListPage() {
       if (done) return;
       done = true;
       fitTexts(printRef.current);
-      if (printing.mode === "pdf") {
-        try {
-          const n = await makePdf(printRef.current!, printing.layout === "LABEL", "PICKLIST");
-          toast.show("EXPORT PDF", `บันทึกไฟล์ ${n} แล้ว (${printing.items.length} การ์ด)`, "ok");
-        } catch (e) {
-          toast.show("ERROR", "สร้าง PDF ไม่สำเร็จ\n" + (e as Error).message, "error");
-        } finally {
-          setPrinting(null);
-        }
-        return;
-      }
       window.print();
       const items = printing.items;
       setPrinting(null);
@@ -267,15 +250,6 @@ export default function PickListPage() {
                 icon: "export" as const,
                 busy: exporting,
                 onClick: exportExcel,
-              },
-              {
-                key: "pdf",
-                title: `EXPORT PDF${picked.length ? ` (${picked.length})` : ""}`,
-                detail: "ดูตัวอย่างแผ่นจริงก่อน แล้วบันทึกเป็นไฟล์ PDF (A4 10 / 12 / 14 / 21 ใบต่อแผ่น หรือฉลาก 62 × 40 mm) - ไม่นับเป็นการพิมพ์",
-                color: "#e11d48",
-                icon: "export" as const,
-                busy: printing?.mode === "pdf",
-                onClick: openPreview,
               },
               {
                 key: "print",
@@ -457,7 +431,7 @@ export default function PickListPage() {
         )}
       </Modal>
 
-      {/* 🖨 PREVIEW: เลือกรูปแบบ + ดูแผ่นจริง (ย่อพอดีจอทุกขนาด) แล้ว PRINT / EXPORT PDF */}
+      {/* 🖨 PREVIEW: เลือกรูปแบบ + ดูแผ่นจริง (ย่อพอดีจอทุกขนาด) แล้ว PRINT */}
       <Modal
         open={printOpen}
         size="xl"
@@ -467,9 +441,6 @@ export default function PickListPage() {
           <>
             <button className="fill-btn mr-auto" onClick={() => setPrintOpen(false)}>
               CANCEL
-            </button>
-            <button className="cta-btn is-red" onClick={exportPdf} disabled={!!printing}>
-              ⬇ EXPORT PDF
             </button>
             <button className="cta-btn is-purple" onClick={print} disabled={!!printing}>
               🖨 PRINT
@@ -487,9 +458,9 @@ export default function PickListPage() {
             </div>
             <div className="mt-2 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">LABEL • เครื่องพิมพ์ฉลาก 62 mm</div>
             <LayoutOption l={LAYOUTS[4]} on={layout === "LABEL"} count={picked.length} onPick={() => pickLayout("LABEL")} />
-            <p className="mt-1 text-xs font-semibold text-ink-soft">PRINT: ตั้ง Margins = None / Scale = 100% และปิด Headers and footers · PDF: บันทึกไฟล์ลงเครื่องได้เลย</p>
+            <p className="mt-1 text-xs font-semibold text-ink-soft">PRINT: ตั้ง Margins = None / Scale = 100% และปิด Headers and footers · เลือก Save as PDF ในหน้าต่างพิมพ์เพื่อบันทึกเป็นไฟล์</p>
           </div>
-          {printOpen && <SheetPreview items={picked} layout={layout} keyOf={keyOf} card={pickCard} foot="PICK LIST" />}
+          {printOpen && <SheetPreview fitPage items={picked} layout={layout} keyOf={keyOf} card={pickCard} foot="PICK LIST" />}
         </div>
       </Modal>
 

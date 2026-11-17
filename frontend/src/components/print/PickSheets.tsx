@@ -78,8 +78,8 @@ export function Sheets<T>({ items, layout, keyOf, card, foot }: SheetProps<T>) {
 
 // พรีวิวแผ่นจริงย่อให้พอดีความกว้างช่อง (มือถือ / แท็บเล็ต / จอใหญ่) - แสดงสูงสุด 6 หน้าแรก
 const PREVIEW_MAX = 6;
-export function SheetPreview<T>(props: SheetProps<T>) {
-  const { items, layout } = props;
+export function SheetPreview<T>(props: SheetProps<T> & { fitPage?: boolean }) {
+  const { items, layout, fitPage } = props;
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
   const label = layout === "LABEL";
@@ -92,12 +92,14 @@ export function SheetPreview<T>(props: SheetProps<T>) {
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    const fit = () => setScale(Math.min(label ? 2.2 : 1, (el.clientWidth - 2) / pxW));
+    // fitPage: also fit one whole sheet to the window height (modal max 92dvh minus header / footer / preview head)
+    const fit = () => setScale(Math.min(label ? 2.2 : 1, (el.clientWidth - 2) / pxW, fitPage ? Math.max(0.3, (window.innerHeight * 0.92 - 250) / (label ? 151 : 1123)) : Infinity));
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [label, pxW]);
+    window.addEventListener("resize", fit);
+    return () => (ro.disconnect(), window.removeEventListener("resize", fit));
+  }, [label, pxW, fitPage]);
 
   useLayoutEffect(() => {
     fitTexts(box.current);
@@ -112,7 +114,7 @@ export function SheetPreview<T>(props: SheetProps<T>) {
           {total > PREVIEW_MAX ? ` • แสดง ${PREVIEW_MAX} หน้าแรก` : ""}
         </span>
       </div>
-      <div ref={box} className={`pk-pv-pages ${label ? "is-label" : ""}`} key={layout}>
+      <div ref={box} className={`pk-pv-pages ${label ? "is-label" : ""} ${fitPage ? "is-fit" : ""}`} key={layout}>
         <SheetsScaled scale={scale} label={label}>
           <Sheets {...props} items={shown} />
         </SheetsScaled>

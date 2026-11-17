@@ -79,8 +79,6 @@ export type Product = {
   /** ➕ ค่าช่องกรอกเพิ่มเองที่เปิดแสดง { CF12: "..." } */
   cf?: Record<string, string> | null;
   imageUrl: string | null;
-  /** HIDE mode only: product is hidden from this stock */
-  isHidden?: boolean;
 };
 
 export type Counts = { total: number; max: number; min: number; noOrder: number } | null;

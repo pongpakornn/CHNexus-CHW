@@ -250,19 +250,32 @@ public sealed class WorkOrderFollowService
 
     public sealed record PartRow(int PartId, string PartCode, string PartA, string PartB, string PartNo, string PartName, string PackSize, string ImageFileName);
 
-    // Nexus.Parts of one customer (Parts.Customer = customer code)
-    public List<PartRow> SearchParts(string customer, string q)
+    public sealed record PartHit(int PartId, string PartCode, string PartA, string PartB, string PartNo, string PartName, string PackSize, string ImageFileName, string Customer);
+
+    // type-ahead over ALL active parts (many have no customer yet): Part B / Part A / Part No / Part Code / name, near matches (ignores space - _ .)
+    //   ranked: exact > starts-with > contains, then the plan customer first · empty q = that customer parts only · max 50
+    public List<PartHit> SearchParts(string customer, string q)
     {
+        q = (q ?? "").Trim();
+        if (q.Length == 0 && string.IsNullOrEmpty(customer)) return new();
+        string qn = WorkOrderFollowExcel.NormQ(q);
         using var c = Conn();
-        return c.Query<PartRow>($@"SELECT TOP (100) {PartCols} FROM Nexus.Parts WITH (NOLOCK)
-            WHERE IsActive = 1 AND Customer = @customer AND (@q = '' OR PartCode LIKE '%' + @q + '%' OR Description LIKE '%' + @q + '%' OR ISNULL(PartA, '') LIKE '%' + @q + '%' OR ISNULL(PartB, '') LIKE '%' + @q + '%' OR ISNULL(PartNumber, '') LIKE '%' + @q + '%')
-            ORDER BY PartCode", new { customer, q = q ?? "" }).ToList();
+        static string N(string col) => $"REPLACE(REPLACE(REPLACE(REPLACE(ISNULL({col}, ''), ' ', ''), '-', ''), '_', ''), '.', '')";
+        string[] cols = { "PartB", "PartA", "PartNumber", "PartCode", "Description" };
+        string match = string.Join(" OR ", cols.Select(col => $"{N(col)} LIKE '%' + @qn + '%' OR ISNULL({col}, '') LIKE '%' + @q + '%'"));
+        string[] ids = { "PartB", "PartA", "PartNumber", "PartCode" };
+        string rank = string.Join(" ", ids.Select(col => $"WHEN {N(col)} = @qn THEN 0")) + " " + string.Join(" ", ids.Select(col => $"WHEN {N(col)} LIKE @qn + '%' THEN 1"));
+        string where = q.Length == 0 ? "Customer = @customer" : $"({match})";
+        return c.Query<PartHit>($@"SELECT TOP (50) {PartCols}, ISNULL(Customer, '') AS Customer FROM Nexus.Parts WITH (NOLOCK)
+            WHERE IsActive = 1 AND {where}
+            ORDER BY CASE {(q.Length == 0 ? "WHEN 1 = 1 THEN 0" : rank)} ELSE 2 END, CASE WHEN Customer = @customer THEN 0 ELSE 1 END, PartCode", new { customer = customer ?? "", q, qn }).ToList();
     }
 
-    public PartRow GetPart(int id, string customer)
+    // any active part (a part may belong to another customer or none)
+    public PartRow GetPart(int id)
     {
         using var c = Conn();
-        return c.QueryFirstOrDefault<PartRow>($"SELECT {PartCols} FROM Nexus.Parts WHERE PartID = @id AND Customer = @customer", new { id, customer });
+        return c.QueryFirstOrDefault<PartRow>($"SELECT {PartCols} FROM Nexus.Parts WHERE PartID = @id AND IsActive = 1", new { id });
     }
 
     public bool HasItemPart(int planId, int partId, DateTime month)

@@ -13,6 +13,8 @@ namespace CHR.Nexus.Api.Controllers;
 public sealed class WorkOrderFollowController : AppController
 {
     private readonly WorkOrderFollowService _svc = new();
+    private readonly UploadCache _uploads;
+    public WorkOrderFollowController(UploadCache uploads) => _uploads = uploads;
 
     private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง WORK ORDER FOLLOW (database/nexus/62_PC_WorkOrderFollow_v2.sql)");
     private bool IsAdmin => Me?.UserLevel == 1;
@@ -210,9 +212,8 @@ public sealed class WorkOrderFollowController : AppController
     {
         if (Me?.CanViewPcWof != true) return Deny();
         if (!DbSchema.HasPcWof) return NotReady();
-        string c = Clip(customer, 50);
-        if (c.Length == 0) return Fail("กรุณาเลือกลูกค้า");
-        return Ok(_svc.SearchParts(c, Clip(q, 100)).Select(p => new { p.PartId, p.PartCode, p.PartA, p.PartB, p.PartNo, p.PartName, p.PackSize, imageUrl = ImageUrl(p.ImageFileName) }));
+        // customer is only a ranking hint (its parts first): parts of other customers / without customer can be added too
+        return Ok(_svc.SearchParts(Clip(customer, 50), Clip(q, 100)).Select(p => new { p.PartId, p.PartCode, p.PartA, p.PartB, p.PartNo, p.PartName, p.PackSize, p.Customer, imageUrl = ImageUrl(p.ImageFileName) }));
     }
 
     // item writes: plan edit + month format; locked = month M (update / order) or any month from M (add / delete: they change later months too)
@@ -235,8 +236,8 @@ public sealed class WorkOrderFollowController : AppController
         var pl = _svc.GetPlan(id);
         if (pl == null) return Fail("ไม่พบแผนนี้");
         if (ItemGuard(pl, req?.Month, true, out var m) is { } err) return err;
-        var p = _svc.GetPart(req.PartId, pl.CustomerCode);
-        if (p == null) return Fail("ไม่พบสินค้านี้ในลูกค้าของแผน");
+        var p = _svc.GetPart(req.PartId);
+        if (p == null) return Fail("ไม่พบสินค้านี้");
         if (_svc.HasItemPart(id, p.PartId, m)) return Fail("สินค้านี้อยู่ในแผนแล้ว");
         try
         {
@@ -344,6 +345,113 @@ public sealed class WorkOrderFollowController : AppController
             return Ok(new { saved = cells.Count });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
+    }
+
+    // ---------------------------------------------------------------- Excel TEMPLATE / IMPORT (same edit permission + month lock as typing in the grid)
+    private const string XlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    [HttpGet("plans/{id:int}/template")]
+    public IActionResult Template(int id, [FromQuery] string month)
+    {
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        if (!WorkOrderFollowRules.TryMonth(month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var p = _svc.GetPlan(id);
+        if (p == null) return Fail("ไม่พบแผนนี้");
+        try
+        {
+            var cells = _svc.Cells(id, m);
+            var items = _svc.Items(id, m).Select(i => new WorkOrderFollowExcel.TplItem(i.ItemId, i.PartNo, i.PartName, i.PackSize, cells.GetValueOrDefault(i.ItemId) ?? new())).ToList();
+            var bytes = WorkOrderFollowExcel.Template(id, $"{p.CustomerCode} {p.CustomerName}", _svc.GetMonth(id, m)?.WorkOrderNo, m, items);
+            LogService.WriteLog(Uid, "PC_WOF_TEMPLATE", $"Plan #{id} | {p.CustomerCode} | {Ym(m)}", p.CustomerCode);
+            return File(bytes, XlsxType, $"WOF_Template_{p.CustomerCode}_{m:yyyy-MM}.xlsx");
+        }
+        catch (Exception ex) { return Fail(ex, "สร้าง Template ไม่สำเร็จ"); }
+    }
+
+    private sealed record WofImport(int PlanId, DateTime Month, List<WorkOrderFollowExcel.Cell> Cells);
+
+    private static string Q(decimal? v) => v?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    private static string RowLabel(string key) => WorkOrderFollowExcel.DataRows.FirstOrDefault(r => r.Key == key).Label ?? key;
+
+    // preview rows = one per part x row (key "itemId|ROWKEY"); fields = the changed days (old -> new)
+    private List<ImportRowDto> Preview(WorkOrderFollowExcel.Parsed p, int planId)
+    {
+        var cur = _svc.Cells(planId, p.Month);
+        var items = _svc.Items(planId, p.Month).ToDictionary(i => i.ItemId);
+        var rows = new List<ImportRowDto>();
+        foreach (var g in p.Cells.Where(c => items.ContainsKey(c.ItemId)).GroupBy(c => (c.ItemId, c.RowKey)).OrderBy(g => items[g.Key.ItemId].SortNo).ThenBy(g => Array.FindIndex(WorkOrderFollowExcel.DataRows, r => r.Key == g.Key.RowKey)))
+        {
+            var it = items[g.Key.ItemId];
+            var oldRow = cur.GetValueOrDefault(g.Key.ItemId)?.GetValueOrDefault(g.Key.RowKey);
+            var fields = new List<ImportField>();
+            bool anyOld = false, anyDiff = false;
+            foreach (var c in g.OrderBy(c => c.Day))
+            {
+                decimal? old = oldRow != null && oldRow.TryGetValue(c.Day.ToString(), out var o) ? o : null;
+                if (old != null) anyOld = true;
+                if (old == c.Qty) continue;
+                anyDiff = true;
+                fields.Add(new ImportField($"วันที่ {c.Day}", Q(old), Q(c.Qty)));
+            }
+            string st = !anyDiff ? ImportReview.Same : anyOld ? ImportReview.Changed : ImportReview.New;
+            rows.Add(new ImportRowDto($"{g.Key.ItemId}|{g.Key.RowKey}", st, $"{it.PartNo} · {RowLabel(g.Key.RowKey)}", it.PartName, fields, null, null));
+        }
+        return rows;
+    }
+
+    [HttpPost("plans/{id:int}/import")]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> Import(int id, [FromQuery] string month, IFormFile file)
+    {
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        if (!WorkOrderFollowRules.TryMonth(month, out var m)) return Fail("เดือนไม่ถูกต้อง (yyyy-MM)");
+        var pl = _svc.GetPlan(id);
+        if (MonthGuard(pl, m) is { } err) return err;
+        string path;
+        try { path = await SaveUpload(file); } catch (Exception ex) { return Fail(ex); }
+        try
+        {
+            var p = WorkOrderFollowExcel.Read(path);
+            TryDelete(path);
+            if (p.PlanId != id) return Fail("ไฟล์นี้เป็นของแผนอื่น · ดาวน์โหลด TEMPLATE จากแผนนี้");
+            if (p.Month != m) return Fail($"ไฟล์นี้เป็นของเดือน {Ym(p.Month)} แต่หน้าที่เปิดอยู่คือเดือน {Ym(m)}");
+            var rows = Preview(p, id);
+            var errors = p.Errors.Select(e => new ImportErrorDto(e.Cell, e.Text)).ToList();
+            if (rows.Count == 0 && errors.Count == 0) return Fail("ไม่พบตัวเลขในไฟล์ (ช่องว่างทั้งหมด)");
+            string uid = _uploads.Put("", file.FileName, Uid, "wofxl", new WofImport(id, m, p.Cells));
+            return Ok(new ImportPreviewDto(uid, file.FileName, $"WORK ORDER FOLLOW · {pl.CustomerCode} · {m:MMMM yyyy}", rows, errors));
+        }
+        catch (InvalidOperationException ex) { TryDelete(path); return Fail(ex.Message); }
+        catch (Exception ex) { TryDelete(path); return Fail(ex, "อ่านไฟล์ไม่สำเร็จ"); }
+    }
+
+    [HttpPost("plans/{id:int}/import/apply")]
+    public IActionResult ImportApply(int id, [FromBody] ImportApplyRequest req)
+    {
+        if (Me?.CanViewPcWof != true) return Deny();
+        if (!DbSchema.HasPcWof) return NotReady();
+        var it = string.IsNullOrEmpty(req?.Id) ? null : _uploads.Get(req.Id, Uid, "wofxl");
+        if (it == null) return Fail("ไฟล์หมดเวลาแล้ว กรุณาเลือกไฟล์ใหม่");
+        var st = (WofImport)it.State;
+        if (st.PlanId != id) return Fail("ไฟล์นี้เป็นของแผนอื่น");
+        var p = _svc.GetPlan(id);
+        if (MonthGuard(p, st.Month) is { } err) return err;   // re-check lock + permission at apply time
+        var skip = (req.Exclude ?? new()).ToHashSet();
+        var own = _svc.ItemIds(id, st.Month).ToHashSet();
+        var write = st.Cells.Where(c => own.Contains(c.ItemId) && !skip.Contains($"{c.ItemId}|{c.RowKey}")).ToList();
+        if (write.Count == 0) { _uploads.Remove(req.Id); return Ok(new { cells = 0, message = "ไม่มียอดที่ต้องนำเข้า" }); }
+        try
+        {
+            for (int i = 0; i < write.Count; i += 2000)
+                _svc.SaveCells(id, st.Month, write.Skip(i).Take(2000).Select(c => (c.ItemId, c.RowKey, c.Day, (decimal?)c.Qty)));
+            _uploads.Remove(req.Id);
+            LogService.WriteLog(Uid, "PC_WOF_IMPORT", $"Plan #{id} | {p.CustomerCode} | {Ym(st.Month)} | File: {it.FileName} | {write.Count} cells", p.CustomerCode);
+            _svc.Touch(id);
+            return Ok(new { cells = write.Count, message = $"นำเข้า {write.Count:N0} ช่อง ({p.CustomerCode} · {st.Month:MMM yyyy}) แล้ว" });
+        }
+        catch (Exception ex) { return Fail(ex, "นำเข้าไม่สำเร็จ"); }
     }
 
     // ---------------------------------------------------------------- flow (SETUP FLOW)

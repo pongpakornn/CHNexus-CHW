@@ -75,7 +75,7 @@ namespace Nexus.Services
         //   - แก้: NUMBER COIL (ห้ามซ้ำ) / MASTER COIL / น้ำหนัก -> ยอดคลังของสินค้าปรับตามส่วนต่างน้ำหนัก + CoilMoves "EDIT"
         //   - ลบ: เฉพาะ Coil ที่ยังอยู่ในคลังและไม่เคยถูกสแกน (มีแค่ REGISTER / IMPORT / EDIT) -> ยอดคลังลดตามน้ำหนัก
         //   คืนข้อความไว้ลง Log (ค่าเดิม -> ค่าใหม่) · ผิดเงื่อนไข = InvalidOperationException (ข้อความภาษาไทยแสดงผู้ใช้)
-        private static readonly string[] ManualMoves = { "REGISTER", "IMPORT", "EDIT" };
+        private static readonly string[] ManualMoves = { "REGISTER", "IMPORT", "EDIT", "MOVE_LAYOUT" };   // MOVE_LAYOUT = location only (no stock), does not block delete
 
         internal sealed class CoilRec { public int Id, StockId, PartId; public string CoilNo, Mother, Status; public decimal Kg; }
 

@@ -8,7 +8,9 @@ import { Modal } from "@/components/modals/Modal";
 import { MonthField } from "@/components/forms/MonthField";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
-import { api, deviceName } from "@/lib/api";
+import { api, deviceName, download, upload } from "@/lib/api";
+import { ImportReview } from "@/components/import/ImportReview";
+import type { ImportPreview } from "@/components/import/types";
 import { sameData, useLive } from "@/lib/live";
 import { useDebounced } from "@/lib/useDebounced";
 import { DOW, dowOf, f0, thisMonth } from "@/lib/pp";
@@ -45,6 +47,12 @@ export default function WofPlan({ id }: { id: number }) {
   const monthRef = useRef(month);
   const last = useRef("");
   const grid = useRef<HTMLTableElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const scrolled = useRef("");
+  const autoAdd = useRef(false);
+  const [excelPv, setExcelPv] = useState<ImportPreview | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -153,6 +161,27 @@ export default function WofPlan({ id }: { id: number }) {
   const range = vw >= 1024 ? "all" : pick !== null && (pick === "all" || pick < weeks) ? pick : auto;
   // TOTAL / ST. always use every day (rowTotal reads the cells), only the rendered columns are limited
   const days = useMemo(() => Array.from({ length: total }, (_, i) => i + 1).filter((n) => range === "all" || Math.floor((n - 1) / 7) === range), [total, range]);
+  // open: today's column centred (current month) · other months start at day 1
+  const hasGrid = items.length > 0;
+  useEffect(() => {
+    const w = wrapRef.current;
+    if (!w || !hasGrid) return;
+    const key = `${id}|${month}|${range}`;
+    if (scrolled.current === key) return;
+    scrolled.current = key;
+    const th = month === thisMonth() ? w.querySelector<HTMLElement>(`th[data-day="${today}"]`) : null;
+    const left = th ? th.offsetLeft - w.clientWidth / 2 + th.offsetWidth / 2 : 0;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    w.scrollTo({ left: Math.max(0, left), behavior: smooth ? "smooth" : "auto" });
+  }, [hasGrid, id, month, range, today, d]);
+  // freshly registered plan (no parts yet) opens straight into ADD PART once
+  const canAddNow = !!d?.canEdit && editableStatus(d?.month.status ?? "DRAFT");
+  useEffect(() => {
+    if (d && !autoAdd.current && d.items.length === 0 && canAddNow) {
+      autoAdd.current = true;
+      setPartModal(true);
+    }
+  }, [d, canAddNow]);
   const sums = useMemo(() => {
     const at = (n: number, keys: string[]) => items.reduce((a, it) => a + keys.reduce((b, k) => b + (Number(it.cells[k]?.[n]) || 0), 0), 0);
     return [
@@ -306,6 +335,36 @@ export default function WofPlan({ id }: { id: number }) {
               PRINT
             </button>
             {editable && (
+              <>
+                <button type="button" className="cta-btn is-gray wof-np" onClick={() => download(`/pcwof/plans/${id}/template`, { month }).catch((e) => toast.show("ERROR", "สร้าง Template ไม่สำเร็จ\n" + (e as Error).message, "error"))} title="ดาวน์โหลด Template Excel ของเดือนนี้ (ชิ้นงาน x วัน) · กรอกแล้ว IMPORT กลับ">
+                  📄 TEMPLATE
+                </button>
+                <button type="button" className="cta-btn is-gray wof-np" disabled={importing} onClick={() => fileRef.current?.click()} title="นำเข้าตัวเลขจากไฟล์ Template">
+                  {importing ? "…" : "📥 IMPORT"}
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xlsm"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    if (!(await settle())) return toast.show("WARNING", "ยังบันทึกข้อมูลไม่สำเร็จ · ลองใหม่อีกครั้ง", "warn");
+                    setImporting(true);
+                    try {
+                      setExcelPv(await upload<ImportPreview>(`/pcwof/plans/${id}/import?month=${month}`, f));
+                    } catch (er) {
+                      toast.show("ERROR", (er as Error).message, "error");
+                    } finally {
+                      setImporting(false);
+                    }
+                  }}
+                />
+              </>
+            )}
+            {editable && (
               <button type="button" className="cta-btn is-purple wof-np" onClick={() => setPartModal(true)}>
                 + ADD PART
               </button>
@@ -410,7 +469,7 @@ export default function WofPlan({ id }: { id: number }) {
         <Empty>ยังไม่มีชิ้นงานในแผน{editable ? " · กด + ADD PART" : ""}</Empty>
       ) : (
         <>
-          <div className={`wof-wrap ${busyMonth ? "is-busy" : ""}`}>
+          <div ref={wrapRef} className={`wof-wrap ${busyMonth ? "is-busy" : ""}`}>
             <table className="wof-table" ref={grid} onKeyDown={nav}>
               <thead>
                 <tr>
@@ -430,7 +489,7 @@ export default function WofPlan({ id }: { id: number }) {
                   {days.map((n) => {
                     const w = dowOf(month, n);
                     return (
-                      <th key={n} className={w === 0 || w === 6 ? "is-we" : ""}>
+                      <th key={n} data-day={n} className={`${w === 0 || w === 6 ? "is-we" : ""} ${month === thisMonth() && n === today ? "is-today" : ""}`}>
                         {n}
                         <small>{DOW[w]}</small>
                       </th>
@@ -455,15 +514,23 @@ export default function WofPlan({ id }: { id: number }) {
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img className="wof-part-img" src={it.imageUrl} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} />
                                 )}
-                                <b>{it.partNo}</b>
+                                <span className="wof-part-id">
+                                  <b>{it.partNo}</b>
+                                  <span className="wof-part-n" title={it.partName} onClick={() => setOpenId((o) => (o === it.itemId ? null : it.itemId))}>
+                                    {it.partName}
+                                  </span>
+                                </span>
                               </div>
-                              <div className="wof-part-n" title={it.partName} onClick={() => setOpenId((o) => (o === it.itemId ? null : it.itemId))}>
-                                {it.partName}
+                              <div className="wof-part-tags">
+                                <i className="wof-tag is-b" title="Part B">
+                                  B · {it.partB || "-"}
+                                </i>
+                                <i className="wof-tag is-pack" title="PACK / BOX">
+                                  PACK/BOX · {it.packSize ?? "-"}
+                                </i>
                               </div>
                               <div className="wof-part-more">
-                                <div className="wof-part-m">
-                                  A: {it.partA || "-"} · B: {it.partB || "-"}
-                                </div>
+                                <div className="wof-part-m">A: {it.partA || "-"} · CODE: {it.partCode || "-"}</div>
                                 <label className="wof-part-f">
                                   PACK SIZE
                                   {editable ? (
@@ -590,6 +657,7 @@ export default function WofPlan({ id }: { id: number }) {
         </>
       )}
 
+      {excelPv && <ImportReview preview={excelPv} applyUrl={`/pcwof/plans/${id}/import/apply`} onClose={() => setExcelPv(null)} onDone={() => { setExcelPv(null); void load(); }} />}
       {partModal && <PartPicker planId={id} month={month} customer={plan.customerCode} have={new Set(items.map((x) => x.partId))} onClose={() => setPartModal(false)} onAdded={load} />}
       {mgr && <EditorsModal planId={id} d={d} onClose={() => setMgr(false)} onSaved={() => (setMgr(false), load())} />}
     </PageBody>
@@ -607,11 +675,11 @@ function useUsers() {
   return u;
 }
 
-// + ADD PART: the customer's parts (image / Part No / name / A / B / pack size) · tick several · ADD
+// + ADD PART: type-ahead over ALL parts (this plan's customer first) · image / Part No / name / A / B / pack size · tick several · ADD
 function PartPicker({ planId, month, customer, have, onClose, onAdded }: { planId: number; month: string; customer: string; have: Set<number>; onClose: () => void; onAdded: () => Promise<void> }) {
   const toast = useToast();
   const [q, setQ] = useState("");
-  const dq = useDebounced(q.trim(), 300);
+  const dq = useDebounced(q.trim(), 250);
   const [rows, setRows] = useState<PcPart[] | null>(null);
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -657,12 +725,12 @@ function PartPicker({ planId, month, customer, have, onClose, onAdded }: { planI
         </>
       }
     >
-      <input className="wof-search" autoFocus value={q} placeholder="ค้นหา Part No / ชื่อ / Part A / Part B" onChange={(e) => setQ(e.target.value)} />
+      <input className="wof-search" autoFocus value={q} placeholder="พิมพ์ค้นหา Part B / Part A / Part No / Part Code / ชื่อ (ทุกลูกค้า)" onChange={(e) => setQ(e.target.value)} />
       <div className="wof-pick">
         {rows === null ? (
           <div className="nx-skel h-16 rounded-xl" />
         ) : rows.length === 0 ? (
-          <small>ไม่พบชิ้นงานของลูกค้านี้</small>
+          <small>{dq ? "ไม่พบชิ้นงานที่ตรงกับคำค้น" : "พิมพ์เพื่อค้นหาชิ้นงาน"}</small>
         ) : (
           rows.map((p) => {
             const added = have.has(p.partId);
@@ -678,7 +746,7 @@ function PartPicker({ planId, month, customer, have, onClose, onAdded }: { planI
                   <b>{p.partNo}</b>
                   <span>{p.partName}</span>
                   <small>
-                    A: {p.partA || "-"} · B: {p.partB || "-"} · PACK {p.packSize ?? "-"}
+                    B: {p.partB || "-"} · A: {p.partA || "-"} · PACK {p.packSize ?? "-"} {p.customer ? " · " + p.customer : " · ไม่มีลูกค้า"}
                   </small>
                 </span>
                 <i className={`wof-chip is-${added ? "ok" : sel.has(p.partId) ? "wait" : "none"}`}>{added ? "ADDED" : sel.has(p.partId) ? "✓" : "+"}</i>

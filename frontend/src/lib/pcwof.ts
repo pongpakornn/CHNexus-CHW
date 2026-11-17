@@ -20,7 +20,7 @@ export type PcDetail = {
   month: { workOrderNo: string; status: PcStatus; approvals: PcApproval[] };
   items: PcItem[];
 };
-export type PcPart = { partId: number; partCode: string; partA: string | null; partB: string | null; partNo: string; partName: string; packSize: number | null; imageUrl: string | null };
+export type PcPart = { partId: number; partCode: string; partA: string | null; partB: string | null; partNo: string; partName: string; packSize: number | null; imageUrl: string | null; customer?: string };
 export type PcMeta = { ready: boolean; can: { view: boolean; add: boolean; approve: boolean; setup: boolean }; me: PcUser };
 export type PcQueue = { planId: number; month?: string; customerName?: string; workOrderNo?: string; title?: string; stepNo?: number };
 export type PcFlowStep = { stepNo: number; title: string; userIds: string[] };

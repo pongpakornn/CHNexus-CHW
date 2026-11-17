@@ -4,9 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 // 🔎 แถบเครื่องมือหน้าคลัง: ช่องค้นหา + ปุ่มเลือกหมวด (กดแล้วรายการเลื่อนลงมา · เปิด / เลือกอยู่ = สีฟ้า)
 
-export function SearchField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+export type Suggestion = { text: string; kind: string; sub: string };
+
+export function SearchField({ value, onChange, placeholder, suggestions = [] }: { value: string; onChange: (v: string) => void; placeholder: string; suggestions?: Suggestion[] }) {
+  const [focus, setFocus] = useState(false);
+  const shown = focus && value.trim().length >= 2 && suggestions.length > 0;
   return (
-    <label className="group relative flex h-10 min-w-[260px] flex-1 items-center rounded-xl border border-[#e2e4f0] bg-surface-2/60 transition focus-within:border-accent focus-within:bg-surface focus-within:shadow-[0_0_0_4px_rgb(103_80_164/0.12)] hover:border-accent/50">
+    <div className="relative flex min-w-[260px] flex-1" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}>
+    <label className="group relative flex h-10 w-full items-center rounded-xl border border-[#e2e4f0] bg-surface-2/60 transition focus-within:border-accent focus-within:bg-surface focus-within:shadow-[0_0_0_4px_rgb(103_80_164/0.12)] hover:border-accent/50">
       <svg viewBox="0 0 24 24" className="pointer-events-none ml-3 size-[18px] shrink-0 text-ink-soft transition-colors group-focus-within:text-accent" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />
@@ -30,6 +35,20 @@ export function SearchField({ value, onChange, placeholder }: { value: string; o
         </svg>
       </button>
     </label>
+    {shown && (
+      <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-auto rounded-xl border border-line/60 bg-surface p-1 shadow-lg" role="listbox" aria-label="SUGGESTIONS">
+        {suggestions.map((x) => (
+          <li key={x.kind + x.text + x.sub} role="option" aria-selected={false}>
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onChange(x.text)} className="flex w-full flex-wrap items-center gap-x-2 rounded-lg px-3 py-1.5 text-left text-sm hover:bg-surface-2">
+              <b className="break-all font-extrabold text-ink">{x.text}</b>
+              <span className="rounded bg-surface-2 px-1.5 text-[10px] font-extrabold text-ink-soft">{x.kind}</span>
+              <span className="min-w-0 break-words text-xs font-semibold text-ink-soft">{x.sub}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    )}
+    </div>
   );
 }
 

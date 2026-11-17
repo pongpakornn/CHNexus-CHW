@@ -260,3 +260,21 @@ DB script 62 (approved by owner): drop the empty v1 PC tables (only 2 owner test
   PC.WoPlans, PC.WoEditors, PC.WoItems (persistent), PC.WoMonths (plan+month: W/O no, status), PC.WoCells (+MonthStart),
   PC.Flows (steps/approvers), PC.WoApprovals (plan+month+step).
 Team: backend + frontend agents (resume, they know v1) -> reviewer -> commit after owner OK.
+
+---
+
+# 2026-11-18 batch (owner list, 18 items) — only what was asked, no other rule changes
+A1 MIN: Min Report = only items whose STOCK(BOX) stayed below MIN for 3 full days; daily report reminder until above MIN;
+   report reason -> Remark; Remark auto-cleared when STOCK(BOX) > MIN; MIN HISTORY/TRACKING slide smooth + STORE-MAT table style.
+A2 STORE: Layout slot detail wider for long Number Coil; MANAGE STOCK HIDE: hidden rows not listed in store (unhide in Master Data),
+   multi-select + HIDE; store search also matches Master Coil / Number Coil with near-match suggestions.
+B  SCANNER: TEST mode never writes and never blocks on "Number Coil exists"; HISTORY limited to the selected stock;
+   SCAN OUT alerts parity with SCAN IN; new MOVE LOCATION mode (scan location QR, then coil barcodes).
+C1 PICK LIST export: drop 3rd PDF button, wider A4 preview. MAX-MIN CALC: Excel TEMPLATE = export "Template Set Max-Min"
+   styled like Actual Capacity (No, Part A, Part No, Product Name, Max(Day), Min(Day)); IMPORT FORECAST ORDER like Master Data Forecast/Order (calc only).
+C2 PR: APPROVE / REJECT selection modes like MANAGE STOCK (approve modal with qty adjust, reject confirm); remove APPROVE LIST button
+   beside SUBMIT PR; Export Excel styled like Actual Capacity.
+D  PC/WOF: PC landing hero like main Systems page; plan page: table right after customer, part search by typed text (Part B etc.)
+   with suggestions even without customer, part image in the part cell like the Excel; fix owner chip, use the house month picker,
+   fix sticky columns on horizontal scroll (like Workload), auto-scroll to today, motion reveal; WOF Excel TEMPLATE + IMPORT like Actual Capacity.
+Then reviewer -> owner approval -> commit/copy.

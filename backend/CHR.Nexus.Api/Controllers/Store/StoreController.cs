@@ -244,18 +244,18 @@ public sealed class StoreController : AppController
     {
         cf,
         p.PartId, p.PartCode, p.PartName, p.Customer, p.PartA, p.PartB, p.PartNo, p.Model, p.Category, p.Supplier, p.Bin, p.GroupKey,
-        p.PackSize, p.Max, p.Min, p.Qty, p.StockBox, p.StockPcs, p.Remark, p.StockStatus, p.Priority, p.IsHidden,
+        p.PackSize, p.Max, p.Min, p.Qty, p.StockBox, p.StockPcs, p.Remark, p.StockStatus, p.Priority,
         imageUrl = string.IsNullOrWhiteSpace(p.ImageFileName) ? null : $"/api/images/file?name={Uri.EscapeDataString(p.ImageFileName)}"
     };
 
     [HttpGet("{stkId:int}/products")]
-    public IActionResult Products(int stkId, [FromQuery] string key, [FromQuery] string cat, [FromQuery] string filter, [FromQuery] int skip = 0, [FromQuery] int take = 100, [FromQuery] int withHidden = 0)
+    public IActionResult Products(int stkId, [FromQuery] string key, [FromQuery] string cat, [FromQuery] string filter, [FromQuery] int skip = 0, [FromQuery] int take = 100)
     {
         if (Me?.CanViewStore != true) return Deny();
         var s = VisibleStock(stkId);
         if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
         string catFilter = string.IsNullOrEmpty(cat) || cat == AllLabel(s) ? "" : cat;
-        var rows = _products.GetProducts(s, key ?? "", catFilter, filter ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 100000), withHidden == 1 && Me.CanManageCoils(s));
+        var rows = _products.GetProducts(s, key ?? "", catFilter, filter ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 100000));
         // ➕ ค่าช่องกรอกเพิ่มเองที่เปิดแสดงในตารางคลังนี้
         var cfIds = VisibleColumns(s).Where(CustomFields.IsKey).Select(CustomFields.IdOf).ToList();
         if (cfIds.Count == 0) return Ok(new { token = _products.GetChangeToken(s), rows = rows.Select(p => Row(p)) });
@@ -380,6 +380,41 @@ public sealed class StoreController : AppController
         if (!new ProductControlService().UpdateShowStatus(req.PartCode ?? "", req.Show, Uid, s.StkId, partId)) return Fail("บันทึกไม่สำเร็จ");
         LogService.WriteLog(Uid, "STORE_SHOW_HIDE", $"| Stock: {s.Code} | {(req.Show ? "SHOW" : "HIDE")} | PartID: {partId}", req.PartCode);
         return Ok(new { message = req.Show ? "แสดงรายการแล้ว" : "ซ่อนรายการแล้ว" });
+    }
+
+    public sealed record ShowBatchRequest(List<int> PartIds, bool Show);
+
+    // MANAGE STOCK > HIDE with several rows ticked: hide / show them in one call (same permission as SetShow, one log line per product)
+    [HttpPut("{stkId:int}/products/show-batch")]
+    public IActionResult SetShowBatch(int stkId, [FromBody] ShowBatchRequest req)
+    {
+        var ids = (req?.PartIds ?? new List<int>()).Where(i => i > 0).Distinct().ToList();
+        if (ids.Count == 0) return BadRequest(new { message = "ไม่พบสินค้า" });
+        if (Me?.CanViewStore != true) return Deny();
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        if (s.IsLiveView) return Fail(StockModel.LiveViewMessage);
+        if (!Me.CanManageCoils(s)) return Deny($"คุณไม่มีสิทธิ์ MANAGE STOCK ของคลัง {s.Code}");
+        var svc = new ProductControlService();
+        int ok = 0;
+        foreach (int id in ids)
+            if (svc.UpdateShowStatus("", req.Show, Uid, s.StkId, id))
+            {
+                ok++;
+                LogService.WriteLog(Uid, "STORE_SHOW_HIDE", $"| Stock: {s.Code} | {(req.Show ? "SHOW" : "HIDE")} | PartID: {id} | batch", "");
+            }
+        if (ok == 0) return Fail("บันทึกไม่สำเร็จ");
+        return Ok(new { count = ok, message = (req.Show ? "แสดง " : "ซ่อน ") + $"{ok} รายการแล้ว" + (ok < ids.Count ? $" (ไม่สำเร็จ {ids.Count - ok})" : "") });
+    }
+
+    // Search box suggestions (coil numbers + products), max 10
+    [HttpGet("{stkId:int}/search-suggest")]
+    public IActionResult SearchSuggest(int stkId, [FromQuery] string q)
+    {
+        if (Me?.CanViewStore != true) return Deny();
+        var s = VisibleStock(stkId);
+        if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        return Ok(_products.SearchSuggest(s, (q ?? "").Trim()).Select(x => new { text = x.Text, kind = x.Kind, sub = x.Sub }));
     }
 
     // 🧲 แถว Coil ย่อยของสินค้า (คลิก PD CODE) - แถบ Master Coil + Coil ลูก ข้อความตาม CoilRowsView (น้ำหนักทศนิยมตามคลัง)

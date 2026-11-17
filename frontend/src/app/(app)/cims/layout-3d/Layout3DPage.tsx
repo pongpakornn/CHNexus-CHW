@@ -90,7 +90,7 @@ function CoilDetail({ coil, where }: { coil: ApiCoil; where: string }) {
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
             <dt className="font-semibold text-ink-soft">{k}</dt>
-            <dd className="break-words font-bold tabular-nums text-ink">{v}</dd>
+            <dd className="break-all font-bold tabular-nums text-ink">{v}</dd>
           </div>
         ))}
       </dl>
@@ -105,12 +105,13 @@ function CoilCards({ list, cur, onPick }: { list: ApiCoil[]; cur?: ApiCoil; onPi
       <p className="text-xs font-extrabold text-ink-soft">ตำแหน่งนี้มี {list.length} ม้วน · กดการ์ดเพื่อดูรายละเอียด</p>
       {list.map((c) => (
         <button key={c.coilId} type="button" onClick={() => onPick(c)} className={`grid gap-0.5 rounded-lg border px-3 py-2 text-left ${c === cur ? "border-warning bg-warning/10" : "border-line/60 bg-surface"}`}>
-          <span className="flex items-center justify-between gap-2 text-sm font-extrabold text-ink">
-            <span className="truncate">{c.coilNo}</span>
+          <span className="flex items-start justify-between gap-2 text-sm font-extrabold text-ink">
+            <span className="min-w-0 break-all">{c.coilNo}</span>
             <span className="shrink-0 tabular-nums">{qty(c.weightKg)} kg</span>
           </span>
-          <span className="truncate text-xs font-semibold text-ink-soft">
-            {c.partCode} · {c.partName || "-"}
+          <span className="break-words text-xs font-semibold text-ink-soft">Master {c.motherCoil || "-"}</span>
+          <span className="break-words text-xs font-semibold text-ink-soft">
+            PD CODE {c.partCode} · {c.partName || "-"}
           </span>
         </button>
       ))}
@@ -351,7 +352,7 @@ export default function Layout3DPage() {
         </div>
       )}
 
-      <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:grid-rows-[minmax(0,1fr)]">
         {/* ---------- โมเดล 3D ---------- */}
         <section ref={stageRef} className="relative h-[58dvh] min-h-[320px] overflow-hidden rounded-2xl border border-line/60 bg-[#081428] shadow-sm lg:h-auto" aria-label="โมเดล 3D ผังคลัง">
           <canvas
@@ -475,10 +476,10 @@ export default function Layout3DPage() {
                       <button
                         type="button"
                         onClick={() => setSel({ kind: "floor", zoneId: zone.id, coilId: c.coilId })}
-                        className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-left text-sm font-bold text-ink ${sel?.kind === "floor" && sel.coilId === c.coilId ? "border-warning" : "border-line/60"}`}
+                        className={`flex w-full flex-wrap items-center justify-between gap-x-2 rounded-lg border px-3 py-1.5 text-left text-sm font-bold text-ink ${sel?.kind === "floor" && sel.coilId === c.coilId ? "border-warning" : "border-line/60"}`}
                       >
-                        <span className="truncate">{c.coilNo}</span>
-                        <span className="shrink-0 text-xs font-semibold text-ink-soft">
+                        <span className="min-w-0 break-all">{c.coilNo}</span>
+                        <span className="text-xs font-semibold text-ink-soft">
                           {c.locName && c.locName !== zone.id ? `${c.locName} · ` : ""}
                           {c.partCode}
                         </span>
@@ -517,8 +518,8 @@ export default function Layout3DPage() {
               <p className="mb-2 text-xs font-semibold text-ink-soft">Coil ที่สแกนตำแหน่งซึ่งผัง 3D นี้ยังไม่มี</p>
               <ul className="flex flex-col gap-1 text-sm">
                 {model.outside.slice(0, 30).map((c) => (
-                  <li key={c.coilId} className="flex items-center justify-between gap-2 rounded-lg border border-line/60 px-3 py-1.5 font-bold text-ink">
-                    <span className="truncate">{c.coilNo}</span>
+                  <li key={c.coilId} className="flex flex-wrap items-center justify-between gap-x-2 rounded-lg border border-line/60 px-3 py-1.5 font-bold text-ink">
+                    <span className="min-w-0 break-all">{c.coilNo}</span>
                     <span className="shrink-0 text-xs font-semibold text-ink-soft">{c.layout}</span>
                   </li>
                 ))}

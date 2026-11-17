@@ -172,10 +172,38 @@ namespace Nexus.Services
                 ImportTemplateService.Body(ws, r - 1, heads.Length);
                 ImportTemplateService.LeftAlign(ws, r - 1, 8);
                 ws.Column(1).Style.Font.Bold = true;
-                ws.SheetView.FreezeRows(1);
+                StylePRSheet(ws, r - 1, heads.Length, stockCode, items.Count);
                 wb.SaveAs(path);
             }
             return path;
+        }
+
+        // 🎨 Same look as the Actual Capacity template: navy title band + header, grey key columns, thin grid, medium frame, frozen header + NO / PR NO columns
+        private static void StylePRSheet(IXLWorksheet ws, int lastRow, int cols, string stockCode, int count)
+        {
+            ws.Row(1).InsertRowsAbove(1);
+            var band = ws.Range(1, 1, 1, cols);
+            band.Merge();
+            band.FirstCell().Value = $"CHR-Nexus - PURCHASE REQUISITION • {(string.IsNullOrWhiteSpace(stockCode) ? "ALL STOCKS" : stockCode.Trim())} • {count:N0} ITEMS • {DateTime.Today:dd/MM/yyyy}";
+            band.Style.Fill.BackgroundColor = XLColor.FromHtml("#002060");
+            band.Style.Font.FontColor = XLColor.White;
+            band.Style.Font.Bold = true;
+            band.Style.Font.FontSize = 14;
+            band.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            band.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(1).Height = 28;
+            int last = lastRow + 1;                                   // header moved to row 2
+            ws.Range(2, 1, last, cols).Style.Font.FontName = "Aptos";
+            ws.Range(2, 1, 2, cols).Style.Fill.BackgroundColor = XLColor.FromHtml("#002060");
+            if (last >= 3)
+            {
+                ws.Range(3, 1, last, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#EDEDED");        // key columns = grey
+                ws.Range(3, 9, last, 9).Style.Font.Bold = true;                                          // QTY
+                for (int rr = 4; rr <= last; rr += 2) ws.Range(rr, 3, rr, cols).Style.Fill.BackgroundColor = XLColor.FromHtml("#F7F9FC");   // light zebra
+                ws.Range(last, 1, last, cols).Style.Border.BottomBorder = XLBorderStyleValues.Medium;
+            }
+            ws.Range(2, 1, 2, cols).Style.Border.BottomBorder = XLBorderStyleValues.Medium;
+            ws.SheetView.Freeze(2, 2);
         }
 
         // 📥 EXPORT PATH EXCEL: ต่อข้อมูลลงไฟล์ Excel ของคลังตามช่องที่ตั้งไว้ (User Management -> ⚙ SETUP -> EXCEL SETUP)
