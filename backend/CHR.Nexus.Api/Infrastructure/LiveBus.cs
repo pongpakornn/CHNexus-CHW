@@ -150,7 +150,7 @@ public sealed class LivePublishMiddleware
 
     private static readonly HashSet<string> OwnTopicAreas = new(StringComparer.OrdinalIgnoreCase) { "log", "chat", "support" };
     // หมวดที่ไม่มีจอ "data" (Dashboard / คลัง / PR / PICK LIST / SCANNER / MAX-MIN / FORECAST / USERS) แสดงข้อมูลของมัน · แจ้งแค่ชื่อหมวด (จอที่ฟังหมวดนั้นยังอัพเดททันที)
-    private static readonly HashSet<string> NoDataAreas = new(StringComparer.OrdinalIgnoreCase) { "notifications", "buglog", "edp", "chem", "profile", "signature" };
+    private static readonly HashSet<string> NoDataAreas = new(StringComparer.OrdinalIgnoreCase) { "notifications", "buglog", "edp", "chem", "profile", "signature", "pcwof" };
     private static readonly HashSet<string> PrefPaths = new(StringComparer.OrdinalIgnoreCase) { "/api/products/filter", "/api/products/default-stocks", "/api/pr/stock",
         "/api/forecast/file/read", "/api/forecast/file/preview", "/api/forecast/file/check", "/api/forecast/file/export",
         "/api/pp/pcs/import", "/api/pp/workload/excel" };   // 📂 FORECAST FILE: อ่าน / ตรวจ / ส่งออก ไม่ได้เปลี่ยนข้อมูล

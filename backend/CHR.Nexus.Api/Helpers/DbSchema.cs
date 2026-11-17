@@ -214,6 +214,11 @@ namespace Nexus.Helpers
         private static bool _minReason;
         public static bool HasMinReason => _minReason || (_minReason = TableExists("Nexus.MinReportReasons") == true);
 
+        // database/nexus/61_PC_WorkOrderFollow.sql: WORK ORDER FOLLOW (schema PC)
+        private static bool _pcWof;
+        public static bool HasPcWof => _pcWof || (_pcWof = TableExists("PC.WoSheets") == true && TableExists("PC.WoEditors") == true && TableExists("PC.WoItems") == true
+                                                       && TableExists("PC.WoCells") == true && TableExists("PC.WoSigns") == true);
+
         // 🗂 MASTER DATA (24_Master_Data.sql): Master.Customers / Master.Suppliers (Schema ของระบบ)
         private static bool _master;
         public static bool HasMasterData => _master || (_master = TableExists("Master.Customers") == true && TableExists("Master.Suppliers") == true);

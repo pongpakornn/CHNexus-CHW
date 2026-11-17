@@ -89,6 +89,11 @@ namespace Nexus.Models
         public bool CanDeletePpSetup => CanViewPpSetup && P("PpSetup", p => p.CanDelete);
         public bool CanViewPpAny => CanViewPpDashboard || CanViewPpCapacity || CanViewPpSetup;
 
+        // WORK ORDER FOLLOW (schema PC) - PC_WOF : VIEW = open + read · ADD = create sheet · APPROVE = sign as APPROVE (editing = sheet owner / editors / Level 1)
+        public bool CanViewPcWof => P("PC_WOF", p => p.CanView);
+        public bool CanAddPcWof => CanViewPcWof && P("PC_WOF", p => p.CanAdd);
+        public bool CanApprovePcWof => CanViewPcWof && P("PC_WOF", p => p.CanApprove);
+
         // 🧪 CHEMICAL CONTROL (schema ChemControl · ควบคุมคุณภาพน้ำยาเคมี)
         //    ChemRecord : VIEW = Dashboard / แผนภูมิควบคุม / Export · ADD = บันทึกผลการตรวจวัด + บันทึกการแก้ไข + ส่งอนุมัติ
         //                 EDIT = แก้ / ลบผลการตรวจวัดของผู้อื่น + แก้ / ลบบันทึกการแก้ไข

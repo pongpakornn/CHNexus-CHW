@@ -1,0 +1,576 @@
+/* PC › WORK ORDER FOLLOW — same look as PP Capacity / Workload (dark header, sticky first columns, weekend shading, compact cells) */
+.wof-page {
+  --w-line: #e2e5ee;
+  --w-head: #3f3f46;
+  --w-we: #fef2f2;
+  --w-s1: 210px;
+  --w-s2: 56px;
+}
+
+/* ---- list: cards ---- */
+.wof-cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+.wof-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+  color: var(--ink);
+  animation: wof-up 0.4s both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+@media (hover: hover) {
+  .wof-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -8px rgb(103 80 164 / 0.4);
+  }
+}
+.wof-card-h {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.wof-card-h b {
+  font-size: 15px;
+  font-weight: 800;
+}
+.wof-card-h span {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.wof-card-wo {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.wof-card-m {
+  font-size: 12px;
+}
+.wof-card-m span,
+.wof-info span,
+.wof-fld span {
+  display: inline-block;
+  min-width: 62px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.wof-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.wof-chip {
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.wof-chip.is-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+.wof-chip.is-wait {
+  background: #fef3c7;
+  color: #92400e;
+}
+.wof-chip.is-none {
+  background: #eef0f5;
+  color: #64748b;
+}
+@keyframes wof-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---- forms / pickers ---- */
+.wof-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.wof-fld {
+  display: grid;
+  gap: 3px;
+}
+.wof-fld input,
+.wof-search,
+.wof-sign-req input,
+.wof-part-f input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.wof-pick {
+  display: grid;
+  gap: 4px;
+  max-height: 46dvh;
+  margin-top: 8px;
+  overflow: auto;
+}
+.wof-pick-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: left;
+  font-size: 12.5px;
+}
+.wof-pick-row small {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+}
+.wof-pick-row.is-check {
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+}
+@media (hover: hover) {
+  button.wof-pick-row:hover {
+    background: var(--surface-2);
+  }
+}
+
+/* ---- sheet header ---- */
+.wof-save {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.wof-save.is-saving {
+  color: #b45309;
+}
+.wof-save.is-saved {
+  color: #15803d;
+}
+.wof-save.is-error {
+  color: #dc2626;
+}
+.wof-lock {
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 800;
+}
+.wof-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  font-size: 13px;
+}
+.wof-info-act {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ---- grid ---- */
+.wof-wrap {
+  overflow: auto;
+  max-width: 100%;
+  max-height: calc(100dvh - 260px);
+  overscroll-behavior: contain;
+  border: 1px solid var(--w-line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.wof-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.wof-table th,
+.wof-table td {
+  padding: 2px 4px;
+  border-right: 1px solid var(--w-line);
+  border-bottom: 1px solid var(--w-line);
+  text-align: right;
+  white-space: nowrap;
+  background: var(--surface);
+}
+.wof-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  min-width: 46px;
+  padding: 5px 4px;
+  background: var(--w-head);
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+}
+.wof-table thead th small {
+  display: block;
+  font-size: 8.5px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.wof-table thead th.is-we,
+.wof-table td.is-we {
+  background: var(--w-we);
+}
+.wof-table thead th.is-we {
+  background: #7f1d1d;
+}
+.wof-s1,
+.wof-s2 {
+  position: sticky;
+  z-index: 2;
+  text-align: left !important;
+}
+.wof-s1 {
+  left: 0;
+  width: var(--w-s1);
+  min-width: var(--w-s1);
+  max-width: var(--w-s1);
+}
+.wof-s2 {
+  left: var(--w-s1);
+  width: var(--w-s2);
+  min-width: var(--w-s2);
+  box-shadow: 4px 0 8px -4px rgb(15 23 42 / 0.18);
+}
+thead .wof-s1,
+thead .wof-s2 {
+  z-index: 4;
+}
+.wof-rl {
+  font-size: 10.5px;
+  font-weight: 800;
+  background: #f5f3ff !important;
+  color: #4c1d95;
+}
+.wof-part {
+  white-space: normal !important;
+  vertical-align: top;
+  padding: 8px !important;
+  border-left: 5px solid transparent;
+  font-size: 11.5px;
+}
+.wof-part-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wof-part-h b,
+.wof-in-code {
+  font-size: 13px;
+  font-weight: 800;
+}
+.wof-in-code {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 6px;
+}
+.wof-color {
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  flex: none;
+}
+.wof-part-n {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+.wof-part-m {
+  color: var(--ink-soft);
+  font-size: 10.5px;
+}
+.wof-part-f {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+}
+.wof-part-f input {
+  padding: 2px 6px;
+  font-size: 11.5px;
+}
+.wof-part-f b {
+  color: var(--ink);
+  font-size: 11.5px;
+}
+.wof-part-act {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.wof-part-act button {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 11px;
+}
+.wof-part-act button:disabled {
+  opacity: 0.35;
+}
+.wof-cell {
+  width: 100%;
+  min-width: 40px;
+  padding: 2px 3px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  text-align: right;
+  font: inherit;
+}
+.wof-cell:hover {
+  border-color: var(--w-line);
+}
+.wof-cell:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  background: #fff;
+}
+.wof-table .is-calc td {
+  font-weight: 700;
+  color: #0f766e;
+}
+.wof-table .wof-tot {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  min-width: 64px;
+  font-weight: 800;
+  background: #f4f4f9;
+}
+.wof-table thead .wof-tot {
+  z-index: 4;
+  background: var(--w-head);
+}
+.wof-item:not(:first-of-type) tr:first-child td {
+  border-top: 3px solid var(--w-line);
+}
+.wof-item tr {
+  animation: wof-up 0.35s both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+/* ---- sign ---- */
+.wof-sign {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.wof-sign-box {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.wof-sign-box small {
+  color: var(--ink-soft);
+}
+.wof-sign-box .wof-chip {
+  justify-self: start;
+}
+.wof-sign-req {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---- phone ---- */
+@media (max-width: 767px) {
+  .wof-page {
+    --w-s1: 132px;
+    --w-s2: 44px;
+  }
+  .wof-wrap {
+    max-height: none;
+  }
+}
+
+/* ---- print ---- */
+@media print {
+  .wof-np {
+    display: none !important;
+  }
+  .wof-wrap {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+  }
+  .wof-table {
+    font-size: 8px;
+  }
+  .wof-s1,
+  .wof-s2,
+  .wof-table .wof-tot,
+  .wof-table thead th {
+    position: static;
+  }
+  .wof-table thead th {
+    background: #e5e7eb;
+    color: #000;
+  }
+  .wof-cell {
+    border: 0;
+  }
+  .wof-item tr,
+  .wof-card {
+    animation: none;
+  }
+  .wof-item {
+    break-inside: avoid;
+  }
+  .wof-sign {
+    break-inside: avoid;
+  }
+}
+
+/* ---- responsive ---- */
+.wof-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wof-range button {
+  min-height: 36px;
+  padding: 4px 14px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 800;
+}
+.wof-range button.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.wof-part-more {
+  display: block;
+}
+.wof-page,
+.wof-cards {
+  min-width: 0;
+}
+.wof-info-act,
+.wof-sign-req {
+  flex-wrap: wrap;
+}
+.wof-sign-req input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+@media (min-width: 1600px) {
+  .wof-cards {
+    max-width: 1500px; /* list stays readable on large monitors; the grid keeps full width */
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .wof-page {
+    --w-s1: 170px;
+  }
+}
+@media (max-width: 767px) {
+  .wof-cards {
+    grid-template-columns: 1fr;
+  }
+  .wof-table th,
+  .wof-table td {
+    padding: 1px 2px;
+  }
+  .wof-table thead th {
+    min-width: 44px;
+  }
+  .wof-cell {
+    min-width: 42px;
+    min-height: 40px;
+    font-size: 14px;
+  }
+  .wof-table td.is-calc,
+  .wof-table .is-calc td {
+    height: 32px;
+  }
+  .wof-part {
+    padding: 4px !important;
+    font-size: 11px;
+  }
+  .wof-part-h b,
+  .wof-in-code {
+    font-size: 12px;
+  }
+  .wof-part-n {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    text-decoration: underline dotted;
+  }
+  .wof-part-more {
+    display: none;
+  }
+  .wof-part.is-open .wof-part-more {
+    display: block;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 60;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 12px 40px rgb(15 23 42 / 0.35);
+    white-space: normal;
+  }
+  .wof-part-f {
+    grid-template-columns: 70px 1fr;
+  }
+  .wof-part-f input,
+  .wof-part-act button {
+    min-height: 36px;
+  }
+  .wof-sign {
+    grid-template-columns: 1fr;
+  }
+  .wof-info-act {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .wof-page > div:first-child .cta-btn {
+    flex: 1 1 auto;
+  }
+}

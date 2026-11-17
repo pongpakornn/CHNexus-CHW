@@ -220,3 +220,26 @@ custom tables (forecast/pp/workload/chem lists) card mode on phones.
 ## Batch 3 — large, needs CIMS together
 Password hashing + min length (Users table shared with CIMS).
 Team: build solo/frontend+backend agents per batch · reviewer + tester before each commit.
+
+---
+
+# WORK ORDER FOLLOW (PC DIGITAL WORKSPACE) — 2026-11-17, waiting for OK
+Source: Excel "แผนการผลิตชิ้นส่วน / WORK ORDER FOLLOW" (1 sheet = customer + work order + month; per part 8 rows x day 1-31 + Total).
+Owner answers: manual entry only · monthly signatures per sheet · edit only by the sheet owner (others view) · Excel import later.
+
+## Data (script 61, CHR-Nexus only, new schema PC)
+PC.WoSheets (SheetID, MonthStart, CustomerCode, CustomerName, WorkOrderNo, OwnerUserID, Created/Updated, IsDeleted)
+PC.WoItems  (ItemID, SheetID, SortNo, PartID -> Nexus.Parts (Product Control), IntCode, PartName, PartNo, Material, PcsPerBox, BarColor, Remark)
+PC.WoCells  (ItemID, RowKey PL|OR|WO|ORDER|PROD_D|PROD_N|DEL, Day 1-31, Qty) PK(ItemID,RowKey,Day)
+PC.WoSigns  (SheetID, Role PREPARE|CHECK|APPROVE, UserID, SignedAt) — reuse the existing user signature image
+Computed: Total per row, ST. = DEL / PcsPerBox. Permission SystemID PC_WOF (view/add/edit/delete/approve).
+Rules: add sheet = you are owner; only owner (or Level 1) edits; APPROVE signed = sheet locked; edit after CHECK clears CHECK.
+
+## UI
+Systems page: PC Digital Workspace card live -> own sidebar: WORK ORDER FOLLOW (list) · sheet page.
+List: month picker, cards/table of sheets (customer, W/O, owner, items, sign status), + ADD.
+Sheet: Workload/Capacity-style grid (sticky part column, 8 rows per part, days 1-31, Total, weekend shading),
+  + ADD PART (pick from Product Control), inline cell edit (owner), SIGN panel (3 roles), print-friendly, realtime, mobile cards.
+
+## Team
+designer (sonnet, spec only) -> backend + frontend agents in parallel on the agreed API -> tester (calc) + reviewer -> commit after OK.
