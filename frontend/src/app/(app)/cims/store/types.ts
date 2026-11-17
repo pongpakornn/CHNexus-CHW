@@ -40,6 +40,7 @@ export type Stock = {
   inSupplier: boolean;
   inSysQr: boolean;
   inExcel: boolean;
+  inSupplierImport: boolean;
   outPickList: boolean;
   outSupplier: boolean;
   outSysQr: boolean;

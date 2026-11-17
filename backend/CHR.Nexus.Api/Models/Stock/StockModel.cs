@@ -65,6 +65,7 @@ namespace Nexus.Models
         public string CardStyleSetting { get; set; }
         // ประเภทคลัง (ใช้เลือกไอคอนบนเว็บ): MATERIAL / PRODUCT / SPAREPART / COMPONENT / CONSUMABLE · null = ดูจากรหัสคลัง
         public string StockType { get; set; }
+        public bool InSupplierImport { get; set; }
         public string CardStyle
         {
             get

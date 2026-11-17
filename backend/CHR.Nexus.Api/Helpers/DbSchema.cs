@@ -423,6 +423,10 @@ namespace Nexus.Helpers
         private static bool? _stockType;
         public static bool HasStockType => _stockType ?? (_stockType = ColumnExists("StockType")) ?? false;
 
+        // database/nexus/56_Stock_SupplierImport.sql: Nexus.Stocks.InSupplierImport (IMPORT PENTA STOCK in the EXCEL menu)
+        private static bool? _supplierImport;
+        public static bool HasSupplierImport => _supplierImport ?? (_supplierImport = ColumnExists("InSupplierImport")) ?? false;
+
         // Update_20261010d.sql: Nexus.Stocks.CardStyle (การ์ดสินค้า มีรูป / ไม่มีรูป / ปิด)
         private static bool? _cardStyle;
         public static bool HasCardStyle => _cardStyle ?? (_cardStyle = ColumnExists("CardStyle")) ?? false;
