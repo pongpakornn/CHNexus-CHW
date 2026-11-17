@@ -175,18 +175,19 @@ namespace Nexus.Services
         };
 
         // ทุกรายการตามตัวกรอง (ไม่จำกัดแค่หน้าที่แสดง) - oldestFirst = เรียงตามเวลาสแกน (EXPORT RPA)
-        public List<ScanHistoryRow> QueryAll(ScanHistoryFilter f, bool oldestFirst = false)
+        public List<ScanHistoryRow> QueryAll(ScanHistoryFilter f, bool oldestFirst = false, bool forExport = false)
         {
+            if (forExport) ImportTemplateService.CheckExportRange(f.From, f.To);
             var rows = new List<ScanHistoryRow>();
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
             using (var cmd = new SqlCommand($@"
                 SELECT {Cols}
                 {FromWhere}
-                ORDER BY " + (oldestFirst ? "t.TransactionDate, t.TransactionID" : $"{Rank}, t.TransactionDate DESC, t.TransactionID DESC"), conn) { CommandTimeout = 300 })
+                ORDER BY " + (oldestFirst ? "t.TransactionDate, t.TransactionID" : $"{Rank}, t.TransactionDate DESC, t.TransactionID DESC"), conn) { CommandTimeout = forExport ? ImportTemplateService.ExportTimeoutSec : 300 })
             {
                 AddParams(cmd, f);
                 conn.Open();
-                using (var r = cmd.ExecuteReader()) while (r.Read()) rows.Add(Read(r));
+                using (var r = cmd.ExecuteReader()) while (r.Read()) { rows.Add(Read(r)); if (forExport) ImportTemplateService.CheckExportRows(rows.Count); }
             }
             ApplyDisplay(rows, f.UserId);
             return rows;
@@ -195,7 +196,7 @@ namespace Nexus.Services
         // 📤 Export ทุกรายการตามตัวกรอง (ไม่จำกัดแค่หน้าที่แสดง)
         public int Export(ScanHistoryFilter f, string path)
         {
-            var rows = QueryAll(f);
+            var rows = QueryAll(f, forExport: true);
 
             using (var wb = new XLWorkbook())
             {

@@ -17,10 +17,27 @@ public static class ClientIp
         var ip = ctx.Connection.RemoteIpAddress;
         if (ip != null && IPAddress.IsLoopback(ip))
         {
+            // shortcut: first entry as before (proxy chain on .56 unverified; LastForwarded is safer once the chain is confirmed)
             string xff = ctx.Request.Headers["X-Forwarded-For"].ToString();
             if (!string.IsNullOrWhiteSpace(xff)) return xff.Split(',')[0].Trim();
         }
         return ip?.ToString() ?? "unknown";
+    }
+
+    public static string LastForwarded(string xff)
+    {
+        if (string.IsNullOrWhiteSpace(xff)) return null;
+        var v = xff.Split(',')[^1].Trim();
+        return v.Length == 0 ? null : v;
+    }
+
+    /// <summary>Origin must match the request host, X-Forwarded-Host (our own proxy) or a configured origin. No Origin = true.</summary>
+    public static bool OriginOk(string origin, string host, string fwdHost, IEnumerable<string> allowed)
+    {
+        if (string.IsNullOrEmpty(origin)) return true;
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var u)) return false;
+        bool Same(string h) => !string.IsNullOrEmpty(h) && string.Equals(u.Authority, h.Split(',')[0].Trim(), StringComparison.OrdinalIgnoreCase);
+        return Same(host) || Same(fwdHost) || (allowed?.Any(a => string.Equals(a?.TrimEnd('/'), origin.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) ?? false);
     }
 }
 
@@ -60,6 +77,17 @@ public sealed class SecurityMiddleware
             return;
         }
 
+        // Origin present on a write under /api must be our own site (no Origin = scanner device / server-side call: unchanged)
+        if (unsafeMethod && req.Path.StartsWithSegments("/api") && req.Headers.Origin.Count > 0)
+        {
+            var rip = ctx.Connection.RemoteIpAddress;
+            string fwd = rip != null && IPAddress.IsLoopback(rip) ? req.Headers["X-Forwarded-Host"].ToString() : null;
+            var allowed = ctx.RequestServices.GetService<IConfiguration>()?.GetSection("Cors:Origins").Get<string[]>();
+            // shortcut: log-only until production shows no false positives (proxy host / Cors:Origins), then block with 403
+            if (!ClientIp.OriginOk(req.Headers.Origin.ToString(), req.Host.Value, fwd, allowed))
+                BugLog.Write("SECURITY", "WARN", $"CSRF origin mismatch (not blocked yet): {req.Method} {req.Path} from {req.Headers.Origin} host {req.Host.Value} fwd {fwd}", null, req.Path, req.Method, 200, null, ClientIp.Of(ctx));
+        }
+
         if (req.Path.StartsWithSegments("/api") && !req.Path.StartsWithSegments("/api/live") && !Allow(ClientIp.Of(ctx)))
         {
             ctx.Response.StatusCode = 429;
@@ -89,6 +117,20 @@ public static class LoginGuard
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
     private static readonly ConcurrentDictionary<string, List<DateTime>> Fails = new(StringComparer.OrdinalIgnoreCase);
 
+    private static long _sweepAt;
+
+    /// <summary>Lock key for one account from one machine: a stranger elsewhere cannot lock the owner out.</summary>
+    public static string UserKey(string uid, string ip) => "u:" + uid + "|" + ip;
+
+    // Drop keys whose newest failure is older than the window (at most once a minute) so the dictionary cannot grow forever
+    private static void Sweep()
+    {
+        long now = Environment.TickCount64, last = Interlocked.Read(ref _sweepAt);
+        if (now - last < 60000 || Interlocked.CompareExchange(ref _sweepAt, now, last) != last) return;
+        var cut = DateTime.UtcNow - Window;
+        foreach (var (k, l) in Fails) { bool old; lock (l) old = l.Count == 0 || l.Max() < cut; if (old) Fails.TryRemove(k, out _); }
+    }
+
     private static int Count(string key)
     {
         if (!Fails.TryGetValue(key, out var l)) return 0;
@@ -102,7 +144,7 @@ public static class LoginGuard
     /// <summary>ถูกล็อกชั่วคราวอยู่ = ข้อความแจ้ง (null = เข้าได้)</summary>
     public static string Blocked(string uid, string ip)
     {
-        if (Count("u:" + uid) >= MaxPerUser) return Wait("u:" + uid, "บัญชีนี้");
+        if (Count(UserKey(uid, ip)) >= MaxPerUser) return Wait(UserKey(uid, ip), "บัญชีนี้");
         if (Count("ip:" + ip) >= MaxPerIp) return Wait("ip:" + ip, "เครื่องนี้");
         return null;
     }
@@ -118,14 +160,15 @@ public static class LoginGuard
 
     public static void Fail(string uid, string ip)
     {
-        foreach (var k in new[] { "u:" + uid, "ip:" + ip })
+        Sweep();
+        foreach (var k in new[] { UserKey(uid, ip), "ip:" + ip })
         {
             var l = Fails.GetOrAdd(k, _ => new List<DateTime>());
             lock (l) l.Add(DateTime.UtcNow);
         }
     }
 
-    public static void Success(string uid) => Fails.TryRemove("u:" + uid, out _);
+    public static void Success(string uid, string ip) => Fails.TryRemove(UserKey(uid, ip), out _);
 }
 
 // 🚪 Logout = Token ที่ออกก่อนเวลานี้ของผู้ใช้นี้ใช้ไม่ได้อีก (เก็บในหน่วยความจำ · Server รีสตาร์ท = Token หมดอายุตามเวลาเดิม)

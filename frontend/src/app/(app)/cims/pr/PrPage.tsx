@@ -51,6 +51,8 @@ export default function PrPage() {
   const k = useDebounced(key, 400);
   const codeK = useDebounced(code, 250);
   const sigRef = useRef("");
+  const lightRef = useRef<string | null>(null); // /pr/signature value of the last full load (cheap poll)
+  const sigApi = useRef(true);
 
   useEffect(() => {
     api<Meta>("/pr/meta")
@@ -66,7 +68,19 @@ export default function PrPage() {
     async (onlyIfChanged = false) => {
       if (!meta) return;
       try {
-        const r = await api<{ signature: string; rows: Pr[] }>("/pr", { query: { key: k, stkId: stk ?? undefined } });
+        const query = { key: k, stkId: stk ?? undefined };
+        // เช็คลายเซ็นก่อน (เบา) - เปลี่ยนจริงค่อยโหลดรายการ · endpoint ยังไม่มี (404) = โหลดทั้งรายการเหมือนเดิม
+        let light: string | null = null;
+        if (sigApi.current) {
+          try {
+            light = (await api<{ sig: string }>("/pr/signature", { query })).sig;
+            if (onlyIfChanged && light === lightRef.current) return;
+          } catch (e) {
+            if ((e as { status?: number }).status === 404) sigApi.current = false;
+          }
+        }
+        lightRef.current = light;
+        const r = await api<{ signature: string; rows: Pr[] }>("/pr", { query });
         if (onlyIfChanged && r.signature === sigRef.current) return;
         sigRef.current = r.signature;
         setRows(r.rows);

@@ -138,15 +138,16 @@ namespace Nexus.Services
         // 📤 Export ทุกรายการตามตัวกรอง
         public int Export(ActivityLogFilter f, string path)
         {
+            ImportTemplateService.CheckExportRange(f.From, f.To);
             var rows = new List<ActivityLogRow>();
             using (var conn = new SqlConnection(GlobalConfig.ConnStr))
             {
                 conn.Open();
                 bool pc = HasPc(conn);
-                using (var cmd = new SqlCommand(Sql(pc, Cols(pc), " ORDER BY l.LogDate DESC, l.LogID DESC"), conn) { CommandTimeout = 300 })
+                using (var cmd = new SqlCommand(Sql(pc, Cols(pc), " ORDER BY l.LogDate DESC, l.LogID DESC"), conn) { CommandTimeout = ImportTemplateService.ExportTimeoutSec })
                 {
                     AddParams(cmd, f);
-                    using (var r = cmd.ExecuteReader()) while (r.Read()) rows.Add(Read(r));
+                    using (var r = cmd.ExecuteReader()) while (r.Read()) { rows.Add(Read(r)); ImportTemplateService.CheckExportRows(rows.Count); }
                 }
             }
             using (var wb = new XLWorkbook())

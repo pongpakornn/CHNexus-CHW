@@ -62,6 +62,14 @@ public sealed class PrController : AppController
         return Ok(new { signature = string.Join("|", data.Select(x => $"{x.PRNumber}:{x.Status}:{x.QTY}")), rows = data.Select(Row) });
     }
 
+    // Cheap change check for polling (same permission / stkId as the list)
+    [HttpGet("signature")]
+    public IActionResult Signature([FromQuery] int? stkId)
+    {
+        if (Me?.CanViewPR != true) return Deny();
+        return Ok(new { sig = _svc.GetSignature(DbSchema.HasPrStock ? stkId ?? -1 : null) });
+    }
+
     [HttpGet("parts")]
     public IActionResult Parts([FromQuery] string key, [FromQuery] int? stkId)
     {

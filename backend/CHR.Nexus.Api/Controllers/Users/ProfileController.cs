@@ -84,7 +84,10 @@ public sealed class ProfileController : AppController
         try
         {
             // 🔐 ตรวจรหัสเดิม + เก็บรหัสใหม่แบบ Hash (PasswordStore)
-            if (!PasswordStore.Check(Uid, f.Current)) return Fail("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+            string ip = ClientIp.Of(HttpContext);
+            if (LoginGuard.Blocked(Uid, ip) is { } blocked) return StatusCode(429, new { message = blocked });
+            if (!PasswordStore.Check(Uid, f.Current)) { LoginGuard.Fail(Uid, ip); return Fail("รหัสผ่านปัจจุบันไม่ถูกต้อง"); }
+            LoginGuard.Success(Uid, ip);
             PasswordStore.Store(Uid, f.Next);
             LogService.WriteLog(Uid, "PROFILE_PASSWORD", "Changed own password", Uid);
             return Ok(new { message = "เปลี่ยนรหัสผ่านแล้ว ครั้งหน้าใช้รหัสผ่านใหม่ในการเข้าสู่ระบบ" });

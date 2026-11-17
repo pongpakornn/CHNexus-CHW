@@ -225,7 +225,7 @@ export function StockCards({ onOpen }: { onOpen: (stkId: number) => void }) {
                     </div>
                   )}
                   {!sort && (data.canEdit || c.canDelete) && (
-                    <div className="relative mt-3 flex items-center gap-2 opacity-100 transition duration-300 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
+                    <div className="relative mt-3 flex items-center gap-2 opacity-100 transition duration-300 [@media(hover:hover)]:sm:translate-y-1 [@media(hover:hover)]:sm:opacity-0 [@media(hover:hover)]:sm:group-hover:translate-y-0 [@media(hover:hover)]:sm:group-hover:opacity-100">
                       {data.canEdit && (
                         <button type="button" className="gear-btn" onClick={(e) => (e.stopPropagation(), setEditor({ stkId: c.stkId }))}>
                           <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">

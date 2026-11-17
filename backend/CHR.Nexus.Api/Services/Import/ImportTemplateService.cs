@@ -43,6 +43,17 @@ namespace Nexus.Services
 
         public static string Stamp() => DateTime.Now.ToString("dd-MM-yyyy-HH.mm.ss", CultureInfo.InvariantCulture);
 
+        // Export limits (Activity Log / Scan History): date range <= 366 days, rows <= MaxExportRows, 60 s query timeout
+        public const int MaxExportRows = 200000, ExportTimeoutSec = 60;
+        public static void CheckExportRange(DateTime from, DateTime to)
+        {
+            if ((to.Date - from.Date).TotalDays > 366) throw new InvalidOperationException("ช่วงวันที่ Export ยาวเกิน 366 วัน กรุณาเลือกช่วงวันที่ให้สั้นลง");
+        }
+        public static void CheckExportRows(int count)
+        {
+            if (count > MaxExportRows) throw new InvalidOperationException($"ข้อมูลมากเกิน {MaxExportRows:N0} รายการ กรุณาเลือกช่วงวันที่หรือตัวกรองให้แคบลง");
+        }
+
         // ชื่อไฟล์ใหม่ (สร้างโฟลเดอร์ให้เลย) - ext = ".xlsx" / ".pdf"
         public static string NewPath(string system, string name, string ext = ".xlsx")
         {
