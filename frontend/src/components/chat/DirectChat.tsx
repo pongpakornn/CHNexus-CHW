@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { pollGuard } from "@/lib/pollGuard";
-import { refreshNotifications } from "@/lib/support";
+import { chatView, refreshNotifications } from "@/lib/support";
 import { MIN_TOKEN } from "@/lib/minSign";
 import { useTyping } from "@/lib/useTyping";
 import { ChatBubble, type Attach, type Reaction } from "@/components/chat/ChatBubble";
@@ -58,6 +58,10 @@ export function DirectChat({ me, initialWith }: { me: string; initialWith: strin
   const withRef = useRef(withId);
   useEffect(() => {
     withRef.current = withId;
+    chatView.dm = withId;
+    return () => {
+      chatView.dm = null;
+    };
   }, [withId]);
   // poll = true: timer tick (skips while a request is running / server is down; one notice per outage)
   const loadMsgs = useCallback(

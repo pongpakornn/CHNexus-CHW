@@ -354,7 +354,7 @@ export function DeductModal({ deducted, onClose, onChanged }: { deducted: boolea
           onClose={() => setReg(null)}
           onDone={async (msg, more, pcode) => {
             setReg(null);
-            await dlg.alert({ title: "REGISTER & RECEIVE", message: msg });
+            toast.show("REGISTER & RECEIVE", msg, "ok");
             // ป้ายอื่นของสินค้าเดียวกันที่ยังค้าง -> ถามว่าจะรับเข้า + ตัดคลังต้นทางให้ทั้งหมดเลยไหม
             await askCutPending(dlg, more, pcode);
             onChanged();

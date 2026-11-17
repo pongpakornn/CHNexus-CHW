@@ -472,7 +472,8 @@ namespace Nexus.Services
                 using var cmd = new SqlCommand(@"
                     IF COL_LENGTH('Nexus.Stocks', 'AutoPR') IS NULL OR NOT EXISTS (SELECT 1 FROM Nexus.Stocks WHERE StockID = @s AND ISNULL(AutoPR, 0) = 1) RETURN;
                     DECLARE @prefix VARCHAR(4) = RIGHT(CAST(YEAR(GETDATE()) AS VARCHAR(4)), 2) + 'PR';
-                    DECLARE @dept NVARCHAR(200) = ISNULL((SELECT TOP 1 LookupValue FROM Nexus.PRLookups WHERE FieldName = 'DEPT' ORDER BY LastUsed DESC), N'41304134-บำรุงรักษาแม่พิมพ์');
+                    DECLARE @dept NVARCHAR(200) = ISNULL((SELECT TOP 1 LookupValue FROM Nexus.PRLookups WHERE FieldName = 'DEPT' ORDER BY LastUsed DESC), N'41304134-บำรุงรักษาแม่พิมพ์');" + (Nexus.Helpers.DbSchema.HasDepartmentUsers ? @"
+                    SET @dept = ISNULL((SELECT DepartmentName FROM Nexus.DepartmentUsers WHERE UserID = @u), @dept);" : "") + @"
                     DECLARE @target NVARCHAR(200) = ISNULL((SELECT TOP 1 LookupValue FROM Nexus.PRLookups WHERE FieldName = 'TARGET' ORDER BY LastUsed DESC), N'ชนนิกานต์');
                     DECLARE @last INT = ISNULL((SELECT MAX(TRY_CAST(RIGHT(PRNumber, 8) AS INT)) FROM Nexus.PRHeaders WITH (UPDLOCK, HOLDLOCK)
                                                 WHERE PRNumber LIKE @prefix + '%' AND LEN(PRNumber) = 12), 0);

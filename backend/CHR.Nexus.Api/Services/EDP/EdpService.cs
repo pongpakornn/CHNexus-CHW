@@ -264,6 +264,21 @@ public sealed class EdpService
                   new { date = date.Date, shift });
     }
 
+    public string Operator(DateTime date, string shift)
+    {
+        using var c = Conn();
+        return c.ExecuteScalar<string>("SELECT OPERATOR_CODE FROM EDP.ShiftOperators WHERE PLAN_DATE = @date AND SHIFT = @shift", new { date = date.Date, shift });
+    }
+
+    public void SetOperator(DateTime date, string shift, string code, string uid)
+    {
+        using var c = Conn();
+        c.Execute(@"MERGE EDP.ShiftOperators AS T USING (SELECT @date AS D, @shift AS S) AS X ON T.PLAN_DATE = X.D AND T.SHIFT = X.S
+                    WHEN MATCHED THEN UPDATE SET OPERATOR_CODE = @code, SAVED_BY = @uid, SAVED_AT = GETDATE()
+                    WHEN NOT MATCHED THEN INSERT (PLAN_DATE, SHIFT, OPERATOR_CODE, SAVED_BY) VALUES (@date, @shift, @code, @uid);",
+                  new { date = date.Date, shift, code, uid });
+    }
+
     public void Finish(DateTime date, string shift)
     {
         using var c = Conn();

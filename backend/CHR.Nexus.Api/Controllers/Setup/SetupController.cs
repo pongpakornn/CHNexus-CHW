@@ -261,7 +261,29 @@ public sealed class SetupController : AppController
     public IActionResult Departments()
     {
         if (!IsAdmin) return AdminOnly();
-        return Ok(new { canSave = DbSchema.HasScanDepartments, names = new ScannerSetupService().GetDepartments() });
+        var svc = new ScannerSetupService();
+        return Ok(new { canSave = DbSchema.HasScanDepartments, names = svc.GetDepartments(), canUsers = DbSchema.HasDepartmentUsers, members = svc.GetDepartmentUsers() });
+    }
+
+    public sealed record DeptUsersRequest(string Dept, List<string> UserIds);
+
+    // 🏢 users of one department (PR department of their PRs)
+    [HttpPost("departments/users")]
+    public IActionResult SaveDepartmentUsers([FromBody] DeptUsersRequest req)
+    {
+        if (!IsAdmin) return AdminOnly();
+        if (!DbSchema.HasDepartmentUsers) return Fail("⚠ Run database/nexus/58_PR_Department_Users.sql first - cannot save yet");
+        if (req == null) return Fail("ข้อมูลไม่ครบ");
+        string dept = ScannerSetupService.DeptName(req.Dept);
+        if (dept.Length == 0) return Fail("กรุณาเลือกแผนก");
+        var ids = req.UserIds ?? new();
+        try
+        {
+            new ScannerSetupService().SetDepartmentUsers(dept, ids, Uid);
+            LogService.WriteLog(Uid, "DEPARTMENT_USERS", $"{dept}: {string.Join(", ", ids)}", "");
+            return Ok(new { message = $"บันทึกผู้ใช้ของแผนก {dept} แล้ว ({ids.Count} คน)\nPR ใหม่ของผู้ใช้เหล่านี้จะใช้แผนกนี้" });
+        }
+        catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
     }
 
     [HttpPost("departments")]

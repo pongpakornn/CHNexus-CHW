@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { fmtDate } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
-import { openChat, openSupport, refreshNotifications, topicOf } from "@/lib/support";
+import { chatView, openChat, openSupport, refreshNotifications, topicOf } from "@/lib/support";
 import { useToast } from "@/components/notifications/Toasts";
 import { minTokenOf, openMinSign } from "@/lib/minSign";
 
@@ -48,6 +48,8 @@ export function ChatFeed() {
         last.current = { dm: f.dm, sup: f.sup };
         if (f.items.length === 0) return;
         f.items.slice(-3).forEach((m) => {
+          // ห้องที่เปิดอยู่ (และหน้าต่างมองเห็น) = เห็นข้อความอยู่แล้ว ไม่ต้อง Toast
+          if (document.visibilityState === "visible" && (m.kind === "dm" ? chatView.dm === m.from : m.threadId !== null && chatView.sup === m.threadId)) return;
           // ✍ เอกสาร MIN REPORT ในแชท: คำขอลงลายเซ็น = MinSignHost แจ้งเอง (ไม่เด้งซ้ำ) · อื่น ๆ = กดแล้วเปิดเอกสาร
           const mr = m.kind === "dm" ? minTokenOf(m.body) : null;
           if (mr) {

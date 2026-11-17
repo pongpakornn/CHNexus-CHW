@@ -10,6 +10,7 @@ import { STAGGER, fadeOnly, fadeUp, springPop, springSoft } from "@/lib/motion";
 import { useLive } from "@/lib/live";
 import { EdpBar } from "../EdpBar";
 import { DragGrid } from "./DragGrid";
+import { OperatorModal } from "./OperatorModal";
 import { EditCard } from "./EditCard";
 import { cascade, dmy, hgOf, imgOf, nowSlot, roundLabel, shiftStart, slotSwap, sortMin, timesOf, type Card, type CardsRes, type Meta, type Scope, type Shift, type Times } from "../edp";
 import "../edp.css";
@@ -64,6 +65,8 @@ export default function PlanSubmission() {
   const [edit, setEdit] = useState<Card | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [ask, setAsk] = useState<{ date: string; shift: Shift; after?: () => void } | null>(null); // OPERATOR popup
+  const snooze = useRef(0); // CANCEL on the OPERATOR popup = ask again after 10 min
   const sig = useRef("");
   const auto = useRef(true); // เปิดหน้าครั้งแรก: แผนที่ START แล้ว = ข้ามหน้าเลือกแผน (ครั้งเดียว · กด CHANGE PLAN แล้วไม่เด้งกลับ)
   const next = useRef(false); // FINISH กะ DAY แล้ว: โหลดกะ NIGHT เสร็จ = เริ่มงานต่อให้เลย (ไม่มีแผน = แจ้ง PLAN NOT FOUND)
@@ -146,6 +149,31 @@ export default function PlanSubmission() {
     }, 30_000);
     return () => clearInterval(t);
   }, [date, shift, edit, load]);
+  // 👷 กะปัจจุบัน (เวลาจริง) ยังไม่มี OPERATOR ทั้งที่แผนเริ่มแล้ว (เช่น เข้ากะ NIGHT) = เด้งถามทุก 45 วิ · CANCEL = เงียบ 10 นาที
+  useEffect(() => {
+    if (!started || !meta || ask) return;
+    const t = setInterval(async () => {
+      if (edit || Date.now() < snooze.current || document.visibilityState !== "visible") return;
+      const s = nowSlot(meta.rounds);
+      if (s.date !== date) return;
+      try {
+        const r = await api<{ ready: boolean; code?: string }>("/edp/operator", { query: { date: s.date, shift: s.shift } });
+        if (r.ready && !r.code) setAsk({ date: s.date, shift: s.shift });
+      } catch {}
+    }, 45_000);
+    return () => clearInterval(t);
+  }, [started, meta, ask, date, edit]);
+  async function saveOperator(code: string) {
+    if (!ask) return;
+    try {
+      await api("/edp/operator", { method: "POST", body: { date: ask.date, shift: ask.shift, code } });
+      toast.show("OPERATOR", `บันทึก OPERATOR ${code} กะ ${ask.shift} แล้ว`, "ok");
+      ask.after?.();
+      setAsk(null);
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    }
+  }
   // นาฬิกาของป้าย "ช้า" (โปรแกรมเดิมเดินทุกวินาที · เว็บเดินทุก 5 วิ ป้ายขึ้นตรงนาทีโดยไม่วาดการ์ดใหม่ถี่เกิน)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 5_000);
@@ -188,8 +216,16 @@ export default function PlanSubmission() {
 
   function start() {
     if (shown.length === 0) return toast.show("PLAN NOT FOUND", `ไม่พบแผนการผลิตของ ${dmy(date)} กะ ${shift}${round ? ` รอบ ${round}` : ""}\nกรุณาตั้งแผนงานที่หน้า PLAN SETTING ก่อน`, "warn");
-    setStarted(true);
-    api("/edp/start", { method: "POST", body: { date, shift } }).then(() => load(true), () => {});
+    const go = () => {
+      setStarted(true);
+      api("/edp/start", { method: "POST", body: { date, shift } }).then(() => load(true), () => {});
+    };
+    if (shift === "ALL") return go();
+    // ask for the OPERATOR first when this shift has none (table missing = skip)
+    api<{ ready: boolean; code?: string }>("/edp/operator", { query: { date, shift } }).then(
+      (r) => (r.ready && !r.code ? setAsk({ date, shift, after: go }) : go()),
+      () => go(),
+    );
   }
 
   async function mark(c: Card) {
@@ -280,6 +316,17 @@ export default function PlanSubmission() {
         subtitle={started ? `${dmy(date)} · กะ ${shift}${round ? ` · รอบ ${round}` : ""} · กรอกยอดจริงแล้ว MARK SUCCESS · ลากการ์ดวางทับอีกใบเพื่อสลับเวลา` : "เลือกแผนการผลิตก่อนเริ่มงาน"}
         actions={data?.status && <span className={`edp-stat is-${data.status.replace(" ", "-").toLowerCase()}`}>{data.status}</span>}
       />
+      {ask && (
+        <OperatorModal
+          title="👷 OPERATOR"
+          shift={ask.shift}
+          onSave={saveOperator}
+          onCancel={() => {
+            snooze.current = Date.now() + 10 * 60_000;
+            setAsk(null);
+          }}
+        />
+      )}
       {!started ? (
         <Picker date={date} onDate={setDate} shift={shift} onShift={(s) => (setShift(s), setRound(null))} meta={meta} round={round} onRound={setRound} dates={dates} data={data} cards={shown} onStart={start} />
       ) : (

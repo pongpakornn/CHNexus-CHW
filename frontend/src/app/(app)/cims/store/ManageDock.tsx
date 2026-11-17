@@ -16,7 +16,7 @@ const KEY = "nexus.manageCorner";
 const EVT = "nexus-manage-corner";
 const CORNERS: Corner[] = ["tl", "tr", "bl", "br"];
 
-type Item = { key: "ADD" | "ADJUST" | "HISTORY"; title: string; detail: string; color: string; icon: React.ReactNode };
+type Item = { key: "ADD" | "ADJUST" | "HISTORY" | "HIDE"; title: string; detail: string; color: string; icon: React.ReactNode };
 const R = 92; // รัศมีที่ปุ่มกางออก (เท่าเมนู 3 รายการของ MIN REPORT)
 
 function readCorner(): Corner {
@@ -48,7 +48,7 @@ function subscribeSize(cb: () => void) {
 }
 const sizeNow = () => `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`;
 
-export function ManageDock({ stockCode, mode, onPick, onHistory }: { stockCode: string; mode: ManageMode; onPick: (m: "ADD" | "ADJUST") => void; onHistory: () => void }) {
+export function ManageDock({ stockCode, mode, onPick, onHistory, onHide }: { stockCode: string; mode: ManageMode; onPick: (m: "ADD" | "ADJUST") => void; onHistory: () => void; onHide: () => void }) {
   const corner = useSyncExternalStore(subscribeCorner, readCorner, () => "br" as Corner);
   const profile = useBubbleCorner();
   const size = useSyncExternalStore(subscribeSize, sizeNow, () => "0x0");
@@ -118,6 +118,13 @@ export function ManageDock({ stockCode, mode, onPick, onHistory }: { stockCode: 
         </>
       ),
     },
+    {
+      key: "HIDE",
+      title: "HIDE",
+      detail: `ซ่อนปุ่ม MANAGE STOCK ของ ${stockCode} ในเครื่องนี้ · เปิดคืนที่เมนู ⋯ › SHOW MANAGE STOCK`,
+      color: "#64748b",
+      icon: <path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4M6.2 6.2C3.9 7.6 2.5 10 2 12c1 2.5 5 7 10 7a9.8 9.8 0 0 0 5.8-1.8M9.9 9.9a3 3 0 0 0 4.2 4.2" />,
+    },
   ];
   // กางเข้าหากลางจอ: มุมขวาล่าง = ขึ้น → ซ้าย · ซ้ายล่าง = ขึ้น → ขวา · ขวาบน = ลง → ซ้าย · ซ้ายบน = ลง → ขวา (90°)
   const base = top ? (right ? 180 : 270) : right ? 90 : 0;
@@ -184,6 +191,7 @@ export function ManageDock({ stockCode, mode, onPick, onHistory }: { stockCode: 
                 onClick={() => {
                   setOpen(false);
                   if (it.key === "HISTORY") onHistory();
+                  else if (it.key === "HIDE") onHide();
                   else onPick(it.key);
                 }}
               >

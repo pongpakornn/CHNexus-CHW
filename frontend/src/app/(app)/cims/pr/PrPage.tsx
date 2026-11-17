@@ -22,6 +22,7 @@ type Meta = {
   stocks: { stkId: number; code: string; name: string; countCoil: boolean }[];
   selected: number | null;
   userName: string;
+  myDept?: string | null;
   today: string;
   noStockText: string | null;
 };
@@ -56,7 +57,7 @@ export default function PrPage() {
       .then((m) => {
         setMeta(m);
         setStk(m.selected);
-        setF((x) => ({ ...x, requester: m.userName }));
+        setF((x) => ({ ...x, requester: m.userName, dept: x.dept || m.myDept || "" }));
       })
       .catch((e) => toast.show("ERROR", e.message, "error"));
   }, [toast]);
@@ -121,7 +122,7 @@ export default function PrPage() {
     setPart(null);
     setCode("");
     setQtyText("");
-    setF({ requester: meta!.userName, dept: "", remark: "", target: "" });
+    setF({ requester: meta!.userName, dept: meta!.myDept ?? "", remark: "", target: "" });
   }
 
   async function submit() {

@@ -9,6 +9,7 @@ import { api, upload } from "@/lib/api";
 import { stockIcon, tileStyle } from "@/lib/stockIcons";
 import { StockTile } from "@/components/cards/StockTile";
 import { useDebounced } from "@/lib/useDebounced";
+import { Modal } from "@/components/modals/Modal";
 
 const L = "mb-1 block text-[11px] font-extrabold uppercase text-ink-soft";
 
@@ -508,10 +509,16 @@ export function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
   const [canSave, setCanSave] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  // 👥 users of each department = PR department of their PRs (Nexus.DepartmentUsers, key = name before "@")
+  const [members, setMembers] = useState<Record<string, string>>({});
+  const [canUsers, setCanUsers] = useState(false);
+  const [pick, setPick] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const r = await api<{ canSave: boolean; names: string[] }>("/setup/departments");
+      const r = await api<{ canSave: boolean; names: string[]; canUsers?: boolean; members?: Record<string, string> }>("/setup/departments");
+      setMembers(r.members ?? {});
+      setCanUsers(!!r.canUsers);
       setNames(r.names);
       setOrig(r.names.join("\n"));
       setCanSave(r.canSave);
@@ -588,6 +595,11 @@ export function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
               <span className="dept-no">{i + 1}</span>
               <input className="field fx-in !h-9 min-w-0 flex-1" title="Click to edit the name" value={n} onChange={(e) => setNames((ns) => ns!.map((x, j) => (j === i ? e.target.value : x)))} />
               <span className="dept-acts">
+                {canUsers && (
+                  <button type="button" className="pill-btn !h-8 shrink-0" title="USERS of this department (PR department)" disabled={dirty} onClick={() => setPick(deptKey(n))}>
+                    👥 {Object.values(members).filter((d) => d === deptKey(n)).length}
+                  </button>
+                )}
                 <button type="button" className="dept-btn" title="Move up" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="m6 15 6-6 6 6" />
@@ -616,6 +628,93 @@ export function DeptPanel({ onDirty }: { onDirty: (v: boolean) => void }) {
           💾 SAVE
         </button>
       </div>
+      {pick && <DeptUsersModal dept={pick} members={members} onClose={() => setPick(null)} onSaved={() => (setPick(null), load())} />}
     </div>
+  );
+}
+
+const deptKey = (n: string) => n.split("@")[0].trim();
+
+// 👥 pick the users of one department (a user belongs to one department; picking moves them here)
+function DeptUsersModal({ dept, members, onClose, onSaved }: { dept: string; members: Record<string, string>; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [users, setUsers] = useState<{ userId: string; name: string }[] | null>(null);
+  const [sel, setSel] = useState<Set<string>>(() => new Set(Object.entries(members).filter(([, d]) => d === dept).map(([u]) => u.toLowerCase())));
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api<{ users: { userId: string; name: string }[] }>("/users")
+      .then((r) => setUsers(r.users))
+      .catch((e) => (toast.show("ERROR", (e as Error).message, "error"), setUsers([])));
+  }, [toast]);
+  const q = key.trim().toLowerCase();
+  const list = (users ?? []).filter((u) => !q || `${u.userId} ${u.name}`.toLowerCase().includes(q));
+  const other = (id: string) => Object.entries(members).find(([u]) => u.toLowerCase() === id.toLowerCase())?.[1];
+  async function save() {
+    setBusy(true);
+    try {
+      const ids = (users ?? []).filter((u) => sel.has(u.userId.toLowerCase())).map((u) => u.userId);
+      const r = await api<{ message: string }>("/setup/departments/users", { method: "POST", body: { dept, userIds: ids } });
+      toast.show("Saved", r.message, "ok");
+      onSaved();
+    } catch (e) {
+      toast.show("ERROR", (e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      open
+      title={`👥 USERS • ${dept}`}
+      onClose={onClose}
+      footer={
+        <>
+          <span className="mr-auto text-xs font-bold text-ink-soft">{sel.size} SELECTED</span>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            CANCEL
+          </button>
+          <button type="button" className="cta-btn is-green" disabled={busy || !users} onClick={save}>
+            💾 SAVE
+          </button>
+        </>
+      }
+    >
+      <div className="grid gap-2">
+        <p className="text-xs font-bold text-ink-soft">PR ของผู้ใช้ที่เลือก (สร้างเอง / สแกนสร้าง) จะใช้แผนกนี้ · 1 คน = 1 แผนก (เลือกที่นี่ = ย้ายมาแผนกนี้)</p>
+        <input className="field fx-in" autoFocus value={key} placeholder="ค้นหา User ID / ชื่อ" onChange={(e) => setKey(e.target.value)} />
+        {!users ? (
+          <Loading />
+        ) : list.length === 0 ? (
+          <Empty>ไม่พบผู้ใช้</Empty>
+        ) : (
+          <div className="grid max-h-[50vh] gap-1 overflow-auto">
+            {list.map((u) => {
+              const k = u.userId.toLowerCase();
+              const was = other(u.userId);
+              return (
+                <label key={u.userId} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-black/5">
+                  <input
+                    type="checkbox"
+                    checked={sel.has(k)}
+                    onChange={(e) =>
+                      setSel((s) => {
+                        const n = new Set(s);
+                        if (e.target.checked) n.add(k);
+                        else n.delete(k);
+                        return n;
+                      })
+                    }
+                  />
+                  <b className="w-20 shrink-0 text-sm">{u.userId}</b>
+                  <span className="min-w-0 flex-1 truncate text-sm">{u.name}</span>
+                  {was && was !== dept && <small className="shrink-0 text-[10px] font-bold text-ink-soft">{was}</small>}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

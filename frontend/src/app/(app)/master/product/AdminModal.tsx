@@ -188,7 +188,8 @@ export function AdminModal({ ticked, onClose }: { ticked: number[]; onClose: (ch
     setBusy(true);
     try {
       const r = await api<{ level: "ok" | "warn"; message: string }>("/products/admin/delete", { method: "POST", body: { stockIds: chosen, all, partIds: ticked, reason } });
-      await dlg.alert({ title: "STOCK DELETE", message: r.message, tone: r.level });
+      if (r.level === "ok") toast.show("STOCK DELETE", r.message, "ok");
+      else await dlg.alert({ title: "STOCK DELETE", message: r.message, tone: r.level });
       setChanged(true);
       setReason("");
       load();

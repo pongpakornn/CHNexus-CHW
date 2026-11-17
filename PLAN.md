@@ -186,3 +186,17 @@ reviewer (sonnet): before commit (touches stock data + permissions).
 ## Owner questions (needed for slice 4, not for 1-3)
 - Which columns update CHR-Nexus (REMAIN_WT -> coil KG? STATUS / ZONE -> remark?) and for which MAT_TYPE.
 - Coils not in CHR-Nexus (120): add them (needs PD CODE: from MAT_SPEC/DESCRIPTION?) or only report.
+
+---
+
+# 2026-11-17 batch 2: Manage Stock toggle · PR department per user · filters visible before a file (waiting for OK)
+
+1. MANAGE STOCK show/hide per stock — script 57 `Nexus.Stocks.ShowManageStock BIT DEFAULT 1` + StockEditor checkbox;
+   button shown = flag AND existing right (CountCoil + EDIT + APPROVE of that stock, not live view). Server unchanged.
+2. PR department per user — script 58 `Nexus.DepartmentUsers (UserID PK, DepartmentName)`; User Management › SETUP ›
+   DEPARTMENTS: pick users per department. New PR (manual form default, AutoPrForDeduct, trigger trg_ScanTransactions_AutoPR)
+   take the requester's mapped department ("code-name", text after "@" dropped); no mapping = old behaviour.
+   History fix: PRs of UserID 33310 (ไพโรจน์, 104 rows) -> "11201122-จัดซื้อและพัสดุ"; other users after the owner maps them.
+3. FORECAST FILE: FILTER + table always shown (empty/disabled until a file is read).
+   IMPORT PENTA STOCK: review modal opens first with empty cards + "เลือกไฟล์" inside (same idea).
+Team: build solo (small edits) · reviewer (sonnet) before commit (PR trigger + permissions) · tester: dept mapping helper.

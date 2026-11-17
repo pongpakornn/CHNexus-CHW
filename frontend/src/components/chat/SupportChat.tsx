@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loading } from "@/components/layout/Page";
 import { api } from "@/lib/api";
 import { pollGuard } from "@/lib/pollGuard";
-import { refreshNotifications, SUPPORT_EVENT, TOPICS, topicOf, type SupportOpen, type SupportTopic } from "@/lib/support";
+import { chatView, refreshNotifications, SUPPORT_EVENT, TOPICS, topicOf, type SupportOpen, type SupportTopic } from "@/lib/support";
 import { useTyping } from "@/lib/useTyping";
 import { useBubbleCorner } from "@/lib/profileCorner";
 import { ChatBubble, type Attach, type Reaction } from "@/components/chat/ChatBubble";
@@ -160,6 +160,14 @@ export function SupportChat() {
     const t = setInterval(() => document.visibilityState === "visible" && loadThread(active, true), 4000);
     return () => (clearTimeout(first), clearInterval(t));
   }, [open, active, loadThread]);
+
+  // บอก ChatFeed ว่าเรื่องไหนเปิดอยู่ (ไม่เด้ง Toast ซ้ำ)
+  useEffect(() => {
+    chatView.sup = open && tab === "support" && typeof active === "number" ? active : null;
+    return () => {
+      chatView.sup = null;
+    };
+  }, [open, tab, active]);
 
   // ข้อความใหม่ = เลื่อนลงล่างสุด
   const msgCount = data?.messages.length ?? 0;

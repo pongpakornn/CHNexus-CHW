@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { Empty, Loading, PageBody } from "@/components/layout/Page";
@@ -101,6 +101,30 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const [busy, setBusy] = useState(false);
   // 🧲 MANAGE STOCK: โหมด (ADD / ADJUST) + หน้าต่างที่เปิดอยู่
   const [manage, setManage] = useState<ManageMode>("");
+  // 🙈 MANAGE STOCK HIDE: per browser + per stock (stock setting ShowManageStock hides it for everyone)
+  const hideKey = `nexus.manageHidden.${stkId}`;
+  const manageHidden = useSyncExternalStore(
+    (cb) => (window.addEventListener("nexus-manage-hidden", cb), () => window.removeEventListener("nexus-manage-hidden", cb)),
+    () => {
+      try {
+        return localStorage.getItem(hideKey) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+  const setManageHidden = (v: boolean) => {
+    try {
+      if (v) localStorage.setItem(hideKey, "1");
+      else localStorage.removeItem(hideKey);
+    } catch {
+      /* not remembered, this page only */
+    }
+    if (v) setManage("");
+    window.dispatchEvent(new Event("nexus-manage-hidden"));
+  };
+  const manageAllowed = !!meta?.canManage && meta?.stock.showManageStock !== false;
   const [mAdd, setMAdd] = useState<Product | null>(null);
   const [mCoil, setMCoil] = useState<{ kind: "edit" | "adjust"; row: CoilRow } | null>(null);
   const [mHistory, setMHistory] = useState(false);
@@ -698,6 +722,9 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
     ));
 
   const menu: MenuAction[] = [
+    ...(manageAllowed && manageHidden
+      ? [{ key: "showManage", title: "SHOW MANAGE STOCK", detail: `แสดงปุ่ม MANAGE STOCK ของ ${s.code} ในเครื่องนี้อีกครั้ง`, color: "#6750a4", icon: "import" as const, onClick: () => setManageHidden(false) }]
+      : []),
     {
       key: "export",
       title: "EXPORT EXCEL",
@@ -734,7 +761,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                   color: "#ea580c",
                   icon: "import",
                   busy: pentaBusy,
-                  onClick: () => pentaRef.current?.click(),
+                  onClick: () => setPenta({ id: "", file: "", title: `PENTA STOCK · ${s.code}`, rows: [], errors: [] }),
                 },
               ]
             : s.countCoil && meta.hasCoilRegister
@@ -813,7 +840,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
                 }}
               />
             )}
-            {penta && <ImportReview preview={penta} applyUrl="" readOnly onClose={() => setPenta(null)} onDone={() => setPenta(null)} />}
+            {penta && <ImportReview key={penta.file} preview={penta} applyUrl="" readOnly picking={pentaBusy} onPick={() => pentaRef.current?.click()} onClose={() => setPenta(null)} onDone={() => setPenta(null)} />}
           </>
         }
       />
@@ -863,7 +890,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
 
       <ManageBar mode={manage} onExit={() => setManage("")} />
       {/* 🧲 MANAGE STOCK ลอยติดวงกลมโปรไฟล์ (เฉพาะคลังนี้ + ผู้มีสิทธิ์) */}
-      {meta.canManage && <ManageDock stockCode={s.code} mode={manage} onPick={pickMode} onHistory={() => setMHistory(true)} />}
+      {manageAllowed && !manageHidden && <ManageDock stockCode={s.code} mode={manage} onPick={pickMode} onHistory={() => setMHistory(true)} onHide={() => setManageHidden(true)} />}
 
       <div ref={wrapRef}>
       <div
