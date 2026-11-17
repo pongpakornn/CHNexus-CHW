@@ -268,7 +268,7 @@ public sealed class WorkOrderFollowService
         string where = q.Length == 0 ? "Customer = @customer" : $"({match})";
         return c.Query<PartHit>($@"SELECT TOP (50) {PartCols}, ISNULL(Customer, '') AS Customer FROM Nexus.Parts WITH (NOLOCK)
             WHERE IsActive = 1 AND {where}
-            ORDER BY CASE {(q.Length == 0 ? "WHEN 1 = 1 THEN 0" : rank)} ELSE 2 END, CASE WHEN Customer = @customer THEN 0 ELSE 1 END, PartCode", new { customer = customer ?? "", q, qn }).ToList();
+            ORDER BY {(q.Length == 0 ? "" : $"CASE {rank} ELSE 2 END, ")}CASE WHEN Customer = @customer THEN 0 ELSE 1 END, PartCode", new { customer = customer ?? "", q, qn }).ToList();   // no constant ORDER BY term (SQL Server rejects it)
     }
 
     // any active part (a part may belong to another customer or none)

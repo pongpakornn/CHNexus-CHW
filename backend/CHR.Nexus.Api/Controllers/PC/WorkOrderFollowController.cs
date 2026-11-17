@@ -361,8 +361,8 @@ public sealed class WorkOrderFollowController : AppController
         try
         {
             var cells = _svc.Cells(id, m);
-            var items = _svc.Items(id, m).Select(i => new WorkOrderFollowExcel.TplItem(i.ItemId, i.PartNo, i.PartName, i.PackSize, cells.GetValueOrDefault(i.ItemId) ?? new())).ToList();
-            var bytes = WorkOrderFollowExcel.Template(id, $"{p.CustomerCode} {p.CustomerName}", _svc.GetMonth(id, m)?.WorkOrderNo, m, items);
+            var items = _svc.Items(id, m).Select(i => new WorkOrderFollowExcel.TplItem(i.ItemId, i.PartNo, i.PartName, i.PartB, i.PackSize, cells.GetValueOrDefault(i.ItemId) ?? new())).ToList();
+            var bytes = WorkOrderFollowExcel.Template(id, $"{p.CustomerCode} {p.CustomerName}", _svc.Names(new[] { p.OwnerUserId }).GetValueOrDefault(p.OwnerUserId, p.OwnerUserId), _svc.GetMonth(id, m)?.WorkOrderNo, m, items);
             LogService.WriteLog(Uid, "PC_WOF_TEMPLATE", $"Plan #{id} | {p.CustomerCode} | {Ym(m)}", p.CustomerCode);
             return File(bytes, XlsxType, $"WOF_Template_{p.CustomerCode}_{m:yyyy-MM}.xlsx");
         }

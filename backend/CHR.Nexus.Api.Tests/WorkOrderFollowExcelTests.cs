@@ -10,8 +10,8 @@ public class WorkOrderFollowExcelTests
     {
         var month = new DateTime(2026, 11, 1);
         var cells = new Dictionary<string, Dictionary<string, decimal>> { ["ORDER"] = new() { ["3"] = 120m }, ["DEL"] = new() { ["5"] = 40m } };
-        var items = new List<WorkOrderFollowExcel.TplItem> { new(7, "PN-1", "Part one", 20, cells) };
-        var bytes = WorkOrderFollowExcel.Template(9, "HMC Honda", "WO-1", month, items);
+        var items = new List<WorkOrderFollowExcel.TplItem> { new(7, "PN-1", "Part one", "B-1", 20, cells), new(8, "PN-2", "Part two", "", null, new()) };
+        var bytes = WorkOrderFollowExcel.Template(9, "HMC Honda", "Somchai", "WO-1", month, items);
         string path = Path.Combine(Path.GetTempPath(), $"wof_{Guid.NewGuid():N}.xlsx");
         try
         {

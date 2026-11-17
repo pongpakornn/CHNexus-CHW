@@ -40,6 +40,7 @@ export default function WofPlan({ id }: { id: number }) {
   const [vw, setVw] = useState(1280); // viewport width: < 1024 shows the DAY RANGE chips, < 768 defaults to one week
   const [pick, setPick] = useState<number | "all" | null>(null);
   const [openId, setOpenId] = useState<number | null>(null); // part popover (phone)
+  const [zoom, setZoom] = useState<string | null>(null); // part image lightbox
   const pend = useRef(new Map<string, Pend>());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const flushing = useRef(false);
@@ -470,7 +471,16 @@ export default function WofPlan({ id }: { id: number }) {
       ) : (
         <>
           <div ref={wrapRef} className={`wof-wrap ${busyMonth ? "is-busy" : ""}`}>
-            <table className="wof-table" ref={grid} onKeyDown={nav}>
+            <table className="wof-table" ref={grid} onKeyDown={nav} style={{ "--nd": days.length } as React.CSSProperties}>
+              <colgroup>
+                <col className="wof-c1" />
+                <col className="wof-cg" />
+                <col className="wof-c2" />
+                {days.map((n) => (
+                  <col key={n} className="wof-cd" />
+                ))}
+                <col className="wof-ct" />
+              </colgroup>
               <thead>
                 <tr>
                   <th className="wof-s1" rowSpan={2}>
@@ -511,8 +521,10 @@ export default function WofPlan({ id }: { id: number }) {
                             <td rowSpan={7} className={`wof-s1 wof-part ${openId === it.itemId ? "is-open" : ""}`}>
                               <div className="wof-part-h">
                                 {it.imageUrl && (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img className="wof-part-img" src={it.imageUrl} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} />
+                                  <button type="button" className="wof-part-imgbtn wof-np-keep" onClick={() => setZoom(it.imageUrl)} aria-label="ขยายรูป" title="คลิกเพื่อขยายรูป">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img className="wof-part-img" src={it.imageUrl ?? ""} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} />
+                                  </button>
                                 )}
                                 <span className="wof-part-id">
                                   <b>{it.partNo}</b>
@@ -657,6 +669,12 @@ export default function WofPlan({ id }: { id: number }) {
         </>
       )}
 
+      {zoom && (
+        <div className="wof-zoom" role="dialog" aria-modal="true" aria-label="รูปชิ้นงาน" onClick={() => setZoom(null)} onKeyDown={(e) => e.key === "Escape" && setZoom(null)} tabIndex={-1} ref={(el) => el?.focus()}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={zoom} alt="" />
+        </div>
+      )}
       {excelPv && <ImportReview preview={excelPv} applyUrl={`/pcwof/plans/${id}/import/apply`} onClose={() => setExcelPv(null)} onDone={() => { setExcelPv(null); void load(); }} />}
       {partModal && <PartPicker planId={id} month={month} customer={plan.customerCode} have={new Set(items.map((x) => x.partId))} onClose={() => setPartModal(false)} onAdded={load} />}
       {mgr && <EditorsModal planId={id} d={d} onClose={() => setMgr(false)} onSaved={() => (setMgr(false), load())} />}

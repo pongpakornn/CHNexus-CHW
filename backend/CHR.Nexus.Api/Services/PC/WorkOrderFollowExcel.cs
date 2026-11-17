@@ -4,9 +4,11 @@ using ClosedXML.Excel;
 
 namespace Nexus.Services;
 
-// WORK ORDER FOLLOW Excel: TEMPLATE (parts x 7 rows x days of one month) + IMPORT reader. Look = PP "Actual Capacity" export (dark header bands, thin borders).
-//   Layout (1-based): row 1 title · row 2 "PLAN" | planId · row 3 "MONTH" | yyyy-MM · row 5 band · row 6 column heads · data from row 7
-//   columns: A ITEM ID · B KEY · C PART NO · D PART NAME · E PACK · F ROW · G.. day 1..N · last = TOTAL
+// WORK ORDER FOLLOW Excel: TEMPLATE (parts x 7 rows x days of one month) + IMPORT reader.
+//   Look = "Template Set Max-Min" (navy #002060 title band + header, Aptos, grey key columns, zebra, medium frame, frozen header + key columns)
+//   Layout (1-based): row 1 title band · row 2 header · data from row 3
+//     A No · B Part No · C Part Name · D Part B · E PACK/BOX · F Row · G.. day 1..N · TOTAL · then 2 HIDDEN key columns: ITEM ID, KEY
+//     (hidden row 1 holds PLAN id | yyyy-MM so IMPORT knows the plan + month). Part info is merged over its 7 rows.
 //   per part 7 rows: OR, W/O, สั่งผลิต, ผลิตได้ D, ผลิตได้ N, DEL., ST. (formula, never imported). Blank cell on import = untouched.
 public static class WorkOrderFollowExcel
 {
@@ -14,63 +16,41 @@ public static class WorkOrderFollowExcel
     {
         ("OR", "OR"), ("WO", "W/O"), ("ORDER", "สั่งผลิต"), ("PROD_D", "ผลิตได้ D"), ("PROD_N", "ผลิตได้ N"), ("DEL", "DEL."),
     };
-    public const int FirstCol = 7, HeadRow = 6, FirstRow = 7;
+    public const int FirstCol = 7, HeadRow = 2, FirstRow = 3;
+    private const string Navy = "#002060", Grey = "#EDEDED", Zebra = "#F7F9FC", Weekend = "#FEE2E2", St = "#E6F4F1";
 
-    public sealed record TplItem(int ItemId, string PartNo, string PartName, int? PackSize, Dictionary<string, Dictionary<string, decimal>> Cells);
+    public sealed record TplItem(int ItemId, string PartNo, string PartName, string PartB, int? PackSize, Dictionary<string, Dictionary<string, decimal>> Cells);
     public sealed record Cell(int ItemId, string RowKey, int Day, decimal Qty, string At);
     public sealed record Parsed(int PlanId, DateTime Month, List<Cell> Cells, List<(string Cell, string Text)> Errors);
 
-    private static void Head(IXLRange r, string hex)
-    {
-        r.Style.Font.Bold = true; r.Style.Font.FontColor = XLColor.White; r.Style.Fill.BackgroundColor = XLColor.FromHtml(hex);
-        r.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center; r.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center; r.Style.Alignment.WrapText = true;
-    }
-
-    public static byte[] Template(int planId, string customer, string workOrderNo, DateTime month, List<TplItem> items)
+    public static byte[] Template(int planId, string customer, string owner, string workOrderNo, DateTime month, List<TplItem> items)
     {
         int days = DateTime.DaysInMonth(month.Year, month.Month);
-        int totalCol = FirstCol + days;
+        int totalCol = FirstCol + days, k1 = totalCol + 1, k2 = totalCol + 2;
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add($"WOF {month.ToString("MMM yyyy", CultureInfo.InvariantCulture)}");
-        ws.Cell(1, 1).Value = $"WORK ORDER FOLLOW TEMPLATE • {customer} • {month.ToString("MMMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant()}" + (string.IsNullOrWhiteSpace(workOrderNo) ? "" : $" • W/O {workOrderNo}");
-        ws.Cell(1, 1).Style.Font.Bold = true; ws.Cell(1, 1).Style.Font.FontSize = 14;
-        ws.Cell(2, 1).Value = "PLAN"; ws.Cell(2, 2).Value = planId;
-        ws.Cell(3, 1).Value = "MONTH"; ws.Cell(3, 2).Value = month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-        ws.Cell(2, 4).Value = "กรอกจำนวนในช่องวัน แล้ว IMPORT กลับ · ช่องว่าง = ไม่แตะยอดเดิม · อย่าแก้คอลัมน์ ITEM ID / KEY · แถว ST. คำนวณให้ (ไม่นำเข้า)";
-        ws.Cell(2, 4).Style.Font.FontColor = XLColor.FromHtml("#b45309");
-        ws.Range(2, 1, 3, 2).Style.Font.FontColor = XLColor.Gray;
 
-        ws.Cell(5, FirstCol).Value = $"{month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)}";
-        ws.Range(5, FirstCol, 5, totalCol - 1).Merge();
-        Head(ws.Range(5, FirstCol, 5, totalCol - 1), "#4c1d95");
-        Head(ws.Range(5, 1, 5, FirstCol - 1), "#3f3f46");
-        ws.Cell(5, 1).Value = "KEYS (อย่าแก้)"; ws.Range(5, 1, 5, 2).Merge();
-        ws.Cell(5, 3).Value = "PART"; ws.Range(5, 3, 5, FirstCol - 1).Merge();
-        ws.Cell(5, totalCol).Value = "TOTAL"; Head(ws.Cell(5, totalCol).AsRange(), "#3f3f46");
-        string[] heads = { "ITEM ID", "KEY", "PART NO", "PART NAME", "PACK", "ROW" };
+        // header row
+        string[] heads = { "No", "Part No", "Part Name", "Part B", "PACK/BOX", "Row" };
         for (int i = 0; i < heads.Length; i++) ws.Cell(HeadRow, i + 1).Value = heads[i];
+        for (int d = 1; d <= days; d++) ws.Cell(HeadRow, FirstCol + d - 1).Value = d;
+        ws.Cell(HeadRow, totalCol).Value = "TOTAL";
+        ws.Cell(HeadRow, k1).Value = "ITEM ID"; ws.Cell(HeadRow, k2).Value = "KEY";
+        var head = ws.Range(HeadRow, 1, HeadRow, totalCol);
+        head.Style.Fill.BackgroundColor = XLColor.FromHtml(Navy); head.Style.Font.FontColor = XLColor.White; head.Style.Font.Bold = true;
+        head.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center; head.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         for (int d = 1; d <= days; d++)
-        {
-            var dow = new DateTime(month.Year, month.Month, d).DayOfWeek;
-            ws.Cell(HeadRow, FirstCol + d - 1).Value = $"{d} {dow.ToString()[..3].ToUpperInvariant()}";
-        }
-        Head(ws.Range(HeadRow, 1, HeadRow, totalCol), "#52525b");
-        for (int d = 1; d <= days; d++)
-        {
-            var dow = new DateTime(month.Year, month.Month, d).DayOfWeek;
-            if (dow is DayOfWeek.Saturday or DayOfWeek.Sunday) ws.Cell(HeadRow, FirstCol + d - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#7f1d1d");
-        }
+            if (new DateTime(month.Year, month.Month, d).DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) ws.Cell(HeadRow, FirstCol + d - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#C00000");
+        ws.Row(HeadRow).Height = 22;
 
-        int r = FirstRow;
+        int r = FirstRow, no = 0;
         foreach (var it in items)
         {
-            int top = r;
+            int top = r; no++;
             foreach (var (key, label) in DataRows)
             {
-                ws.Cell(r, 1).Value = it.ItemId; ws.Cell(r, 2).Value = key;
-                ws.Cell(r, 3).Value = it.PartNo; ws.Cell(r, 4).Value = it.PartName;
-                if (it.PackSize != null) ws.Cell(r, 5).Value = it.PackSize.Value;
                 ws.Cell(r, 6).Value = label;
+                ws.Cell(r, k1).Value = it.ItemId; ws.Cell(r, k2).Value = key;
                 it.Cells.TryGetValue(key, out var row);
                 for (int d = 1; d <= days; d++)
                     if (row != null && row.TryGetValue(d.ToString(CultureInfo.InvariantCulture), out var q)) ws.Cell(r, FirstCol + d - 1).Value = q;
@@ -79,33 +59,59 @@ public static class WorkOrderFollowExcel
             }
             // ST. = DEL / PACK rounded up (computed · not imported)
             int del = r - 1;
-            ws.Cell(r, 1).Value = it.ItemId; ws.Cell(r, 2).Value = "ST"; ws.Cell(r, 3).Value = it.PartNo; ws.Cell(r, 4).Value = it.PartName;
-            if (it.PackSize != null) ws.Cell(r, 5).Value = it.PackSize.Value;
-            ws.Cell(r, 6).Value = "ST.";
+            ws.Cell(r, 6).Value = "ST."; ws.Cell(r, k1).Value = it.ItemId; ws.Cell(r, k2).Value = "ST";
             for (int c = FirstCol; c <= totalCol; c++)
-                ws.Cell(r, c).FormulaA1 = $"IF(N($E{r})>0,ROUNDUP({ws.Cell(del, c).Address.ToStringRelative()}/$E{r},0),\"-\")";
-            ws.Range(r, 1, r, totalCol).Style.Font.Bold = true;
-            ws.Range(r, 1, r, totalCol).Style.Font.FontColor = XLColor.FromHtml("#0f766e");
-            ws.Range(r, 1, r, totalCol).Style.Fill.BackgroundColor = XLColor.FromHtml("#f0fdfa");
-            // weekend shading on data rows
+                ws.Cell(r, c).FormulaA1 = $"IF(N($E${top})>0,ROUNDUP({ws.Cell(del, c).Address.ToStringRelative()}/$E${top},0),\"-\")";
+            int bot = r;
+            // part info merged over its 7 rows
+            ws.Cell(top, 1).Value = no; ws.Cell(top, 2).Value = it.PartNo; ws.Cell(top, 3).Value = it.PartName; ws.Cell(top, 4).Value = it.PartB ?? "";
+            if (it.PackSize != null) ws.Cell(top, 5).Value = it.PackSize.Value;
+            for (int c = 1; c <= 5; c++) ws.Range(top, c, bot, c).Merge();
+            var info = ws.Range(top, 1, bot, 5);
+            info.Style.Fill.BackgroundColor = XLColor.FromHtml(Grey);
+            info.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center; info.Style.Alignment.WrapText = true;
+            ws.Range(top, 1, bot, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(top, 1, bot, 1).Style.Font.Bold = true;
+            ws.Range(top, 4, bot, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(top, 5, bot, 5).Style.Font.Bold = true;
+            ws.Range(top, 6, bot, 6).Style.Font.Bold = true;
+            ws.Range(top, 6, bot, 6).Style.Fill.BackgroundColor = XLColor.FromHtml(Grey);
+            // zebra per part, weekend shading on data days, ST. row tinted
+            if (no % 2 == 0) ws.Range(top, FirstCol, bot - 1, totalCol).Style.Fill.BackgroundColor = XLColor.FromHtml(Zebra);
             for (int d = 1; d <= days; d++)
-            {
-                var dow = new DateTime(month.Year, month.Month, d).DayOfWeek;
-                if (dow is DayOfWeek.Saturday or DayOfWeek.Sunday) ws.Range(top, FirstCol + d - 1, r - 1, FirstCol + d - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fef2f2");
-            }
-            ws.Range(top, 1, r, totalCol).Style.Border.TopBorder = XLBorderStyleValues.Medium;
-            ws.Range(top, 1, r, 2).Style.Font.FontColor = XLColor.Gray;
-            ws.Range(top, 6, r, 6).Style.Font.Bold = true;
+                if (new DateTime(month.Year, month.Month, d).DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+                    ws.Range(top, FirstCol + d - 1, bot - 1, FirstCol + d - 1).Style.Fill.BackgroundColor = XLColor.FromHtml(Weekend);
+            ws.Range(bot, 6, bot, totalCol).Style.Fill.BackgroundColor = XLColor.FromHtml(St);
+            ws.Range(bot, 6, bot, totalCol).Style.Font.Bold = true; ws.Range(bot, 6, bot, totalCol).Style.Font.FontColor = XLColor.FromHtml("#0F766E");
+            ws.Range(top, 1, bot, totalCol).Style.Border.TopBorder = XLBorderStyleValues.Medium;
             r++;
         }
         int last = Math.Max(r - 1, HeadRow);
-        var body = ws.Range(5, 1, last, totalCol);
-        body.Style.Border.OutsideBorder = XLBorderStyleValues.Thin; body.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+        // title band (like Template Set Max-Min)
+        var band = ws.Range(1, 1, 1, totalCol);
+        band.Merge();
+        band.FirstCell().Value = $"CHR-Nexus - WORK ORDER FOLLOW TEMPLATE • {customer} • OWNER {owner} • {month.ToString("MMMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant()}" + (string.IsNullOrWhiteSpace(workOrderNo) ? "" : $" • W/O {workOrderNo}") + $" • {items.Count:N0} PARTS";
+        band.Style.Fill.BackgroundColor = XLColor.FromHtml(Navy); band.Style.Font.FontColor = XLColor.White; band.Style.Font.Bold = true; band.Style.Font.FontSize = 14;
+        band.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left; band.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        ws.Row(1).Height = 28;
+        ws.Cell(1, k1).Value = planId; ws.Cell(1, k2).Value = month.ToString("yyyy-MM", CultureInfo.InvariantCulture); // hidden: plan + month for IMPORT
+
+        // frame / fonts / widths / freeze
+        var body = ws.Range(HeadRow, 1, last, totalCol);
+        body.Style.Border.InsideBorder = XLBorderStyleValues.Thin; body.Style.Border.InsideBorderColor = XLColor.FromHtml("#BFBFBF");
+        ws.Range(HeadRow, 1, last, totalCol).Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+        ws.Range(HeadRow, 1, HeadRow, totalCol).Style.Border.BottomBorder = XLBorderStyleValues.Medium;
         ws.Range(FirstRow, FirstCol, last, totalCol).Style.NumberFormat.Format = "#,##0.##";
-        ws.Column(1).Width = 9; ws.Column(2).Width = 9; ws.Column(3).Width = 16; ws.Column(4).Width = 28; ws.Column(5).Width = 8; ws.Column(6).Width = 12;
-        for (int c = FirstCol; c < totalCol; c++) ws.Column(c).Width = 7.5;
-        ws.Column(totalCol).Width = 11;
-        ws.SheetView.FreezeRows(HeadRow); ws.SheetView.FreezeColumns(FirstCol - 1);
+        ws.Range(FirstRow, FirstCol, last, totalCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        ws.Range(FirstRow, totalCol, last, totalCol).Style.Font.Bold = true;
+        ws.Range(1, 1, last, k2).Style.Font.FontName = "Aptos";
+        double[] w = { 6, 18, 32, 16, 10, 11 };
+        for (int i = 0; i < w.Length; i++) ws.Column(i + 1).Width = w[i];
+        for (int c = FirstCol; c < totalCol; c++) ws.Column(c).Width = 5.2;
+        ws.Column(totalCol).Width = 10;
+        ws.Column(k1).Hide(); ws.Column(k2).Hide();
+        ws.SheetView.Freeze(HeadRow, FirstCol - 1);
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
@@ -116,14 +122,22 @@ public static class WorkOrderFollowExcel
         try { var v = c.HasFormula ? c.CachedValue : c.Value; return v.IsBlank ? "" : v.IsText ? v.GetText().Trim() : v.ToString().Trim(); } catch { return ""; }
     }
 
-    // reads the template back: plan + month from the header keys, one Cell per non-blank day cell on a data row (ST. / unknown keys skipped)
+    // reads the template back: plan + month from the hidden header keys, one Cell per non-blank day cell on a data row (ST. / unknown keys skipped)
     public static Parsed Read(string path)
     {
         using var wb = new XLWorkbook(path);
-        var ws = wb.Worksheets.Where(w => w.Visibility == XLWorksheetVisibility.Visible).FirstOrDefault(w => Txt(w.Cell(2, 1)) == "PLAN" && Txt(w.Cell(3, 1)) == "MONTH")
-                 ?? throw new InvalidOperationException("ไม่ใช่ไฟล์ Template ของ WORK ORDER FOLLOW (ไม่พบ PLAN / MONTH ที่หัวไฟล์) · ดาวน์โหลด TEMPLATE จากหน้าแผน");
-        if (!int.TryParse(Txt(ws.Cell(2, 2)), out int planId)) throw new InvalidOperationException("ไม่พบเลข PLAN ในไฟล์");
-        if (!WorkOrderFollowRules.TryMonth(Txt(ws.Cell(3, 2)), out var month)) throw new InvalidOperationException("เดือนในไฟล์ไม่ถูกต้อง (yyyy-MM)");
+        IXLWorksheet ws = null; int k1 = 0;
+        foreach (var w in wb.Worksheets.Where(w => w.Visibility == XLWorksheetVisibility.Visible))
+        {
+            int lc = w.Row(HeadRow).LastCellUsed()?.Address.ColumnNumber ?? 0;
+            for (int c = FirstCol; c < lc; c++)
+                if (Txt(w.Cell(HeadRow, c)) == "ITEM ID" && Txt(w.Cell(HeadRow, c + 1)) == "KEY") { ws = w; k1 = c; break; }
+            if (ws != null) break;
+        }
+        if (ws == null) throw new InvalidOperationException("ไม่ใช่ไฟล์ Template ของ WORK ORDER FOLLOW (ไม่พบคอลัมน์ ITEM ID / KEY) · ดาวน์โหลด TEMPLATE จากหน้าแผน");
+        int k2 = k1 + 1;
+        if (!int.TryParse(Txt(ws.Cell(1, k1)), out int planId)) throw new InvalidOperationException("ไม่พบเลข PLAN ในไฟล์");
+        if (!WorkOrderFollowRules.TryMonth(Txt(ws.Cell(1, k2)), out var month)) throw new InvalidOperationException("เดือนในไฟล์ไม่ถูกต้อง (yyyy-MM)");
         int days = DateTime.DaysInMonth(month.Year, month.Month);
         var keys = DataRows.Select(x => x.Key).ToHashSet();
         var cells = new Dictionary<(int, string, int), Cell>();
@@ -131,8 +145,8 @@ public static class WorkOrderFollowExcel
         int last = ws.LastRowUsed()?.RowNumber() ?? HeadRow;
         for (int r = FirstRow; r <= last; r++)
         {
-            string key = Txt(ws.Cell(r, 2));
-            if (!keys.Contains(key) || !int.TryParse(Txt(ws.Cell(r, 1)), out int itemId)) continue;
+            string key = Txt(ws.Cell(r, k2));
+            if (!keys.Contains(key) || !int.TryParse(Txt(ws.Cell(r, k1)), out int itemId)) continue;
             for (int d = 1; d <= days; d++)
             {
                 var c = ws.Cell(r, FirstCol + d - 1);
