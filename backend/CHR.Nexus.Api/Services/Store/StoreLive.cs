@@ -20,7 +20,7 @@ public static class StoreLive
         string partB = DbSchema.HasPartB ? ", PartB" : "";
         return Token(s.IsMain
             ? $@"SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(PartID, PartCode, Description, Category, Customer, Supplier, PartA, PartNumber, Model, Bin,
-                                                     ImageFileName, IsShowInMaster, IsActive{partB})) FROM Nexus.Parts WHERE IsShowInMaster = 1"
+                                                     ImageFileName, IsShowInMaster, MainHidden, IsActive{partB})) FROM Nexus.Parts WHERE IsShowInMaster = 1"
             : $@"SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(ps.PartID, ps.IsShow, p.PartCode, p.Description, p.Category, p.Customer, p.Supplier, p.PartA,
                                                       p.PartNumber, p.Model, p.Bin, p.ImageFileName, p.IsActive{(DbSchema.HasPartB ? ", p.PartB" : "")}))
                  FROM Nexus.PartStocks ps JOIN Nexus.Parts p ON p.PartID = ps.PartID WHERE ps.StockID = @stk", null, s.StkId);
