@@ -31,6 +31,8 @@ namespace Nexus.Models
         // Web (CHR-Nexus): เปิด (21/10/2026) - STORE-PC อ่านสดจากฐาน StorePC ผ่าน Nexus.vw_StorePcLive อ่านอย่างเดียว ห้ามแก้ / สแกน / Import
         public const bool LiveViewEnabled = true;
         public bool IsLiveView => LiveViewEnabled && !string.IsNullOrWhiteSpace(LiveSource);
+        // STORE-FG: shown live from StorePC, and Multi-Scanner IN / OUT also writes StorePC (Services/Store/StorePcWrite)
+        public bool WritesStorePc => IsLiveView && string.Equals(LiveSource, "StorePC", StringComparison.OrdinalIgnoreCase);
         public const string LiveViewMessage = "คลังนี้แสดงข้อมูลสดจากโปรแกรมเดิม (StorePC) ชั่วคราว - ดูได้อย่างเดียว\nการแก้ไข / สแกน / Import ให้ทำในโปรแกรม StorePC";
 
         private bool _useMaxMin = true;
