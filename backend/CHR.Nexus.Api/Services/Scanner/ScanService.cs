@@ -731,6 +731,7 @@ namespace Nexus.Services
 
                 try
                 {
+                    int pcPt = stock?.WritesStorePc == true ? StorePcWrite.Begin(conn, trans, stock.StkId, ptId) : 0;   // STORE-FG: StorePC changes in this transaction too
                     // คลังหลักที่นับ Coil (STOCK-4C): Coil ของคลังหลักเก็บที่ Nexus.Parts.CoilQuantity
                     string updateSql = @"UPDATE Nexus.Parts
                                  SET StockQuantity = ISNULL(StockQuantity, 0) + @Qty, CoilQuantity = CoilQuantity + @Coil
@@ -795,6 +796,7 @@ namespace Nexus.Services
                         }
                     }
 
+                    if (pcPt > 0) StorePcWrite.Apply(conn, trans, pcPt, qty, false, boxMove is int bm ? bm : 0, userId, partACode, refNo);
                     trans.Commit();
                     return true;
                 }
@@ -1191,6 +1193,7 @@ namespace Nexus.Services
                 {
                     try
                     {
+                        int pcPt = stock?.WritesStorePc == true ? StorePcWrite.Begin(conn, trans, stock.StkId, ptId) : 0;   // STORE-FG: balance check uses StorePC's balance
                         // คลังหลักที่นับ Coil: Coil อยู่ที่ Nexus.Parts.CoilQuantity
                         bool mainCoil = !isOther && stock != null && stock.CountCoil && Nexus.Helpers.DbSchema.HasCountCoil;
                         string checkSql = isOther
@@ -1265,6 +1268,7 @@ namespace Nexus.Services
                             }
                         }
 
+                        if (pcPt > 0) StorePcWrite.Apply(conn, trans, pcPt, qty, true, boxOut, userId, partACode, refNo);
                         trans.Commit();
                         return true;
                     }

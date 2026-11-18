@@ -294,7 +294,9 @@ public sealed class ScanProcessor
                 if (!isPackingCardScan && (!isSupplierScan || (string.IsNullOrWhiteSpace(supplierFmt.MatchStart) && IsOwnQr(rawBarcodeFull, stock))))
                     rawBarcodeFull = WithQrSuffix(rawBarcodeFull, stock, part);
                 int? deductFrom = isSupplierScan ? DeductSourceFor(supplierFmt) : null;
-                bool useDeduct = !isOut && deductFrom.HasValue && deductFrom.Value != stock.StkId;
+                // STORE-FG (StorePC) is never cut / cut from automatically: that path does not write StorePC -> plain IN
+                bool useDeduct = !isOut && deductFrom.HasValue && deductFrom.Value != stock.StkId && !stock.WritesStorePc
+                                 && !new StockService().GetStocks().Any(s => s.StkId == deductFrom.Value && s.WritesStorePc);
                 bool isSaved;
                 if (useDeduct)
                 {
@@ -796,7 +798,7 @@ public sealed class ScanProcessor
                                       Func<StockModel, BarcodeFormatModel, bool> acceptsLabel)
     {
         string dir = isOut ? "จ่ายออก" : "รับเข้า";
-        if (stock.IsLiveView)
+        if (stock.IsLiveView && !stock.WritesStorePc)
             return $"คลัง {stock.Code} ไม่เปิดให้สแกน{dir}ใน CHR-Nexus ชั่วคราว\n{StockModel.LiveViewMessage}";
         if (isPickList)
             return (isOut ? stock.OutPickList : stock.InPickList) ? null : $"คลัง {stock.Code} ไม่ได้เปิดให้{dir}ด้วย Pick List QR";

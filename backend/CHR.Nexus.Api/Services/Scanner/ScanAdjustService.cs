@@ -132,7 +132,7 @@ namespace Nexus.Services
                         int ptId; decimal oldQty; string type; int? stkId, txBox; bool cancelled, isMain; string stkCode; DateTime txDate;
                         using (var cmd = new SqlCommand(@"
                             SELECT t.PartID, t.Quantity, t.TransactionType, t.StockID, t.BoxChange, ISNULL(t.IsCancelled, 0) AS IsCancelled, t.TransactionDate,
-                                   ISNULL(s.IsMain, 1) AS IsMain, ISNULL(s.StockCode, 'MAIN') AS StockCode
+                                   ISNULL(s.IsMain, 1) AS IsMain, ISNULL(s.StockCode, 'MAIN') AS StockCode, ISNULL(s.LiveSource, '') AS LiveSource
                             FROM Nexus.ScanTransactions t WITH (UPDLOCK, HOLDLOCK)
                             LEFT JOIN Nexus.Stocks s ON s.StockID = t.StockID
                             WHERE t.TransactionID = @id", conn, trans))
@@ -150,6 +150,9 @@ namespace Nexus.Services
                                 isMain = Convert.ToBoolean(r["IsMain"]);
                                 stkCode = r["StockCode"].ToString();
                                 txDate = Convert.ToDateTime(r["TransactionDate"]);
+                                // STORE-FG scans were also written to StorePC: undo / edit there (StorePC program) so both stay equal
+                                if (string.Equals(r["LiveSource"].ToString(), "StorePC", StringComparison.OrdinalIgnoreCase))
+                                    throw new InvalidOperationException($"รายการ #{txId} เป็นของคลัง {r["StockCode"]} (บันทึกลง StorePC แล้ว) - ยกเลิก / แก้จำนวนไม่ได้ใน CHR-Nexus");
                             }
                         }
                         if (cancelled) throw new InvalidOperationException($"รายการ #{txId} ถูกยกเลิกไปแล้ว");
