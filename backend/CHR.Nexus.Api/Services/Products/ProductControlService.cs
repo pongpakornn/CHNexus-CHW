@@ -402,7 +402,7 @@ namespace Nexus.Services
                         ptId = Convert.ToInt32(r);
                     }
 
-                    using (var cmd = new SqlCommand("UPDATE Nexus.Parts SET IsShowInMaster = @show WHERE PartID = @pt", conn, trans))
+                    using (var cmd = new SqlCommand("UPDATE Nexus.Parts SET MainHidden = CASE WHEN IsShowInMaster = 0 THEN 0 ELSE MainHidden END, IsShowInMaster = @show WHERE PartID = @pt", conn, trans))
                     {
                         cmd.Parameters.AddWithValue("@show", showInMain ? 1 : 0);
                         cmd.Parameters.AddWithValue("@pt", ptId);
@@ -478,7 +478,9 @@ namespace Nexus.Services
                                            UPDATE ps SET IsShow = @IsShow, UpdatedDate = GETDATE() FROM Nexus.PartStocks ps JOIN Nexus.Parts p ON p.PartID = ps.PartID
                                            WHERE ps.StockID = @stk AND ((@PtId > 0 AND p.PartID = @PtId) OR (@PtId = 0 AND p.PartCode = @PartACode))
                                        ELSE
-                                           UPDATE Nexus.Parts SET IsShowInMaster = @IsShow WHERE (@PtId > 0 AND PartID = @PtId) OR (@PtId = 0 AND PartCode = @PartACode)";
+                                           UPDATE Nexus.Parts SET MainHidden = 1 - @IsShow,
+                                                  IsShowInMaster = CASE WHEN @IsShow = 1 AND @stk IS NULL THEN 1 ELSE IsShowInMaster END
+                                           WHERE (@PtId > 0 AND PartID = @PtId) OR (@PtId = 0 AND PartCode = @PartACode)";
                         using (SqlCommand cmd = new SqlCommand(sql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@IsShow", isShow ? 1 : 0);
@@ -693,7 +695,7 @@ namespace Nexus.Services
                             DELETE ps FROM Nexus.PartStocks ps JOIN #del d ON d.PartID = ps.PartID AND d.KeepElsewhere = 0;
                             DELETE p FROM Nexus.Parts p JOIN #del d ON d.PartID = p.PartID AND d.KeepElsewhere = 0;
                             DELETE ps FROM Nexus.PartStocks ps JOIN #del d ON d.PartID = ps.PartID AND d.KeepElsewhere = 1 WHERE ps.StockID IN ({otherIds});
-                            {(mainChosen ? "UPDATE p SET IsShowInMaster = 0 FROM Nexus.Parts p JOIN #del d ON d.PartID = p.PartID AND d.KeepElsewhere = 1;" : "")}
+                            {(mainChosen ? "UPDATE p SET IsShowInMaster = 0, MainHidden = 0 FROM Nexus.Parts p JOIN #del d ON d.PartID = p.PartID AND d.KeepElsewhere = 1;" : "")}
                             DROP TABLE #del;", conn, trans) { CommandTimeout = 300 })
                             cmd.ExecuteNonQuery();
 
@@ -725,7 +727,7 @@ namespace Nexus.Services
         {
             using (var conn = new SqlConnection(_connectionString))
             using (var cmd = new SqlCommand(stock.IsMain
-                ? "UPDATE Nexus.Parts SET IsShowInMaster = 1 WHERE PartID = @p"
+                ? "UPDATE Nexus.Parts SET IsShowInMaster = 1, MainHidden = 0 WHERE PartID = @p"
                 : @"IF EXISTS (SELECT 1 FROM Nexus.PartStocks WHERE StockID = @s AND PartID = @p)
                         UPDATE Nexus.PartStocks SET IsShow = 1, UpdatedDate = GETDATE() WHERE StockID = @s AND PartID = @p AND ISNULL(IsShow, 1) = 0
                     ELSE INSERT INTO Nexus.PartStocks (StockID, PartID, Quantity) VALUES (@s, @p, 0)", conn))

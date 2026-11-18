@@ -97,7 +97,7 @@ namespace Nexus.Services
         {
             if (!UseStockView(stock)) return null;   // ระบบเก่า (ไม่มี vw_StockMonitoring) -> ใช้วิธีเดิม
             string sql = stock.IsMain
-                ? @"SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(PartID, StockQuantity, MaxQuantity, MinQuantity, Remark, IsShowInMaster, IsActive, PackSize))
+                ? @"SELECT COUNT(*), CHECKSUM_AGG(CHECKSUM(PartID, StockQuantity, MaxQuantity, MinQuantity, Remark, IsShowInMaster, MainHidden, IsActive, PackSize))
                     FROM Nexus.Parts"
                 // ⏳ ชั่วคราว: คลังที่แสดงสดจาก StorePC -> ดูการเปลี่ยนแปลงในตารางของโปรแกรมเดิม
                 : stock.IsLiveView

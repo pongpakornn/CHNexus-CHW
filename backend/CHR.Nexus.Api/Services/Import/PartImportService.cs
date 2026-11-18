@@ -530,9 +530,9 @@ namespace Nexus.Services
                         bool hasB = Nexus.Helpers.DbSchema.HasPartB;
                         using (var cmd = new SqlCommand($@"
                             INSERT INTO Nexus.Parts (PartCode, Description, PackSize, QRCode, MaxQuantity, MinQuantity, Category,
-                                                  Bin, StockQuantity, IsActive, IsShowInMaster, ImageFileName, Supplier,
+                                                  Bin, StockQuantity, IsActive, IsShowInMaster, MainHidden, ImageFileName, Supplier,
                                                   Customer, PartA, PartNumber, Model{(hasB ? ", PartB" : "")})
-                            VALUES (@code, @name, @psz, @qr, @mmax, @mmin, @cat, @bin, @mqty, 1, @show, @img, @sup,
+                            VALUES (@code, @name, @psz, @qr, @mmax, @mmin, @cat, @bin, @mqty, 1, @show, @mh, @img, @sup,
                                     @cust, @parta, @partno, @model{(hasB ? ", @partb" : "")});
                             IF @inMain = 1 AND @rmk IS NOT NULL UPDATE Nexus.Parts SET Remark = @rmk WHERE PartID = SCOPE_IDENTITY();
                             SELECT CAST(SCOPE_IDENTITY() AS INT);", conn, trans))
@@ -544,7 +544,8 @@ namespace Nexus.Services
                             // ค่าเริ่มต้นเดียวกับการลงทะเบียนทีละรายการ (InsertNewPartAsync)
                             cmd.Parameters.AddWithValue("@cat", string.IsNullOrWhiteSpace(r.Category) ? "GENERAL" : r.Category);
                             cmd.Parameters.AddWithValue("@bin", string.IsNullOrWhiteSpace(r.Bin) ? "N/A" : r.Bin);
-                            cmd.Parameters.AddWithValue("@show", r.ShowInMain ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@show", r.InMain ? 1 : 0);   // 66: in STORE-MAT = membership, HIDE = MainHidden
+                            cmd.Parameters.AddWithValue("@mh", r.InMain && !r.ShowInMain ? 1 : 0);
                             cmd.Parameters.AddWithValue("@sup", string.IsNullOrWhiteSpace(r.Supplier) ? (object)DBNull.Value : r.Supplier);
                             cmd.Parameters.AddWithValue("@cust", string.IsNullOrWhiteSpace(r.Customer) ? (object)DBNull.Value : r.Customer);
                             cmd.Parameters.AddWithValue("@parta", string.IsNullOrWhiteSpace(r.PartA) ? (object)DBNull.Value : r.PartA);

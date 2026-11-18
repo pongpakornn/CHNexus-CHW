@@ -98,7 +98,7 @@ public sealed class MaxMinController : AppController
             q("SELECT CONCAT(COUNT(*), '|', CHECKSUM_AGG(BINARY_CHECKSUM(*))) FROM Nexus.MaxMinStockSettings"),
             q("SELECT CONCAT(MAX(ImportID), '|', COUNT_BIG(*)) FROM Nexus.ForecastOrderImports"),
             q("SELECT CONCAT(COUNT(*), '|', CHECKSUM_AGG(BINARY_CHECKSUM(*))) FROM Nexus.CustomerWorkdays"),
-            st.IsMain ? q("SELECT CONCAT(COUNT(*), '|', CHECKSUM_AGG(CHECKSUM(PartID, MaxQuantity, MinQuantity, PackSize, IsShowInMaster, Customer, Description))) FROM Nexus.Parts")
+            st.IsMain ? q("SELECT CONCAT(COUNT(*), '|', CHECKSUM_AGG(CHECKSUM(PartID, MaxQuantity, MinQuantity, PackSize, IsShowInMaster, MainHidden, Customer, Description))) FROM Nexus.Parts")
                       : q($"SELECT CONCAT(COUNT(*), '|', CHECKSUM_AGG(CHECKSUM(PartID, MaxQuantity, MinQuantity, IsShow))) FROM Nexus.PartStocks WHERE StockID = {st.StkId}"));
         return Ok(new { token = t + st.StkId });
     }

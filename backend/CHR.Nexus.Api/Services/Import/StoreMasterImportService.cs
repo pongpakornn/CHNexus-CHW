@@ -433,15 +433,16 @@ namespace Nexus.Services
                         if (x.IsNew)
                         {
                             using (var cmd = new SqlCommand($@"
-                                INSERT INTO Nexus.Parts (PartCode, Description, PackSize, QRCode, MaxQuantity, MinQuantity, Category, Bin, StockQuantity, IsActive, IsShowInMaster,
+                                INSERT INTO Nexus.Parts (PartCode, Description, PackSize, QRCode, MaxQuantity, MinQuantity, Category, Bin, StockQuantity, IsActive, IsShowInMaster, MainHidden,
                                                       ImageFileName, Supplier, Customer, PartA, PartNumber, Model{(hasB ? ", PartB" : "")})
-                                VALUES (@code, @name, ISNULL(@psz, 0), ISNULL(@qr, @code), 0, 0, ISNULL(@cat, 'GENERAL'), ISNULL(@bin, 'N/A'), 0, 1, @show,
+                                VALUES (@code, @name, ISNULL(@psz, 0), ISNULL(@qr, @code), 0, 0, ISNULL(@cat, 'GENERAL'), ISNULL(@bin, 'N/A'), 0, 1, @show, @mh,
                                         @img, @sup, @cust, @parta, @partno, @model{(hasB ? ", @partb" : "")});
                                 SELECT CAST(SCOPE_IDENTITY() AS INT);", conn, tr))
                             {
                                 AddPart(cmd, x);
                                 // คลังหลักได้สินค้าเฉพาะเมื่อระบุรหัสคลังหลักในไฟล์ (SHOW/HIDE = แสดง/ซ่อน ในคลังที่ระบุ)
-                                cmd.Parameters.AddWithValue("@show", inMain && (x.ShowInMain ?? true) ? 1 : 0);
+                                cmd.Parameters.AddWithValue("@show", inMain ? 1 : 0);
+                                cmd.Parameters.AddWithValue("@mh", inMain && x.ShowInMain == false ? 1 : 0);
                                 x.PtId = (int)cmd.ExecuteScalar();
                             }
                             res.Added++;
@@ -453,7 +454,8 @@ namespace Nexus.Services
                                        Category = ISNULL(@cat, Category), Bin = ISNULL(@bin, Bin), Supplier = ISNULL(@sup, Supplier),
                                        Customer = ISNULL(@cust, Customer), PartA = ISNULL(@parta, PartA), PartNumber = ISNULL(@partno, PartNumber),
                                        Model = ISNULL(@model, Model), ImageFileName = ISNULL(@img, ImageFileName), IsActive = 1,{(hasB ? " PartB = ISNULL(@partb, PartB)," : "")}
-                                       IsShowInMaster = CASE WHEN @inMain = 1 THEN ISNULL(@show, 1) ELSE IsShowInMaster END
+                                       IsShowInMaster = CASE WHEN @inMain = 1 THEN 1 ELSE IsShowInMaster END,
+                                       MainHidden = CASE WHEN @inMain = 1 AND @show IS NOT NULL THEN 1 - @show ELSE MainHidden END
                                 WHERE PartID = @id", conn, tr))
                             {
                                 AddPart(cmd, x);
