@@ -319,27 +319,31 @@ public sealed class ProductsController : AppController
     }
 
     // ตรวจ Coil ที่กรอก (ProductControlView.ValidateCoil): ไม่กรอก = ไม่เพิ่ม / กรอกไม่ครบหรือผิด = แจ้ง
-    private string ValidateCoil(ProductForm f, List<StockModel> stocks, out (string No, string Master, decimal Kg, StockModel Stock)? coil)
+    private string ValidateCoil(ProductForm f, List<StockModel> stocks, out (string No, string Master, decimal Kg, StockModel Stock, bool Ref)? coil)
     {
         coil = null;
         string no = (f.CoilNo ?? "").Trim(), master = (f.MasterCoil ?? "").Trim(), kgText = (f.CoilKg ?? "").Replace(",", "").Trim();
         if (no.Length == 0 && master.Length == 0 && kgText.Length == 0) return null;
         if (!DbSchema.HasCoilRegister) return "ฐานข้อมูลยังไม่รองรับทะเบียน Coil";
         // กรอกแค่ MASTER COIL = รับ Master ทั้งม้วน (เลข Coil = เลข Master) - เดิมไม่ให้บันทึกถ้าไม่มี NUMBER COIL
-        if (no.Length == 0 && master.Length > 0) { no = master; master = ""; }
+        bool masterOnly = no.Length == 0 && master.Length > 0;
+        if (masterOnly) { no = master; master = ""; }
         if (no.Length == 0) return "กรุณากรอก NUMBER COIL (เลข Coil ลูก) หรือ MASTER COIL";
-        if (!Qty.TryParse(kgText, out decimal kg) || kg <= 0) return "กรุณากรอก COIL WEIGHT (KG) เป็นตัวเลขมากกว่า 0";
+        decimal kg = 0; // blank = 0 (weight comes from the scan / ERP import)
+        if (kgText.Length > 0 && (!Qty.TryParse(kgText, out kg) || kg < 0)) return "COIL WEIGHT (KG) ต้องเป็นตัวเลข";
         var ticked = stocks.Where(s => s.CountCoil && ((s.IsMain && f.InMain) || f.OtherStockIds.Contains(s.StkId))).ToList();
         var stock = ticked.FirstOrDefault(s => s.StkId == f.FilterStkId) ?? ticked.FirstOrDefault();
         if (stock == null) return "กรุณาติ๊กคลังที่นับ Coil (เช่น STOCK-MAT / STOCK-PANTA / STOCK-MSH) ในช่อง STOCK\nเพื่อรับ Coil " + no + " เข้าคลังนั้น";
         string where = _svc.CoilInStock(no);
+        // Master Coil kept in another stock (e.g. STORE-PANTA) = reference for auto-cut when its child coils are scanned into this stock
+        if (where != null && masterOnly && !string.Equals(where, stock.Code, StringComparison.OrdinalIgnoreCase)) { coil = (no, null, 0, stock, true); return null; }
         if (where != null) return $"Coil {no} อยู่ในคลัง {where} แล้ว - ไม่เพิ่มซ้ำ";
-        coil = (no, master.Length == 0 ? null : master, kg, stock);
+        coil = (no, master.Length == 0 ? null : master, kg, stock, false);
         return null;
     }
 
     // หลังบันทึก: คลังของสินค้า + Coil ที่กรอก -> ข้อความแจ้งผล
-    private List<string> AfterSave(ProductControlModel m, ProductForm f, int ptId, (string No, string Master, decimal Kg, StockModel Stock)? coil)
+    private List<string> AfterSave(ProductControlModel m, ProductForm f, int ptId, (string No, string Master, decimal Kg, StockModel Stock, bool Ref)? coil)
     {
         var notes = new List<string>();
         var blocked = _svc.SyncPartStocks(m.PartACode, f.InMain, f.OtherStockIds ?? new(), ptId);
@@ -357,6 +361,13 @@ public sealed class ProductsController : AppController
             _svc.SetPartWeight(ptId, Qty.TryParse(f.PartWeight.Replace(",", "").Trim(), out decimal w) && w > 0 ? w : null);
         if (blocked.Count > 0)
             notes.Add($"⚠ ไม่สามารถเอาสินค้า {m.PartACode} ออกจากคลังต่อไปนี้ได้ เพราะยังมียอดคงเหลือ\n• {string.Join("\n• ", blocked)}\nกรุณาโอนย้ายหรือตัดยอดให้เป็น 0 ก่อน");
+        if (coil is { Ref: true } rc && ptId > 0)
+        {
+            int n = new DeductMissService().LinkByMaster(ptId, rc.Stock.StkId, null, rc.No);
+            LogService.WriteLog(Uid, "LINK_MASTER_COIL", $"{rc.Stock.Code} | {m.PartCode} | Master {rc.No} (ref) | linked {n} NOT DEDUCTED label(s)", m.PartCode);
+            notes.Add($"Master Coil {rc.No} อยู่ในคลังต้นทางแล้ว → ใช้อ้างอิงตัดอัตโนมัติ เมื่อสแกน Coil ลูกเข้า {rc.Stock.Code}" + (n > 0 ? $"\nผูกป้ายค้างใน NOT DEDUCTED ให้ {n} รายการ" : ""));
+            return notes;
+        }
         if (coil != null && ptId > 0)
         {
             var c = coil.Value;
@@ -382,6 +393,7 @@ public sealed class ProductsController : AppController
         if (miss == null) return null;
         if (miss.StockId != stock.StkId) { svc.MoveTarget(miss.MissId, stock.StkId); miss.StockId = stock.StkId; miss.StockCode = stock.Code; }
         if (!string.IsNullOrWhiteSpace(master)) miss.MotherCoil = master.Trim();
+        if (kg <= 0) kg = miss.LabelQty;
         var a = svc.Receive(miss, ptId, kg, Uid, "REGISTERED");
         if (!a.Ok) return $"⚠ บันทึกสินค้าแล้ว แต่รับ Coil {coilNo} จาก NOT DEDUCTED ไม่สำเร็จ\n{a.Message}";
         var d = a.Deduct;
@@ -425,7 +437,22 @@ public sealed class ProductsController : AppController
         var m = ModelOf(f);
         int psz = int.TryParse(m.PackSize, out int p) ? p : 0;
         if (await _svc.CheckDuplicateCodeAsync(m.PartACode, m.PartA, 0, m.PartB))
-            return Fail($"มีสินค้า PRODUCT CODE {m.PartACode} + PART A {m.PartA} + PART B {m.PartB} นี้ในระบบแล้วครับ");
+        {
+            int dupId = _svc.FindPartId(m.PartACode, m.PartA, m.PartB);
+            var have = StocksOf(m.PartACode, dupId);
+            var want = stocks.Where(s => (s.IsMain && f.InMain) || (f.OtherStockIds ?? new()).Contains(s.StkId)).ToList();
+            var add = want.Where(s => !have.Any(h => h.StkId == s.StkId)).ToList();
+            if (dupId <= 0 || (add.Count == 0 && coil == null))
+                return Fail($"มีสินค้า PRODUCT CODE {m.PartACode} นี้ในคลัง {string.Join(", ", have.Select(s => s.Code))} แล้วครับ" + (have.Count > 0 ? "\nค้นหาในคลังนั้นแล้วกด EDIT เพื่อแก้ไข" : ""));
+            foreach (var s in want) _svc.ShowInStock(dupId, s);
+            LogService.WriteLog(Uid, "ADD_PART_TO_STOCK", $"{m.PartACode} existing part added to {string.Join(", ", want.Select(s => s.Code))} (was in {string.Join(", ", have.Select(s => s.Code))})", m.PartACode);
+            // keep every stock it already had, never overwrite its details / custom fields / weight from this form
+            f.InMain = f.InMain || have.Any(s => s.IsMain);
+            f.OtherStockIds = (f.OtherStockIds ?? new()).Union(have.Where(s => !s.IsMain).Select(s => s.StkId)).ToList();
+            f.Cf = null; f.PartWeight = null;
+            var dn = AfterSave(m, f, dupId, coil);
+            return Ok(new { ptId = dupId, partCode = m.PartCode, message = $"มีสินค้า {m.PartACode} อยู่แล้ว → เพิ่มเข้าคลัง {string.Join(", ", want.Select(s => s.Code))} ให้แล้ว (ข้อมูลเดิมไม่เปลี่ยน)" + (dn.Count > 0 ? "\n\n" + string.Join("\n\n", dn) : ""), deduct = DeductFollowUp(dupId) });
+        }
         try
         {
             string fullDetail = $"SUPPLIER: {m.CustomerCode}  | CAT: {m.Category}  | PDCODE : {m.PartCode}  | BIN: {m.Location}  | PDNAME: {m.PartName}  | PZ : {psz}";

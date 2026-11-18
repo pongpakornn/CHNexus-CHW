@@ -119,6 +119,7 @@ namespace Nexus.Services
                     while (r.Read())
                         rows.Add((r.GetInt32(0), r.GetInt32(1), r.GetInt32(2), r.IsDBNull(3) ? (int?)null : r.GetInt32(3), r.IsDBNull(4) ? "" : r.GetString(4)));
                 if (rows.Count == 0) return 0;
+                int byMaster = LinkKnownMasters(conn);
                 var formats = new StockService().GetFormats(activeOnly: true);
                 var scan = new ScanService();
                 var cache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -143,8 +144,44 @@ namespace Nexus.Services
                         break;
                     }
                 }
-                if (n > 0) LogService.WriteLog("SYSTEM", "NOT_DEDUCTED_RELINK", $"Linked {n} NO PD CODE label(s) to products registered later", "NOT_DEDUCTED");
+                n += byMaster;
+                if (n > 0) LogService.WriteLog("SYSTEM", "NOT_DEDUCTED_RELINK", $"Linked {n} NO PD CODE label(s) to products registered later ({byMaster} by Master Coil)", "NOT_DEDUCTED");
                 return n;
+            }
+        }
+
+        // Pending labels with no PD CODE whose Master Coil already maps to exactly one product in the same target stock
+        //   (earlier label of that master / coil of that master in the stock) -> link to that product
+        private static int LinkKnownMasters(SqlConnection conn)
+        {
+            using (var cmd = new SqlCommand(@"
+                UPDATE m SET PartID = x.PartID, Reason = CASE WHEN m.Reason = 'NO_PRODUCT' THEN 'NOT_FOUND' ELSE m.Reason END
+                FROM Nexus.DeductMisses m
+                CROSS APPLY (SELECT MIN(k.PartID) AS PartID, COUNT(DISTINCT k.PartID) AS n FROM (
+                                 SELECT h.PartID FROM Nexus.DeductMisses h WHERE h.MotherCoil = m.MotherCoil AND h.StockID = m.StockID AND h.PartID IS NOT NULL
+                                 UNION ALL
+                                 SELECT c.PartID FROM Nexus.Coils c WHERE c.MotherCoil = m.MotherCoil AND c.StockID = m.StockID AND c.PartID IS NOT NULL) k) x
+                WHERE m.Status = 'PENDING' AND m.PartID IS NULL AND ISNULL(m.MotherCoil, '') NOT IN ('', '-') AND x.n = 1", conn))
+                return cmd.ExecuteNonQuery();
+        }
+
+        // + PRODUCT / Master Data: other pending labels of the same Master Coil (no PD CODE yet) -> this product, received into stockId
+        public int LinkByMaster(int partId, int stockId, int? fromStockId, string master)
+        {
+            if (!DbSchema.HasMissStatus || partId <= 0 || string.IsNullOrWhiteSpace(master)) return 0;
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand(@"UPDATE Nexus.DeductMisses SET PartID = @p, StockID = @s
+                                              WHERE Status = 'PENDING' AND PartID IS NULL AND MotherCoil = @m AND StockID IN (@s, ISNULL(@f, @s))
+                                                -- one master can feed several products: link only when it has never meant another product here
+                                                AND NOT EXISTS (SELECT 1 FROM Nexus.DeductMisses h WHERE h.MotherCoil = @m AND h.StockID = @s AND h.PartID <> @p)
+                                                AND NOT EXISTS (SELECT 1 FROM Nexus.Coils c WHERE c.MotherCoil = @m AND c.StockID = @s AND c.PartID <> @p)", conn))
+            {
+                cmd.Parameters.AddWithValue("@p", partId);
+                cmd.Parameters.AddWithValue("@s", stockId);
+                cmd.Parameters.AddWithValue("@f", (object)fromStockId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@m", master.Trim());
+                conn.Open();
+                return cmd.ExecuteNonQuery();
             }
         }
 
@@ -478,15 +515,8 @@ namespace Nexus.Services
                     LogService.WriteLog(userId, "REGISTER_PART", $"Registered New Part: PDCODE : {code}  | PDNAME: {name}  | PZ : {psz} (NOT DEDUCTED + PRODUCT -> {stock.Code})", code);
                     note = $"ลงทะเบียนสินค้าใหม่ {code} แล้ว";
                 }
-                // สินค้าต้องอยู่ในคลังที่รับเข้า
-                if (!stock.IsMain)
-                    using (var cmd = new SqlCommand(@"IF NOT EXISTS (SELECT 1 FROM Nexus.PartStocks WHERE StockID = @s AND PartID = @p)
-                                                          INSERT INTO Nexus.PartStocks (StockID, PartID, Quantity) VALUES (@s, @p, 0)", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@s", stock.StkId);
-                        cmd.Parameters.AddWithValue("@p", id);
-                        cmd.ExecuteNonQuery();
-                    }
+                // สินค้าต้องอยู่ + แสดงในคลังที่รับเข้า (STORE-MAT = IsShowInMaster) - เดิมสินค้าที่ซ่อนอยู่ไม่ขึ้นใน Master Data / Store
+                new ProductControlService().ShowInStock(id, stock);
                 return new PartPick { PartId = id, Note = note };
             }
         }

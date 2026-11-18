@@ -9,7 +9,10 @@ import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { useDialogs } from "@/components/modals/Dialogs";
 import { askCutPending, type DeductMore } from "@/lib/deductFollowUp";
-import { Badge, Card, Empty, Loading, PageBody, PageHeader, SearchBox } from "@/components/layout/Page";
+import { Badge, Card, Empty, Loading, PageBody, PageHeader } from "@/components/layout/Page";
+import { SearchField, type Suggestion } from "../../cims/store/Toolbar";
+
+const NO_COIL_KG = ["STORE-MAT", "STORE-PANTA"];
 import { QrImage } from "@/components/print/QrImage";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { ChoiceCard, Glyph, GLYPH } from "@/components/buttons/ChoiceCard";
@@ -95,6 +98,19 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
   const [codeSuggest, setCodeSuggest] = useState<Part[]>([]);
   const k = useDebounced(key, 300);
   const codeKey = useDebounced(form.partCode, 300);
+  // search-box suggestions of the selected stock (PRODUCT CODE / NAME / MASTER COIL / NUMBER COIL) - same endpoint as Store (Max-Min)
+  const kSug = useDebounced(key.trim(), 250);
+  const [sugg, setSugg] = useState<{ q: string; list: Suggestion[] }>({ q: "", list: [] });
+  useEffect(() => {
+    if (filter == null || kSug.length < 2) return;
+    let live = true;
+    api<Suggestion[]>(`/store/${filter}/search-suggest`, { query: { q: kSug } })
+      .then((list) => live && setSugg({ q: kSug, list }))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [filter, kSug]);
   const verRef = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -797,7 +813,8 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
                       case "COILNO":
                         return coilForm ? <Fragment key={k}>{input("NUMBER COIL", "coilNo")}</Fragment> : null;
                       case "WEIGHT":
-                        return coilForm ? (
+                        // STORE-MAT / STORE-PANTA: no COIL WEIGHT field (weight comes from the scan / ERP import)
+                        return coilForm && NO_COIL_KG.includes(formStock?.code ?? "") ? null : coilForm ? (
                           <Fragment key={k}>{input("COIL WEIGHT (KG)", "coilKg", { placeholder: "0.000" })}</Fragment>
                         ) : showPartWeight ? (
                           <Fragment key={k}>{input("WEIGHT (KG)", "partWeight", { placeholder: "0.000" })}</Fragment>
@@ -894,7 +911,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
           }
         >
           <div className="border-b border-line/60 p-3">
-            <SearchBox value={key} onChange={search} placeholder="ค้นหา PRODUCT CODE / ชื่อ / PART A / BIN / COIL" />
+            <SearchField value={key} onChange={search} placeholder="ค้นหา PRODUCT CODE / ชื่อ / PART A / BIN / MASTER COIL / NUMBER COIL" suggestions={filter != null && sugg.q === key.trim() ? sugg.list : []} />
           </div>
           <div ref={listRef} className="max-h-[calc(100dvh-280px)] min-h-[360px] overflow-auto">
             {!rows ? (
