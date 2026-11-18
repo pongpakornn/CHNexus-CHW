@@ -1031,6 +1031,7 @@ thead .wof-s2 {
 .wof-wrap {
   position: relative;
   scroll-behavior: auto;
+  container-type: inline-size; /* day columns stretch to fill the grid width (no blank band right of TOTAL) */
 }
 /* part cell like the Excel: big image · Part No · name · Part B + PACK/BOX highlighted */
 .wof-part-h {
@@ -1107,7 +1108,8 @@ thead .wof-s2 {
 }
 .wof-table {
   table-layout: fixed;
-  width: calc(var(--w-s1) + var(--w-g) + var(--w-s2) + var(--nd, 31) * var(--w-day) + var(--w-tot));
+  --w-dayf: max(var(--w-day), (100cqw - var(--w-s1) - var(--w-g) - var(--w-s2) - var(--w-tot)) / var(--nd, 31));
+  width: calc(var(--w-s1) + var(--w-g) + var(--w-s2) + var(--nd, 31) * var(--w-dayf) + var(--w-tot));
   min-width: 0;
 }
 .wof-c1 {
@@ -1120,7 +1122,7 @@ thead .wof-s2 {
   width: var(--w-s2);
 }
 .wof-cd {
-  width: var(--w-day);
+  width: var(--w-dayf);
 }
 .wof-ct {
   width: var(--w-tot);
