@@ -134,6 +134,7 @@ public sealed class ScannerActionsController : AppController
         if (r == null) return NotFound(new { message = "ไม่พบรายการ (อาจถูกดำเนินการไปแล้ว)" });
         if (r.Status == "RECEIVED") return Fail($"รายการเดิมนี้รับเข้า {r.StockCode} ไปแล้ว (มี PD CODE แล้ว)\nใช้ ✔ APPROVE เพื่อตัด {r.SourceCode} ตามหลัง");
         // คลังที่รับเข้า: เลือกได้ (คลังที่ผู้ใช้เห็น)
+        int fromStock = r.StockId;
         if (req.StkId.HasValue && req.StkId.Value != r.StockId)
         {
             var to = new StockService().GetStocks().FirstOrDefault(s => s.StkId == req.StkId.Value);
@@ -164,6 +165,8 @@ public sealed class ScannerActionsController : AppController
         if (req.Max.HasValue || req.Min.HasValue || (req.CoilCount.HasValue && req.CoilCount.Value != 1))
             svc.ApplyStockSetting(r.StockId, partId, req.Max, req.Min, req.CoilCount.HasValue ? Math.Max(0, (int)req.CoilCount.Value - 1) : null, Uid);
         var d = res.Deduct;
+        // other labels of the same Master Coil with no PD CODE = same product (asked below whether to receive + cut them all)
+        try { svc.LinkByMaster(partId, r.StockId, fromStock, r.MotherCoil); } catch { /* keep them for manual + PRODUCT */ }
         // สินค้านี้ยังมีป้ายอื่นค้างอยู่ -> หน้าเว็บถามว่าจะรับเข้า + ตัดคลังต้นทางให้ทั้งหมดเลยไหม
         try { svc.Relink(force: true); } catch { /* ใช้ข้อมูลเดิม */ }
         var more = svc.PendingFor(partId, Scope().DeductStockIds);

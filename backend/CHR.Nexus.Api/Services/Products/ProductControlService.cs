@@ -711,6 +711,32 @@ namespace Nexus.Services
 
         // 🎯 ตรวจสอบค่าซ้ำในระบบผ่าน PartCode (partACode มิเรอร์จาก PartCode)
         // ซ้ำจริง = PRODUCT CODE + PART A + PART B เหมือนกัน (ตรงกับ UX_MST_PART_CODE_PARTA · STORE-SUB ใช้ '-' แยกกันด้วย PART B · 53_StoreSub_PartB_From_ERP.sql)
+        // PartID of the row CheckDuplicateCodeAsync matched (same PRODUCT CODE + PART A + PART B)
+        public int FindPartId(string partACode, string partA, string partB)
+        {
+            using (IDbConnection db = new SqlConnection(_connectionString))
+                return db.ExecuteScalar<int?>(@"SELECT TOP 1 PartID FROM Nexus.Parts WHERE PartCode = @PartACode AND ISNULL(PartA, '') = ISNULL(@PartA, '')" +
+                                              (Nexus.Helpers.DbSchema.HasPartB ? " AND ISNULL(PartB, '') = ISNULL(@PartB, '')" : "") + " ORDER BY PartID",
+                                              new { PartACode = partACode ?? "", PartA = string.IsNullOrWhiteSpace(partA) ? null : partA.Trim(), PartB = string.IsNullOrWhiteSpace(partB) ? null : partB.Trim() }) ?? 0;
+        }
+
+        // Part is in (and visible in) this stock: main = IsShowInMaster, other = PartStocks row with IsShow = 1
+        public void ShowInStock(int ptId, StockModel stock)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = new SqlCommand(stock.IsMain
+                ? "UPDATE Nexus.Parts SET IsShowInMaster = 1 WHERE PartID = @p"
+                : @"IF EXISTS (SELECT 1 FROM Nexus.PartStocks WHERE StockID = @s AND PartID = @p)
+                        UPDATE Nexus.PartStocks SET IsShow = 1, UpdatedDate = GETDATE() WHERE StockID = @s AND PartID = @p AND ISNULL(IsShow, 1) = 0
+                    ELSE INSERT INTO Nexus.PartStocks (StockID, PartID, Quantity) VALUES (@s, @p, 0)", conn))
+            {
+                cmd.Parameters.AddWithValue("@s", stock.StkId);
+                cmd.Parameters.AddWithValue("@p", ptId);
+                conn.Open();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public async Task<bool> CheckDuplicateCodeAsync(string partACode, string partA = null, int exceptPtId = 0, string partB = null)
         {
             using (IDbConnection db = new SqlConnection(_connectionString))
