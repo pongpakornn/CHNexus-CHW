@@ -11,7 +11,7 @@ namespace Nexus.Services;
 //   Nexus.MinReports = รายงานสาเหตุ (ใคร · เมื่อไร · ค้างกี่วัน · หมายเหตุที่เลือก) · รายงานแล้ว = ช่วงนั้นไม่แจ้งเตือนอีก
 //   Nexus.MinReportDisplay = ต่อคลัง: บรรทัดที่ 1 / 2 ของสินค้าแสดงช่องไหนบ้าง (คอลัมน์ของตาราง Store Max-Min)
 //   Nexus.MinReportFlow / MinReportSigns = ใครลงลายเซ็นช่องไหน (Prepared · Checked · Checked · Approved) เรียงตามลำดับจนครบ = DONE
-//   ใต้ MIN = เงื่อนไขเดียวกับการ์ด MIN ของหน้า Store (StockStatus UNDER_MIN / OUT_OF_STOCK และ MIN > 0)
+//   at MIN = STOCK(Box) (or pieces for a non-box stock) <= MIN, MIN > 0 · 3 days in a row = alert · reported = alert again each next day until above MIN
 public sealed class MinReportSettings
 {
     public bool Enabled { get; set; } = true;
@@ -430,10 +430,10 @@ public sealed class MinReportService
         c.Open();
         foreach (int stk in set.Stocks)
         {
-            var below = c.Query<(int PartID, string PartCode, string PartName, decimal Qty, string StockBox, decimal Min, decimal Max)>(
-                @"SELECT PartID, PartCode, PartName, ISNULL(QtyStkb, 0), CONVERT(NVARCHAR(50), StockBox), ISNULL([Min], 0), ISNULL([Max], 0)
-                  FROM Nexus.vw_StockMonitoring
-                  WHERE StkId = @stk AND StockStatus IN ('UNDER_MIN', 'OUT_OF_STOCK') AND ISNULL([Min], 0) > 0
+            var below = c.Query<(int PartID, string PartCode, string PartName, decimal Qty, string StockBox, decimal Min, decimal Max, decimal Val)>(
+                @"SELECT v.PartID, v.PartCode, v.PartName, ISNULL(v.QtyStkb, 0), CONVERT(NVARCHAR(50), v.StockBox), ISNULL(v.[Min], 0), ISNULL(v.[Max], 0), " + BasisVal + @"
+                  FROM Nexus.vw_StockMonitoring v JOIN Nexus.Stocks st ON st.StockID = v.StkId
+                  WHERE v.StkId = @stk AND " + AtMin + @"
                   OPTION (MAX_GRANT_PERCENT = 5)", new { stk }, commandTimeout: 120).ToList();
             var openRows = c.Query<(int WatchID, int PartID, DateTime LastSeen, decimal? Qty, string StockBox, decimal? MinQty, decimal? MaxQty, string PartCode, string PartName)>(
                 "SELECT WatchID, PartID, LastSeen, Qty, StockBox, MinQty, MaxQty, PartCode, PartName FROM Nexus.MinWatch WHERE StockID = @stk AND ResolvedAt IS NULL", new { stk }).ToList();
@@ -474,19 +474,19 @@ public sealed class MinReportService
                 }
                 // MERGE เฉพาะเมื่อวันนี้ยังไม่มีแถว หรือยอด / MIN / MAX ต่างจากที่บันทึกไว้ (เงื่อนไขเดียวกับ MERGE ข้างใน) - ไม่ยิงซ้ำทุกรอบ
                 if (DbSchema.HasMinTracking && (!known || !today.TryGetValue(wid, out var d)
-                        || (d.LastQty ?? -1) != b.Qty || (d.MinQty ?? -1) != b.Min || (d.MaxQty ?? -1) != b.Max))
-                    Snapshot(c, wid, b.Qty, b.Min, b.Max);
+                        || (d.LastQty ?? -1) != b.Val || (d.MinQty ?? -1) != b.Min || (d.MaxQty ?? -1) != b.Max))
+                    Snapshot(c, wid, b.Val, b.Min, b.Max);
             }
-            // ที่เหลือ = พ้น MIN แล้ว (หรือถูกซ่อน / ลบ) -> ปิดช่วง + เก็บยอดตอนกลับเป็นเขียว · แถวทดสอบ (TEST) ไม่ปิดเอง
+            // the rest = above MIN now (or hidden / deleted) -> close the period + keep the value at that moment · next drop to MIN = count 3 days again
             var nowQty = open.Count > 0 && DbSchema.HasMinTracking
-                ? c.Query<(int PartID, decimal Qty)>("SELECT PartID, ISNULL(QtyStkb, 0) FROM Nexus.vw_StockMonitoring WHERE StkId = @stk AND PartID IN @ids OPTION (MAX_GRANT_PERCENT = 5)",
+                ? c.Query<(int PartID, decimal Qty)>("SELECT v.PartID, " + BasisVal + " FROM Nexus.vw_StockMonitoring v JOIN Nexus.Stocks st ON st.StockID = v.StkId WHERE v.StkId = @stk AND v.PartID IN @ids OPTION (MAX_GRANT_PERCENT = 5)",
                                                       new { stk, ids = open.Keys.ToList() }, commandTimeout: 120).GroupBy(x => x.PartID).ToDictionary(g => g.Key, g => g.First().Qty)
                 : new Dictionary<int, decimal>();
             foreach (var (pid, wid) in open)
             {
                 decimal? q = nowQty.TryGetValue(pid, out var v) ? v : null;
                 int n = c.Execute("UPDATE Nexus.MinWatch SET ResolvedAt = @now" + (DbSchema.HasMinTracking ? ", ResolvedQty = @q" : "") +
-                                  " WHERE WatchID = @wid AND ResolvedAt IS NULL AND Source <> 'TEST'", new { now, wid, q });
+                                  " WHERE WatchID = @wid AND ResolvedAt IS NULL", new { now, wid, q });
                 if (n > 0 && q.HasValue) Snapshot(c, wid, q.Value, null, null);
                 changed += n;
             }
@@ -512,14 +512,15 @@ public sealed class MinReportService
         string like = "%" + (key ?? "").Trim() + "%";
         var rows = c.Query<MinTrackRow>(@"SELECT w.WatchID AS WatchId, w.StockID AS StockId, s.StockCode, w.PartID AS PartId, w.PartCode, w.PartName, w.Qty, w.MinQty, w.MaxQty,
                                                  w.BelowSince, w.LastSeen, w.ResolvedAt, " + (DbSchema.HasMinTracking ? "w.ResolvedQty" : "CAST(NULL AS DECIMAL(18,3))") + @" AS ResolvedQty,
-                                                 m.QtyStkb AS NowQty, m.StockStatus AS NowStatus,
+                                                 m.Val AS NowQty, CASE WHEN m.AtMin = 1 THEN 'UNDER_MIN' ELSE m.StockStatus END AS NowStatus,
                                                  (SELECT COUNT(*) FROM Nexus.MinReports r WHERE r.WatchID = w.WatchID) AS ReportCount,
                                                  lr.ReportedAt AS LastReportAt, lr.Reason AS LastReason, lr.ReporterName AS LastReporter,
                                                  " + (DbSchema.HasMinMove ? "w.LastMoveAt" : "CAST(NULL AS DATETIME)") + @" AS LastMoveAt, " + PartCols + @"
                                           FROM Nexus.MinWatch w JOIN Nexus.Stocks s ON s.StockID = w.StockID
                                           LEFT JOIN Nexus.Parts p ON p.PartID = w.PartID
                                           OUTER APPLY (SELECT TOP 1 r.ReportedAt, r.Reason, r.ReporterName FROM Nexus.MinReports r WHERE r.WatchID = w.WatchID ORDER BY r.ReportedAt DESC) lr
-                                          OUTER APPLY (SELECT TOP 1 v.QtyStkb, v.StockStatus FROM Nexus.vw_StockMonitoring v WHERE v.StkId = w.StockID AND v.PartID = w.PartID) m
+                                          OUTER APPLY (SELECT TOP 1 " + BasisVal + " AS Val, v.StockStatus, CASE WHEN " + AtMin + @" THEN 1 ELSE 0 END AS AtMin
+                                                       FROM Nexus.vw_StockMonitoring v JOIN Nexus.Stocks st ON st.StockID = v.StkId WHERE v.StkId = w.StockID AND v.PartID = w.PartID) m
                                           WHERE w.StockID = @stockId AND ISNULL(w.Source, '') <> 'TEST'
                                             AND w.BelowSince < DATEADD(DAY, 1, @to) AND (w.ResolvedAt IS NULL OR w.ResolvedAt >= @from)
                                             AND (@key = '' OR w.PartCode LIKE @like OR w.PartName LIKE @like OR p.PartA LIKE @like OR p.PartNumber LIKE @like)
@@ -540,7 +541,7 @@ public sealed class MinReportService
                 }
         }
         foreach (var r in rows.Where(r => r.ResolvedAt == null && r.LastReportAt.HasValue))
-            r.NextAlertAt = r.LastReportAt.Value.AddDays(1);
+            r.NextAlertAt = r.LastReportAt.Value.Date.AddDays(1);
         ApplyDisplay(rows);
         return rows;
     }
@@ -556,7 +557,11 @@ public sealed class MinReportService
 
     // ยังไม่รายงาน หรือ 🔁 รายงานแล้วแต่ยังใต้ MIN และผ่านไปครบ 1 วันนับจากรายงานล่าสุด = เตือนให้รายงานซ้ำ "ทุกวัน" จนกว่ายอด >= MIN
     //   ยอดกลับไม่ต่ำกว่า MIN = รอบถูกปิด (ResolvedAt) ไม่แจ้งอีก · กลับมาต่ำใหม่ = เริ่มนับ 3 วันใหม่
-    private const string DueReport = "(w.ReportID IS NULL OR lr.ReportedAt <= DATEADD(DAY, -1, GETDATE()))";
+    private const string DueReport = "(w.ReportID IS NULL OR lr.ReportedAt < CAST(GETDATE() AS DATE))";
+
+    // at MIN = the value the stock compares MAX/MIN with (BOX / COIL stock = STOCK(Box), else pieces) is at or below MIN (MIN > 0) · needs aliases v (vw_StockMonitoring) + st (Stocks)
+    private const string BasisVal = "CAST(CASE WHEN st.MaxMinBasis IN ('BOX', 'COIL') THEN ISNULL(v.StockBox, 0) ELSE ISNULL(v.QtyStkb, 0) END AS DECIMAL(18, 3))";
+    private const string AtMin = "(ISNULL(v.[Min], 0) > 0 AND " + BasisVal + " <= v.[Min])";
 
     // ต่อเนื่อง = เห็นสินค้าใต้ MIN ครั้งล่าสุดไม่เกิน 1 ชม. (Sweep ทำงานอย่างน้อยทุก 5 นาที) · ขาดช่วงนานกว่านี้ (ระบบดับ) = ไม่รู้ว่าพ้น MIN ไปหรือเปล่า -> ปิดช่วงเก่า นับ 3 วันใหม่
     public static readonly TimeSpan MaxGap = TimeSpan.FromHours(1);
@@ -586,9 +591,8 @@ public sealed class MinReportService
         //   (เช่น STORE-PC ที่โปรแกรม StorePC เขียน ขณะไม่มีใครเปิดหน้าคลังนั้น) · แถวทดสอบ (TEST) แสดงเสมอ
         var rows = c.Query<MinWatchRow>(WatchSelect + @"WHERE w.ResolvedAt IS NULL AND " + DueReport + @" AND w.StockID IN @ids
                                                          AND (@all = 1 OR w.BelowSince <= DATEADD(DAY, -@stuckDays, GETDATE()))
-                                                         AND (w.Source = 'TEST' OR EXISTS (SELECT 1 FROM Nexus.vw_StockMonitoring m
-                                                              WHERE m.StkId = w.StockID AND m.PartID = w.PartID
-                                                                AND m.StockStatus IN ('UNDER_MIN', 'OUT_OF_STOCK') AND ISNULL(m.[Min], 0) > 0))
+                                                         AND EXISTS (SELECT 1 FROM Nexus.vw_StockMonitoring v JOIN Nexus.Stocks st ON st.StockID = v.StkId
+                                                                     WHERE v.StkId = w.StockID AND v.PartID = w.PartID AND " + AtMin + @")
                                                        ORDER BY w.BelowSince, s.StockCode, w.PartCode
                                                        OPTION (MAX_GRANT_PERCENT = 5)", new { ids, stuckDays, all = all ? 1 : 0 }, commandTimeout: 60).ToList();
         ApplyDisplay(rows);
