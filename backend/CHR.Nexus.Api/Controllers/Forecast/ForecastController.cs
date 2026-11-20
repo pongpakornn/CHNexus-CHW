@@ -38,21 +38,29 @@ public sealed class ForecastController : AppController
         DateTime.TryParseExact(m ?? "", "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
 
     // กราฟทั้งปี (ปีของเดือนที่เลือก / ALL = ปีล่าสุด) + TOP 5 ORDER
-    [HttpGet("top")]
-    public IActionResult Top([FromQuery] string month)
+    [HttpGet("customers")]
+    public IActionResult Customers()
     {
         if (Me?.CanViewForecastOrder != true) return Deny();
+        return Ok(LiveCache.Get("forecast-customers", TimeSpan.FromSeconds(60), () => (object)_svc.GetCustomers()));
+    }
+
+    [HttpGet("top")]
+    public IActionResult Top([FromQuery] string month, [FromQuery] string customer)
+    {
+        if (Me?.CanViewForecastOrder != true) return Deny();
+        if (!string.IsNullOrWhiteSpace(customer)) return Ok(TopData(month, customer.Trim()));
         // กราฟทั้งปี + TOP 5 เหมือนกันทุกคน = คำนวณครั้งเดียวแบ่งกันใช้ (ใหม่เมื่อข้อมูลเปลี่ยน / ครบ 30 วินาที)
         return Ok(LiveCache.Get($"forecast-top:{month}", TimeSpan.FromSeconds(30), () => TopData(month)));
     }
 
-    private object TopData(string month)
+    private object TopData(string month, string customer = null)
     {
         var m = ParseMonth(month);
         var months = _svc.GetMonths();
         int year = (m ?? (months.Count > 0 ? months.Max() : DateTime.Today)).Year;
-        var data = _svc.GetYear(year);
-        var top = _svc.GetTop5(m);
+        var data = _svc.GetYear(year, customer);
+        var top = _svc.GetTop5(m, customer);
         return new
         {
             year,
@@ -118,17 +126,18 @@ public sealed class ForecastController : AppController
     }
 
     [HttpGet("rows")]
-    public IActionResult Rows([FromQuery] string month, [FromQuery] string key, [FromQuery] int skip = 0, [FromQuery] int take = 50)
+    public IActionResult Rows([FromQuery] string month, [FromQuery] string key, [FromQuery] string customer, [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         if (Me?.CanViewForecastOrder != true) return Deny();
-        var rows = _svc.GetRows(ParseMonth(month), key ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 500));
+        var rows = _svc.GetRows(ParseMonth(month), key ?? "", Math.Max(0, skip), Math.Clamp(take, 1, 500), customer);
         return Ok(rows.Select(r => new { r.Customer, r.PartA, r.PartNo, r.ProductName, r.Forecast, r.Order, r.Delivery, month = r.MonthText }));
     }
 
     [HttpGet("rows/count")]
-    public IActionResult RowsCount([FromQuery] string month, [FromQuery] string key)
+    public IActionResult RowsCount([FromQuery] string month, [FromQuery] string key, [FromQuery] string customer)
     {
         if (Me?.CanViewForecastOrder != true) return Deny();
+        if (!string.IsNullOrWhiteSpace(customer)) return Ok(new { total = _svc.CountRows(ParseMonth(month), key ?? "", customer) });
         // ไม่มีคำค้นหา = นับครั้งเดียวแบ่งกันใช้
         int total = string.IsNullOrWhiteSpace(key)
             ? LiveCache.Get($"forecast-count:{month}", TimeSpan.FromSeconds(30), () => (object)_svc.CountRows(ParseMonth(month), "")) is int n ? n : 0

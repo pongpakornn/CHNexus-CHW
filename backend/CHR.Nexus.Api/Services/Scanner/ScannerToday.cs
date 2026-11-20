@@ -89,7 +89,50 @@ public static class ScannerToday
             else if (isOut) { existing.OutCount++; existing.TotalOutQty += item.Qty; }
             existing.FinalStock = bal;
         }
+        // STORE-FG (StorePC live): the StorePC .exe also scans this stock, and every CHR-Nexus scan is mirrored into StorePC TRN_SCAN,
+        // so its summary comes from StorePC (all IN / OUT of today, both programs) instead of CHR-Nexus rows only
+        foreach (var st in stocks.Where(x => x.WritesStorePc))
+        {
+            List<SummaryRowDto> pc;
+            try { pc = StorePcToday(st); }
+            catch (Exception ex) { BugLog.Write("SCANNER", "WARN", $"StorePC summary: {ex.Message}", null, null, null, 0, null, null); continue; }
+            summary.RemoveAll(x => x.StkId == st.StkId);
+            summary.AddRange(pc);
+            dto.Signature += "|pc" + pc.Sum(x => x.InCount + x.OutCount) + ":" + pc.Sum(x => x.FinalStock);
+        }
         dto.Summary = summary;
         return dto;
+    }
+
+    private static List<SummaryRowDto> StorePcToday(StockModel st)
+    {
+        var list = new List<SummaryRowDto>();
+        using var conn = new Microsoft.Data.SqlClient.SqlConnection(global::Nexus.Core.GlobalConfig.ConnStr);
+        using var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+            SELECT ISNULL(MAX(v.PartID), -m.PT_ID) AS PartID, m.PT_CODE, m.PT_ACODE, m.PT_DESC, ISNULL(m.QTY_STK, 0) AS Bal,
+                   SUM(CASE WHEN t.TX_TYPE IN ('IN', 'RETURN') THEN 1 ELSE 0 END) AS InN, SUM(CASE WHEN t.TX_TYPE IN ('IN', 'RETURN') THEN ISNULL(t.TX_QTY, 0) ELSE 0 END) AS InQ,
+                   SUM(CASE WHEN t.TX_TYPE = 'OUT' THEN 1 ELSE 0 END) AS OutN, SUM(CASE WHEN t.TX_TYPE = 'OUT' THEN ISNULL(t.TX_QTY, 0) ELSE 0 END) AS OutQ,
+                   MAX(t.TX_DATE) AS LastAt
+            FROM StorePC.dbo.TRN_SCAN t
+            JOIN StorePC.dbo.MST_PART m ON m.PT_ID = t.PT_ID
+            LEFT JOIN Nexus.vw_StorePcLive v ON v.PT_ID = m.PT_ID
+            WHERE t.TX_DATE >= CAST(CAST(GETDATE() AS DATE) AS DATETIME) AND t.TX_DATE < DATEADD(DAY, 1, CAST(CAST(GETDATE() AS DATE) AS DATETIME))
+            GROUP BY m.PT_ID, m.PT_CODE, m.PT_ACODE, m.PT_DESC, m.QTY_STK
+            ORDER BY MAX(t.TX_DATE) DESC", conn);
+        conn.Open();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            int pid = Convert.ToInt32(r["PartID"]);
+            string a = r["PT_ACODE"]?.ToString()?.Trim(), code = r["PT_CODE"]?.ToString()?.Trim();
+            list.Add(new SummaryRowDto
+            {
+                PartId = pid, StkId = st.StkId, StockCode = st.Code, PartCode = code, PartName = r["PT_DESC"]?.ToString(),
+                Code = string.IsNullOrEmpty(a) ? code : a, ImageUrl = pid > 0 ? $"/api/images/part/{pid}" : null,
+                InCount = Convert.ToInt32(r["InN"]), TotalInQty = Convert.ToDecimal(r["InQ"]),
+                OutCount = Convert.ToInt32(r["OutN"]), TotalOutQty = Convert.ToDecimal(r["OutQ"]), FinalStock = Convert.ToDecimal(r["Bal"])
+            });
+        }
+        return list;
     }
 }

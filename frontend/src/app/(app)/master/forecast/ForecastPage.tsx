@@ -33,6 +33,12 @@ export default function ForecastPage() {
   const [canImport, setCanImport] = useState(false);
   const [tableMonth, setTableMonth] = useState("ALL");
   const [topMonth, setTopMonth] = useState("ALL");
+  const [cust, setCust] = useState("ALL"); // customer filter for chart, TOP 5 and table
+  const [custs, setCusts] = useState<string[]>([]);
+  useEffect(() => {
+    api<string[]>("/forecast/customers").then(setCusts).catch(() => undefined);
+  }, []);
+  const customer = cust === "ALL" ? undefined : cust;
   const [key, setKey] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [page, setPage] = useState(0);
@@ -76,7 +82,7 @@ export default function ForecastPage() {
     const v = ++verRef.current;
     try {
       const month = tableMonth === "ALL" ? undefined : tableMonth;
-      const [r, c] = await Promise.all([api<Row[]>("/forecast/rows", { query: { month, key: k, skip: page * PAGE, take: PAGE } }), api<{ total: number }>("/forecast/rows/count", { query: { month, key: k } })]);
+      const [r, c] = await Promise.all([api<Row[]>("/forecast/rows", { query: { month, key: k, customer, skip: page * PAGE, take: PAGE } }), api<{ total: number }>("/forecast/rows/count", { query: { month, key: k, customer } })]);
       if (v !== verRef.current) return;
       // ข้อมูลลดลงจนหน้านี้ว่าง -> ไปหน้าสุดท้ายที่มี
       if (r.length === 0 && page > 0 && c.total > 0) return setPage(Math.ceil(c.total / PAGE) - 1);
@@ -85,15 +91,15 @@ export default function ForecastPage() {
     } catch (e) {
       toast.show("ERROR", "โหลดรายการไม่สำเร็จ\n" + (e as Error).message, "error");
     }
-  }, [tableMonth, k, page, toast]);
+  }, [tableMonth, k, page, toast, customer]);
 
   const loadTop = useCallback(async () => {
     try {
-      setChart(await api("/forecast/top", { query: { month: topMonth === "ALL" ? undefined : topMonth } }));
+      setChart(await api("/forecast/top", { query: { month: topMonth === "ALL" ? undefined : topMonth, customer } }));
     } catch (e) {
       toast.show("ERROR", "โหลดกราฟไม่สำเร็จ\n" + (e as Error).message, "error");
     }
-  }, [topMonth, toast]);
+  }, [topMonth, toast, customer]);
 
   useEffect(() => {
     if (!months) return;
@@ -189,6 +195,14 @@ export default function ForecastPage() {
         subtitle={`${all ? "All months" : months.find((m) => m.key === tableMonth)?.label} • ${total.toLocaleString()} item(s)`}
         actions={
           <>
+            {/* customer filter: chart, TOP 5 and table show only this customer */}
+            <MenuSelect
+              compact
+              className="w-[220px] max-w-full"
+              value={cust}
+              options={[{ value: "ALL", label: "ALL CUSTOMERS" }, ...custs.map((c) => ({ value: c, label: c }))]}
+              onChange={(v) => (setCust(v), setPage(0))}
+            />
             <ActionMenu
               actions={[
                 ...(months.length > 0
@@ -257,7 +271,7 @@ export default function ForecastPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-        <Card title={`FORECAST, ORDER & DELIVERY • ${chart?.year ?? ""}`} bodyClass="p-4">
+        <Card title={`FORECAST, ORDER & DELIVERY • ${chart?.year ?? ""}${customer ? ` • ${customer}` : ""}`} bodyClass="p-4">
           {!chart ? <Loading /> : <MonthChart data={chart.months} year={chart.year} />}
         </Card>
         <Card

@@ -8,7 +8,7 @@ import { DateRange } from "@/components/forms/DateRange";
 import { Empty, Loading } from "@/components/layout/Page";
 import { RowAction, RowActions } from "@/components/button-action/RowAction";
 import { useToast } from "@/components/notifications/Toasts";
-import { IC, Ico, PendingRow } from "@/components/notifications/MinPending";
+import { IC, Ico, PendingRow, type ReasonGroup } from "@/components/notifications/MinPending";
 import { SignList, type SignItem } from "@/components/notifications/MinSignList";
 import { ReportPreview, SLOT_NAMES, dt, n0, reasonText, span, subOf, titleOf, useNow, type MinHistory, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
 import { api, download } from "@/lib/api";
@@ -24,7 +24,7 @@ import { TrackingModal } from "./MinTracking";
 //   ทุกแถว: 👁 PREVIEW (เอกสาร FM-EN-04-22 รายการเดียว) · ✎ REPORT (เลือกหมายเหตุ + รายละเอียด) · PREVIEW ทั้งหมด -> PDF / EXCEL
 //   ประวัติ: 👁 = เอกสารพร้อมลายเซ็น (เซ็นช่องของตัวเองได้) · สถานะ FLOW (รอเซ็นช่องไหน / ลงนามครบ)
 //   ⚡ เรียลไทม์: รายงาน / เซ็น / ตั้งค่าจากเครื่องอื่น = โหลดเฉพาะรายการนี้ใหม่ (หัวข้อ minreport)
-type Pending = { ready: boolean; enabled: boolean; stuckDays: number; reasons?: string[]; items: MinItem[]; signing?: SignItem[] };
+type Pending = { ready: boolean; enabled: boolean; stuckDays: number; reasons?: string[]; reasonGroups?: ReasonGroup[]; items: MinItem[]; signing?: SignItem[] };
 
 export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; autoOpen?: boolean }) {
   const toast = useToast();
@@ -34,7 +34,7 @@ export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; au
   const load = useCallback(() => {
     api<Pending>(`/minreport/stock/${s.stkId}/pending`)
       .then((d) => (setPend(d), refreshNotifications()))
-      .catch(() => setPend(null));
+      .catch(() => undefined); // keep the last data: a failed reload must not close an open REPORT box
   }, [s.stkId]);
   useEffect(() => {
     const t = setTimeout(load, 0);
@@ -72,6 +72,8 @@ export function MinReportMenu({ stock: s, autoOpen = false }: { stock: Stock; au
     },
   ];
 
+  // stock not set up for MIN REPORT (USER MANAGEMENT › SETUP › MIN REPORT) = no button at all · hidden until loaded (no flash)
+  if (!pend || !pend.enabled) return null;
   return (
     <>
       <ActionMenu
@@ -217,6 +219,7 @@ function PendingModal({ stock: s, data, reload, onClose }: { stock: Stock; data:
                     item={it}
                     stuckDays={data.stuckDays}
                     reasons={data.reasons}
+                    groups={data.reasonGroups}
                     now={now}
                     onPreview={() => setPreview({ sheet: sheet([it]), id: it.watchId })}
                     onReported={reload}

@@ -6,13 +6,13 @@ import { api, download } from "@/lib/api";
 import { useLive } from "@/lib/live";
 import { sharedGet } from "@/lib/sharedGet";
 import { ReportPreview, dt, n0, span, titleOf, useNow, type MinItem, type SheetData } from "@/components/print/MinReportSheet";
-import { IC, Ico, PendingRow } from "@/components/notifications/MinPending";
+import { IC, Ico, PendingRow, type ReasonGroup } from "@/components/notifications/MinPending";
 
 // ⚠ MIN REPORT : หน้าต่างแจ้งเตือนกลางจอ เมื่อมีสินค้าค้างอยู่ใต้ค่า MIN ต่อเนื่องครบตามวันที่ตั้ง (SETUP > MIN REPORT)
 //   แสดงเฉพาะในระบบ CIMS (/cims/*) · เห็นเฉพาะคลังที่มีสิทธิ์ดู
 //   แถวสินค้า = แถวเดียวกับหน้า Store › MIN REPORT › PENDING (PendingRow) · 🔀 ดู FLOW ลายเซ็น · ✎ REPORT (เลือกหมายเหตุ -> ส่ง)
 //   CANCEL = ซ่อนชั่วคราว แล้วแจ้งซ้ำตามเวลาที่ตั้ง · กลับมาพ้น MIN (เขียว) = หายจากรายการเองทันที (Server เช็คใหม่เมื่อยอดเปลี่ยน)
-type Alerts = { stuckDays: number; remindMinutes: number; snoozeUntil: string | null; now: string; reasons?: string[]; items: MinItem[] };
+type Alerts = { stuckDays: number; remindMinutes: number; snoozeUntil: string | null; now: string; reasons?: string[]; reasonGroups?: ReasonGroup[]; items: MinItem[] };
 
 export { REASONS, ReportBox } from "@/components/notifications/MinPending";
 
@@ -175,7 +175,7 @@ function MinReportAlertHost() {
           </div>
           <div className="mrp-list">
             {items.map((it, i) => (
-              <PendingRow key={it.watchId} no={i + 1} item={it} stuckDays={data.stuckDays} reasons={data.reasons} now={now} onReported={load} onPreview={() => openPreview([it])} showStock />
+              <PendingRow key={it.watchId} no={i + 1} item={it} stuckDays={data.stuckDays} reasons={data.reasons} groups={data.reasonGroups} now={now} onReported={load} onPreview={() => openPreview([it])} showStock />
             ))}
           </div>
         </div>

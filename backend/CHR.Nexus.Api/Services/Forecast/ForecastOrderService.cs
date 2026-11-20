@@ -59,6 +59,19 @@ namespace Nexus.Services
         public static string TemplatePath => Nexus.Core.Storage.MapExternal("2. ForecastOrder.xlsx");
 
         // เดือนที่มีข้อมูล (ใหม่ -> เก่า)
+        // customers that have Forecast / Order rows (filter dropdown)
+        public List<string> GetCustomers()
+        {
+            var list = new List<string>();
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand("SELECT DISTINCT LTRIM(RTRIM(CustomerCode)) FROM Nexus.ForecastOrderImports WHERE LTRIM(RTRIM(ISNULL(CustomerCode, ''))) <> '' ORDER BY 1", conn))
+            {
+                conn.Open();
+                using (var r = cmd.ExecuteReader()) while (r.Read()) list.Add(r.GetString(0));
+            }
+            return list;
+        }
+
         public List<DateTime> GetMonths()
         {
             var list = new List<DateTime>();
@@ -73,15 +86,16 @@ namespace Nexus.Services
         }
 
         // กราฟแท่งทั้งปี (Jan - Dec)
-        public List<ForecastMonthTotal> GetYear(int year)
+        public List<ForecastMonthTotal> GetYear(int year, string customer = null)
         {
             var list = new List<ForecastMonthTotal>();
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand(@"SELECT MONTH(TargetDate), SUM(ISNULL(ForecastQuantity, 0)), SUM(ISNULL(OrderQuantity, 0)), SUM(ISNULL(DeliveryQuantity, 0))
                                               FROM Nexus.ForecastOrderImports
-                                              WHERE TargetDate >= @from AND TargetDate < @to
+                                              WHERE TargetDate >= @from AND TargetDate < @to AND (@cust = '' OR LTRIM(RTRIM(ISNULL(CustomerCode, ''))) = @cust)
                                               GROUP BY MONTH(TargetDate)", conn))
             {
+                cmd.Parameters.Add("@cust", SqlDbType.NVarChar, 100).Value = (customer ?? "").Trim();
                 cmd.Parameters.Add("@from", SqlDbType.Date).Value = new DateTime(year, 1, 1);
                 cmd.Parameters.Add("@to", SqlDbType.Date).Value = new DateTime(year + 1, 1, 1);
                 conn.Open();
@@ -99,7 +113,7 @@ namespace Nexus.Services
                        DATEFROMPARTS(YEAR(TargetDate), MONTH(TargetDate), 1) AS M,
                        SUM(ISNULL(ForecastQuantity, 0)) AS F, SUM(ISNULL(OrderQuantity, 0)) AS O, SUM(ISNULL(DeliveryQuantity, 0)) AS D
                 FROM Nexus.ForecastOrderImports
-                WHERE TargetDate >= @from AND TargetDate < @to
+                WHERE TargetDate >= @from AND TargetDate < @to AND (@cust = '' OR LTRIM(RTRIM(ISNULL(CustomerCode, ''))) = @cust)
                 GROUP BY LTRIM(RTRIM(ISNULL(CustomerCode, ''))), LTRIM(RTRIM(ISNULL(PartACode, ''))), DATEFROMPARTS(YEAR(TargetDate), MONTH(TargetDate), 1)
             ),
             -- สินค้าแยกตาม ลูกค้า + รหัส (PART A / PART NO / PD CODE) เลือกตัวแรก (PartID น้อยสุด) -> JOIN ครั้งเดียวแทนการค้นทีละแถว
@@ -116,7 +130,7 @@ namespace Nexus.Services
                OR ISNULL(p.PartA, '') LIKE '%' + @key + '%' OR ISNULL(p.PartNumber, '') LIKE '%' + @key + '%' OR ISNULL(p.Description, '') LIKE '%' + @key + '%'";
 
         // month = null -> ทุกเดือน (แถวแยกเดือน เรียง ลูกค้า / สินค้า / เดือน)
-        public List<ForecastOrderRow> GetRows(DateTime? month, string keyword, int skip, int take)
+        public List<ForecastOrderRow> GetRows(DateTime? month, string keyword, int skip, int take, string customer = null)
         {
             var list = new List<ForecastOrderRow>();
             // ไม่มีคำค้นหา = ตัดหน้าที่ยอดรวม (agg) ก่อน แล้วค่อยหาข้อมูลสินค้าแค่แถวของหน้านั้น (หน้าท้าย ๆ ไม่ช้า)
@@ -126,7 +140,7 @@ namespace Nexus.Services
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand(sql, conn))
             {
-                AddMonth(cmd, month, keyword);
+                AddMonth(cmd, month, keyword, customer);
                 cmd.Parameters.AddWithValue("@skip", skip);
                 cmd.Parameters.AddWithValue("@take", take);
                 conn.Open();
@@ -136,7 +150,7 @@ namespace Nexus.Services
         }
 
         // จำนวนแถวทั้งหมดตามเดือน / คำค้นหา (หน้าเว็บแบ่งหน้าละ 100 แถว -> ปุ่มเปลี่ยนหน้า)
-        public int CountRows(DateTime? month, string keyword)
+        public int CountRows(DateTime? month, string keyword, string customer = null)
         {
             const string cols = "SELECT a.Customer, ISNULL(p.PartA, '') AS PartA, COALESCE(NULLIF(LTRIM(RTRIM(p.PartNumber)), ''), a.PartKey) AS PartNo, ISNULL(p.Description, '') AS ProductName, a.F, a.O, a.D, a.M";
             // ไม่มีคำค้นหา = นับจากยอดรวมอย่างเดียว (ไม่ต้องหาข้อมูลสินค้า)
@@ -146,20 +160,20 @@ namespace Nexus.Services
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand(sql, conn))
             {
-                AddMonth(cmd, month, keyword);
+                AddMonth(cmd, month, keyword, customer);
                 conn.Open();
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
         }
 
         // TOP 5 Order ของเดือน + เปอร์เซ็นต์ / month = null -> รวมทุกเดือน
-        public List<ForecastTopItem> GetTop5(DateTime? month)
+        public List<ForecastTopItem> GetTop5(DateTime? month, string customer = null)
         {
             var rows = new List<ForecastOrderRow>();
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand(RowsSql + " ORDER BY a.O DESC, a.F DESC", conn))
             {
-                AddMonth(cmd, month, "");
+                AddMonth(cmd, month, "", customer);
                 conn.Open();
                 using (var r = cmd.ExecuteReader()) while (r.Read()) rows.Add(Read(r));
             }
@@ -183,8 +197,9 @@ namespace Nexus.Services
             }).ToList();
         }
 
-        private static void AddMonth(SqlCommand cmd, DateTime? month, string keyword)
+        private static void AddMonth(SqlCommand cmd, DateTime? month, string keyword, string customer = null)
         {
+            cmd.Parameters.Add("@cust", SqlDbType.NVarChar, 100).Value = (customer ?? "").Trim();   // '' = every customer
             var m = month.HasValue ? new DateTime(month.Value.Year, month.Value.Month, 1) : new DateTime(1900, 1, 1);
             cmd.Parameters.Add("@from", SqlDbType.Date).Value = m;
             cmd.Parameters.Add("@to", SqlDbType.Date).Value = month.HasValue ? m.AddMonths(1) : new DateTime(9999, 12, 1);

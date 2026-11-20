@@ -324,6 +324,66 @@ public sealed class MinReportService
         public DateTime? UpdatedDate { get; set; }
     }
 
+    public sealed class ReasonGroup
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public List<int> Stocks { get; set; }          // null = every stock
+        public List<ReasonRow> Reasons { get; set; } = new();
+    }
+
+    // groups of reasons for the REPORT box · before 68_Min_Reason_Groups.sql = one group "CIMS" with the original list
+    public List<ReasonGroup> ReasonGroups()
+    {
+        if (!DbSchema.HasMinReasonGroup) return new() { new ReasonGroup { Id = 0, Name = "CIMS", Stocks = null, Reasons = ReasonRows() } };
+        using var c = Conn();
+        var groups = c.Query<(int Id, string Name, string StockIds)>("SELECT GroupID, GroupName, StockIDs FROM Nexus.MinReasonGroups ORDER BY SortNo, GroupID")
+                      .Select(g => new ReasonGroup
+                      {
+                          Id = g.Id, Name = g.Name,
+                          Stocks = string.IsNullOrWhiteSpace(g.StockIds) ? null : g.StockIds.Split(',').Select(x => int.TryParse(x, out int v) ? v : 0).Where(v => v > 0).ToList()
+                      }).ToList();
+        var reasons = c.Query<(int Id, string Text, int SortNo, int? GroupId)>("SELECT ReasonID, ReasonText, SortNo, GroupID FROM Nexus.MinReportReasons ORDER BY SortNo, ReasonID").ToList();
+        foreach (var g in groups)
+            g.Reasons = reasons.Where(r => r.GroupId == g.Id).Select(r => new ReasonRow { Id = r.Id, Text = r.Text, SortNo = r.SortNo }).ToList();
+        return groups;
+    }
+
+    // save every group with its reasons in one transaction: missing group / reason = deleted · Id 0 = new (old reports keep their own text)
+    public void SaveReasonGroups(List<(int Id, string Name, List<int> Stocks, List<(int Id, string Text)> Reasons)> groups, string uid)
+    {
+        using var c = Conn();
+        c.Open();
+        using var tx = c.BeginTransaction();
+        var keepG = groups.Where(g => g.Id > 0).Select(g => g.Id).DefaultIfEmpty(-1).ToList();
+        var keepR = groups.SelectMany(g => g.Reasons).Where(r => r.Id > 0).Select(r => r.Id).DefaultIfEmpty(-1).ToList();
+        c.Execute("DELETE FROM Nexus.MinReportReasons WHERE ReasonID NOT IN @keepR", new { keepR }, tx);
+        c.Execute("DELETE FROM Nexus.MinReasonGroups WHERE GroupID NOT IN @keepG", new { keepG }, tx);
+        // temporary names first, so renames / moves between rows never hit the unique indexes
+        c.Execute("UPDATE Nexus.MinReportReasons SET ReasonText = CONCAT(NCHAR(1), ReasonID) WHERE ReasonID IN @keepR", new { keepR }, tx);
+        c.Execute("UPDATE Nexus.MinReasonGroups SET GroupName = CONCAT(NCHAR(1), GroupID) WHERE GroupID IN @keepG", new { keepG }, tx);
+        int gi = 0;
+        foreach (var g in groups)
+        {
+            gi++;
+            string stocks = g.Stocks == null || g.Stocks.Count == 0 ? null : string.Join(",", g.Stocks.Distinct());
+            int gid = g.Id;
+            // id deleted meanwhile by another admin (stale page) = save it as a new group
+            if (gid > 0 && c.Execute("UPDATE Nexus.MinReasonGroups SET GroupName = @Name, StockIDs = @stocks, SortNo = @gi, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE GroupID = @gid", new { g.Name, stocks, gi, uid, gid }, tx) == 0)
+                gid = 0;
+            if (gid <= 0)
+                gid = c.ExecuteScalar<int>("INSERT INTO Nexus.MinReasonGroups (GroupName, StockIDs, SortNo, UpdatedBy) VALUES (@Name, @stocks, @gi, @uid); SELECT CAST(SCOPE_IDENTITY() AS INT);", new { g.Name, stocks, gi, uid }, tx);
+            int i = 0;
+            foreach (var (id, text) in g.Reasons)
+            {
+                i++;
+                if (id <= 0 || c.Execute("UPDATE Nexus.MinReportReasons SET ReasonText = @text, SortNo = @i, GroupID = @gid, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE ReasonID = @id", new { id, text, i, gid, uid }, tx) == 0)
+                    c.Execute("INSERT INTO Nexus.MinReportReasons (ReasonText, SortNo, GroupID, UpdatedBy) VALUES (@text, @i, @gid, @uid)", new { text, i, gid, uid }, tx);
+            }
+        }
+        tx.Commit();
+    }
+
     public List<ReasonRow> ReasonRows()
     {
         if (!DbSchema.HasMinReason) return DefaultReasons.Select((t, i) => new ReasonRow { Text = t, SortNo = i + 1 }).ToList();

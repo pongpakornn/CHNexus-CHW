@@ -19,8 +19,13 @@ import { dt, n0, span, subOf, titleOf, type MinItem } from "@/components/print/M
 export const REASONS = ["กำลังผลิต", "รอ Box FG", "รอ Check", "รอ Q-Gate", "รอซ่อม", "ปัญหาคุณภาพ", "ยังไม่มีแผนผลิต", "รอของจาก Supplier", "PR อยู่ระหว่างอนุมัติ", "ใช้มากกว่าปกติ / Order เพิ่ม", "ปรับค่า MIN / MAX ใหม่แล้ว"];
 // กล่องรายงาน (ใช้ทั้งหน้าต่างแจ้งเตือน และหน้า Store > MIN REPORT): เลือกหมายเหตุ + กรอกรายละเอียดเพิ่มเติม
 //   ส่งแล้ว = แจ้งคนที่ต้องลงลายเซ็นช่องถัดไปทันที (Toast + กระดิ่ง + แชท) · ผู้รายงานอยู่ในช่องแรกเอง = เปิดเอกสารให้เซ็นต่อ
-export function ReportBox({ item, onDone, onBack, reasons = REASONS }: { item: MinItem; onDone: () => void; onBack: () => void; reasons?: string[] }) {
+export type ReasonGroup = { name: string; stocks: number[] | null; reasons: string[] };
+export function ReportBox({ item, onDone, onBack, reasons = REASONS, groups }: { item: MinItem; onDone: () => void; onBack: () => void; reasons?: string[]; groups?: ReasonGroup[] }) {
   const toast = useToast();
+  // reason groups set for this item's stock (SETUP › MIN REASONS) · pick a group, then a reason of that group
+  const mine = (groups ?? []).filter((g) => !g.stocks || g.stocks.length === 0 || g.stocks.includes(item.stkId));
+  const [gi, setGi] = useState(0);
+  const list = mine.length > 0 ? mine[Math.min(gi, mine.length - 1)].reasons : reasons;
   const [type, setType] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -65,8 +70,18 @@ export function ReportBox({ item, onDone, onBack, reasons = REASONS }: { item: M
       <label className="mr-rlbl">
         เลือกหมายเหตุ ({titleOf(item) || "ไม่มีรหัส"}) <b>*</b>
       </label>
+      {mine.length > 1 && (
+        <div className="mr-groups" role="tablist" aria-label="กลุ่มหมายเหตุ">
+          {mine.map((g, k) => (
+            <button key={g.name} type="button" role="tab" aria-selected={k === gi} className={k === gi ? "is-on" : ""} onClick={() => setGi(k)}>
+              {g.name}
+              <small>{g.reasons.length}</small>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mr-quick" role="radiogroup" aria-label="หมายเหตุ">
-        {reasons.map((q) => (
+        {list.map((q) => (
           <button key={q} type="button" role="radio" aria-checked={chosen === q} className={chosen === q ? "is-on" : ""} onClick={() => pick(q)}>
             {chosen === q ? "✓ " : ""}
             {q}
@@ -107,6 +122,7 @@ export function PendingRow({
   item: it,
   stuckDays,
   reasons,
+  groups,
   now,
   onPreview,
   onReported,
@@ -116,6 +132,7 @@ export function PendingRow({
   item: MinItem;
   stuckDays: number;
   reasons?: string[];
+  groups?: ReasonGroup[];
   now: number;
   onPreview?: () => void;
   onReported: () => void;
@@ -196,7 +213,7 @@ export function PendingRow({
           <RowAction kind="edit" title="REPORT : เลือกหมายเหตุ + รายละเอียด" active={open} onClick={() => setOpen((v) => !v)} />
         </RowActions>
       </div>
-      {open && <ReportBox item={it} reasons={reasons} onBack={() => setOpen(false)} onDone={onReported} />}
+      {open && <ReportBox item={it} reasons={reasons} groups={groups} onBack={() => setOpen(false)} onDone={onReported} />}
       {flow && <FlowModal stkId={it.stkId} stockCode={it.stockCode} title={title || subOf(it)} onClose={() => setFlow(false)} />}
     </div>
   );
