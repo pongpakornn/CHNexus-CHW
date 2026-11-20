@@ -61,13 +61,13 @@ function why(r: Row, stuck: number) {
   if (r.resolvedAt) return `🟢 กลับเป็นเขียวแล้ว ${dt(r.resolvedAt)}${r.resolvedQty != null ? ` · ยอดตอนนั้น ${n0(r.resolvedQty)}` : ""}`;
   const q = r.nowQty ?? r.qty;
   const short = q != null && r.min != null ? Math.max(0, r.min - q) : null;
-  const parts = [`🔴 ยังใต้ MIN: ยอด ${n0(q)} < MIN ${n0(r.min)}${short ? ` (ขาดอีก ${n0(short)})` : ""}`];
+  const parts = [`🔴 ยังอยู่ที่ MIN: ยอด ${n0(q)} ≤ MIN ${n0(r.min)}${short ? ` (ขาดอีก ${n0(short)})` : ""}`];
   if (r.moves === 0) parts.push("ยังไม่มีการอัพเดทยอดตั้งแต่ตกใต้ MIN");
   if (r.reportCount === 0) parts.push(r.days >= stuck ? `ค้างครบ ${stuck} วันแล้ว รอรายงานสาเหตุ` : `เฝ้าดู (ครบ ${stuck} วันจะแจ้งเตือน)`);
   else {
     parts.push(`รายงานแล้ว ${r.reportCount} ครั้ง · ล่าสุด ${dt(r.lastReportAt)}${r.lastReason ? ` : ${r.lastReason}` : ""}`);
     // 🔁 ยังใต้ MIN = เตือนให้รายงานซ้ำทุกวัน จนกว่ายอดจะพ้น MIN
-    if (r.nextAlertAt) parts.push(`เตือนให้รายงานซ้ำทุกวัน · ครั้งถัดไป ${dt(r.nextAlertAt)}`);
+    if (r.nextAlertAt) parts.push(`เตือนให้รายงานซ้ำทุกวันจนกว่ายอดจะเกิน MIN · ครั้งถัดไป ${dt(r.nextAlertAt)}`);
   }
   return parts.join(" · ");
 }
