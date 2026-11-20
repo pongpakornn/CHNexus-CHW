@@ -1,5 +1,6 @@
 "use client";
 
+import { RowAction } from "@/components/button-action/RowAction";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -565,15 +566,17 @@ export default function WofPlan({ id }: { id: number }) {
                                 </label>
                                 {editable && (
                                     <div className="wof-part-act wof-np">
-                                      <button type="button" disabled={ii === 0} onClick={() => move(ii, -1)} aria-label="ย้ายขึ้น">
-                                        ▲
+                                      <button type="button" className="wof-mv" disabled={ii === 0} onClick={() => move(ii, -1)} aria-label="ย้ายขึ้น" title="ย้ายขึ้น">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                          <path d="M6 15l6-6 6 6" />
+                                        </svg>
                                       </button>
-                                      <button type="button" disabled={ii === items.length - 1} onClick={() => move(ii, 1)} aria-label="ย้ายลง">
-                                        ▼
+                                      <button type="button" className="wof-mv" disabled={ii === items.length - 1} onClick={() => move(ii, 1)} aria-label="ย้ายลง" title="ย้ายลง">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                          <path d="M6 9l6 6 6-6" />
+                                        </svg>
                                       </button>
-                                      <button type="button" onClick={() => delItem(it)} aria-label="ลบชิ้นงาน">
-                                        ✕
-                                      </button>
+                                      <RowAction kind="delete" onClick={() => delItem(it)} title="ลบชิ้นงาน" />
                                     </div>
 )}                              </div>
                             </td>

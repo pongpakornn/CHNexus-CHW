@@ -1246,3 +1246,15 @@ thead .wof-s2 {
     display: none;
   }
 }
+
+/* part cell centred in its tall row block · modern move buttons + house delete button */
+.wof-table td.wof-part{vertical-align:middle}
+.wof-part-act{align-items:center;gap:6px;margin-top:8px}
+.wof-part-act .wof-mv{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink-soft);
+  box-shadow:0 1px 2px rgba(15,23,42,.06);transition:transform .2s cubic-bezier(0.22,1,0.36,1),background .2s,color .2s,border-color .2s}
+.wof-part-act .wof-mv svg{width:16px;height:16px}
+.wof-part-act .wof-mv:hover:not(:disabled){background:#6750a4;border-color:#6750a4;color:#fff;transform:translateY(-1px)}
+.wof-part-act .wof-mv:active:not(:disabled){transform:scale(.94)}
+.wof-part-act .wof-mv:focus-visible{outline:2px solid #6750a4;outline-offset:2px}
+.wof-part-act .wof-mv:disabled{opacity:.35;cursor:not-allowed}
+@media (prefers-reduced-motion:reduce){.wof-part-act .wof-mv{transition:none}}

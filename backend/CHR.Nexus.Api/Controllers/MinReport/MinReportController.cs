@@ -25,6 +25,8 @@ public sealed class MinReportController : AppController
 
     // หมายเหตุที่เลือกได้ตอน REPORT = ตาราง Nexus.MinReportReasons (Admin ตั้งได้ที่ SETUP › MIN REASONS)
     private string[] ReasonTypes => _svc.Reasons();
+    // reason groups for the REPORT box (the page shows only groups set for the item's stock)
+    private object ReasonGroupsDto => _svc.ReasonGroups().Select(g => new { g.Name, g.Stocks, reasons = g.Reasons.Select(r => r.Text) });
 
     // คลังที่ผู้ใช้เห็น ∩ คลังที่เปิด MIN REPORT
     // หน้าต่างแจ้งเตือนกลางจอ: คลังที่เปิด MIN REPORT + ดูคลังนั้นได้ + อยู่ในรายชื่อผู้รับแจ้งเตือนของคลัง (ไม่ตั้ง = ทุกคน)
@@ -54,7 +56,7 @@ public sealed class MinReportController : AppController
         var set = _svc.GetSettings();
         var mine = MyStocks(set);
         var items = _svc.Pending(mine.Select(s => s.StkId), set.StuckDays);
-        return Ok(new { set.StuckDays, set.RemindMinutes, snoozeUntil = _svc.GetSnooze(Uid), now = DateTime.Now, reasons = ReasonTypes, items = items.Select(Row) });
+        return Ok(new { set.StuckDays, set.RemindMinutes, snoozeUntil = _svc.GetSnooze(Uid), now = DateTime.Now, reasons = ReasonTypes, reasonGroups = ReasonGroupsDto, items = items.Select(Row) });
     }
 
     [HttpPost("snooze")]
@@ -125,7 +127,7 @@ public sealed class MinReportController : AppController
         var items = on ? _svc.Pending(new[] { stkId }, set.StuckDays, all: true) : new();
         // ✍ รายงานของคลังนี้ที่ยังรอลงลายเซ็น (การ์ด "รอลงลายเซ็น")
         var signing = DbSchema.HasMinSign ? _svc.Signing(stkId) : new();
-        return Ok(new { ready = true, enabled = on, set.StuckDays, reasons = ReasonTypes, items = items.Select(Row), signing = signing.Select(SignRow) });
+        return Ok(new { ready = true, enabled = on, set.StuckDays, reasons = ReasonTypes, reasonGroups = ReasonGroupsDto, items = items.Select(Row), signing = signing.Select(SignRow) });
     }
 
     [HttpGet("stock/{stkId:int}/history")]
@@ -587,6 +589,63 @@ public sealed class MinReportController : AppController
         return Ok(new { ready = DbSchema.HasMinReason, items = _svc.ReasonRows() });
     }
 
+    // 📂 reason groups (SETUP › MIN REASONS): name · stocks that see the group · reasons
+    [HttpGet("settings/reason-groups")]
+    public IActionResult GetReasonGroups()
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        return Ok(new
+        {
+            ready = DbSchema.HasMinReason, groupsReady = DbSchema.HasMinReasonGroup,
+            stocks = _stocks.GetStocks().Select(s => new { s.StkId, s.Code }),
+            groups = _svc.ReasonGroups().Select(g => new { g.Id, g.Name, g.Stocks, reasons = g.Reasons.Select(r => new { r.Id, r.Text }) })
+        });
+    }
+
+    public sealed record GroupDto(int Id, string Name, List<int> Stocks, List<ReasonDto> Reasons);
+    public sealed record GroupsRequest(List<GroupDto> Groups);
+
+    [HttpPost("settings/reason-groups")]
+    public IActionResult SaveReasonGroups([FromBody] GroupsRequest req)
+    {
+        if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
+        if (!DbSchema.HasMinReasonGroup) return Fail("ฐานข้อมูลยังไม่มีกลุ่มหมายเหตุ (database/nexus/68_Min_Reason_Groups.sql)");
+        string Clean(string t) => System.Text.RegularExpressions.Regex.Replace((t ?? "").Trim(), @"\s+", " ");
+        var valid = _stocks.GetStocks().Select(s => s.StkId).ToHashSet();
+        var groups = new List<(int, string, List<int>, List<(int, string)>)>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in req?.Groups ?? new())
+        {
+            string name = Clean(g?.Name);
+            if (name.Length == 0) return Fail("กรุณาตั้งชื่อกลุ่มหมายเหตุ");
+            if (name.Length > 60) return Fail($"ชื่อกลุ่ม \"{name[..20]}…\" ยาวเกิน 60 ตัวอักษร");
+            if (!names.Add(name)) return Fail($"ชื่อกลุ่ม \"{name}\" ซ้ำกัน");
+            var reasons = new List<(int, string)>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in g.Reasons ?? new())
+            {
+                string t = Clean(r?.Text);
+                if (t.Length == 0) continue;
+                if (t.Length > 60) return Fail($"หมายเหตุ \"{t[..20]}…\" ยาวเกิน 60 ตัวอักษร");
+                if (!seen.Add(t)) return Fail($"หมายเหตุ \"{t}\" ซ้ำกันในกลุ่ม {name}");
+                reasons.Add((Math.Max(0, r.Id), t));
+            }
+            if (reasons.Count == 0) return Fail($"กลุ่ม {name} ต้องมีหมายเหตุอย่างน้อย 1 รายการ");
+            if (reasons.Count > 40) return Fail($"กลุ่ม {name} มีหมายเหตุได้ไม่เกิน 40 รายการ");
+            groups.Add((Math.Max(0, g.Id), name, (g.Stocks ?? new()).Where(valid.Contains).Distinct().ToList(), reasons));
+        }
+        if (groups.Count == 0) return Fail("ต้องมีกลุ่มหมายเหตุอย่างน้อย 1 กลุ่ม");
+        if (groups.Count > 20) return Fail("กลุ่มหมายเหตุได้ไม่เกิน 20 กลุ่ม");
+        try
+        {
+            _svc.SaveReasonGroups(groups, Uid);
+            LogService.WriteLog(Uid, "MIN_REPORT_SETTINGS", $"Reason groups | {string.Join(" ; ", groups.Select(g => $"{g.Item2} ({g.Item4.Count}){(g.Item3.Count > 0 ? " stocks " + string.Join(",", g.Item3) : " all stocks")}"))}", "MIN_REPORT");
+            LiveBus.Publish("minreport");
+            return Ok(new { message = $"บันทึกกลุ่มหมายเหตุ {groups.Count} กลุ่มแล้ว\nหน้าต่าง REPORT ของทุกเครื่องอัพเดทเอง" });
+        }
+        catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
+    }
+
     public sealed record ReasonDto(int Id, string Text);
     public sealed record ReasonsRequest(List<ReasonDto> Items);
 
@@ -595,6 +654,7 @@ public sealed class MinReportController : AppController
     {
         if (!IsAdmin) return Deny("เฉพาะ Admin (Level 1) เท่านั้น");
         if (!DbSchema.HasMinReason) return Fail("ฐานข้อมูลยังไม่มีตารางหมายเหตุ (database/nexus/23_Min_Report_Reasons.sql)");
+        if (DbSchema.HasMinReasonGroup) return Fail("หมายเหตุแบ่งเป็นกลุ่มแล้ว กรุณาโหลดหน้า SETUP › MIN REASONS ใหม่");
         var list = new List<(int, string)>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var x in req?.Items ?? new())

@@ -14359,3 +14359,26 @@ main {
 .lg-bg :focus-visible {
   outline-color: #fff;
 }
+
+/* MIN REASONS groups: setup cards + group tabs in the REPORT box */
+.rg-card{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.05);animation:rg-in .45s cubic-bezier(0.22,1,0.36,1) both}
+.rg-card.is-new{border-color:#6750a4;box-shadow:0 0 0 3px rgb(103 80 164/.12)}
+@keyframes rg-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rg-head{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.rg-no{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#6750a4;color:#fff;font-weight:800;font-size:13px;flex:none}
+.rg-move{display:flex;align-items:center;gap:6px}
+.rg-mv{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink-soft);transition:transform .2s cubic-bezier(0.22,1,0.36,1),background .2s,color .2s,border-color .2s}
+.rg-mv svg{width:16px;height:16px}
+.rg-mv:hover:not(:disabled){background:#6750a4;border-color:#6750a4;color:#fff;transform:translateY(-1px)}
+.rg-mv:active:not(:disabled){transform:scale(.94)}
+.rg-mv:focus-visible{outline:2px solid #6750a4;outline-offset:2px}
+.rg-mv:disabled{opacity:.35;cursor:not-allowed}
+.rg-stocks{display:flex;flex-wrap:wrap;gap:6px}
+.rg-stocks button,.mr-groups button{padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;font-weight:800;color:var(--ink-soft);transition:background .2s,color .2s,border-color .2s,transform .2s cubic-bezier(0.22,1,0.36,1)}
+.rg-stocks button:hover:not(:disabled),.mr-groups button:hover{border-color:#2563eb;color:#2563eb;transform:translateY(-1px)}
+.rg-stocks button.is-on,.mr-groups button.is-on{background:#2563eb;border-color:#2563eb;color:#fff}
+.rg-stocks button:focus-visible,.mr-groups button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.mr-groups{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.mr-groups small{margin-left:6px;padding:0 6px;border-radius:999px;background:rgb(37 99 235/.12);font-size:10px}
+.mr-groups button.is-on small{background:rgb(255 255 255/.25)}
+@media (prefers-reduced-motion:reduce){.rg-card{animation:none}.rg-mv,.rg-stocks button,.mr-groups button{transition:none}}

@@ -214,6 +214,10 @@ namespace Nexus.Helpers
         private static bool _minReason;
         public static bool HasMinReason => _minReason || (_minReason = TableExists("Nexus.MinReportReasons") == true);
 
+        // 68_Min_Reason_Groups.sql: reasons grouped (CIMS = the original list), each group shown in chosen stocks
+        private static bool _minReasonGroup;
+        public static bool HasMinReasonGroup => _minReasonGroup || (_minReasonGroup = HasMinReason && TableExists("Nexus.MinReasonGroups") == true && ColumnIn("Nexus.MinReportReasons", "GroupID") == true);
+
         // database/nexus/62_PC_WorkOrderFollow_v2.sql + 63_PC_WoItems_Months.sql: WORK ORDER FOLLOW (schema PC)
         private static bool _pcWof;
         public static bool HasPcWof => _pcWof || (_pcWof = TableExists("PC.WoPlans") == true && TableExists("PC.WoEditors") == true && TableExists("PC.WoItems") == true
