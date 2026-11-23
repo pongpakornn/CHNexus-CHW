@@ -99,9 +99,42 @@ public static class ScannerToday
             summary.RemoveAll(x => x.StkId == st.StkId);
             summary.AddRange(pc);
             dto.Signature += "|pc" + pc.Sum(x => x.InCount + x.OutCount) + ":" + pc.Sum(x => x.FinalStock);
+            // scans made by the StorePC .exe show in DAILY SCAN too (CHR-Nexus scans are already listed from CHR-Nexus)
+            try { dto.Rows.AddRange(StorePcRows(st)); }
+            catch (Exception ex) { BugLog.Write("SCANNER", "WARN", $"StorePC rows: {ex.Message}", null, null, null, 0, null, null); }
         }
+        dto.Rows = dto.Rows.OrderByDescending(r => r.Time).ToList();
         dto.Summary = summary;
         return dto;
+    }
+
+    // today's StorePC .exe scans (TRN_SCAN rows not written by CHR-Nexus: StorePcWrite puts "[user]" at the start of REF_NO)
+    private static List<ScanRowDto> StorePcRows(StockModel st)
+    {
+        var list = new List<ScanRowDto>();
+        using var conn = new Microsoft.Data.SqlClient.SqlConnection(global::Nexus.Core.GlobalConfig.ConnStr);
+        using var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+            SELECT ISNULL(v.PartID, -m.PT_ID) AS PartID, m.PT_CODE, ISNULL(NULLIF(LTRIM(RTRIM(t.PT_ACODE)), ''), m.PT_ACODE) AS ACode, m.PT_DESC,
+                   ISNULL(t.TX_QTY, 0) AS Qty, t.TX_TYPE, t.TX_DATE
+            FROM StorePC.dbo.TRN_SCAN t
+            JOIN StorePC.dbo.MST_PART m ON m.PT_ID = t.PT_ID
+            OUTER APPLY (SELECT MAX(x.PartID) AS PartID FROM Nexus.vw_StorePcLive x WHERE x.PT_ID = m.PT_ID) v
+            WHERE t.TX_DATE >= CAST(CAST(GETDATE() AS DATE) AS DATETIME) AND t.TX_DATE < DATEADD(DAY, 1, CAST(CAST(GETDATE() AS DATE) AS DATETIME))
+              AND t.TX_TYPE IN ('IN', 'OUT', 'RETURN') AND ISNULL(t.REF_NO, '') NOT LIKE '[[]%'", conn);
+        conn.Open();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            int pid = Convert.ToInt32(r["PartID"]);
+            string a = r["ACode"]?.ToString()?.Trim(), code = r["PT_CODE"]?.ToString()?.Trim();
+            list.Add(new ScanRowDto
+            {
+                PartId = pid, StkId = st.StkId, StockCode = st.Code, PartCode = code, PartName = r["PT_DESC"]?.ToString(),
+                PartACode = a, Code = string.IsNullOrEmpty(a) ? code : a, Qty = Convert.ToDecimal(r["Qty"]), Status = r["TX_TYPE"].ToString().Trim(),
+                Time = Convert.ToDateTime(r["TX_DATE"]), ImageUrl = pid > 0 ? $"/api/images/part/{pid}" : null
+            });
+        }
+        return list;
     }
 
     private static List<SummaryRowDto> StorePcToday(StockModel st)

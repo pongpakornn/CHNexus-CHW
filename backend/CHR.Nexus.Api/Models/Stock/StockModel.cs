@@ -135,7 +135,8 @@ namespace Nexus.Models
         public bool GroupByCustomer => string.Equals(GroupBy, "CUSTOMER", System.StringComparison.OrdinalIgnoreCase);
         public bool GroupBySupplier => string.Equals(GroupBy, "SUPPLIER", System.StringComparison.OrdinalIgnoreCase);
         // CATEGORY (ค่าเริ่มต้น) / CUSTOMER / SUPPLIER
-        public string GroupCode => GroupByCustomer ? "CUSTOMER" : GroupBySupplier ? "SUPPLIER" : "CATEGORY";
+        public bool GroupByMaterial => string.Equals(GroupBy, "MATERIAL", System.StringComparison.OrdinalIgnoreCase);   // steel grade from the part name (view, script 70)
+        public string GroupCode => GroupByCustomer ? "CUSTOMER" : GroupBySupplier ? "SUPPLIER" : GroupByMaterial ? "MATERIAL" : "CATEGORY";
         public string GroupLabel => GroupCode;
 
         // หน่วยของ MAX / MIN เลือกแยกเอง: KG / PCS / SHEET / BOX (BOX เทียบกับ STOCK (BOX) ที่เหลือเทียบกับ QTY)

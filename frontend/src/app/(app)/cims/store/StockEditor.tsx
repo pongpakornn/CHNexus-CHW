@@ -234,7 +234,7 @@ export function StockEditor({ stkId, canFormats, onClose, onSaved }: { stkId: nu
             </div>
             <div>
               <span className="mb-1 block text-xs font-bold text-ink-soft">GROUP BY</span>
-              <Select ariaLabel="Group by" value={s.groupBy ?? "CATEGORY"} onChange={(v) => set("groupBy", v)} options={["CATEGORY", "CUSTOMER", "SUPPLIER"].map((u) => ({ value: u, label: u }))} />
+              <Select ariaLabel="Group by" value={s.groupBy ?? "CATEGORY"} onChange={(v) => set("groupBy", v)} options={["CATEGORY", "CUSTOMER", "SUPPLIER", "MATERIAL"].map((u) => ({ value: u, label: u === "MATERIAL" ? "MATERIAL (เกรดจากชื่อสินค้า)" : u }))} />
             </div>
             <div>
               <span className="mb-1 block text-xs font-bold text-ink-soft">MAX / MIN UNIT</span>
