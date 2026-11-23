@@ -1,0 +1,89 @@
+/* 🧩 SETUP CENTER: groups of setup tiles (one colour per system via --c) */
+.stc-group {
+  display: grid;
+  gap: 10px;
+}
+.stc-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--c);
+}
+.stc-group h3::before {
+  content: "";
+  width: 4px;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--c);
+}
+.stc-group h3 span {
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  color: #fff;
+  background: var(--c);
+}
+.stc-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+}
+.stc-tile {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-height: 84px;
+  padding: 14px 40px 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--c);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: left;
+  box-shadow: 0 6px 18px -14px rgb(0 0 0 / 0.35);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s;
+}
+.stc-tile b {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.stc-tile small {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.stc-tile em {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-style: normal;
+  font-size: 15px;
+  color: var(--c);
+}
+.stc-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--c);
+  box-shadow: 0 14px 28px -18px var(--c);
+}
+.stc-tile:active {
+  transform: translateY(0) scale(0.99);
+}
+.stc-tile:focus-visible {
+  outline: 2px solid var(--c);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stc-tile {
+    transition: none;
+  }
+  .stc-tile:hover {
+    transform: none;
+  }
+}

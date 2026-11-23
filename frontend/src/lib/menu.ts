@@ -15,10 +15,10 @@ export type MenuItem = {
   stockType?: string; // เมนูย่อยเป็นรายชื่อคลังประเภทนี้ (โหลดจาก /master/menu)
 };
 
-export type SystemKey = "root" | "cims" | "edp" | "pp" | "chem" | "pc" | "wof";
+export type SystemKey = "root" | "cims" | "edp" | "pp" | "chem" | "pc" | "wof" | "mfg";
 
 // การ์ดหน้าเลือกระบบ: name = ชื่อบนการ์ด · sub = คำอธิบายสั้น · art = ภาพประกอบการ์ด · color = สีแถบ/เงาการ์ด · desc = tooltip
-export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[] };
+export type SystemDef = { key: string; label: string; name: string; sub: string; art: string; title: string; desc: string; icon: string; color: string; menu: MenuItem[]; soon?: boolean };
 
 // ประเภทคลัง -> ชื่อเมนู Product Control
 export const STOCK_TYPES: { type: string; label: string; icon: string }[] = [
@@ -56,6 +56,7 @@ const USER_GROUP: MenuItem = {
   children: [
     { href: "/admin/users", label: "USER ACCOUNTS", title: "USER MANAGEMENT • USER ACCOUNTS", icon: "/icons/management.png", can: "userMgmt" },
     { href: "/admin/access", label: "ACCESS CONTROL", title: "USER MANAGEMENT • ACCESS CONTROL", icon: "/icons/management.png", can: "userMgmt" },
+    { href: "/admin/setup-center", label: "SETUP CENTER", title: "USER MANAGEMENT • SETUP CENTER", icon: "/icons/management.png", can: "setupAny" },
     ...SETUP_MENU,
   ],
 };
@@ -238,7 +239,27 @@ const WOF_ITEMS: MenuItem[] = [
   { href: "/pc/wof", label: "WORK ORDER FOLLOW", title: "PC • WORK ORDER FOLLOW", icon: "/icons/ForecastOrder.png", can: PC_PERM },
 ];
 
-export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, CHEM, PC, MASTER, ADMIN];
+// 🏭 MANUFACTURING (MES): Production Scheduling & Work Order · Kanban Control · Product Structure (BOM) in one system
+//   on plan = every user sees it · real pages = replace /mfg/[slug] and add a can key per menu
+export const MFG: SystemDef = {
+  key: "mfg",
+  label: "MANUFACTURING",
+  name: "Manufacturing",
+  sub: "MES · Scheduling · Kanban · BOM",
+  art: "/images/systems/scheduling.webp",
+  title: "MANUFACTURING • MES",
+  desc: "Manufacturing Execution System: Production Scheduling & Work Order · Kanban Control · Product Structure (BOM)",
+  icon: "/icons/ForecastOrder.png",
+  color: "#2563eb",
+  soon: true,
+  menu: [
+    { href: "/mfg/scheduling", label: "Production Scheduling & Work Order", title: "MANUFACTURING • PRODUCTION SCHEDULING & WORK ORDER", icon: "/icons/ForecastOrder.png" },
+    { href: "/mfg/kanban", label: "Kanban Control", title: "MANUFACTURING • KANBAN CONTROL", icon: "/icons/PickList.png" },
+    { href: "/mfg/bom", label: "Product Structure (BOM)", title: "MANUFACTURING • PRODUCT STRUCTURE (BOM)", icon: "/icons/ProductControl.png" },
+  ],
+};
+
+export const SYSTEMS: SystemDef[] = [CIMS, EDP, PP, CHEM, PC, MFG, MASTER, ADMIN];
 
 // Sidebar นอกระบบ CIMS: เลือกระบบ · MASTER DATA (เมนูย่อย) · USER MANAGEMENT
 // USER MANAGEMENT ใต้ MASTER DATA (เห็นเฉพาะผู้มีสิทธิ์ userMgmt) + เข้าได้จาก SELECT SYSTEM เหมือนเดิม
@@ -249,8 +270,9 @@ export const PP_MENU: MenuItem[] = [SYSTEMS_ITEM, ...PP.menu];
 export const CHEM_MENU: MenuItem[] = [SYSTEMS_ITEM, ...CHEM.menu];
 export const PC_MENU: MenuItem[] = [SYSTEMS_ITEM, PC.menu[1]];
 export const WOF_MENU: MenuItem[] = [SYSTEMS_ITEM, ...WOF_ITEMS];
+export const MFG_MENU: MenuItem[] = [SYSTEMS_ITEM, ...MFG.menu];
 // Sidebar ของแต่ละระบบ
-export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : sys === "chem" ? CHEM_MENU : sys === "pc" ? PC_MENU : sys === "wof" ? WOF_MENU : ROOT_MENU);
+export const menuOf = (sys: SystemKey): MenuItem[] => (sys === "cims" ? CIMS_MENU : sys === "edp" ? EDP_MENU : sys === "pp" ? PP_MENU : sys === "chem" ? CHEM_MENU : sys === "pc" ? PC_MENU : sys === "wof" ? WOF_MENU : sys === "mfg" ? MFG_MENU : ROOT_MENU);
 
 // เห็นเมนูไหนบ้างตามสิทธิ์ (กลุ่มที่ไม่มีเมนูย่อยเหลือ = ซ่อนทั้งกลุ่ม)
 export function allowed(items: MenuItem[], can: Record<string, boolean>): MenuItem[] {
@@ -266,12 +288,12 @@ export const systemsFor = (can: Record<string, boolean>) => SYSTEMS.filter((s) =
 
 // ระบบของหน้าปัจจุบัน: /cims = CIMS · /master = คงระบบที่มา (ไม่ระบุ) · /admin และอื่น ๆ = ROOT
 export const systemOf = (path: string): SystemKey | null =>
-  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/pc/wof") ? "wof" : path.startsWith("/pc/") || path === "/pc" ? "pc" : path.startsWith("/master") ? null : "root";
+  path.startsWith("/cims") ? "cims" : path.startsWith("/edp") ? "edp" : path.startsWith("/pp") ? "pp" : path.startsWith("/chem") ? "chem" : path.startsWith("/pc/wof") ? "wof" : path.startsWith("/pc/") || path === "/pc" ? "pc" : path.startsWith("/mfg") ? "mfg" : path.startsWith("/master") ? null : "root";
 
 // หน้า (รวมเมนูย่อย) ที่ตรงกับ URL ปัจจุบัน - เมนูที่มี ?type= ต้องตรง query ด้วย
 export function findItem(path: string, search: string): MenuItem | undefined {
   const flat = (m: MenuItem): MenuItem[] => [...(m.children ?? []).flatMap(flat), m]; // เมนูย่อยก่อน = ตรงที่สุด
-  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...PC.menu, ...PC_MENU, ...WOF_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap(flat);
+  const all = [...CIMS_MENU, ...EDP_MENU, ...PP_MENU, ...CHEM_MENU, ...PC.menu, ...PC_MENU, ...WOF_MENU, ...MFG_MENU, ...ROOT_MENU, ...ADMIN.menu].flatMap(flat);
   const type = new URLSearchParams(search).get("type");
   // ตรงที่สุดก่อน: path ตรงเป๊ะ > path ยาวกว่า (เช่น /master/workdays/company ไม่ไปไฮไลต์ /master/workdays)
   let best: MenuItem | undefined;
@@ -291,5 +313,5 @@ export function findItem(path: string, search: string): MenuItem | undefined {
 
 // หน้าแรกหลัง Login = หน้าเลือกระบบ (มีสิทธิ์อย่างน้อย 1 ระบบ)
 export function startPage(can: Record<string, boolean>): string | null {
-  return systemsFor(can).length > 0 ? "/systems" : null;
+  return systemsFor(can).some((s) => !s.soon) ? "/systems" : null; // an on-plan system alone does not count
 }

@@ -28,7 +28,8 @@ public sealed class MasterDataController : AppController
     {
         if (Me == null) return Deny();
         if (!Me.CanViewProductControl) return Ok(Array.Empty<object>());
-        return Ok(new StockService().GetStocks().Where(s => Me.CanViewStock(s))
+        // Product Control rights only (not each stock's Store(Max-Min) VIEW) - same rule as ProductsController.PcView
+        return Ok(new StockService().GetStocks()
                                     .Select(s => new { s.StkId, s.Code, s.Name, type = (s.StockType ?? "OTHER").ToUpperInvariant() }));
     }
 
