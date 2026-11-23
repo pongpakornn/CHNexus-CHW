@@ -7,6 +7,7 @@ import { Empty, PageBody, PageHeader, SearchBox } from "@/components/layout/Page
 import { Modal } from "@/components/modals/Modal";
 import { useToast } from "@/components/notifications/Toasts";
 import { MonthField } from "@/components/forms/MonthField";
+import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { api } from "@/lib/api";
 import { sameData, useLive } from "@/lib/live";
 import { thisMonth } from "@/lib/pp";
@@ -191,17 +192,17 @@ function Register({ onClose, onDone }: { onClose: () => void; onDone: (id: numbe
       }
     >
       <div className="wof-form">
-        <label className="wof-fld">
+        <div className="wof-fld">
           <span>CUSTOMER CODE</span>
-          <select value={code} onChange={(e) => setCode(e.target.value)} disabled={!cust}>
-            <option value="">{cust ? "— เลือกลูกค้า —" : "กำลังโหลด…"}</option>
-            {cust?.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code}
-              </option>
-            ))}
-          </select>
-        </label>
+          <ComboBox
+            value={code}
+            onChange={setCode}
+            disabled={!cust}
+            ariaLabel="CUSTOMER CODE"
+            placeholder={cust ? "พิมพ์ค้นหา / เลือกลูกค้า" : "กำลังโหลด…"}
+            options={(cust ?? []).map((c) => ({ value: c.code, label: c.code, sub: c.name }))}
+          />
+        </div>
         <label className="wof-fld">
           <span>CUSTOMER NAME</span>
           <input value={name} readOnly placeholder="ชื่อลูกค้า (อัตโนมัติ)" />

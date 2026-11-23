@@ -53,7 +53,7 @@ public sealed class StoreController : AppController
     private static object CoilSum(StockModel s, bool split) =>
         !s.CountCoil || !DbSchema.HasCoilRegister ? null : StoreCoils.Get(s.StkId, split);
 
-    private static string AllLabel(StockModel s) => s.GroupByCustomer ? "ALL CUSTOMERS" : s.GroupBySupplier ? "ALL SUPPLIERS" : "ALL CATEGORIES";
+    private static string AllLabel(StockModel s) => s.GroupByCustomer ? "ALL CUSTOMERS" : s.GroupBySupplier ? "ALL SUPPLIERS" : s.GroupByMaterial ? "ALL MATERIALS" : "ALL CATEGORIES";
 
     // ---------------------------------------------------------------- การ์ดคลัง
     [HttpGet("stocks")]
@@ -124,7 +124,7 @@ public sealed class StoreController : AppController
         if (_stocks.IsStockCodeTaken(code, s.StkId)) return Fail($"รหัสคลัง \"{code}\" มีอยู่ในระบบแล้ว กรุณาใช้รหัสอื่น");
         s.Code = code; s.Name = name;
         s.Unit = s.Unit is "PCS" or "SHEET" ? s.Unit : "KG";
-        s.GroupBy = s.GroupBy is "CUSTOMER" or "SUPPLIER" ? s.GroupBy : "CATEGORY";
+        s.GroupBy = s.GroupBy is "CUSTOMER" or "SUPPLIER" || (s.GroupBy == "MATERIAL" && DbSchema.HasStoreGroupMaterial) ? s.GroupBy : "CATEGORY";
         if (!new[] { "KG", "PCS", "SHEET", "BOX", "COIL", "UNIT" }.Contains(s.MaxMinBasis)) s.MaxMinBasis = "UNIT";
         if (!usesSupplier) s.FormatIds = new List<int>();
         // ประเภทคลัง (ไอคอนบนเว็บ): คลังใหม่ต้องเลือก · คลังเดิมที่ยังไม่มีค่า = ดูจากรหัสคลังเหมือนเดิม

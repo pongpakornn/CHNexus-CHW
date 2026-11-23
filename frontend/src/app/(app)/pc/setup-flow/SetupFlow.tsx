@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, Loading, PageBody, PageHeader } from "@/components/layout/Page";
 import { useToast } from "@/components/notifications/Toasts";
+import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { api } from "@/lib/api";
 import { useUnsavedGuard } from "@/lib/useUnsavedGuard";
 import type { PcFlowStep, PcMeta, PcUser } from "@/lib/pcwof";
@@ -111,21 +112,14 @@ export default function SetupFlow() {
                       </button>
                     </span>
                   ))}
-                  <select
-                    aria-label="เพิ่มผู้อนุมัติ"
+                  <ComboBox
+                    ariaLabel="เพิ่มผู้อนุมัติ"
                     value=""
-                    onChange={(e) => e.target.value && patch(i, { userIds: [...s.userIds, e.target.value] })}
-                    className="wof-pickuser"
-                  >
-                    <option value="">+ ผู้อนุมัติ…</option>
-                    {users
-                      .filter((u) => !s.userIds.includes(u.userId))
-                      .map((u) => (
-                        <option key={u.userId} value={u.userId}>
-                          {u.userId} · {u.name}
-                        </option>
-                      ))}
-                  </select>
+                    onChange={(v) => v && patch(i, { userIds: [...s.userIds, v] })}
+                    placeholder="+ ผู้อนุมัติ… (พิมพ์ค้นหา)"
+                    className="w-[240px] max-w-full"
+                    options={users.filter((u) => !s.userIds.includes(u.userId)).map((u) => ({ value: u.userId, label: u.userId, sub: u.name }))}
+                  />
                 </div>
               </div>
             ))}

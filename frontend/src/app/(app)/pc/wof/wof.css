@@ -59,7 +59,7 @@
 .wof-card-m span,
 .wof-info > div:not(.wof-owner) > span,
 .wof-wo > span,
-.wof-fld span {
+.wof-fld > span {
   display: inline-block;
   min-width: 62px;
   font-size: 10px;
@@ -110,7 +110,7 @@
   display: grid;
   gap: 3px;
 }
-.wof-fld input,
+.wof-fld > input,
 .wof-search,
 .wof-sign-req input,
 .wof-part-f input {

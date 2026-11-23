@@ -315,6 +315,26 @@ namespace Nexus.Helpers
             catch { return null; }
         }
 
+        // Store GROUP BY MATERIAL (70_Store_Group_Material.sql): the Store view knows the MATERIAL group
+        private static bool _groupMaterial;
+        public static bool HasStoreGroupMaterial => _groupMaterial || (_groupMaterial = ViewHas("Nexus.vw_StockMonitoring", "'MATERIAL'") == true);
+
+        private static bool? ViewHas(string view, string text)
+        {
+            try
+            {
+                using (var conn = new SqlConnection(GlobalConfig.ConnStr))
+                using (var cmd = new SqlCommand("SELECT CASE WHEN CHARINDEX(@t, OBJECT_DEFINITION(OBJECT_ID(@n))) > 0 THEN 1 ELSE 0 END", conn))
+                {
+                    cmd.Parameters.AddWithValue("@n", view);
+                    cmd.Parameters.AddWithValue("@t", text);
+                    conn.Open();
+                    return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+                }
+            }
+            catch { return null; }
+        }
+
         private static bool? TableExists(string name)
         {
             try
