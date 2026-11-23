@@ -19,6 +19,8 @@ export type RowCfg = {
   rowToggle: boolean;
   unit: string;
   canEdit: boolean;
+  /** QTY / STOCK BOX / STOCK PCS = EDIT + APPROVE of the stock */
+  canEditQty: boolean;
   isLiveView: boolean;
   /** 🧲 MANAGE STOCK: ADD = ปุ่ม ＋ ที่ PD CODE · ADJUST = ปุ่ม ACTION ที่แถว Coil ลูก */
   manage: ManageMode;
@@ -69,7 +71,7 @@ export const ProductRow = memo(function ProductRow({
   act: RowActions;
 }) {
   const open = !!coil && !closing;
-  const editable = (f: Field) => (f === "remark" ? !cfg.isLiveView : cfg.canEdit);
+  const editable = (f: Field) => (f === "remark" ? !cfg.isLiveView : f === "max" || f === "min" ? cfg.canEdit : cfg.canEditQty);
   const edit = (f: Field, extra: { align?: "right"; strong?: boolean; wide?: boolean; color?: string } = {}) => (
     <Edit
       key={f}

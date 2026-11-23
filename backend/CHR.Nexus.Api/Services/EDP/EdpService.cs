@@ -264,6 +264,75 @@ public sealed class EdpService
                   new { date = date.Date, shift });
     }
 
+    // plan started on the shop floor (IN PROGRESS) = every screen opening PLAN SUBMISSION lands on it · latest first
+    public (DateTime Date, string Shift)? Active()
+    {
+        using var c = Conn();
+        var r = c.QueryFirstOrDefault<(DateTime Date, string Shift)>(@"SELECT TOP 1 PLH_DATE, SHIFT FROM EDP.PlanHeaders
+                    WHERE STAT = 'IN PROGRESS' AND PLH_DATE >= DATEADD(DAY, -2, CAST(GETDATE() AS DATE))
+                    ORDER BY PLH_DATE DESC, CASE SHIFT WHEN 'NIGHT' THEN 0 ELSE 1 END");
+        return r == default ? null : r;
+    }
+
+    // ⛔ cannot produce: chosen cards (or every open card of the shift) = problem with the reason (REMARK of EDP PLANNING + edit log)
+    //   whole shift = the shift is finished (COMPLETED) too · returns the cards changed
+    public int CantProduce(List<int> pldIds, DateTime date, string shift, string reason, string uid)
+    {
+        bool whole = pldIds == null || pldIds.Count == 0;
+        if (whole)
+        {
+            using var c = Conn();
+            pldIds = c.Query<int>(@"SELECT D.PLD_ID FROM EDP.PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID
+                                   WHERE H.PLH_DATE = @date AND (@shift = 'ALL' OR H.SHIFT = @shift) AND ISNULL(D.IS_VISIBLE, 1) = 1
+                                     AND ISNULL(D.IS_DONE, 0) = 0 AND ISNULL(D.IS_PROBLEM, 0) = 0 AND D.PT_ID IS NOT NULL", new { date = date.Date, shift }).ToList();
+        }
+        foreach (int id in pldIds.Distinct()) Edit(id, true, null, 0, 0, reason, uid);
+        if (whole) Finish(date, shift);
+        return pldIds.Count;
+    }
+
+    public sealed class EdpReportRow
+    {
+        public string Kind { get; set; }            // EDIT · PROBLEM · MISSED (shift over, card never marked)
+        public DateTime? At { get; set; }
+        public DateTime PlanDate { get; set; }
+        public string Shift { get; set; }
+        public int Round { get; set; }
+        public string Part { get; set; }
+        public string OldText { get; set; }
+        public string NewText { get; set; }
+        public string Reason { get; set; }
+        public string By { get; set; }
+    }
+
+    // 📋 EDP REPORT: card edits / cannot-produce reasons (EDP.PlanEditLogs) + cards never updated after their shift ended
+    public List<EdpReportRow> Report(DateTime from, DateTime to, string q)
+    {
+        using var c = Conn();
+        string like = "%" + (q ?? "").Trim() + "%";
+        string op = DbSchema.HasEdpOperator
+            ? "(SELECT TOP 1 SO.OPERATOR_CODE FROM EDP.ShiftOperators SO WHERE SO.PLAN_DATE = H.PLH_DATE AND SO.SHIFT = H.SHIFT)" : "CAST(NULL AS NVARCHAR(30))";
+        var rows = c.Query<EdpReportRow>(@"
+            SELECT CASE WHEN L.IS_PROBLEM = 1 THEN 'PROBLEM' ELSE 'EDIT' END AS Kind, L.EDIT_DATE AS At, H.PLH_DATE AS PlanDate, H.SHIFT AS Shift,
+                   ISNULL(D.EFF_ROUND_ID, 0) AS Round, CONCAT(L.OLD_CUST, ' ', L.OLD_PT_NO) AS Part,
+                   CONCAT(L.OLD_CUST, ' ', L.OLD_PT_NO, ' · ', L.OLD_QTY_PLAN, ' PCS / ', L.OLD_HG_PLAN, ' HG') AS OldText,
+                   CASE WHEN L.IS_PROBLEM = 1 THEN N'ผลิตไม่ได้' ELSE CONCAT(L.NEW_CUST, ' ', L.NEW_PT_NO, ' · ', L.NEW_QTY_PLAN, ' PCS / ', L.NEW_HG_PLAN, ' HG') END AS NewText,
+                   L.REMARK AS Reason, ISNULL(U.FullName, L.EDIT_BY) AS [By]
+            FROM EDP.PlanEditLogs L JOIN EDP.vw_PlanCards D ON D.PLD_ID = L.PLD_ID JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID
+            LEFT JOIN Nexus.Users U ON U.UserID = L.EDIT_BY
+            WHERE H.PLH_DATE BETWEEN @from AND @to AND (@q = '' OR L.OLD_PT_NO LIKE @like OR L.NEW_PT_NO LIKE @like OR L.REMARK LIKE @like OR U.FullName LIKE @like)
+            UNION ALL
+            SELECT 'MISSED', NULL, H.PLH_DATE, H.SHIFT, ISNULL(D.EFF_ROUND_ID, 0), CONCAT(P.CUST_CODE, ' ', P.PT_NO),
+                   CONCAT(P.CUST_CODE, ' ', P.PT_NO, ' · ', D.QTY_PLAN, ' PCS / ', D.HG_PLAN, ' HG'), N'ไม่ได้อัพเดทแผนงาน', NULL, " + op + @"
+            FROM EDP.vw_PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID LEFT JOIN EDP.vw_Parts P ON P.PT_ID = D.PT_ID
+            WHERE H.PLH_DATE BETWEEN @from AND @to AND ISNULL(D.IS_VISIBLE, 1) = 1 AND D.PT_ID IS NOT NULL
+              AND ISNULL(D.IS_DONE, 0) = 0 AND ISNULL(D.IS_PROBLEM, 0) = 0
+              AND (H.STAT = 'COMPLETED' OR DATEADD(HOUR, CASE H.SHIFT WHEN 'DAY' THEN 20 ELSE 32 END, CAST(H.PLH_DATE AS DATETIME)) < GETDATE())
+              AND (@q = '' OR P.PT_NO LIKE @like OR P.CUST_CODE LIKE @like)
+            ORDER BY PlanDate DESC, Shift, Round, At DESC", new { from = from.Date, to = to.Date, q = (q ?? "").Trim(), like }, commandTimeout: 60).ToList();
+        return rows;
+    }
+
     public string Operator(DateTime date, string shift)
     {
         using var c = Conn();
@@ -636,19 +705,21 @@ public sealed class EdpService
         DateTime? d = date?.Date ?? c.ExecuteScalar<DateTime?>("SELECT MAX(PLH_DATE) FROM EDP.PlanHeaders WHERE (@shift = 'ALL' OR SHIFT = @shift)", new { shift });
         if (d == null) return (null, new List<EdpMonitorRow>());
         string like = "%" + (q ?? "").Trim() + "%";
-        const string baseSql = @"
-            FROM EDP.PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID LEFT JOIN EDP.vw_Parts P ON P.PT_ID = D.PT_ID
+        string op = DbSchema.HasEdpOperator ? "COALESCE(NULLIF(LTRIM(RTRIM(D.OP_NAME)), ''), SO.OPERATOR_CODE)" : "D.OP_NAME";
+        string baseSql = @"
+            FROM EDP.PlanCards D JOIN EDP.PlanHeaders H ON H.PLH_ID = D.PLH_ID LEFT JOIN EDP.vw_Parts P ON P.PT_ID = D.PT_ID" +
+            (DbSchema.HasEdpOperator ? " LEFT JOIN EDP.ShiftOperators SO ON SO.PLAN_DATE = H.PLH_DATE AND SO.SHIFT = H.SHIFT" : "") + @"
             WHERE ISNULL(D.IS_VISIBLE,1) = 1 AND H.PLH_DATE = @d AND (@shift = 'ALL' OR H.SHIFT = @shift)
               AND (ISNULL(P.PT_CODE,'') LIKE @like OR ISNULL(P.PT_NO,'') LIKE @like OR ISNULL(P.CUST_CODE,'') LIKE @like)";
         string sql = shift == AllDay
             ? @"SELECT D.PLD_ID AS Id, P.CUST_CODE AS Customer, P.PT_CODE AS PartCode, P.PT_NO AS PartNo, P.PT_NAME AS PartName,
                        ISNULL(D.QTY_PLAN,0) AS [Plan], ISNULL(D.QTY_ACT,0) AS Actual, ISNULL(D.HG_PLAN,0) AS QtyHg, ISNULL(D.HG_ACT,0) AS HgAct,
-                       D.CUR_STD_TIME_HG AS CycleTime, ISNULL(D.HG_ACT,0) * 195 / 3600.0 AS TotalTimeMin, D.OP_NAME AS Operator, D.REMARK AS Remark,
+                       D.CUR_STD_TIME_HG AS CycleTime, ISNULL(D.HG_ACT,0) * 195 / 3600.0 AS TotalTimeMin, " + op + @" AS Operator, D.REMARK AS Remark,
                        CAST(ISNULL(D.IS_DONE,0) AS BIT) AS IsDone, CAST(ISNULL(D.IS_PROBLEM,0) AS BIT) AS IsProblem, H.SHIFT AS Shift" + baseSql +
               " ORDER BY P.CUST_CODE, P.PT_NO"
             : @"SELECT MIN(D.PLD_ID) AS Id, P.CUST_CODE AS Customer, P.PT_CODE AS PartCode, P.PT_NO AS PartNo, P.PT_NAME AS PartName,
                        SUM(ISNULL(D.QTY_PLAN,0)) AS [Plan], SUM(ISNULL(D.QTY_ACT,0)) AS Actual, SUM(ISNULL(D.HG_PLAN,0)) AS QtyHg, SUM(ISNULL(D.HG_ACT,0)) AS HgAct,
-                       MAX(D.CUR_STD_TIME_HG) AS CycleTime, SUM(ISNULL(D.HG_ACT,0)) * 195 / 3600.0 AS TotalTimeMin, MAX(D.OP_NAME) AS Operator, MAX(D.REMARK) AS Remark,
+                       MAX(D.CUR_STD_TIME_HG) AS CycleTime, SUM(ISNULL(D.HG_ACT,0)) * 195 / 3600.0 AS TotalTimeMin, MAX(" + op + @") AS Operator, MAX(D.REMARK) AS Remark,
                        CAST(MAX(CAST(ISNULL(D.IS_DONE,0) AS INT)) AS BIT) AS IsDone, CAST(MAX(CAST(ISNULL(D.IS_PROBLEM,0) AS INT)) AS BIT) AS IsProblem,
                        MAX(H.SHIFT) AS Shift" + baseSql +
               " GROUP BY P.CUST_CODE, P.PT_CODE, P.PT_NO, P.PT_NAME ORDER BY P.CUST_CODE, P.PT_NO";

@@ -28,7 +28,7 @@ public sealed class ProductsController : AppController
         if (Me?.CanViewProductControl != true) return Deny();
         var all = _stocks.GetStocks();
         // 🔒 เห็นเฉพาะคลังที่มีสิทธิ์ VIEW · ทุกคลังมีสิทธิ์ = เลือก ALL STOCKS ได้
-        var stocks = all.Where(s => Me.CanViewStock(s)).ToList();
+        var stocks = all.Where(s => PcView(s)).ToList();
         bool canAll = stocks.Count == all.Count;
         var layouts = new ProductControlLayoutService().GetAll();
         var sg = new ProductControlLayoutService().GetSuggestions();
@@ -46,7 +46,7 @@ public sealed class ProductsController : AppController
             // สิทธิ์ต่อคลัง: VIEW = ดูอย่างเดียว / ADD,EDIT = ติ๊กสินค้าเข้าคลัง + แก้ไข / DEL = ลบ
             stocks = stocks.Select(s => new { s.StkId, s.Code, s.Name, s.StockType, s.IsMain, s.CountCoil, s.ShowCoilRows, s.IsLiveView, canView = true,
                                               edpCol = edpCols.TryGetValue(s.StkId, out var ec) ? ec : null,
-                                              canAdd = Me.CanAddInStock(s), canEdit = Me.CanEditStock(s), canDelete = Me.CanDeleteInStock(s) }),
+                                              canAdd = PcAdd(s), canEdit = PcEdit(s), canDelete = PcDelete(s) }),
             columns = ProductControlColumns.All.Select(c => new { key = c.Key, label = c.Label }),
             layouts = stocks.Select(s => (int?)s.StkId).Prepend(null).Select(id => new { stkId = id ?? 0, layout = LayoutOf(layouts, id) }),
             suggestions = new { suppliers = sg.Suppliers, customers = sg.Customers, categories = sg.Categories },
@@ -245,12 +245,17 @@ public sealed class ProductsController : AppController
     }
 
     // 🔒 สิทธิ์ต่อคลัง -----------------------------------------------------------
+    // Product Control (Master Data) uses its own permission only, never each stock's Store (Max-Min) permission
+    private bool PcView(StockModel s) => s != null && Me?.CanViewProductControl == true;
+    private bool PcAdd(StockModel s) => s != null && (Me?.CanAddProduct == true || Me?.CanApproveScan == true);
+    private bool PcEdit(StockModel s) => s != null && Me?.CanEditProduct == true;
+    private bool PcDelete(StockModel s) => s != null && Me?.CanDeleteProduct == true;
     // ดูคลังที่ไม่มีสิทธิ์ / ALL STOCKS ทั้งที่ไม่มีสิทธิ์ทุกคลัง = ไม่ได้
     private IActionResult StockDenied(int? stkId)
     {
         var all = _stocks.GetStocks();
-        if (stkId.HasValue) return Me.CanViewStock(all.FirstOrDefault(s => s.StkId == stkId.Value)) ? null : Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
-        return all.All(s => Me.CanViewStock(s)) ? null : Deny("กรุณาเลือกคลังที่มีสิทธิ์ดู");
+        if (stkId.HasValue) return PcView(all.FirstOrDefault(s => s.StkId == stkId.Value)) ? null : Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
+        return all.All(s => PcView(s)) ? null : Deny("กรุณาเลือกคลังที่มีสิทธิ์ดู");
     }
 
     // คลังที่ไม่มีสิทธิ์ติ๊ก (ลงทะเบียน = ADD/EDIT ของคลัง · แก้ไข = EDIT ของคลัง) -> คงค่าเดิมของสินค้าไว้ ไม่ให้เปลี่ยน
@@ -261,7 +266,7 @@ public sealed class ProductsController : AppController
         var others = new HashSet<int>(f.OtherStockIds ?? new());
         foreach (var s in stocks)
         {
-            bool may = isEdit ? Me.CanEditStock(s) : Me.CanAddInStock(s);
+            bool may = isEdit ? PcEdit(s) : PcAdd(s);
             if (may) continue;
             if (s.IsMain) f.InMain = curMain;
             else if (cur.Contains(s.StkId)) others.Add(s.StkId);
@@ -430,7 +435,7 @@ public sealed class ProductsController : AppController
     {
         if (Me?.CanAddProduct != true && Me?.CanApproveScan != true) return Deny("คุณไม่มีสิทธิ์ลงทะเบียนสินค้า");
         var stocks = _stocks.GetStocks();
-        if (Me.CanApproveScan != true && !stocks.Any(s => Me.CanAddInStock(s))) return Deny("คุณไม่มีสิทธิ์เพิ่มสินค้าในคลังใดเลย");
+        if (Me.CanApproveScan != true && !stocks.Any(s => PcAdd(s))) return Deny("คุณไม่มีสิทธิ์เพิ่มสินค้าในคลังใดเลย");
         if (Me.CanAddProduct) ClampStocks(f, stocks, 0, false);
         if (CheckForm(f, stocks) is { } err) return Fail(err);
         if (ValidateCoil(f, stocks, out var coil) is { } cerr) return Fail(cerr);
@@ -473,7 +478,7 @@ public sealed class ProductsController : AppController
         if (Me?.CanEditProduct != true) return Deny("คุณไม่มีสิทธิ์แก้ไขสินค้า");
         var stocks = _stocks.GetStocks();
         var inStocks = StocksOf(f.OldCode ?? f.PartCode, ptId);
-        if (inStocks.Count > 0 && !inStocks.Any(s => Me.CanEditStock(s))) return Deny("คุณไม่มีสิทธิ์แก้ไขสินค้าในคลังของสินค้านี้");
+        if (inStocks.Count > 0 && !inStocks.Any(s => PcEdit(s))) return Deny("คุณไม่มีสิทธิ์แก้ไขสินค้าในคลังของสินค้านี้");
         ClampStocks(f, stocks, ptId, true);
         if (CheckForm(f, stocks) is { } err) return Fail(err);
         if (ValidateCoil(f, stocks, out var coil) is { } cerr) return Fail(cerr);
@@ -522,7 +527,7 @@ public sealed class ProductsController : AppController
         if (ptId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" }); // never fall back to PartCode ('-' is shared by many STORE-SUB items)
         if (Me?.CanEditProduct != true) return Deny();
         var ts = req.StkId.HasValue ? _stocks.GetStocks().FirstOrDefault(s => s.StkId == req.StkId.Value) : _stocks.GetStocks().FirstOrDefault(s => s.IsMain);
-        if (ts != null && !Me.CanEditStock(ts)) return Deny($"คุณไม่มีสิทธิ์แก้ไขคลัง {ts.Code}");
+        if (ts != null && !PcEdit(ts)) return Deny($"คุณไม่มีสิทธิ์แก้ไขคลัง {ts.Code}");
         if (!_svc.UpdateShowStatus(req.PartCode, req.Show, Uid, req.StkId, ptId)) return Fail("บันทึกไม่สำเร็จ");
         LogService.WriteLog(Uid, "TOGGLE_STATUS", $" | Set show status to {(req.Show ? "Enabled" : "Disabled")}{(req.StkId.HasValue ? $" | Stock id: {req.StkId}" : "")}  | PDNAME : {req.PartName}", req.PartCode);
         return Ok(new { message = req.Show ? "แสดงรายการแล้ว" : "ซ่อนรายการแล้ว" });
@@ -535,7 +540,7 @@ public sealed class ProductsController : AppController
     {
         if (ptId <= 0) return BadRequest(new { message = "ไม่พบสินค้า" }); // never fall back to PartCode ('-' is shared by many STORE-SUB items)
         if (Me?.CanDeleteProduct != true) return Deny();
-        var noDel = StocksOf(req.PartCode, ptId).Where(s => !Me.CanDeleteInStock(s)).Select(s => s.Code).ToList();
+        var noDel = StocksOf(req.PartCode, ptId).Where(s => !PcDelete(s)).Select(s => s.Code).ToList();
         if (noDel.Count > 0) return Deny($"คุณไม่มีสิทธิ์ลบสินค้าในคลัง {string.Join(", ", noDel)}");
         if (!_svc.DeletePart(req.PartCode, Uid, out string error, ptId))
             return Fail($"ลบสินค้า {req.PartCode} ไม่สำเร็จ\n\n{error ?? "ไม่ทราบสาเหตุ"}");
@@ -569,7 +574,7 @@ public sealed class ProductsController : AppController
     public IActionResult Template([FromQuery] int? stkId)
     {
         if (Me?.CanViewProductControl != true) return Deny();
-        var stocks = _stocks.GetStocks().Where(s => Me.CanViewStock(s)).ToList();   // ALL template = only stocks this user can view
+        var stocks = _stocks.GetStocks().Where(s => PcView(s)).ToList();   // ALL template = only stocks this user can view
         var forStock = stkId.HasValue ? stocks.FirstOrDefault(s => s.StkId == stkId.Value) : null;
         if (stkId.HasValue && forStock == null) return Deny();
         try
@@ -588,7 +593,7 @@ public sealed class ProductsController : AppController
     {
         if (Me?.CanViewProductControl != true) return Deny();
         var lay = new ProductControlLayoutService().GetAll();
-        return Ok(_stocks.GetStocks().Where(s => Me.CanViewStock(s) && !s.IsLiveView).Select(s => new
+        return Ok(_stocks.GetStocks().Where(s => PcView(s) && !s.IsLiveView).Select(s => new
         {
             s.StkId, s.Code, s.Name, heads = string.Join(" · ", ImportTemplateService.PartHeadsForForm(s, LayoutOf(lay, s.StkId).FormFields).Where(h => h != "NO")), s.CountCoil
         }));

@@ -232,6 +232,7 @@ public sealed class StoreController : AppController
             allLabel = AllLabel(s), groupLabel = s.GroupCode, categories = cats,
             counts = counts == null ? null : new { counts.Value.Total, counts.Value.Max, counts.Value.Min, counts.Value.NoOrder },
             canEdit = !s.IsLiveView && Me.CanEditStock(s),
+            canEditQty = !s.IsLiveView && Me.CanEditStockQty(s),
             canImport = !s.IsLiveView && Me.CanImportStock(s),
             hasCoilRegister = DbSchema.HasCoilRegister,
             coilRemark = DbSchema.HasCoilRegister && DbSchema.HasCoilRemark,
@@ -323,6 +324,8 @@ public sealed class StoreController : AppController
 
         bool canEdit = Me.CanEditStock(stock);
         bool numbersChanged = p.Max != o.Max || p.Min != o.Min || p.Qty != o.Qty || p.StockBox != o.StockBox || p.StockPcs != o.StockPcs;
+        bool qtyChanged = p.Qty != o.Qty || p.StockBox != o.StockBox || p.StockPcs != o.StockPcs;
+        if (canEdit && qtyChanged && !Me.CanEditStockQty(stock)) return Deny("แก้ไขจำนวน Stock ได้เฉพาะผู้มีสิทธิ์ APPROVE ของคลังนี้ (สิทธิ์ EDIT แก้ได้เฉพาะ MAX / MIN)");
         if (!canEdit)
         {
             if (numbersChanged) return Deny("คุณไม่มีสิทธิ์แก้ไขข้อมูลในคลังนี้ (แก้ไขได้เฉพาะ REMARK)");

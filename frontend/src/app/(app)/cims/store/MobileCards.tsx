@@ -119,7 +119,7 @@ export const ProductCard = memo(function ProductCard({ p, no, cfg, labels, coil,
   const tone = cardTone(p.stockStatus);
   const color = STATUS_COLOR(p.stockStatus);
   const off = p.stockStatus === "NO_CONFIG";
-  const editable = (f: Field) => (f === "remark" ? !cfg.isLiveView : cfg.canEdit);
+  const editable = (f: Field) => (f === "remark" ? !cfg.isLiveView : f === "max" || f === "min" ? cfg.canEdit : cfg.canEditQty);
   const tile = (f: Field, label: string, extra: { strong?: boolean; color?: string; wide?: boolean } = {}) => (
     <Tile key={f} label={label} value={p[f] as string} {...extra} disabled={!editable(f)} onSave={(v) => act.save(p, f, v)} onEditing={act.editing} onDenied={() => act.denied(f)} />
   );

@@ -11,6 +11,7 @@ import { useLive } from "@/lib/live";
 import { EdpBar } from "../EdpBar";
 import { DragGrid } from "./DragGrid";
 import { OperatorModal } from "./OperatorModal";
+import { CantProduceModal } from "./CantProduceModal";
 import { EditCard } from "./EditCard";
 import { cascade, dmy, hgOf, imgOf, nowSlot, roundLabel, shiftStart, slotSwap, sortMin, timesOf, type Card, type CardsRes, type Meta, type Scope, type Shift, type Times } from "../edp";
 import "../edp.css";
@@ -70,6 +71,8 @@ export default function PlanSubmission() {
   const sig = useRef("");
   const auto = useRef(true); // เปิดหน้าครั้งแรก: แผนที่ START แล้ว = ข้ามหน้าเลือกแผน (ครั้งเดียว · กด CHANGE PLAN แล้วไม่เด้งกลับ)
   const lastStat = useRef<{ key: string; stat: string } | null>(null); // plan started on another screen (status turns IN PROGRESS) = show the cards here too
+  const left = useRef(""); // CHANGE PLAN pressed on this plan = stay on the picker (other plans still open by themselves)
+  const [cant, setCant] = useState(false);
   const next = useRef(false); // FINISH กะ DAY แล้ว: โหลดกะ NIGHT เสร็จ = เริ่มงานต่อให้เลย (ไม่มีแผน = แจ้ง PLAN NOT FOUND)
 
   // โหลดครั้งเดียว (ไม่ผูกกับ toast = แจ้งเตือนแล้วไม่รีเซ็ตกะที่เลือก) · แผนที่ START ไว้จำใน session
@@ -86,6 +89,15 @@ export default function PlanSubmission() {
         setShift(saved?.shift ?? s.shift);
         setRound(saved?.round ?? null);
         setStarted(!!saved?.started);
+        if (!saved?.started)
+          api<{ date: string | null; shift: Shift | null }>("/edp/active")
+            .then((a) => {
+              if (!a.date || !a.shift) return;
+              setDate(a.date.slice(0, 10));
+              setShift(a.shift);
+              setRound(null);
+            })
+            .catch(() => {});
       })
       .catch((e) => toastRef.current.show("ERROR", "โหลดข้อมูลตั้งต้นไม่สำเร็จ\n" + (e as Error).message, "error"));
   }, []);
@@ -112,7 +124,7 @@ export default function PlanSubmission() {
         const key = `${date}|${shift}`;
         const turned = lastStat.current?.key === key && lastStat.current.stat !== "IN PROGRESS" && r.status === "IN PROGRESS";
         lastStat.current = { key, stat: r.status ?? "" };
-        if (auto.current || turned) {
+        if (auto.current || turned || (r.status === "IN PROGRESS" && left.current !== key)) {
           auto.current = false;
           if (r.status === "IN PROGRESS" && r.cards.some((c) => c.isVisible && c.partNo)) setStarted(true);
         }
@@ -204,6 +216,11 @@ export default function PlanSubmission() {
   const done = shown.filter((c) => c.isDone).length;
   const canSubmit = meta?.can.submit ?? false;
   const closed = data?.status === "COMPLETED";
+  // a card counts as updated once MARK SUCCESS or cannot-produce · FINISH shows only when the whole shift is updated
+  const open = (c: Card) => c.isVisible && !!c.partNo && !c.isDone && !c.isProblem;
+  const allDone = !cards.some(open);
+  const roundIds = [...new Set(cards.filter((c) => c.isVisible && c.partNo).map((c) => c.roundId))].sort((a, b) => a - b);
+  const nextRound = round != null && shift !== "ALL" && !allDone && !shown.some(open) ? (roundIds.find((r) => r > round && cards.some((c) => c.roundId === r && open(c))) ?? roundIds.find((r) => cards.some((c) => c.roundId === r && open(c))) ?? null) : null;
 
   const late = (c: Card) => {
     if (c.isDone || c.isProblem || closed) return 0; // ปิดกะแล้ว (COMPLETED) = ดูย้อนหลัง ไม่เตือน (RefreshOverdueAlerts · IsReviewMode)
@@ -370,12 +387,24 @@ export default function PlanSubmission() {
           }}
         />
       )}
+      {cant && (
+        <CantProduceModal
+          date={date}
+          shift={shift}
+          cards={cards}
+          onClose={() => setCant(false)}
+          onDone={() => {
+            setCant(false);
+            load(true);
+          }}
+        />
+      )}
       {!started ? (
         <Picker date={date} onDate={setDate} shift={shift} onShift={(s) => (setShift(s), setRound(null))} meta={meta} round={round} onRound={setRound} dates={dates} data={data} cards={shown} onStart={start} onReopen={canSubmit && shift !== "ALL" ? reopen : undefined} />
       ) : (
         <>
           <EdpBar date={date} onDate={setDate} shift={shift} onShift={(s) => (setShift(s), setRound(null))} rounds={meta.rounds} round={round} onRound={setRound}>
-            <button type="button" className="fill-btn is-sm" onClick={() => setStarted(false)}>
+            <button type="button" className="fill-btn is-sm" onClick={() => ((left.current = `${date}|${shift}`), setStarted(false))}>
               ↩ CHANGE PLAN
             </button>
             {undo && canSubmit && (
@@ -386,7 +415,17 @@ export default function PlanSubmission() {
             <span className="edp-progress" style={{ "--p": shown.length ? done / shown.length : 0 } as React.CSSProperties}>
               <b>{done}</b> / {shown.length} DONE
             </span>
-            {canSubmit && cards.length > 0 && !closed && (
+            {canSubmit && !closed && cards.some(open) && (
+              <button type="button" className="cta-btn is-red" onClick={() => setCant(true)}>
+                ⛔ ผลิตไม่ได้
+              </button>
+            )}
+            {canSubmit && !closed && nextRound != null && (
+              <button type="button" className="cta-btn is-purple" onClick={() => setRound(nextRound)}>
+                ▶ NEXT ROUND (รอบ {nextRound})
+              </button>
+            )}
+            {canSubmit && cards.length > 0 && !closed && allDone && (
               <button type="button" className="cta-btn is-green" onClick={finish}>
                 ✔ FINISH SHIFT
               </button>

@@ -36,6 +36,7 @@ type Meta = {
   counts: Counts;
   canEdit: boolean;
   canImport: boolean;
+  canEditQty?: boolean;
   hasCoilRegister: boolean;
   coilRemark?: boolean;
   /** 🧲 ปุ่ม MANAGE STOCK (EDIT + APPROVE ของคลังนับ Coil) */
@@ -420,6 +421,7 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
   const mCoilOrder = meta?.coilRowOrder;
   const mCoilRemark = meta?.coilRemark;
   const mCanEdit = meta?.canEdit;
+  const mCanQty = meta?.canEditQty;
   const mCoilReg = meta?.hasCoilRegister;
   const cfg = useMemo<RowCfg | null>(() => {
     if (!mStock || !mCols || !mCoilOrder) return null;
@@ -439,13 +441,14 @@ export function StockTable({ stkId, onBack, initialFilter = "", openMinReport = 
       rowToggle: mat && coilsOn,
       unit: mStock.unitDisplay,
       canEdit: !!mCanEdit,
+      canEditQty: !!mCanQty,
       isLiveView: mStock.isLiveView,
       manage,
       coilOpen: mCoil ? { coilId: mCoil.row.coilId, kind: mCoil.kind } : null,
       hideBusy,
       picked,
     };
-  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCoilReg, manage, mCoil, hideBusy, picked]);
+  }, [mStock, mCols, mCoilOrder, mCoilRemark, mCanEdit, mCanQty, mCoilReg, manage, mCoil, hideBusy, picked]);
 
   // หลังจัดการ Coil: ยอดล่าสุด + Coil ของสินค้านั้นเปิดให้เห็นผลทันที
   const afterManage = useCallback(

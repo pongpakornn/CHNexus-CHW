@@ -166,13 +166,15 @@ namespace Nexus.Models
         public bool CanViewStock(StockModel s) => s != null && P(s.PermSysId, p => p.CanView);
         // แก้ตัวเลขในตารางของคลัง (MAX / MIN / QTY / STOCK BOX / STOCK PCS)
         public bool CanEditStock(StockModel s) => s != null && CanViewStock(s) && P(s.PermSysId, p => p.CanEdit);
+        // stock quantity (QTY / STOCK BOX / STOCK PCS) = EDIT + APPROVE of that stock · EDIT alone = MAX / MIN only
+        public bool CanEditStockQty(StockModel s) => CanEditStock(s) && P(s.PermSysId, p => p.CanApprove);
         // ลบคลัง (คลังหลักลบไม่ได้)
         public bool CanDeleteStock(StockModel s) => s != null && !s.IsMain && CanDeleteStore;
         // DEL ของคลัง (ติ๊ก DEL ที่สิทธิ์คลังนั้น) = ลบสินค้าในคลังนั้นจากหน้า Product Control ได้
         public bool CanDeleteInStock(StockModel s) => s != null && CanViewStock(s) && P(s.PermSysId, p => p.CanDelete);
         // Product Control: ติ๊กสินค้าใหม่เข้าคลังได้ = คลังที่มีสิทธิ์ VIEW (สิทธิ์ ADD ของหน้า Product Control ตรวจแยกที่ CanAddProduct)
         public bool CanAddInStock(StockModel s) => s != null && CanViewStock(s);
-        public bool CanImportStock(StockModel s) => s != null && s.InExcel && CanViewStock(s) && P(s.PermSysId, p => p.CanAdd);
+        public bool CanImportStock(StockModel s) => s != null && s.InExcel && CanViewStock(s) && P(s.PermSysId, p => p.CanAdd && p.CanApprove);   // import writes stock quantity = APPROVE too
         // 🧲 ปุ่ม MANAGE STOCK (คลังที่นับ Coil / ประเภท Material): EDIT + APPROVE ของคลังนั้น (สิทธิ์ซ้อนอีกชั้นจาก EDIT)
         //    เพิ่ม Master Coil / Number Coil · แก้ไข · โอนย้าย · ปรับปรุงยอด · ประวัติ
         public bool CanManageCoils(StockModel s) => s != null && s.CountCoil && !s.IsLiveView && CanEditStock(s) && P(s.PermSysId, p => p.CanApprove);

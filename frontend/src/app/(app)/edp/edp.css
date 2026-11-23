@@ -2197,3 +2197,30 @@
 .edp-light .edp-card.is-st-plan.is-late,
 .edp-light .edp-card.is-st-edit.is-late { border-color: #fca5a5; }
 @media (prefers-reduced-motion: reduce) { .edp-st.is-ok { animation: none; } }
+
+/* ⛔ CANNOT PRODUCE window + 📋 EDP REPORT */
+.cp-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.cp-modes button{display:grid;gap:4px;padding:14px;text-align:left;border:1.5px solid var(--line);border-radius:14px;background:#fff;transition:transform .25s cubic-bezier(0.22,1,0.36,1),border-color .2s,box-shadow .2s}
+.cp-modes button b{font-size:15px;font-weight:800}
+.cp-modes button small{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.cp-modes button:hover{transform:translateY(-2px);border-color:#dc2626}
+.cp-modes button.is-on{border-color:#dc2626;box-shadow:0 0 0 3px rgb(220 38 38/.15);background:#fef2f2}
+.cp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;max-height:46vh;overflow:auto;padding:2px}
+.cp-cards button{display:grid;gap:2px;padding:10px 12px;text-align:left;border:1px solid var(--line);border-radius:12px;background:#fff;transition:transform .2s cubic-bezier(0.22,1,0.36,1),background .2s,border-color .2s}
+.cp-cards button b{font-size:13px;font-weight:800}
+.cp-cards button small{font-size:11px;font-weight:700;color:var(--ink-soft)}
+.cp-cards button:hover{transform:translateY(-1px);border-color:#dc2626}
+.cp-cards button.is-on{background:#dc2626;border-color:#dc2626;color:#fff}
+.cp-cards button.is-on small{color:rgb(255 255 255/.85)}
+.cp-shifts{display:flex;flex-wrap:wrap;gap:6px}
+.cp-shifts button{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:13px;font-weight:800;transition:background .2s,color .2s,border-color .2s}
+.cp-shifts button.is-on{background:#2563eb;border-color:#2563eb;color:#fff}
+.cp-modes button:focus-visible,.cp-cards button:focus-visible,.cp-shifts button:focus-visible,.er-tabs button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.er-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.er-tabs button{padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;font-weight:800;transition:background .2s,color .2s,border-color .2s}
+.er-tabs button.is-on{background:#6750a4;border-color:#6750a4;color:#fff}
+.er-kind{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}
+.er-kind.is-edit{background:#fff7ed;color:#c2410c}
+.er-kind.is-problem{background:#fef2f2;color:#b91c1c}
+.er-kind.is-missed{background:#f1f5f9;color:#334155}
+@media (prefers-reduced-motion:reduce){.cp-modes button,.cp-cards button{transition:none}}

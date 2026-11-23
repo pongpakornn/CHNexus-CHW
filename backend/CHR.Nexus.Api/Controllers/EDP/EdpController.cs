@@ -87,6 +87,41 @@ public sealed class EdpController : AppController
         return Ok(new { saved = true });
     }, "บันทึก OPERATOR ไม่สำเร็จ");
 
+    // plan already started (IN PROGRESS) = open it straight away on every screen
+    [HttpGet("active")]
+    public IActionResult Active() => Guard(Me?.CanViewEdpSubmit == true) ?? Run(() =>
+    {
+        var a = _svc.Active();
+        return Ok(a == null ? new { date = (DateTime?)null, shift = (string)null } : new { date = (DateTime?)a.Value.Date, shift = a.Value.Shift });
+    }, "โหลดแผนที่เริ่มแล้วไม่สำเร็จ");
+
+    public sealed record CantReq(DateTime Date, string Shift, List<int> PldIds, string Reason);
+
+    // ⛔ cannot produce: chosen cards, or every open card of DAY / NIGHT / ALL -> problem + reason (REMARK) · whole shift = finished
+    [HttpPost("cant-produce")]
+    public IActionResult CantProduce([FromBody] CantReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
+    {
+        string reason = (r?.Reason ?? "").Trim();
+        if (reason.Length is < 3 or > 500) throw new InvalidOperationException("กรุณาระบุเหตุผลที่ผลิตไม่ได้ (3-500 ตัวอักษร)");
+        var ids = r.PldIds ?? new();
+        if (ids.Count > 300) throw new InvalidOperationException("เลือกการ์ดได้ไม่เกิน 300 ใบ");
+        string sh = Sh(r.Shift);
+        int n = _svc.CantProduce(ids, r.Date, sh, reason, Uid);
+        if (n == 0 && ids.Count == 0) throw new InvalidOperationException("ไม่มีการ์ดที่ยังไม่อัพเดทในกะนี้");
+        string what = ids.Count == 0 ? $"ทั้งกะ {sh}" : $"{n} การ์ด";
+        LogService.WriteLog(Uid, "EDP_CANT_PRODUCE", $"ผลิตไม่ได้ {what} วันที่ {r.Date:dd/MM/yyyy} · เหตุผล: {reason}", $"{r.Date:yyyyMMdd}-{sh}");
+        return Ok(new { message = ids.Count == 0 ? $"บันทึกผลิตไม่ได้ {n} การ์ด และจบแผนกะ {sh} แล้ว" : $"บันทึกผลิตไม่ได้ {n} การ์ดแล้ว" });
+    }, "บันทึกไม่สำเร็จ");
+
+    // 📋 EDP REPORT (EDP PLANNING › REPORT): edits · cannot produce · not updated
+    [HttpGet("report")]
+    public IActionResult Report(DateTime from, DateTime to, string q) => Guard(Me?.CanViewEdpPlanning == true || Me?.CanViewEdpSubmit == true) ?? Run(() =>
+    {
+        if (to < from) (from, to) = (to, from);
+        if ((to - from).TotalDays > 366) from = to.AddDays(-366);
+        return Ok(_svc.Report(from, to, q));
+    }, "โหลดรายงานไม่สำเร็จ");
+
     [HttpPost("finish")]
     public IActionResult Finish([FromBody] ShiftReq r) => Guard(Me?.CanEditEdpSubmit == true) ?? Run(() =>
     {

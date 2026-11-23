@@ -24,6 +24,7 @@ import { useDebounced } from "@/lib/useDebounced";
 import { EdpBar } from "../EdpBar";
 import { dmy, type Meta, type Scope } from "../edp";
 import "../edp.css";
+import { EdpReport } from "./EdpReport";
 
 // 🏭 EDP › EDP PLANNING (ตารางติดตาม) - ย้ายจากหน้า EDP Planning ของ EDP Systems
 //   กะ DAY / NIGHT = รวมยอดตามชิ้นงาน · ALL = รายการ์ด · ไม่เลือกวันที่ (LIVE) = แผนล่าสุดของกะ อัพเดทเองทุก 5 วินาที
@@ -55,6 +56,7 @@ export default function EdpPlanning() {
   const toast = useToast();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [live, setLive] = useState(true);
+  const [report, setReport] = useState(false);
   const [date, setDate] = useState("");
   const [shift, setShift] = useState<Scope>("DAY");
   const [key, setKey] = useState("");
@@ -155,6 +157,7 @@ export default function EdpPlanning() {
   if (!meta) return <Loading />;
   return (
     <PageBody className="md-gray md-color-actions">
+      {report && <EdpReport onClose={() => setReport(false)} />}
       <PageHeader
         icon="/icons/ForecastOrder.png"
         title="EDP • EDP PLANNING"
@@ -179,6 +182,9 @@ export default function EdpPlanning() {
           placeholder="ค้นหา PART CODE / PART NO / CUSTOMER"
           className="md-search w-[300px] max-w-full"
         />
+        <button type="button" className="cta-btn is-purple" onClick={() => setReport(true)}>
+          📋 REPORT
+        </button>
         <button
           type="button"
           className="cta-btn is-green"
