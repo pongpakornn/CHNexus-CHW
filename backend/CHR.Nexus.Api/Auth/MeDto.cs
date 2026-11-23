@@ -36,6 +36,7 @@ public sealed record MeDto(
             ["ppDashboard"] = s.CanViewPpDashboard,
             ["ppCapacity"] = s.CanViewPpCapacity,
             ["ppCapacityEdit"] = s.CanEditPpCapacity,
+            ["mfgKanban"] = s.CanViewKanban,
             ["PC_WOF"] = s.CanViewPcWof,   // PC DIGITAL WORKSPACE > WORK ORDER FOLLOW (frontend lib/menu.ts PC_PERM)
             ["ppSetup"] = s.CanViewPpSetup,
             ["ppSetupAdd"] = s.CanAddPpSetup,

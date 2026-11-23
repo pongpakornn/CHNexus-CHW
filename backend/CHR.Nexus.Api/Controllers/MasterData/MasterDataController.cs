@@ -13,7 +13,7 @@ namespace CHR.Nexus.Api.Controllers;
 public sealed class MasterDataController : AppController
 {
     // รหัส: A-Z 0-9 เว้นวรรค - _ . / & ( ) · ยาวไม่เกิน 50 (ตรงกับข้อความในสินค้าเดิม)
-    private static readonly Regex CodeOk = new(@"^[A-Z0-9][A-Z0-9 ._/&()\-]{0,49}$", RegexOptions.Compiled);
+    internal static readonly Regex CodeOk = new(@"^[A-Z0-9][A-Z0-9 ._/&()\-]{0,49}$", RegexOptions.Compiled);
 
     private readonly UploadCache _uploads;
     public MasterDataController(UploadCache uploads) => _uploads = uploads;

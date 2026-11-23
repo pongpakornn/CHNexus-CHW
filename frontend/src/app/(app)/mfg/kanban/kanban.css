@@ -1,0 +1,298 @@
+/* 🏭 KANBAN CONTROL: white cards like Master Data (md-gray) · MANUFACTURING blue accent · one motion curve (--ease-drop) */
+.kb {
+  --kb: #2563eb;
+  --kb-ok: #15803d;
+  --kb-warn: #b45309;
+}
+
+/* stat tiles (Dashboard) */
+.kb-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+}
+.kb-stat {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--c, var(--kb)) 10%, transparent), transparent 60%), var(--surface);
+  box-shadow: 0 8px 22px -20px rgb(15 23 42 / 0.5);
+  transition:
+    transform 0.4s var(--ease-drop),
+    box-shadow 0.4s var(--ease-drop);
+}
+.kb-stat:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 30px -22px var(--c, var(--kb));
+}
+.kb-stat small {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.kb-stat b {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--c, var(--kb));
+}
+.kb-stat i {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* bar rows (Dashboard: per customer / zone) */
+.kb-bars {
+  display: grid;
+  gap: 10px;
+}
+.kb-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.kb-bar > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--g-100, #f1f1f3);
+}
+.kb-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c, var(--kb)) 70%, #fff), var(--c, var(--kb)));
+  transform-origin: left;
+  animation: kb-grow 0.9s var(--ease-drop) both;
+}
+@keyframes kb-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* pills */
+.kb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 99px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.kb-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: currentColor;
+}
+.kb-pill.is-ok {
+  color: var(--kb-ok);
+  background: #dcfce7;
+}
+.kb-pill.is-warn {
+  color: var(--kb-warn);
+  background: #fef3c7;
+}
+.kb-pill.is-blue {
+  color: var(--kb);
+  background: #dbeafe;
+}
+
+/* flow chips */
+.kb-flow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.kb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 2px 9px 2px 3px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--surface);
+}
+.kb-chip + .kb-chip::before {
+  content: "›";
+  margin: 0 4px 0 -2px;
+  color: var(--ink-soft);
+}
+.kb-chip b {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  font-size: 10px;
+  color: #fff;
+  background: var(--g-700, #52525b);
+}
+.kb-chip.is-first b {
+  background: var(--kb);
+}
+
+/* stacked cards (3 layers max) */
+.kb-stack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 30px;
+}
+.kb-stack-card {
+  position: absolute;
+  left: calc(var(--l) * 4px);
+  top: 50%;
+  width: 22px;
+  height: 28px;
+  translate: 0 calc(-50% - var(--l) * 3px);
+  border: 1.5px solid color-mix(in srgb, var(--kb) 60%, #fff);
+  border-radius: 5px;
+  background: linear-gradient(180deg, #fff, #eff6ff);
+  box-shadow: 0 3px 6px -4px var(--kb);
+}
+.kb-stack-n {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.kb-stack-n b {
+  color: var(--kb);
+  font-size: 13px;
+}
+
+/* flow editor */
+.kb-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: var(--surface);
+  animation: kb-in 0.4s var(--ease-drop) both;
+}
+.kb-step-no {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--kb) 70%, #fff), var(--kb));
+}
+.kb-step-x {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-weight: 800;
+  color: #b91c1c;
+  transition: background 0.2s;
+}
+.kb-step-x:hover {
+  background: #fee2e2;
+}
+
+/* part image placeholder (Set Kanban) */
+.kb-photo {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  aspect-ratio: 1;
+  border: 2px dashed var(--line);
+  border-radius: 18px;
+  background: radial-gradient(circle at 50% 40%, #eff6ff, transparent 70%), var(--surface);
+  color: var(--ink-soft);
+  text-align: center;
+}
+.kb-photo b {
+  font-size: 44px;
+  line-height: 1;
+}
+.kb-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #eff6ff;
+  color: var(--kb);
+  font-weight: 900;
+}
+.kb-count small {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* accumulated rows (สะสม / รับยอด) */
+.kb-acc {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: var(--surface);
+  transition:
+    border-color 0.25s,
+    box-shadow 0.4s var(--ease-drop);
+}
+.kb-acc.is-ready {
+  border-color: color-mix(in srgb, var(--kb-ok) 45%, var(--line));
+  box-shadow: 0 10px 24px -22px var(--kb-ok);
+}
+.kb-acc .kb-fill.is-ok {
+  --c: var(--kb-ok);
+}
+
+@keyframes kb-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-stat,
+  .kb-fill,
+  .kb-step {
+    animation: none;
+    transition: none;
+  }
+  .kb-stat:hover {
+    transform: none;
+  }
+}
+
+/* 2-tab segment (STANDARD / TEMP flow) */
+.kb .md-seg.is-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.kb .md-seg.is-2 .md-seg-glider {
+  width: calc((100% - 8px) / 2);
+}

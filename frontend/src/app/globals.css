@@ -11028,6 +11028,11 @@ table.lqp code {
   color: #fff;
   background: var(--g-800);
 }
+/* Mold UNDER REPAIR */
+.md-gray .md-status.is-repair {
+  color: #92400e;
+  background: #fef3c7;
+}
 .md-gray .data-table input[type="checkbox"]:hover {
   border-color: var(--g-800);
 }
