@@ -105,6 +105,7 @@ namespace Nexus.Services
             ("ChemRecord",     "Chemical Control › Inspection Record", "VIEW = dashboard / control chart / export  •  ADD = record readings / corrective action / submit  •  EDIT = edit or delete others' readings / actions"),
             ("ChemSetup",      "Chemical Control › Parameter Setup", "VIEW = open  •  ADD = new parameter  •  EDIT = spec / control limits / check times  •  DEL = delete"),
             ("PC_WOF",      "PC Digital Workspace › Work Order Follow", "VIEW = open / dashboard  •  ADD = REGISTER PLAN  •  APPROVE = SETUP FLOW (editing = plan owner / editors · signing = users in SETUP FLOW)"),
+            ("MFG_KANBAN",  "Manufacturing › Kanban Control", "VIEW = dashboard / open  •  ADD = set kanban / add accumulated qty / receive / production order  •  EDIT = edit kanban / set flow / target + auto  •  DEL = delete kanban / scan / order / return qty"),
             ("PackingCard", "Pick List",                  "VIEW = open the page"),
             ("MAXMINCALC",  "Max-Min Calculator",         "VIEW = open  •  EDIT = edit / import / calculate"),
             ("ForecastOrder", "Forecast / Order / Delivery", "VIEW = open + export  •  ADD = import forecast / order / delivery"),

@@ -78,6 +78,9 @@ export const MASTER_ITEM: MenuItem = {
       stockType: t.type,
       caption: i === 0 ? "Product Control" : undefined,
     })),
+    // 🏭 MACHINE / MOLD INFORMATION (script 71): rights = MASTER DATA (same as Customer / Supplier)
+    { href: "/master/machines", label: "Machine Information", title: "PRODUCT CONTROL • MACHINE INFORMATION", icon: "/icons/64engine_motorFF.png", can: "masterData" },
+    { href: "/master/molds", label: "Mold Information", title: "PRODUCT CONTROL • MOLD INFORMATION", icon: "/icons/Capacity.png", can: "masterData" },
     // 📦 FORECAST / ORDER / DELIVERY (ย้ายมาจาก CIMS): ข้อมูลกลางที่ CIMS (Max-Min) และ Production Plan (PCS) ใช้ร่วมกัน
     { href: "/master/forecast", label: "Forecast / Order", title: "MASTER DATA • FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast", caption: "Planning" },
     // 📅 WORKDAYS (ย้ายมาจาก CIMS › Max-Min Calculator): ลูกค้า · บริษัท
@@ -253,8 +256,20 @@ export const MFG: SystemDef = {
   color: "#2563eb",
   soon: true,
   menu: [
+    // 🏭 KANBAN CONTROL (script 72, SystemID MFG_KANBAN): group like Product Control · Dashboard first
+    {
+      href: "#mfg-kanban",
+      label: "Kanban Control",
+      title: "MANUFACTURING • KANBAN CONTROL",
+      icon: "/icons/PickList.png",
+      children: [
+        { href: "/mfg/kanban", label: "Dashboard", title: "KANBAN CONTROL • DASHBOARD", icon: "/icons/Dashboard.png", can: "mfgKanban", caption: "Kanban Control" },
+        { href: "/mfg/kanban/set", label: "Set Kanban", title: "KANBAN CONTROL • SET KANBAN", icon: "/icons/PickList.png", can: "mfgKanban" },
+        { href: "/mfg/kanban/stock", label: "สะสมยอด / รับยอด", title: "KANBAN CONTROL • สะสมยอด / รับยอด", icon: "/icons/MultiScanner.png", can: "mfgKanban" },
+        { href: "/mfg/kanban/orders", label: "สั่งผลิต", title: "KANBAN CONTROL • สั่งผลิต", icon: "/icons/ForecastOrder.png", can: "mfgKanban" },
+      ],
+    },
     { href: "/mfg/scheduling", label: "Production Scheduling & Work Order", title: "MANUFACTURING • PRODUCTION SCHEDULING & WORK ORDER", icon: "/icons/ForecastOrder.png" },
-    { href: "/mfg/kanban", label: "Kanban Control", title: "MANUFACTURING • KANBAN CONTROL", icon: "/icons/PickList.png" },
     { href: "/mfg/bom", label: "Product Structure (BOM)", title: "MANUFACTURING • PRODUCT STRUCTURE (BOM)", icon: "/icons/ProductControl.png" },
   ],
 };

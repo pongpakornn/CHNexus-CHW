@@ -229,6 +229,14 @@ namespace Nexus.Helpers
         private static bool _master;
         public static bool HasMasterData => _master || (_master = TableExists("Master.Customers") == true && TableExists("Master.Suppliers") == true);
 
+        // 71_Master_Machine_Mold_Breaks.sql: Master.Machines / Master.Molds · Master.CompanyBreaks
+        private static bool _equip, _breaks;
+        public static bool HasEquipment => _equip || (_equip = HasMasterData && TableExists("Master.Machines") == true && TableExists("Master.Molds") == true);
+        // 72_Mfg_Kanban.sql: MANUFACTURING › KANBAN CONTROL (schema Kanban)
+        private static bool _kanban;
+        public static bool HasKanban => _kanban || (_kanban = TableExists("Kanban.Kanbans") == true && TableExists("Kanban.Receipts") == true && TableExists("Kanban.Cards") == true);
+        public static bool HasCompanyBreaks => _breaks || (_breaks = TableExists("Master.CompanyBreaks") == true);
+
         // 🏭 EDP PLANNING (26_EDP_Planning.sql): EDP.PlanHeaders / EDP.PlanCards / EDP.vw_Parts (view)
         private static bool _edp;
         public static bool HasEdp => _edp || (_edp = TableExists("EDP.PlanCards") == true && TableExists("EDP.PlanTemplates") == true);

@@ -94,6 +94,13 @@ namespace Nexus.Models
         public bool CanAddPcWof => CanViewPcWof && P("PC_WOF", p => p.CanAdd);
         public bool CanApprovePcWof => CanViewPcWof && P("PC_WOF", p => p.CanApprove);
 
+        // MANUFACTURING › KANBAN CONTROL (schema Kanban, script 72) - MFG_KANBAN
+        //   VIEW = dashboard + pages · ADD = set kanban / add scan / receive / order · EDIT = edit kanban / set flow / target + auto · DEL = delete kanban / scan / order / return
+        public bool CanViewKanban => P("MFG_KANBAN", p => p.CanView);
+        public bool CanAddKanban => CanViewKanban && P("MFG_KANBAN", p => p.CanAdd);
+        public bool CanEditKanban => CanViewKanban && P("MFG_KANBAN", p => p.CanEdit);
+        public bool CanDeleteKanban => CanViewKanban && P("MFG_KANBAN", p => p.CanDelete);
+
         // 🧪 CHEMICAL CONTROL (schema ChemControl · ควบคุมคุณภาพน้ำยาเคมี)
         //    ChemRecord : VIEW = Dashboard / แผนภูมิควบคุม / Export · ADD = บันทึกผลการตรวจวัด + บันทึกการแก้ไข + ส่งอนุมัติ
         //                 EDIT = แก้ / ลบผลการตรวจวัดของผู้อื่น + แก้ / ลบบันทึกการแก้ไข
