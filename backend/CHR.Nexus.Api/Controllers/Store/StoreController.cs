@@ -414,8 +414,8 @@ public sealed class StoreController : AppController
     [HttpGet("{stkId:int}/search-suggest")]
     public IActionResult SearchSuggest(int stkId, [FromQuery] string q)
     {
-        if (Me?.CanViewStore != true) return Deny();
-        var s = VisibleStock(stkId);
+        // used by Store (stock VIEW) and by Master Data › Product Control (Product Control VIEW = every stock)
+        var s = Me?.CanViewProductControl == true ? _stocks.GetStocks().FirstOrDefault(x => x.StkId == stkId) : Me?.CanViewStore == true ? VisibleStock(stkId) : null;
         if (s == null) return Deny("คุณไม่มีสิทธิ์ดูคลังนี้");
         return Ok(_products.SearchSuggest(s, (q ?? "").Trim()).Select(x => new { text = x.Text, kind = x.Kind, sub = x.Sub }));
     }

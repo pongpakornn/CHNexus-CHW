@@ -15,9 +15,6 @@ const TITLE = ["Choose Your", "Workspace"];
 
 // 🚧 ระบบที่กำลังพัฒนา: แสดงการ์ดไว้ก่อน (ทุกคนเห็น) กดแล้วแจ้งว่าอยู่ระหว่างการอัพเดทระบบ · เปิดใช้จริง = ย้ายไปเพิ่มใน lib/menu.ts (SYSTEMS)
 const SOON: { key: string; name: string; sub: string; art: string; color: string }[] = [
-  { key: "scheduling", name: "Production Scheduling & Work Order", sub: "Plan · Work Order", art: "/images/systems/scheduling.webp", color: "#2563eb" },
-  { key: "kanban", name: "Kanban Control", sub: "Production Order · Work Call", art: "/images/systems/kanban.webp", color: "#0284c7" },
-  { key: "bom", name: "Product Structure (BOM)", sub: "Process · Work Order · Kanban", art: "/images/systems/bom.webp", color: "#6750a4" },
   { key: "logistics", name: "Delivery & Logistics Planning", sub: "Shipment Plan · Customer Delivery", art: "/images/systems/logistics.webp", color: "#0369a1" },
 ];
 
@@ -25,7 +22,7 @@ const SOON: { key: string; name: string; sub: string; art: string; color: string
 const GROUPS: { key: string; title: string; th: string; items: string[] }[] = [
   { key: "core", title: "CORE PRODUCTION SYSTEMS", th: "ระบบหลักสำหรับการผลิต", items: ["cims", "pp", "edp"] },
   { key: "dept", title: "DEPARTMENT WORKSPACES", th: "ระบบเฉพาะหน่วยงาน", items: ["pc-workspace", "chem"] },
-  { key: "plan", title: "ON PLAN", th: "ระบบที่อยู่ระหว่างพัฒนาตามแผน", items: ["scheduling", "kanban", "bom", "logistics"] },
+  { key: "plan", title: "ON PLAN", th: "ระบบที่อยู่ระหว่างพัฒนาตามแผน", items: ["mfg", "logistics"] }, // Scheduling / Kanban / BOM = MANUFACTURING (lib/menu.ts MFG)
   { key: "admin", title: "ADMINISTRATION", th: "การจัดการข้อมูลกลางและผู้ใช้งาน", items: ["master", "admin"] },
 ];
 
@@ -58,7 +55,10 @@ export default function SystemsPage() {
         <img src={s.art} alt="" />
       </span>
       <span className="sys-tx">
-        <b>{s.name}</b>
+        <b>
+          {s.name}
+          {s.soon && <em className="sys-soon"> ON PLAN</em>}
+        </b>
         <span>{s.sub}</span>
       </span>
       <span className="sys-go" aria-hidden>
