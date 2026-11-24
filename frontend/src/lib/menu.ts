@@ -263,11 +263,11 @@ export const MFG: SystemDef = {
       href: "#mfg-kanban",
       label: "Kanban",
       title: "MANUFACTURING • KANBAN",
-      icon: "/icons/PickList.png",
+      icon: "/icons/Kanban.png",
       children: [
         { href: "/mfg/kanban", label: "Dashboard", title: "KANBAN • DASHBOARD", icon: "/icons/Dashboard.png", can: "mfgKanban", caption: "Kanban" },
         { href: "/mfg/kanban/board", label: "Kanban Board", title: "KANBAN • KANBAN BOARD", icon: "/icons/DashboardChart.png", can: "mfgKanban" },
-        { href: "/mfg/kanban/set", label: "Kanban Management", title: "KANBAN • KANBAN MANAGEMENT", icon: "/icons/PickList.png", can: "mfgKanban" },
+        { href: "/mfg/kanban/set", label: "Kanban Management", title: "KANBAN • KANBAN MANAGEMENT", icon: "/icons/Kanban.png", can: "mfgKanban" },
         { href: "/mfg/kanban/stock", label: "สะสมยอด / รับยอด", title: "KANBAN • สะสมยอด / รับยอด", icon: "/icons/MultiScanner.png", can: "mfgKanban" },
         { href: "/mfg/kanban/orders", label: "สั่งผลิต", title: "KANBAN • สั่งผลิต", icon: "/icons/ForecastOrder.png", can: "mfgKanban" },
       ],
