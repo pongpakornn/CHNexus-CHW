@@ -329,8 +329,8 @@ export default function KanbanDashboard() {
                             {k.zone && ` · ${k.zone}`}
                           </p>
                         </div>
-                        <span className="font-mono text-xs font-bold text-ink-soft" title="ใบ Kanban ต่อการสั่งค่าเริ่มต้น">
-                          {n0(Math.ceil(k.orderQty / k.perBox))} ใบ
+                        <span className="font-mono text-xs font-bold text-ink-soft" title={k.formulaName ? `สูตรคำนวณ: ${k.formulaName}` : undefined}>
+                          PACKING {n0(k.perBox)}
                         </span>
                         <ReadyPill ready={isReady(k)} />
                       </li>

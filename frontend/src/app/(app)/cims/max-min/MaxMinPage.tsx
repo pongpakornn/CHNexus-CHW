@@ -454,7 +454,7 @@ ${f}`, "ok");
                   <th className="w-14 text-center">NO.</th>
                   <th>PART NO</th>
                   <th>PRODUCT NAME</th>
-                  <th className="text-right">PACKSIZE</th>
+                  <th className="text-right">PACKING</th>
                   <th className="text-center">MAX (DAYS)</th>
                   <th className="text-center">MIN (DAYS)</th>
                   <th className="text-right">MAX ({unit})</th>

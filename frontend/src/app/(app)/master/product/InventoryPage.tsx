@@ -39,7 +39,7 @@ const FIELDS: Record<string, [string, keyof Form, { list?: string; numeric?: boo
   PARTB: ["PART B", "partB"],
   MODEL: ["MODEL", "model"],
   PARTNO: ["PART NO", "partNo"],
-  PACKSIZE: ["PACKSIZE", "packSize", { numeric: true }],
+  PACKSIZE: ["PACKING", "packSize", { numeric: true }],
   BIN: ["BIN", "bin"],
   QRCODE: ["QR CODE (SUPPLIER)", "qrCode"],
 };
@@ -407,7 +407,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
 
   async function save(isEdit: boolean) {
     if (!form.partCode.trim()) return toast.show("WARNING", "กรุณากรอกรหัสสินค้าก่อนทำการลงทะเบียนครับ", "warn");
-    if (form.packSize.trim() && !/^\d+$/.test(form.packSize.trim())) return toast.show("WARNING", "PACKSIZE ต้องเป็นตัวเลขเท่านั้นครับ", "warn");
+    if (form.packSize.trim() && !/^\d+$/.test(form.packSize.trim())) return toast.show("WARNING", "PACKING ต้องเป็นตัวเลขเท่านั้นครับ", "warn");
     if (!inMain && others.length === 0) return toast.show("WARNING", "กรุณาเลือกคลัง (STOCK) อย่างน้อย 1 คลังครับ", "warn");
     setBusy(true);
     try {
@@ -1069,7 +1069,7 @@ export default function InventoryPage({ type, stk, title }: { type?: string; stk
             color="#e11d48"
             icon={<Glyph d={GLYPH.sheet} />}
             title={`PICKING (${(ticked.length || exportOpen?.all || 0).toLocaleString()})`}
-            detail={`การ์ดแบบ Pick List: RUNNING A0001 · PART A / CUSTOMER · PART NO · PACKSIZE + หน่วย — ${ticked.length ? `เฉพาะ ${ticked.length} รายการที่ติ๊กไว้` : `ทั้งหมดใน ${filterStock?.code ?? "ALL STOCKS"} (ไม่ได้ติ๊ก)`}`}
+            detail={`การ์ดแบบ Pick List: RUNNING A0001 · PART A / CUSTOMER · PART NO · PACKING + หน่วย — ${ticked.length ? `เฉพาะ ${ticked.length} รายการที่ติ๊กไว้` : `ทั้งหมดใน ${filterStock?.code ?? "ALL STOCKS"} (ไม่ได้ติ๊ก)`}`}
             meta="PREVIEW • PRINT / PDF"
             onClick={() => {
               setExportOpen(null);

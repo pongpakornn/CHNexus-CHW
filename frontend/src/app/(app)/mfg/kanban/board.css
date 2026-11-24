@@ -1,0 +1,334 @@
+/* 🗂 KANBAN BOARD: same look as the WORKLOAD table (pp.css .wl-*) · full grid lines · DarkGray header, white text · sticky WORK ORDER column
+   current 30-minute slot = system purple · past slots = soft gray · cards: late (red) / running (blue) / waiting (gray) / done (green) */
+.kbb-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+.kbb-filter .fill-btn {
+  flex: none;
+  gap: 8px;
+}
+.kbb-filter .fill-btn b {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  line-height: 18px;
+  text-align: center;
+  background: rgb(15 23 42 / 0.08);
+}
+.kbb-filter .fill-btn.is-on b {
+  background: rgb(255 255 255 / 0.25);
+}
+
+/* top bar: ZONE left · DATE (live clock) right */
+.kbb-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e5ee;
+  background: #f4f4f6;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #27272a;
+}
+.kbb-bar i {
+  margin-left: 8px;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.kbb-date {
+  white-space: nowrap;
+}
+.kbb-btn {
+  border-radius: 99px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #4c1d95;
+  background: #ede9fe;
+  transition:
+    transform 0.25s var(--ease-drop),
+    background-color 0.25s var(--ease-drop);
+}
+.kbb-btn:hover {
+  transform: translateY(-1px);
+  background: #ddd6fe;
+}
+.kbb-btn:active {
+  transform: scale(0.96);
+}
+.kbb-btn:focus-visible {
+  outline: 2px solid #6750a4;
+  outline-offset: 2px;
+}
+.kbb-btn.is-late {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.kbb-btn.is-late:hover {
+  background: #fecaca;
+}
+
+/* table */
+.kbb-scroll {
+  --kbb-n: 190px; /* WORK ORDER column */
+  --kbb-c: 168px; /* one 30-minute slot */
+  --kbb-line: #e2e5ee;
+  overflow: auto;
+  max-height: calc(100dvh - 270px);
+  min-height: 260px;
+  overscroll-behavior: contain;
+}
+.kbb-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12px;
+}
+.kbb-table th,
+.kbb-table td {
+  border-right: 1px solid var(--kbb-line);
+  border-bottom: 1px solid var(--kbb-line);
+}
+.kbb-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  width: var(--kbb-c);
+  min-width: var(--kbb-c);
+  height: 44px;
+  padding: 4px 8px;
+  background: #3f3f46;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-align: center;
+  border-right-color: rgb(255 255 255 / 0.14);
+  border-bottom-color: rgb(255 255 255 / 0.14);
+}
+.kbb-table thead th.is-past {
+  background: #52525b;
+  color: rgb(255 255 255 / 0.7);
+}
+.kbb-table thead th.is-now {
+  background: #4c1d95; /* system purple = now */
+}
+.kbb-day {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgb(255 255 255 / 0.6);
+}
+.kbb-now {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 9.5px;
+  background: rgb(255 255 255 / 0.2);
+}
+.kbb-table td {
+  height: 112px;
+  padding: 6px;
+  vertical-align: middle;
+  background: var(--surface, #fff);
+  transition: background-color 0.2s;
+}
+.kbb-table td.is-past {
+  background: #fafafa;
+}
+.kbb-table td.is-now {
+  background: #f5f3ff;
+}
+.kbb-table tbody tr:hover td {
+  background: #f6f5ff;
+}
+
+/* sticky WORK ORDER column (solid, numbers never show through) */
+.kbb-stick {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: var(--kbb-n) !important;
+  min-width: var(--kbb-n) !important;
+  max-width: var(--kbb-n);
+}
+.kbb-corner {
+  z-index: 6 !important;
+  background: #27272a !important;
+  box-shadow: 4px 0 8px -4px rgb(0 0 0 / 0.35);
+}
+.kbb-name {
+  padding: 8px 12px;
+  text-align: center;
+  color: #fff;
+  background: #52525b;
+  box-shadow: 4px 0 8px -4px rgb(15 23 42 / 0.25);
+}
+.kbb-name span {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.kbb-name small {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: rgb(255 255 255 / 0.65);
+}
+
+/* the card: stacked look (2 layers behind) · rises in row by row, ends with no transform left */
+.kbb-card {
+  --c: #71717a;
+  position: relative;
+  padding: 8px 8px 6px;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, #fff);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow:
+    3px -3px 0 -1px #fff,
+    3px -3px 0 0 color-mix(in srgb, var(--c) 30%, #e4e4e7),
+    6px -6px 0 -1px #fff,
+    6px -6px 0 0 color-mix(in srgb, var(--c) 20%, #e4e4e7),
+    0 8px 18px -14px rgb(15 23 42 / 0.6);
+  margin: 6px 6px 0 0;
+  animation: kbb-in 0.45s var(--ease-drop) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+  transition: transform 0.4s var(--ease-drop);
+}
+.kbb-card:hover {
+  transform: translateY(-2px);
+}
+@keyframes kbb-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.kbb-card.is-late {
+  --c: #dc2626;
+  background: #fff5f5;
+  animation:
+    kbb-in 0.45s var(--ease-drop) backwards,
+    kbb-pulse 2.2s ease-in-out 0.6s infinite;
+}
+@keyframes kbb-pulse {
+  50% {
+    border-color: #fca5a5;
+  }
+}
+.kbb-card.is-run {
+  --c: #2563eb;
+}
+.kbb-card.is-done {
+  --c: #15803d;
+  opacity: 0.85;
+}
+.kbb-card b {
+  font-size: 12px;
+  color: #18181b;
+}
+.kbb-card small {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.kbb-x {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--c);
+}
+.kbb-img {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--kbb-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.kbb-st {
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--c);
+}
+
+.kbb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 10px 16px 12px;
+  border-top: 1px solid #eceef3;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.kbb-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  margin-right: 4px;
+  vertical-align: -2px;
+  background: #a1a1aa;
+}
+.kbb-dot.is-late {
+  background: #dc2626;
+}
+.kbb-dot.is-run {
+  background: #2563eb;
+}
+.kbb-dot.is-done {
+  background: #15803d;
+}
+
+@media (max-width: 640px) {
+  .kbb-scroll {
+    --kbb-n: 104px;
+    --kbb-c: 140px;
+    max-height: calc(100dvh - 230px);
+  }
+  .kbb-name {
+    padding: 6px;
+  }
+  .kbb-name span {
+    font-size: 10.5px;
+  }
+  .kbb-bar {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kbb-card,
+  .kbb-card.is-late {
+    animation: none;
+  }
+  .kbb-card:hover,
+  .kbb-btn:hover {
+    transform: none;
+  }
+}

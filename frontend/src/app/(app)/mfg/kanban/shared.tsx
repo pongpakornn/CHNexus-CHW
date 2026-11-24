@@ -7,7 +7,10 @@ import { useToast } from "@/components/notifications/Toasts";
 import { api } from "@/lib/api";
 import { sameData, useLive } from "@/lib/live";
 import { fadeOnly, fadeUp } from "@/lib/motion";
+import { formulaCards } from "@/lib/kanban";
 import "./kanban.css";
+
+export { formulaCards };
 
 // 🏭 MANUFACTURING › KANBAN: shared types · one data hook for the 4 pages (GET /api/kanban, live topic "kanban") · flow editor · entrance motion
 export type Step = { zone: string; point: string };
@@ -20,10 +23,12 @@ export type Kanban = {
   partNo: string | null;
   customer: string | null;
   customerName: string | null;
-  perBox: number;
+  perBox: number; // PACKING (pcs per box)
   orderQty: number;
   zone: string | null;
   note: string | null;
+  formulaId: number | null; // null = default formula
+  formulaName: string | null;
   target: number;
   auto: boolean;
   acc: number;
@@ -62,6 +67,8 @@ export type Machine = { zone: string; code: string; name: string | null; type: s
 /** Zone & Workstation Information (script 74): zone + its line-side store · active workstations */
 export type ZoneInfo = { code: string; name: string | null; status: string; store: string | null; storeName: string | null };
 export type Station = { zone: string; code: string; name: string | null; machine: string | null; machineName: string | null; operators: number };
+/** card formula (script 75): CARDS = ROUND( QTY x (1 + ALLOWANCE % / 100) / PACKING ) · at least 1 card */
+export type Formula = { id: number; name: string; roundMode: "UP" | "NEAREST" | "DOWN"; allowancePct: number; isDefault: boolean; used: number; updatedBy: string | null; updatedDate: string };
 /** flow point = every workstation of the zone (parallel) */
 export const ALL_STATIONS = "ALL";
 export type KanbanData = {
@@ -72,11 +79,12 @@ export type KanbanData = {
   scans: Scan[];
   options: { zones: string[]; machines: Machine[]; points: string[]; zoneInfo: ZoneInfo[]; stations: Station[]; zoneMaster: boolean };
   stuck: Stuck[];
+  formulas: Formula[];
 };
 
 export const isReady = (k: Kanban) => k.steps.length > 0;
-/** Kanban cards = qty / pcs per box (rounded up) */
-export const cardCount = (qty: number, perBox: number) => (Number.isSafeInteger(qty) && qty > 0 && perBox > 0 ? Math.ceil(qty / perBox) : 0);
+/** the formula a Kanban uses (none picked = default) */
+export const formulaOf = (k: Pick<Kanban, "formulaId"> | null | undefined, formulas: Formula[]) => formulas.find((f) => f.id === k?.formulaId) ?? formulas.find((f) => f.isDefault) ?? null;
 export const n0 = (v: number) => v.toLocaleString();
 export const when = (s: string | null) => (s ? new Date(s).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) : "-");
 
@@ -92,7 +100,7 @@ export function useKanbanData() {
       } catch (e) {
         if (quiet) return;
         toast.show("ERROR", "โหลดข้อมูล KANBAN ไม่สำเร็จ\n" + (e as Error).message, "error");
-        setData((d) => d ?? { can: { add: false, edit: false, delete: false }, kanbans: [], orders: [], receipts: [], scans: [], options: { zones: [], machines: [], points: [], zoneInfo: [], stations: [], zoneMaster: false }, stuck: [] });
+        setData((d) => d ?? { can: { add: false, edit: false, delete: false }, kanbans: [], orders: [], receipts: [], scans: [], options: { zones: [], machines: [], points: [], zoneInfo: [], stations: [], zoneMaster: false }, stuck: [], formulas: [] });
       }
     },
     [toast],
@@ -172,8 +180,8 @@ export function CardStack({ count, label }: { count: number; label?: string }) {
   );
 }
 
-/** Part Information rows that have a PART A (finished goods) · loaded once per page */
-export type Part = { id: number; partA: string; partNo: string; name: string; customer: string };
+/** Part Information rows that have a PART A or PART B (partA = the part code, kind = A / B) · packing = PackSize · loaded once per page */
+export type Part = { id: number; partA: string; kind: "A" | "B"; partNo: string; name: string; customer: string; packing: number };
 export function useParts() {
   const [parts, setParts] = useState<Part[] | null>(null);
   useEffect(() => {
@@ -204,8 +212,9 @@ export const STAGES = [
   { label: "พร้อมใช้งาน", cls: "is-ok" },
 ] as const;
 
-/** Kanban card preview (like the Pick List label preview): picture left · W/O / customer / PART A / PART NO / product name · creation progress */
-export function KanbanCard({ k, stage, pct }: { k: { code: string; partId: number | null; partA: string | null; partNo: string | null; name: string; customer: string | null; zone: string | null; perBox: number; cards: number }; stage: 0 | 1 | 2; pct: number }) {
+/** Kanban card preview (like the Pick List label preview): picture left · W/O / customer / PART / PART NO / product name · creation stage
+ *  (production progress is shown where the card is used: สั่งผลิต · KANBAN BOARD) */
+export function KanbanCard({ k, stage }: { k: { code: string; partId: number | null; partA: string | null; partNo: string | null; name: string; customer: string | null; zone: string | null; perBox: number; formula: string | null }; stage: 0 | 1 | 2 }) {
   const st = STAGES[stage];
   return (
     <article className="kb-card" aria-label="KANBAN PREVIEW">
@@ -222,7 +231,7 @@ export function KanbanCard({ k, stage, pct }: { k: { code: string; partId: numbe
         <dl className="kb-card-dl">
           <dt>CUSTOMER</dt>
           <dd>{k.customer || "-"}</dd>
-          <dt>PART A</dt>
+          <dt>PART</dt>
           <dd className="font-mono text-[15px] font-black text-ink">{k.partA || "-"}</dd>
           <dt>PART NO</dt>
           <dd className="font-mono">{k.partNo || "-"}</dd>
@@ -232,15 +241,10 @@ export function KanbanCard({ k, stage, pct }: { k: { code: string; partId: numbe
         <p className="kb-card-meta">
           <span className="font-mono">{k.code || "KANBAN CODE"}</span>
           <span>
-            {k.zone || "-"} · {n0(k.perBox)} ชิ้น/กล่อง · <b>{n0(k.cards)} ใบ</b>
+            {k.zone || "-"} · PACKING <b>{n0(k.perBox)}</b>
           </span>
         </p>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="kb-track flex-1">
-            <span key={pct} className={`kb-fill block ${stage === 2 ? "is-ok" : ""}`} style={{ width: `${pct}%` }} />
-          </span>
-          <b className="w-10 text-right font-mono text-sm text-primary">{pct}%</b>
-        </div>
+        {k.formula && <p className="mt-1 truncate text-[11px] font-bold text-ink-soft">ƒx {k.formula}</p>}
       </div>
     </article>
   );

@@ -511,7 +511,7 @@ function ProductForm({ m, fix, meta, category, onCancel, onSave }: { m: PvMissin
         {fld("customer", "CUSTOMER", true)}
         {fld("model", "MODEL")}
         {fld("category", "CATEGORY")}
-        {fld("packSize", "PACKSIZE", false, "ตัวเลข")}
+        {fld("packSize", "PACKING", false, "ตัวเลข")}
         {fld("supplier", "SUPPLIER")}
         {fld("bin", "BIN")}
         <label className="ff-fld">

@@ -40,7 +40,7 @@ const AUTO_SRC: Opt[] = [
   { key: "PARTB", label: "PART B" },
   { key: "PARTNO", label: "PART NO" },
   { key: "BIN", label: "BIN" },
-  { key: "PACKSIZE", label: "PACKSIZE" },
+  { key: "PACKSIZE", label: "PACKING" },
 ];
 // ป้าย NEW (ช่องที่สร้างไม่เกิน 4 สัปดาห์ - Server ตัดสิน)
 const NewDot = () => <span className="cf-new" title="ช่องใหม่ (แสดง 4 สัปดาห์)">NEW</span>;

@@ -35,6 +35,7 @@ public sealed class KanbanController : AppController
                 scans = _svc.Scans(),
                 options = _svc.Options(),
                 stuck = _svc.Stuck(),
+                formulas = _svc.Formulas(),
             });
         }
         catch (Exception ex) { return Fail(ex, "โหลดข้อมูล KANBAN ไม่สำเร็จ"); }
@@ -51,7 +52,8 @@ public sealed class KanbanController : AppController
     }
 
     // PartId = Part Information row · PART A / PART NO / Product Name are copied from it on the server (screen values are not trusted)
-    public sealed record KanbanRequest(string Code, int? PartId, string Customer, int PerBox, int OrderQty, string Zone, string Note);
+    // PerBox = PACKING (auto from the part's PackSize, editable) · FormulaId null = default formula · OrderQty / Note are no longer edited (kept as they are)
+    public sealed record KanbanRequest(string Code, int? PartId, string Customer, int PerBox, int? FormulaId, string Zone);
 
     [HttpPost("kanbans")]
     public IActionResult Add([FromBody] KanbanRequest req) => Save(0, req);
@@ -62,26 +64,29 @@ public sealed class KanbanController : AppController
     private IActionResult Save(int id, KanbanRequest q)
     {
         if (Guard(id == 0 ? Me?.CanAddKanban == true : Me?.CanEditKanban == true) is { } g) return g;
-        var r = new KanbanRow { Code = Up(q?.Code, 60) ?? "", Customer = Up(q?.Customer, 50), PerBox = q?.PerBox ?? 0, OrderQty = q?.OrderQty ?? 0, Zone = Up(q?.Zone, 50), Note = Text(q?.Note, 300) };
+        var r = new KanbanRow { Code = Up(q?.Code, 60) ?? "", Customer = Up(q?.Customer, 50), PerBox = q?.PerBox ?? 0, Zone = Up(q?.Zone, 50) };
         if (r.Code.Length == 0) return Fail("กรุณากรอกรหัสงาน (KANBAN CODE)");
         if (!MasterDataController.CodeOk.IsMatch(r.Code)) return Fail($"รหัสงาน \"{r.Code}\" ใช้ไม่ได้\nใช้ได้เฉพาะ A-Z 0-9 เว้นวรรค - _ . / & ( ) ยาวไม่เกิน 50 ตัว");
-        if (q?.PartId is not int partId) return Fail("กรุณาเลือก PART A / PART NO / PRODUCT NAME");
+        if (q?.PartId is not int partId) return Fail("กรุณาเลือก PART / PART NO / PRODUCT NAME");
         var part = _svc.Part(partId);
         if (part == null) return Fail("ไม่พบ PART นี้ใน Part Information (อาจถูกปิดใช้งาน) กรุณาเลือกใหม่");
         (r.PartId, r.PartA, r.PartNo, r.Name) = (partId, Text(part.PartA, 50), Text(part.PartNo, 100), Text(part.Name, 200) ?? Text(part.PartA, 200));
         r.Customer ??= Up(part.Customer, 50);
-        if (r.PerBox is < 1 or > 1_000_000) return Fail("จำนวนชิ้นงานต่อกล่อง ต้องเป็นจำนวนเต็ม 1 - 1,000,000");
-        if (r.OrderQty is < 1 or > 100_000_000) return Fail("จำนวนที่สั่งผลิต ต้องเป็นจำนวนเต็มมากกว่า 0");
+        if (r.PerBox is < 1 or > 1_000_000) return Fail("PACKING ต้องเป็นจำนวนเต็ม 1 - 1,000,000 ชิ้นต่อกล่อง");
+        var fo = q.FormulaId is int fid ? _svc.Formulas().FirstOrDefault(f => f.Id == fid) : null;
+        if (q.FormulaId != null && fo == null) return Fail("ไม่พบสูตรคำนวณที่เลือก (อาจถูกลบไปแล้ว) กรุณาเลือกใหม่");
+        (r.FormulaId, r.FormulaName) = (fo?.IsDefault == true ? null : fo?.Id, fo?.Name ?? "DEFAULT");
         var old = id == 0 ? null : _svc.Kanban(id);
         if (id != 0 && old == null) return Fail("ไม่พบ Kanban นี้ (อาจถูกลบไปแล้ว)");
+        (r.OrderQty, r.Note) = (old?.OrderQty ?? r.PerBox, old?.Note);
         if (r.Zone != old?.Zone && !ZoneService.ZoneExists(r.Zone)) return Fail($"ไม่พบ ZONE \"{r.Zone}\" ใน Master Data › Zone & Workstation Information");
         if (_svc.CodeExists(r.Code, id)) return Fail($"มีรหัสงาน \"{r.Code}\" อยู่แล้ว");
         try
         {
             int newId = _svc.Save(id, r, Uid);
-            string now = $"{r.Code} | {r.PartA} | {r.PartNo ?? "-"} | {r.Name} | {r.Customer ?? "-"} | PER BOX {r.PerBox} | QTY {r.OrderQty} | ZONE {r.Zone ?? "-"}";
+            string now = $"{r.Code} | {r.PartA} | {r.PartNo ?? "-"} | {r.Name} | {r.Customer ?? "-"} | PACKING {r.PerBox} | FORMULA {r.FormulaName} | ZONE {r.Zone ?? "-"}";
             LogService.WriteLog(Uid, old == null ? "KANBAN_ADD" : "KANBAN_EDIT",
-                old == null ? "Kanban: " + now : $"Kanban: {old.Code} | {old.PartA ?? "-"} | {old.PartNo ?? "-"} | {old.Name} | {old.Customer ?? "-"} | PER BOX {old.PerBox} | QTY {old.OrderQty} | ZONE {old.Zone ?? "-"} > {now}", r.Code);
+                old == null ? "Kanban: " + now : $"Kanban: {old.Code} | {old.PartA ?? "-"} | {old.PartNo ?? "-"} | {old.Name} | {old.Customer ?? "-"} | PACKING {old.PerBox} | FORMULA {old.FormulaName ?? "-"} | ZONE {old.Zone ?? "-"} > {now}", r.Code);
             return Ok(new { id = newId, message = old == null ? $"บันทึก Kanban {r.Code} แล้ว · ตั้งค่า FLOW ต่อได้เลย" : $"บันทึก Kanban {r.Code} แล้ว" });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
@@ -101,6 +106,50 @@ public sealed class KanbanController : AppController
             return Ok(new { message = $"ลบ Kanban {old.Code} แล้ว" });
         }
         catch (Exception ex) { return Fail(ex, "ลบไม่สำเร็จ"); }
+    }
+
+    // ---------------------------------------------------------------- card formulas (like Max-Min formulas · rights = EDIT)
+    public sealed record FormulaRequest(int Id, string Name, string RoundMode, decimal AllowancePct);
+    private static string Fx(KFormula f) => $"{f.Name} | {f.RoundMode} | +{f.AllowancePct:0.##}%";
+
+    [HttpPost("formulas")]
+    public IActionResult SaveFormula([FromBody] FormulaRequest req)
+    {
+        if (Guard(Me?.CanEditKanban == true) is { } g) return g;
+        string name = Up(req?.Name, 100);
+        string round = (req?.RoundMode ?? "").Trim().ToUpperInvariant();
+        decimal pct = Math.Round(req?.AllowancePct ?? -1, 2);
+        if (name == null) return Fail("กรุณากรอกชื่อสูตร (FORMULA NAME)");
+        if (round is not ("UP" or "NEAREST" or "DOWN")) return Fail("กรุณาเลือกวิธีปัดเศษ (ROUND)");
+        if (pct is < 0 or > 100) return Fail("เผื่อ (ALLOWANCE) ต้องอยู่ระหว่าง 0 - 100 %");
+        var old = req.Id == 0 ? null : _svc.Formulas().FirstOrDefault(f => f.Id == req.Id);
+        if (req.Id != 0 && old == null) return Fail("ไม่พบสูตรนี้ (อาจถูกลบไปแล้ว)");
+        if (_svc.FormulaNameExists(name, req.Id)) return Fail($"มีชื่อสูตร \"{name}\" อยู่แล้ว");
+        try
+        {
+            int id = _svc.SaveFormula(req.Id, name, round, pct, Uid);
+            var now = new KFormula { Name = name, RoundMode = round, AllowancePct = pct };
+            LogService.WriteLog(Uid, old == null ? "KANBAN_FORMULA_ADD" : "KANBAN_FORMULA_EDIT", old == null ? "Formula: " + Fx(now) : $"Formula: {Fx(old)} > {Fx(now)}", name);
+            return Ok(new { id, message = $"บันทึกสูตร {name} แล้ว" + (old?.Used > 0 ? $" · มีผลกับ Kanban {old.Used} รายการ (ใบสั่งผลิตถัดไป)" : "") });
+        }
+        catch (Exception ex) { return Fail(ex, "บันทึกสูตรไม่สำเร็จ"); }
+    }
+
+    [HttpDelete("formulas/{id:int}")]
+    public IActionResult DeleteFormula(int id)
+    {
+        if (Guard(Me?.CanEditKanban == true) is { } g) return g;
+        var f = _svc.Formulas().FirstOrDefault(x => x.Id == id);
+        if (f == null) return Fail("ไม่พบสูตรนี้ (อาจถูกลบไปแล้ว)");
+        if (f.IsDefault) return Fail("สูตรมาตรฐาน (DEFAULT) ลบไม่ได้");
+        if (f.Used > 0) return Fail($"ลบไม่ได้: มี Kanban ใช้สูตรนี้อยู่ {f.Used} รายการ");
+        try
+        {
+            _svc.DeleteFormula(id);
+            LogService.WriteLog(Uid, "KANBAN_FORMULA_DELETE", "Formula: " + Fx(f), f.Name);
+            return Ok(new { message = $"ลบสูตร {f.Name} แล้ว" });
+        }
+        catch (Exception ex) { return Fail(ex, "ลบสูตรไม่สำเร็จ"); }
     }
 
     public sealed record StepDto(string Zone, string Point);
@@ -247,13 +296,14 @@ public sealed class KanbanController : AppController
             (steps, err) = CleanSteps(req.Steps);
             if (err != null) return Fail(err);
         }
-        int cards = (req.Qty + k.PerBox - 1) / k.PerBox;
+        var fo = _svc.Formula(k.FormulaId);
+        int cards = fo.Cards(req.Qty, k.PerBox);
         if (cards > KanbanService.MaxCards) return Fail($"ใบ Kanban เกิน {KanbanService.MaxCards:N0} ใบต่อการสั่งหนึ่งครั้ง ({cards:N0} ใบ) กรุณาแบ่งสั่ง");
         DateTime? planned = DateTime.TryParse(req.PlannedStart, CultureInfo.InvariantCulture, DateTimeStyles.None, out var p) ? p : null;
         try
         {
-            int id = _svc.AddOrder(k.Id, req.Qty, k.PerBox, mode, planned, steps, req.ReceiptId, Uid);
-            LogService.WriteLog(Uid, "KANBAN_ORDER_ADD", $"Order #{id} | {k.Code} | Qty {req.Qty} = {cards} cards | {mode} | {string.Join(" > ", steps.Select(s => s.Point))}" + (req.ReceiptId != null ? $" | Receipt #{req.ReceiptId}" : ""), k.Code);
+            int id = _svc.AddOrder(k.Id, req.Qty, k.PerBox, cards, mode, planned, steps, req.ReceiptId, Uid);
+            LogService.WriteLog(Uid, "KANBAN_ORDER_ADD", $"Order #{id} | {k.Code} | Qty {req.Qty} = {cards} cards ({fo.Name}) | {mode} | {string.Join(" > ", steps.Select(s => s.Point))}" + (req.ReceiptId != null ? $" | Receipt #{req.ReceiptId}" : ""), k.Code);
             return Ok(new { id, message = $"สั่งผลิต {k.Code} แล้ว · {req.Qty:N0} ชิ้น = {cards:N0} ใบ Kanban" });
         }
         catch (InvalidOperationException ex) { return Fail(ex.Message); }

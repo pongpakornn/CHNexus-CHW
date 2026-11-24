@@ -32,7 +32,7 @@ const COLUMNS: [string, string][] = [
   // ช่องข้อมูลสินค้าจาก Product Control
   ["SUPPLIER", "SUPPLIER"],
   ["CATEGORY", "CATEGORY"],
-  ["PACKSIZE", "PACK SIZE"],
+  ["PACKSIZE", "PACKING"],
   ["BIN", "BIN"],
 ];
 const SUB_ROWS: [string, string][] = [

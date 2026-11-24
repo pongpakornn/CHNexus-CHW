@@ -545,14 +545,14 @@ export default function WofPlan({ id }: { id: number }) {
                               <div className="wof-part-more">
                                 <div className="wof-part-m">A: {it.partA || "-"} · CODE: {it.partCode || "-"}</div>
                                 <label className="wof-part-f">
-                                  PACK SIZE
+                                  PACKING
                                   {editable ? (
                                     <input
                                       inputMode="numeric"
                                       defaultValue={it.packSize ?? ""}
                                       onBlur={(e) => {
                                         const v = parseQty(e.target.value);
-                                        if (v === undefined || (v !== null && (!Number.isInteger(v) || v < 1))) return toast.show("WARNING", "PACK SIZE ต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป", "warn");
+                                        if (v === undefined || (v !== null && (!Number.isInteger(v) || v < 1))) return toast.show("WARNING", "PACKING ต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป", "warn");
                                         if (v !== it.packSize) void patchItem(it, { packSize: v });
                                       }}
                                     />
@@ -587,7 +587,7 @@ export default function WofPlan({ id }: { id: number }) {
                             </td>
                           )}
                           {ri === PLAN_ROWS && <td rowSpan={7 - PLAN_ROWS} className="wof-sg" />}
-                          <td className="wof-s2 wof-rl" title={info?.th ?? "ST. = DEL ÷ PACK SIZE (ปัดขึ้น)"}>
+                          <td className="wof-s2 wof-rl" title={info?.th ?? "ST. = DEL ÷ PACKING (ปัดขึ้น)"}>
                             {info?.label ?? "ST."}
                           </td>
                           {days.map((n) => {

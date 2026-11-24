@@ -388,7 +388,7 @@ function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: Reg
   async function save() {
     if (mode === "PICK" && !part) return toast.show("WARNING", "กรุณาเลือกสินค้า (ค้นหา PD CODE / ชื่อสินค้า)", "warn");
     if (mode === "CODE" && !code.trim()) return toast.show("WARNING", "กรุณากรอก PRODUCT CODE", "warn");
-    if (mode === "CODE" && pack.trim() && !/^\d+$/.test(pack.trim())) return toast.show("WARNING", "PACKSIZE ต้องเป็นตัวเลข", "warn");
+    if (mode === "CODE" && pack.trim() && !/^\d+$/.test(pack.trim())) return toast.show("WARNING", "PACKING ต้องเป็นตัวเลข", "warn");
     const pcode = mode === "PICK" ? part!.partCode : code.trim();
     const v = { max: parseNum(f.max), min: parseNum(f.min), coilCount: parseNum(f.coilCount), qty: parseNum(f.qty) };
     if (Object.values(v).some((x) => x !== null && (Number.isNaN(x) || x < 0))) return toast.show("WARNING", "MAX / MIN / STOCK ต้องเป็นตัวเลข (เว้นว่างได้)", "warn");
@@ -488,7 +488,7 @@ function RegisterModal({ row, stocks, onClose, onDone }: { row: Row; stocks: Reg
               <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PACKSIZE</span>
+              <span className="mb-1 block text-xs font-extrabold uppercase text-ink-soft">PACKING</span>
               <input className="field" inputMode="numeric" value={pack} onChange={(e) => setPack(e.target.value.replace(/\D/g, ""))} />
             </label>
           </div>

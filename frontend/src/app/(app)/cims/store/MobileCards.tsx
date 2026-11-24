@@ -109,7 +109,7 @@ const META: [string, keyof Product, string][] = [
   ["MODEL", "model", "MODEL"],
   ["SUPPLIER", "supplier", "SUPPLIER"],
   ["CATEGORY", "category", "CATEGORY"],
-  ["PACKSIZE", "packSize", "PACK SIZE"],
+  ["PACKSIZE", "packSize", "PACKING"],
   ["BIN", "bin", "BIN"],
 ];
 

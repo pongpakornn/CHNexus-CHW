@@ -1,4 +1,4 @@
-﻿using Nexus.Core;
+using Nexus.Core;
 using Microsoft.Data.SqlClient;
 using System;
 
@@ -235,8 +235,10 @@ namespace Nexus.Helpers
         // 72_Mfg_Kanban.sql: MANUFACTURING › KANBAN CONTROL (schema Kanban)
         private static bool _kanban;
         // + script 73: Kanban.Kanbans.PartID / PartA / PartNo (Kanban Management picks the part from Part Information)
+        // + script 75: Kanban.Formulas + Kanbans.FormulaID (card formula picked per Kanban)
         public static bool HasKanban => _kanban || (_kanban = TableExists("Kanban.Kanbans") == true && TableExists("Kanban.Receipts") == true && TableExists("Kanban.Cards") == true
-                                                              && ScalarTrue("SELECT CASE WHEN COL_LENGTH('Kanban.Kanbans', 'PartNo') IS NOT NULL THEN 1 ELSE 0 END"));
+                                                              && TableExists("Kanban.Formulas") == true
+                                                              && ScalarTrue("SELECT CASE WHEN COL_LENGTH('Kanban.Kanbans', 'PartNo') IS NOT NULL AND COL_LENGTH('Kanban.Kanbans', 'FormulaID') IS NOT NULL THEN 1 ELSE 0 END"));
         private static bool ScalarTrue(string sql)
         {
             try
