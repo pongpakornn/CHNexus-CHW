@@ -219,7 +219,7 @@
   background: #fee2e2;
 }
 
-/* part image placeholder (Set Kanban) */
+/* part image placeholder (Kanban Management) */
 .kb-photo {
   display: grid;
   place-items: center;
@@ -267,7 +267,7 @@
   border-color: color-mix(in srgb, var(--kb-ok) 45%, var(--line));
   box-shadow: 0 10px 24px -22px var(--kb-ok);
 }
-.kb-acc .kb-fill.is-ok {
+.kb-fill.is-ok {
   --c: var(--kb-ok);
 }
 
@@ -295,4 +295,245 @@
 }
 .kb .md-seg.is-2 .md-seg-glider {
   width: calc((100% - 8px) / 2);
+}
+
+/* Kanban card preview (Kanban Management) · like the Pick List label preview */
+.kb-pill.is-draft {
+  color: var(--ink-soft);
+  background: var(--g-100, #f1f1f3);
+}
+.kb-card {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  max-width: 440px;
+  border: 1px solid color-mix(in srgb, var(--kb) 22%, var(--line));
+  border-radius: 18px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fff, #f8fbff);
+  box-shadow: 0 18px 36px -28px color-mix(in srgb, var(--kb) 70%, transparent);
+  animation: kb-in 0.45s var(--ease-drop) both;
+  transition:
+    transform 0.4s var(--ease-drop),
+    box-shadow 0.4s var(--ease-drop);
+}
+.kb-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 40px -28px var(--kb);
+}
+.kb-card-img {
+  flex-shrink: 0;
+  width: 104px;
+  height: 104px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  background: radial-gradient(circle at 50% 40%, #eff6ff, #fff 75%);
+}
+.kb-card-wo {
+  font-size: 14px;
+  font-weight: 900;
+}
+.kb-card-dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.kb-card-dl dt {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 20px;
+  color: var(--ink-soft);
+}
+.kb-card-dl dt::after {
+  content: " :";
+}
+.kb-card-dl dd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 20px;
+}
+.kb-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  margin-top: 6px;
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.kb-card-meta b {
+  color: var(--kb);
+}
+@media (max-width: 420px) {
+  .kb-card-img {
+    width: 76px;
+    height: 76px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-card {
+    animation: none;
+    transition: none;
+  }
+  .kb-card:hover {
+    transform: none;
+  }
+}
+
+/* part picture (Kanban Management form) */
+.kb-photo img {
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+}
+.kb-photo.has-img {
+  border-style: solid;
+  background: #fff;
+}
+
+/* Dashboard charts (flow-master layout, CHR-Nexus colors) */
+.kb-donut {
+  overflow: visible;
+}
+.kb-donut-bg {
+  stroke: var(--g-100, #f1f1f3);
+}
+.kb-donut-seg {
+  shape-rendering: geometricPrecision;
+  transition: stroke-width 0.25s var(--ease-drop);
+  animation: kb-fade 0.6s var(--ease-drop) both;
+}
+.kb-donut-seg:hover {
+  stroke-width: 22;
+}
+.kb-donut-n {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 22px;
+  font-weight: 900;
+  fill: var(--ink);
+}
+.kb-donut-l {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  fill: var(--ink-soft);
+}
+.kb-cols {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 150px;
+}
+.kb-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+}
+.kb-col-bar {
+  width: 100%;
+  max-width: 42px;
+  border-radius: 8px 8px 3px 3px;
+  background: linear-gradient(180deg, var(--kb), color-mix(in srgb, var(--kb) 45%, #fff));
+  transform-origin: bottom;
+  animation: kb-grow-y 0.8s var(--ease-drop) both;
+  transition: filter 0.25s;
+}
+.kb-col:hover .kb-col-bar {
+  filter: brightness(1.12);
+}
+.kb-cols-x {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.kb-cols-x > span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.kb-split {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--g-100, #f1f1f3);
+}
+.kb-split > span {
+  flex-basis: 0;
+  min-width: 0;
+  transform-origin: left;
+  animation: kb-grow 0.9s var(--ease-drop) both;
+}
+.kb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--kb-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kb-ok) 20%, transparent);
+}
+.kb-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--kb-warn) 30%, var(--line));
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #fffbeb;
+  color: var(--kb-warn);
+}
+.kb-rank {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--kb);
+  background: #dbeafe;
+}
+@keyframes kb-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes kb-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-donut-seg,
+  .kb-col-bar,
+  .kb-split > span {
+    animation: none;
+    transition: none;
+  }
+}
+button.kb-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }

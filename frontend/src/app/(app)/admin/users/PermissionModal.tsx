@@ -25,7 +25,7 @@ export const GROUPS: Grp[] = [
   { key: "PP", title: "PRODUCTION PLAN", sub: "Dashboard · Capacity (M/C Actual) · Master Data › Production Plan STD", color: "#0d9488", icon: "/icons/DashboardChart.png", ids: ["PpDashboard", "PpCapacity", "PpSetup"] },
   { key: "CHEM", title: "CHEMICAL CONTROL", sub: "Inspection Record · Control Chart · Parameter Setup (ลงลายเซ็นตาม SIGN FLOW)", color: "#2563eb", icon: "/icons/DashboardChart.png", ids: ["ChemRecord", "ChemSetup"] },
   { key: "PC", title: "PC DIGITAL WORKSPACE", sub: "Work Order Follow · Dashboard · Setup Flow (อนุมัติ)", color: "#4f46e5", icon: "/icons/ForecastOrder.png", ids: ["PC_WOF"] },
-  { key: "MFG", title: "MANUFACTURING", sub: "Kanban Control · Dashboard · Set Kanban · สะสม / รับยอด · สั่งผลิต", color: "#2563eb", icon: "/icons/PickList.png", ids: ["MFG_KANBAN"] },
+  { key: "MFG", title: "MANUFACTURING", sub: "Kanban · Dashboard · Kanban Management · สะสม / รับยอด · สั่งผลิต", color: "#2563eb", icon: "/icons/PickList.png", ids: ["MFG_KANBAN"] },
   { key: "ADMIN", title: "USER MANAGEMENT", sub: "ผู้ใช้ · สิทธิ์ · Activity Log", color: "#4f46e5", icon: "/icons/management.png", ids: ["UserManagement", "ActivityLog"] },
   { key: "OTHER", title: "OTHER", sub: "ระบบอื่น ๆ", color: "#71717a", icon: "/icons/Systems.png" },
 ];

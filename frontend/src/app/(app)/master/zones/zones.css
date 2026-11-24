@@ -1,0 +1,64 @@
+/* 🏭 Zone & Workstation Information: zone rows read as group headers · stations indented under them */
+.data-table tr.zn-zone > td {
+  background: color-mix(in srgb, #2563eb 6%, var(--surface, #fff));
+  border-top: 1px solid color-mix(in srgb, #2563eb 18%, var(--line));
+}
+.data-table tr.zn-station > td:nth-child(2) {
+  padding-left: 28px;
+}
+.zn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 2px 6px;
+  transition: background 0.2s;
+}
+.zn-toggle:hover {
+  background: color-mix(in srgb, #2563eb 12%, transparent);
+}
+.zn-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.zn-store {
+  display: inline-flex;
+  border-radius: 99px;
+  padding: 2px 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 800;
+  color: #15803d;
+  background: #dcfce7;
+}
+.zn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 99px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: var(--ink);
+  background: var(--g-100, #f1f1f3);
+  transition:
+    background 0.2s,
+    transform 0.25s var(--ease-drop);
+}
+.zn-pill:hover {
+  background: var(--g-200, #e4e4e7);
+  transform: translateY(-1px);
+}
+.zn-pill.is-blue {
+  color: #2563eb;
+  background: #dbeafe;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zn-pill {
+    transition: none;
+  }
+  .zn-pill:hover {
+    transform: none;
+  }
+}

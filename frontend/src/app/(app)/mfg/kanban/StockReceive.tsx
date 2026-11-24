@@ -9,7 +9,7 @@ import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { useDebounced } from "@/lib/useDebounced";
 import { cardCount, CardStack, n0, Rise, useKanbanData, useRun, when, type Kanban } from "./shared";
 
-// 📥 KANBAN CONTROL › สะสมยอด / รับยอด (one page)
+// 📥 KANBAN › สะสมยอด / รับยอด (one page)
 //   สะสมยอด: sales scan history (+qty) per Kanban · target per Kanban + AUTO (reaches target = received automatically)
 //   รับยอด : accumulated >= target -> RECEIVE moves the target qty to "รอสั่งผลิต" (extra stays accumulated)
 //   รอสั่งผลิต: สั่งผลิต (opens the order page with this qty) · คืนยอด (back to accumulated)
@@ -54,7 +54,7 @@ export default function StockReceive() {
 
   const kanbans = useMemo(() => {
     const t = q.trim().toUpperCase();
-    return (data?.kanbans ?? []).filter((k) => !t || [k.code, k.name, k.customer].some((v) => (v ?? "").toUpperCase().includes(t)));
+    return (data?.kanbans ?? []).filter((k) => !t || [k.code, k.partA, k.partNo, k.name, k.customer].some((v) => (v ?? "").toUpperCase().includes(t)));
   }, [data, q]);
   const waiting = useMemo(() => (data?.receipts ?? []).filter((r) => r.status === "WAITING"), [data]);
   const history = useMemo(() => (data?.receipts ?? []).filter((r) => r.status === "ORDERED").slice(0, 30), [data]);
@@ -91,7 +91,7 @@ export default function StockReceive() {
 
   return (
     <PageBody className="md-gray md-partner kb">
-      <PageHeader icon="/icons/MultiScanner.png" title="สะสมยอด / รับยอด" subtitle="KANBAN CONTROL · สะสมยอดขาย (StockFG) → ถึงยอดที่กำหนด = รับยอด → รอสั่งผลิต" />
+      <PageHeader icon="/icons/MultiScanner.png" title="สะสมยอด / รับยอด" subtitle="KANBAN · สะสมยอดขาย (StockFG) → ถึงยอดที่กำหนด = รับยอด → รอสั่งผลิต" />
       {!data ? (
         <Loading />
       ) : (
@@ -158,9 +158,9 @@ export default function StockReceive() {
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             {/* accumulated per Kanban */}
             <Rise i={1}>
-              <Card title={`ยอดสะสมต่อ KANBAN • ${n0(kanbans.length)}`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหา CODE / ชื่องาน" className="w-[240px] max-w-full" />} bodyClass="p-3 md:p-4">
+              <Card title={`ยอดสะสมต่อ KANBAN • ${n0(kanbans.length)}`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหา CODE / PART A / PRODUCT NAME" className="w-[240px] max-w-full" />} bodyClass="p-3 md:p-4">
                 {kanbans.length === 0 ? (
-                  <Empty>{data.kanbans.length ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มี Kanban · ไปที่ SET KANBAN"}</Empty>
+                  <Empty>{data.kanbans.length ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มี Kanban · สร้างที่ KANBAN MANAGEMENT"}</Empty>
                 ) : (
                   <div className="grid gap-3">
                     {kanbans.map((k) => {
@@ -207,16 +207,16 @@ export default function StockReceive() {
                   <div className="grid gap-3">
                     <label className="block min-w-0">
                       <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">KANBAN *</span>
-                      <ComboBox value={scanK} onChange={setScanK} options={kOpts} ariaLabel="KANBAN" placeholder="พิมพ์ค้นหา / เลือก Kanban" />
+                      <ComboBox value={scanK} onChange={setScanK} options={kOpts} ariaLabel="KANBAN" placeholder="พิมพ์ค้นหา / เลือก Kanban (CODE / PART A)" />
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block min-w-0">
                         <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">จำนวนที่ขายออก *</span>
-                        <input className="field font-mono" inputMode="numeric" value={qty} placeholder="0" onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => e.key === "Enter" && addScan()} />
+                        <input className="field font-mono" inputMode="numeric" value={qty} placeholder="จำนวนชิ้น" onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => e.key === "Enter" && addScan()} />
                       </label>
                       <label className="block min-w-0">
                         <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">เลขที่เอกสาร</span>
-                        <input className="field font-mono uppercase" maxLength={50} value={ref} placeholder="เช่น SO-0001" onChange={(e) => setRef(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && addScan()} />
+                        <input className="field font-mono uppercase" maxLength={50} value={ref} placeholder="เลขที่เอกสารอ้างอิง (ถ้ามี)" onChange={(e) => setRef(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && addScan()} />
                       </label>
                     </div>
                     <button type="button" className="btn bg-accent" disabled={busy} onClick={addScan}>

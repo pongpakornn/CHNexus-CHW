@@ -9,12 +9,15 @@ import { sameData, useLive } from "@/lib/live";
 import { fadeOnly, fadeUp } from "@/lib/motion";
 import "./kanban.css";
 
-// 🏭 MANUFACTURING › KANBAN CONTROL: shared types · one data hook for the 4 pages (GET /api/kanban, live topic "kanban") · flow editor · entrance motion
+// 🏭 MANUFACTURING › KANBAN: shared types · one data hook for the 4 pages (GET /api/kanban, live topic "kanban") · flow editor · entrance motion
 export type Step = { zone: string; point: string };
 export type Kanban = {
   id: number;
   code: string;
-  name: string;
+  name: string; // Product Name (Part Information)
+  partId: number | null;
+  partA: string | null;
+  partNo: string | null;
   customer: string | null;
   customerName: string | null;
   perBox: number;
@@ -34,6 +37,9 @@ export type Order = {
   kanbanId: number;
   code: string;
   name: string;
+  partId: number | null;
+  partA: string | null;
+  partNo: string | null;
   customer: string | null;
   zone: string | null;
   qty: number;
@@ -51,14 +57,21 @@ export type Order = {
 };
 export type Receipt = { id: number; kanbanId: number; code: string; name: string; customer: string | null; perBox: number; qty: number; status: "WAITING" | "ORDERED"; orderId: number | null; isAuto: boolean; receivedBy: string | null; receivedAt: string };
 export type Scan = { id: number; kanbanId: number; code: string; name: string; qty: number; ref: string | null; by: string | null; at: string };
+export type Stuck = { id: number; code: string; partA: string | null; seq: number; total: number; point: string; zone: string; minutes: number };
 export type Machine = { zone: string; code: string; name: string | null; type: string };
+/** Zone & Workstation Information (script 74): zone + its line-side store · active workstations */
+export type ZoneInfo = { code: string; name: string | null; status: string; store: string | null; storeName: string | null };
+export type Station = { zone: string; code: string; name: string | null; machine: string | null; machineName: string | null; operators: number };
+/** flow point = every workstation of the zone (parallel) */
+export const ALL_STATIONS = "ALL";
 export type KanbanData = {
   can: { add: boolean; edit: boolean; delete: boolean };
   kanbans: Kanban[];
   orders: Order[];
   receipts: Receipt[];
   scans: Scan[];
-  options: { zones: string[]; machines: Machine[]; points: string[] };
+  options: { zones: string[]; machines: Machine[]; points: string[]; zoneInfo: ZoneInfo[]; stations: Station[]; zoneMaster: boolean };
+  stuck: Stuck[];
 };
 
 export const isReady = (k: Kanban) => k.steps.length > 0;
@@ -79,7 +92,7 @@ export function useKanbanData() {
       } catch (e) {
         if (quiet) return;
         toast.show("ERROR", "โหลดข้อมูล KANBAN ไม่สำเร็จ\n" + (e as Error).message, "error");
-        setData((d) => d ?? { can: { add: false, edit: false, delete: false }, kanbans: [], orders: [], receipts: [], scans: [], options: { zones: [], machines: [], points: [] } });
+        setData((d) => d ?? { can: { add: false, edit: false, delete: false }, kanbans: [], orders: [], receipts: [], scans: [], options: { zones: [], machines: [], points: [], zoneInfo: [], stations: [], zoneMaster: false }, stuck: [] });
       }
     },
     [toast],
@@ -122,7 +135,11 @@ export function Rise({ i = 0, className, children }: { i?: number; className?: s
 
 /** status pill: พร้อมใช้งาน / ยังไม่พร้อมใช้งาน */
 export function ReadyPill({ ready }: { ready: boolean }) {
-  return <span className={`kb-pill ${ready ? "is-ok" : "is-warn"}`}>{ready ? "พร้อมใช้งาน" : "ยังไม่พร้อมใช้งาน"}</span>;
+  return (
+    <span className={`kb-pill ${ready ? "is-ok" : "is-warn"}`} title={ready ? undefined : "ต้อง SET FLOW ก่อนจึงจะใช้งาน Kanban นี้ได้"}>
+      {ready ? "พร้อมใช้งาน" : "ยังไม่พร้อมใช้งาน · รอ SET FLOW"}
+    </span>
+  );
 }
 
 /** flow chips: 1 › 2 › 3 */
@@ -131,9 +148,9 @@ export function FlowChips({ steps }: { steps: Step[] }) {
   return (
     <span className="kb-flow">
       {steps.map((s, i) => (
-        <span key={i} className={`kb-chip ${i === 0 ? "is-first" : ""}`} title={s.zone}>
+        <span key={i} className={`kb-chip ${i === 0 ? "is-first" : ""}`} title={`ZONE ${s.zone}`}>
           <b>{i + 1}</b>
-          {s.point}
+          {s.point === ALL_STATIONS ? `${s.zone} · ทุกสถานี` : s.point}
         </span>
       ))}
     </span>
@@ -155,14 +172,93 @@ export function CardStack({ count, label }: { count: number; label?: string }) {
   );
 }
 
+/** Part Information rows that have a PART A (finished goods) · loaded once per page */
+export type Part = { id: number; partA: string; partNo: string; name: string; customer: string };
+export function useParts() {
+  const [parts, setParts] = useState<Part[] | null>(null);
+  useEffect(() => {
+    api<Part[]>("/kanban/parts")
+      .then(setParts)
+      .catch(() => setParts([]));
+  }, []);
+  return parts;
+}
+
+/** part picture (Part Information image) · no picture / broken file = box icon */
+export function PartImg({ partId, className = "" }: { partId: number | null; className?: string }) {
+  const [bad, setBad] = useState<number | null>(null);
+  return partId && bad !== partId ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={`/api/images/part/${partId}`} alt="รูปชิ้นงาน" decoding="async" draggable={false} className={`object-contain ${className}`} onError={() => setBad(partId)} />
+  ) : (
+    <span className={`grid place-items-center text-4xl ${className}`} aria-hidden>
+      📦
+    </span>
+  );
+}
+
+/** creation stage of a Kanban: 0 = draft (not saved) · 1 = saved, waiting for SET FLOW · 2 = ready */
+export const STAGES = [
+  { label: "ร่าง · ยังไม่บันทึก", cls: "is-draft" },
+  { label: "รอ SET FLOW", cls: "is-warn" },
+  { label: "พร้อมใช้งาน", cls: "is-ok" },
+] as const;
+
+/** Kanban card preview (like the Pick List label preview): picture left · W/O / customer / PART A / PART NO / product name · creation progress */
+export function KanbanCard({ k, stage, pct }: { k: { code: string; partId: number | null; partA: string | null; partNo: string | null; name: string; customer: string | null; zone: string | null; perBox: number; cards: number }; stage: 0 | 1 | 2; pct: number }) {
+  const st = STAGES[stage];
+  return (
+    <article className="kb-card" aria-label="KANBAN PREVIEW">
+      <div className="kb-card-img">
+        <PartImg partId={k.partId} className="size-full" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-2">
+          <p className="kb-card-wo min-w-0 flex-1">
+            W/O : <span className="text-ink-soft">—</span>
+          </p>
+          <span className={`kb-pill ${st.cls}`}>{st.label}</span>
+        </div>
+        <dl className="kb-card-dl">
+          <dt>CUSTOMER</dt>
+          <dd>{k.customer || "-"}</dd>
+          <dt>PART A</dt>
+          <dd className="font-mono text-[15px] font-black text-ink">{k.partA || "-"}</dd>
+          <dt>PART NO</dt>
+          <dd className="font-mono">{k.partNo || "-"}</dd>
+          <dt>PRODUCT</dt>
+          <dd title={k.name}>{k.name || "-"}</dd>
+        </dl>
+        <p className="kb-card-meta">
+          <span className="font-mono">{k.code || "KANBAN CODE"}</span>
+          <span>
+            {k.zone || "-"} · {n0(k.perBox)} ชิ้น/กล่อง · <b>{n0(k.cards)} ใบ</b>
+          </span>
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="kb-track flex-1">
+            <span key={pct} className={`kb-fill block ${stage === 2 ? "is-ok" : ""}`} style={{ width: `${pct}%` }} />
+          </span>
+          <b className="w-10 text-right font-mono text-sm text-primary">{pct}%</b>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 /** flow step editor: N update points, each = ZONE + point (machine code of that zone or typed) */
 export function FlowEditor({ steps, onChange, options, disabled, max = 20 }: { steps: Step[]; onChange: (s: Step[]) => void; options: KanbanData["options"]; disabled?: boolean; max?: number }) {
-  const zoneOpts = useMemo(() => options.zones.map((z) => ({ value: z, label: z })), [options.zones]);
+  const zoneOpts = useMemo(() => options.zones.map((z) => ({ value: z, label: z, sub: options.zoneInfo.find((x) => x.code === z)?.name ?? undefined })), [options.zones, options.zoneInfo]);
+  // point of a zone: ALL workstations (parallel) · one workstation · a machine of the zone · points used before
   const pointOpts = useCallback(
     (zone: string) => {
-      const m = options.machines.filter((x) => !zone || x.zone === zone).map((x) => ({ value: x.code, label: x.code, sub: [x.name, x.type].filter(Boolean).join(" · ") }));
-      const extra = options.points.filter((p) => !m.some((x) => x.value === p)).map((p) => ({ value: p, label: p }));
-      return [...m, ...extra];
+      const st = options.stations.filter((x) => x.zone === zone);
+      const all = st.length ? [{ value: ALL_STATIONS, label: "ALL · ทุกสถานีงานในโซน", sub: `${st.length} สถานี · ${st.reduce((a, x) => a + x.operators, 0)} คน` }] : [];
+      const ws = st.map((x) => ({ value: x.code, label: x.code, sub: ["สถานีงาน", x.name, x.machine, `${x.operators} คน`].filter(Boolean).join(" · ") }));
+      const m = options.machines.filter((x) => (!zone || x.zone === zone) && !ws.some((w) => w.value === x.code)).map((x) => ({ value: x.code, label: x.code, sub: ["เครื่องจักร", x.name, x.type].filter(Boolean).join(" · ") }));
+      const used = [...all, ...ws, ...m];
+      const extra = options.points.filter((p) => p !== ALL_STATIONS && !used.some((x) => x.value === p)).map((p) => ({ value: p, label: p }));
+      return [...used, ...extra];
     },
     [options],
   );
@@ -176,8 +272,16 @@ export function FlowEditor({ steps, onChange, options, disabled, max = 20 }: { s
           <li key={i} className="kb-step">
             <span className="kb-step-no">{i + 1}</span>
             <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-              <ComboBox value={s.zone} onChange={(v) => set(i, { zone: v })} options={zoneOpts} free={up} disabled={disabled} ariaLabel={`ZONE จุดที่ ${i + 1}`} placeholder="เลือก / พิมพ์ ZONE" />
-              <ComboBox value={s.point} onChange={(v) => set(i, { point: v })} options={pointOpts(s.zone)} free={free} disabled={disabled} ariaLabel={`จุดอัพเดทหน้างาน ${i + 1}`} placeholder="เลือกเครื่อง / จุดอัพเดทหน้างาน" mono />
+              <ComboBox
+                value={s.zone}
+                onChange={(v) => set(i, { zone: v, ...(v !== s.zone && s.point === ALL_STATIONS ? { point: "" } : {}) })}
+                options={zoneOpts}
+                free={options.zoneMaster ? undefined : up}
+                disabled={disabled}
+                ariaLabel={`ZONE จุดที่ ${i + 1}`}
+                placeholder={options.zoneMaster ? (zoneOpts.length ? "เลือก ZONE" : "ยังไม่มี ZONE · เพิ่มที่ Master Data") : "เลือก / พิมพ์ ZONE"}
+              />
+              <ComboBox value={s.point} onChange={(v) => set(i, { point: v })} options={pointOpts(s.zone)} free={free} disabled={disabled} ariaLabel={`สถานีงาน / เครื่องจักร จุดที่ ${i + 1}`} placeholder={s.zone ? "เลือกสถานีงาน / เครื่องจักร" : "เลือก ZONE ก่อน"} mono />
             </div>
             {!disabled && steps.length > 1 && (
               <button type="button" className="kb-step-x" aria-label={`ลบจุดที่ ${i + 1}`} onClick={() => onChange(steps.filter((_, j) => j !== i))}>
