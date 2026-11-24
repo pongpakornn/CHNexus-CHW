@@ -11,15 +11,17 @@ import { api } from "@/lib/api";
 import { stamp } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { FlowPreview } from "./FlowPreview";
-import { cardCount, FlowChips, FlowEditor, isReady, KanbanCard, n0, PartImg, ReadyPill, Rise, useKanbanData, useParts, useRun, type Kanban, type KanbanData, type Part, type Step } from "./shared";
+import { describe, FormulaModal } from "./FormulaModal";
+import { FlowChips, FlowEditor, formulaOf, isReady, KanbanCard, n0, PartImg, ReadyPill, Rise, useKanbanData, useParts, useRun, type Kanban, type KanbanData, type Part, type Step } from "./shared";
 
 // 🧩 KANBAN › KANBAN MANAGEMENT
 //   step 1: form (part picture left · job data · card preview like the Pick List) -> SAVE = Set Flow pops up right away
-//     CUSTOMER filters the parts · PART A / PART NO / PRODUCT NAME = one Part Information row: type to search, pick one = the other two + picture fill in
+//     CUSTOMER filters the parts · PART (PART A + PART B) / PART NO / PRODUCT NAME = one Part Information row: pick one = the other two + picture + PACKING fill in
+//     สูตรคำนวณ KANBAN (⚙ FORMULAS, like Max-Min): the order qty -> number of cards is worked out by the picked formula when the order is placed
 //   step 2: SET FLOW = zone + number of machines (N update points auto-created) -> saved = พร้อมใช้งาน
 //   table: status พร้อมใช้งาน / ยังไม่พร้อมใช้งาน (รอ SET FLOW) · row click = preview · ACTION = view / edit / SET FLOW / delete (server checks rights again)
-type Form = { code: string; partId: number | null; customer: string; perBox: string; orderQty: string; zone: string; note: string };
-const EMPTY: Form = { code: "", partId: null, customer: "", perBox: "100", orderQty: "1000", zone: "", note: "" };
+type Form = { code: string; partId: number | null; customer: string; perBox: string; formulaId: string; zone: string };
+const EMPTY: Form = { code: "", partId: null, customer: "", perBox: "", formulaId: "", zone: "" };
 const STATUSES = ["ALL", "READY", "NOT READY"] as const;
 const int = (s: string) => (/^\d+$/.test(s.trim()) ? Number(s) : 0);
 const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? "").trim().toUpperCase() === (b ?? "").trim().toUpperCase();
@@ -115,6 +117,7 @@ export default function SetKanban() {
   const [view, setView] = useState(false);
   const [flowFor, setFlowFor] = useState<number | null>(null);
   const [previewFor, setPreviewFor] = useState<number | null>(null);
+  const [fxOpen, setFxOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [key, setKey] = useState("");
   const q = useDebounced(key, 200);
@@ -137,6 +140,9 @@ export default function SetKanban() {
   const counts = { ALL: all.length, READY: all.filter(isReady).length, "NOT READY": all.filter((k) => !isReady(k)).length };
   const custOpts = useMemo(() => customers.filter((c) => c.isActive || c.code === f.customer).map((c) => ({ value: c.code, label: c.code, sub: c.name ?? undefined })), [customers, f.customer]);
   const zoneOpts = useMemo(() => (data?.options.zones ?? []).map((z) => ({ value: z, label: z, sub: data?.options.zoneInfo.find((x) => x.code === z)?.name ?? undefined })), [data]);
+  const formulas = useMemo(() => data?.formulas ?? [], [data]);
+  const fxOpts = useMemo(() => formulas.map((x) => ({ value: String(x.id), label: x.name, sub: (x.isDefault ? "DEFAULT · " : "") + describe(x) })), [formulas]);
+  const fx = formulas.find((x) => String(x.id) === f.formulaId) ?? formulaOf(null, formulas);
 
   // parts of the picked customer (none picked = all) · each field shows its own text, the other two as the hint
   const part = useMemo(() => parts?.find((p) => p.id === f.partId) ?? null, [parts, f.partId]);
@@ -144,30 +150,31 @@ export default function SetKanban() {
   const opts = useMemo(() => {
     const mk = (label: (p: Part) => string, sub: (p: Part) => string) => pool.filter((p) => label(p)).map((p) => ({ value: String(p.id), label: label(p), sub: sub(p) }));
     return {
-      a: mk((p) => p.partA, (p) => [p.partNo, p.name, f.customer ? "" : p.customer].filter(Boolean).join(" · ")),
+      a: mk((p) => p.partA, (p) => [`PART ${p.kind}`, p.partNo, p.name, f.customer ? "" : p.customer].filter(Boolean).join(" · ")),
       no: mk((p) => p.partNo, (p) => [p.partA, p.name].filter(Boolean).join(" · ")),
       name: mk((p) => p.name, (p) => [p.partA, p.partNo].filter(Boolean).join(" · ")),
     };
   }, [pool, f.customer]);
-  // pick a part = PART A / PART NO / PRODUCT NAME + picture follow · empty customer takes the part's customer
+  // pick a part = PART / PART NO / PRODUCT NAME + picture + PACKING (PackSize) follow · empty customer takes the part's customer
   const pickPart = (v: string) => {
     const p = parts?.find((x) => String(x.id) === v);
     if (!p) return set({ partId: null });
-    set({ partId: p.id, ...(!f.customer && p.customer && customers.some((c) => same(c.code, p.customer)) ? { customer: customers.find((c) => same(c.code, p.customer))!.code } : {}) });
+    set({
+      partId: p.id,
+      ...(p.packing > 0 ? { perBox: String(p.packing) } : {}),
+      ...(!f.customer && p.customer && customers.some((c) => same(c.code, p.customer)) ? { customer: customers.find((c) => same(c.code, p.customer))!.code } : {}),
+    });
   };
   // another customer = the picked part no longer fits -> clear it
   const pickCustomer = (v: string) => set({ customer: v, ...(part && v && !same(part.customer, v) ? { partId: null } : {}) });
 
   const flowK = all.find((k) => k.id === flowFor) ?? null;
   const previewK = all.find((k) => k.id === previewFor) ?? null;
-  const cards = cardCount(int(f.orderQty), int(f.perBox));
   const ro = view;
   const showForm = can.add || !!row;
 
   // preview = what is on the form now (old Kanban without a part keeps its saved names)
   const stage: 0 | 1 | 2 = row ? (isReady(row) ? 2 : 1) : 0;
-  const filled = [f.code.trim(), f.partId, int(f.perBox), int(f.orderQty)].filter(Boolean).length;
-  const pct = stage === 2 ? 100 : stage === 1 ? 66 : Math.round((filled / 4) * 33);
   const preview = {
     code: f.code,
     partId: f.partId,
@@ -177,7 +184,7 @@ export default function SetKanban() {
     customer: f.customer || null,
     zone: f.zone || null,
     perBox: int(f.perBox),
-    cards,
+    formula: fx?.name ?? null,
   };
 
   function reset() {
@@ -188,16 +195,16 @@ export default function SetKanban() {
   function open(k: Kanban, asView: boolean) {
     setRow(k);
     setView(asView);
-    setF({ code: k.code, partId: k.partId, customer: k.customer ?? "", perBox: String(k.perBox), orderQty: String(k.orderQty), zone: k.zone ?? "", note: k.note ?? "" });
+    setF({ code: k.code, partId: k.partId, customer: k.customer ?? "", perBox: String(k.perBox), formulaId: k.formulaId ? String(k.formulaId) : "", zone: k.zone ?? "" });
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function save() {
     if (!f.code.trim()) return toast.show("WARNING", "กรุณากรอกรหัสงาน (KANBAN CODE)", "warn");
-    if (!f.partId) return toast.show("WARNING", "กรุณาเลือก PART A / PART NO / PRODUCT NAME", "warn");
-    if (!int(f.perBox) || !int(f.orderQty)) return toast.show("WARNING", "จำนวนชิ้นงานต่อกล่อง / จำนวนที่สั่งผลิต ต้องเป็นจำนวนเต็มมากกว่า 0", "warn");
+    if (!f.partId) return toast.show("WARNING", "กรุณาเลือก PART / PART NO / PRODUCT NAME", "warn");
+    if (!int(f.perBox)) return toast.show("WARNING", "PACKING ต้องเป็นจำนวนเต็มมากกว่า 0 (PART นี้ยังไม่มี PackSize ใน Part Information · กรอกเองได้)", "warn");
     setBusy(true);
-    const body = { code: f.code, partId: f.partId, customer: f.customer || null, perBox: int(f.perBox), orderQty: int(f.orderQty), zone: f.zone, note: f.note };
+    const body = { code: f.code, partId: f.partId, customer: f.customer || null, perBox: int(f.perBox), formulaId: f.formulaId ? Number(f.formulaId) : null, zone: f.zone };
     const r = await run<{ id: number; message: string }>(row ? `/kanban/kanbans/${row.id}` : "/kanban/kanbans", row ? "PUT" : "POST", body);
     setBusy(false);
     if (!r) return;
@@ -238,7 +245,18 @@ export default function SetKanban() {
 
   return (
     <PageBody className="md-gray md-partner kb">
-      <PageHeader icon="/icons/PickList.png" title="KANBAN MANAGEMENT" subtitle="KANBAN · ขั้นตอนที่ 1 สร้าง Kanban → ขั้นตอนที่ 2 SET FLOW = พร้อมใช้งาน" />
+      <PageHeader
+        icon="/icons/PickList.png"
+        title="KANBAN MANAGEMENT"
+        subtitle="KANBAN · ขั้นตอนที่ 1 สร้าง Kanban → ขั้นตอนที่ 2 SET FLOW = พร้อมใช้งาน"
+        actions={
+          data ? (
+            <button type="button" className="btn-ghost" onClick={() => setFxOpen(true)} title="สูตรคำนวณจำนวนใบ KANBAN จากจำนวนที่สั่งผลิต">
+              ⚙ สูตรคำนวณ KANBAN
+            </button>
+          ) : undefined
+        }
+      />
       {!data ? (
         <Loading />
       ) : (
@@ -274,28 +292,39 @@ export default function SetKanban() {
                           placeholder={data.options.zoneMaster ? (zoneOpts.length ? "เลือก ZONE" : "ยังไม่มี ZONE · เพิ่มที่ Master Data") : "เลือก / พิมพ์ ZONE"}
                         />,
                       )}
-                      {partBox("PART A *", opts.a, !!part?.partA, "PART A")}
+                      {partBox(`PART *${part ? ` · PART ${part.kind}` : ""}`, opts.a, !!part?.partA, "PART")}
                       {partBox("PART NO", opts.no, !!part?.partNo, "PART NO")}
                       {partBox("PRODUCT NAME", opts.name, !!part?.name, "PRODUCT NAME")}
-                      {fld("จำนวนชิ้นงานต่อกล่อง *", <input className="field font-mono" inputMode="numeric" readOnly={ro} value={f.perBox} onChange={(e) => set({ perBox: e.target.value.replace(/\D/g, "") })} />)}
-                      {fld("จำนวนที่สั่งผลิต (ค่าเริ่มต้น) *", <input className="field font-mono" inputMode="numeric" readOnly={ro} value={f.orderQty} onChange={(e) => set({ orderQty: e.target.value.replace(/\D/g, "") })} />)}
                       {fld(
-                        "จำนวน KANBAN",
-                        <div className="kb-count">
-                          {n0(cards)} ใบ
-                          <small>
-                            = {n0(int(f.orderQty))} ÷ {n0(int(f.perBox))} (ปัดขึ้น)
-                          </small>
+                        "PACKING (ชิ้น / กล่อง) *",
+                        <input
+                          className="field font-mono"
+                          inputMode="numeric"
+                          readOnly={ro}
+                          value={f.perBox}
+                          placeholder={part ? "PART นี้ยังไม่มี PackSize · กรอกเอง" : "เลือก PART แล้วดึง PACKING ให้เอง"}
+                          onChange={(e) => set({ perBox: e.target.value.replace(/\D/g, "") })}
+                        />,
+                      )}
+                      {fld(
+                        "สูตรคำนวณ KANBAN *",
+                        <div className="flex gap-2">
+                          <div className="min-w-0 flex-1">
+                            <ComboBox value={fx ? String(fx.id) : ""} onChange={(v) => set({ formulaId: v })} options={fxOpts} disabled={ro || !fxOpts.length} ariaLabel="สูตรคำนวณ KANBAN" placeholder={fxOpts.length ? "เลือกสูตร" : "ยังไม่มีสูตร (script 75)"} />
+                          </div>
+                          <button type="button" className="btn-ghost shrink-0 px-3" onClick={() => setFxOpen(true)} aria-label="ตั้งค่าสูตรคำนวณ KANBAN" title="ตั้งค่าสูตร">
+                            ⚙
+                          </button>
                         </div>,
                       )}
-                      {fld("หมายเหตุ", <input className="field" readOnly={ro} maxLength={300} value={f.note} placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)" onChange={(e) => set({ note: e.target.value })} />)}
-                      {row && !row.partId && !f.partId && <p className="text-xs font-bold text-warning sm:col-span-2">Kanban นี้สร้างก่อนมีช่อง PART · กรุณาเลือก PART A ก่อนบันทึก (เดิม: {row.name})</p>}
+                      {fx && <p className="self-end pb-2 text-[11px] font-bold text-ink-soft">ƒx {describe(fx)} · ใช้ตอนสั่งผลิต</p>}
+                      {row && !row.partId && !f.partId && <p className="text-xs font-bold text-warning sm:col-span-2">Kanban นี้สร้างก่อนมีช่อง PART · กรุณาเลือก PART ก่อนบันทึก (เดิม: {row.name})</p>}
                     </div>
                     {/* card preview (like the Pick List label preview) + creation steps */}
                     <div className="grid content-start gap-3 rounded-2xl border border-line/70 bg-[radial-gradient(120%_100%_at_100%_0%,#eff6ff,transparent_60%)] p-3 lg:col-span-2 2xl:col-span-1">
                       <p className="text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">KANBAN PREVIEW</p>
                       <div className="grid place-items-center">
-                        <KanbanCard k={preview} stage={stage} pct={pct} />
+                        <KanbanCard k={preview} stage={stage} />
                       </div>
                       <ol className="kb-flow justify-center" aria-label="ขั้นตอนการสร้าง Kanban">
                         {["สร้าง Kanban", "SET FLOW", "พร้อมใช้งาน"].map((t, i) => (
@@ -353,7 +382,7 @@ export default function SetKanban() {
                     </button>
                   ))}
                 </div>
-                <SearchBox value={key} onChange={setKey} placeholder="ค้นหา CODE / PART A / PART NO / PRODUCT / CUSTOMER / ZONE" className="md-search ml-auto w-[360px] max-w-full" />
+                <SearchBox value={key} onChange={setKey} placeholder="ค้นหา CODE / PART / PART NO / PRODUCT / CUSTOMER / ZONE" className="md-search ml-auto w-[360px] max-w-full" />
               </div>
               {rows.length === 0 ? (
                 <Empty>{all.length ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มีรายการ Kanban"}</Empty>
@@ -364,12 +393,12 @@ export default function SetKanban() {
                       <tr>
                         <th className="w-14 text-center">NO.</th>
                         <th>KANBAN CODE</th>
-                        <th>PART A</th>
+                        <th>PART</th>
                         <th>PART NO</th>
                         <th>PRODUCT NAME</th>
                         <th>CUSTOMER</th>
-                        <th>ต่อกล่อง</th>
-                        <th>สั่งผลิต</th>
+                        <th>PACKING</th>
+                        <th>สูตรคำนวณ</th>
                         <th>FLOW</th>
                         <th>สถานะ</th>
                         <th>ACTION</th>
@@ -384,7 +413,7 @@ export default function SetKanban() {
                           <td data-l="KANBAN CODE" className="font-mono font-extrabold">
                             {k.code}
                           </td>
-                          <td data-l="PART A" className="text-left">
+                          <td data-l="PART" className="text-left">
                             <span className="inline-flex items-center gap-2">
                               <span className="size-9 shrink-0 overflow-hidden rounded-lg border border-line/70 bg-white p-0.5">
                                 <PartImg partId={k.partId} className="size-full !text-lg" />
@@ -402,11 +431,11 @@ export default function SetKanban() {
                           <td data-l="CUSTOMER" title={k.customerName ?? undefined}>
                             {k.customer || "-"}
                           </td>
-                          <td data-l="ต่อกล่อง" className="font-mono">
+                          <td data-l="PACKING" className="font-mono">
                             {n0(k.perBox)}
                           </td>
-                          <td data-l="สั่งผลิต" className="font-mono">
-                            {n0(k.orderQty)}
+                          <td data-l="สูตรคำนวณ" className="text-xs font-bold">
+                            {k.formulaName ?? "-"}
                           </td>
                           <td data-l="FLOW" className="text-left">
                             <FlowChips steps={k.steps} />
@@ -438,6 +467,7 @@ export default function SetKanban() {
         </div>
       )}
       {previewK && data && <FlowPreview k={previewK} steps={previewK.steps} options={data.options} onClose={() => setPreviewFor(null)} />}
+      {fxOpen && data && <FormulaModal formulas={formulas} selectId={fx?.id} canEdit={can.edit} onClose={() => setFxOpen(false)} onChanged={reload} />}
       {flowK && data && (
         <FlowModal
           k={flowK}

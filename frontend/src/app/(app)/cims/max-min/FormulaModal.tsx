@@ -29,7 +29,7 @@ const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, 
 // คำอธิบายสูตร (MaxMinFormula.Describe)
 function describe(f: Form, inBox: boolean) {
   const qty = f.qtySource === "FORECAST" ? "Forecast" : "Order";
-  const div = inBox ? " / PackSize" : "";
+  const div = inBox ? " / Packing" : "";
   const r = f.roundMode === "DOWN" ? "RoundDown" : f.roundMode === "NEAREST" ? "Round" : "RoundUp";
   return `MAX = ${r}(${qty} / Workdays${div}) x MAX DAYS   •   MIN = ${r}(${qty} / Workdays${div}) x MIN DAYS`;
 }
@@ -75,7 +75,7 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
   let steps = "";
   let exMax = "-";
   let exMin = "-";
-  if (wd <= 0 || (inBox && pack <= 0)) steps = "กรอก WORKDAYS" + (inBox ? " และ PACKSIZE" : "") + " ให้มากกว่า 0";
+  if (wd <= 0 || (inBox && pack <= 0)) steps = "กรอก WORKDAYS" + (inBox ? " และ PACKING" : "") + " ให้มากกว่า 0";
   else {
     const perDay = qty / wd;
     const perUnit = inBox ? perDay / pack : perDay;
@@ -248,7 +248,7 @@ export function FormulaModal({ open, stock, selectId, canEdit, onClose, onChange
                   <input className="field" inputMode="numeric" value={ex.wd} onChange={(e) => setEx((x) => ({ ...x, wd: digits(e.target.value) }))} />
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-[11px] font-extrabold uppercase text-ink-soft">PACKSIZE</span>
+                  <span className="text-[11px] font-extrabold uppercase text-ink-soft">PACKING</span>
                   <input className="field" inputMode="numeric" disabled={!inBox} value={ex.pack} onChange={(e) => setEx((x) => ({ ...x, pack: digits(e.target.value) }))} />
                 </label>
               </div>

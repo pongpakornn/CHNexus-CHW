@@ -12,10 +12,11 @@ import { DateField } from "@/components/forms/DateField";
 import { ClockField } from "@/components/forms/ClockField";
 import { today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
-import { cardCount, CardStack, FlowChips, FlowEditor, isReady, n0, Rise, useKanbanData, useRun, when, type Step } from "./shared";
+import { CardStack, FlowChips, FlowEditor, formulaCards, formulaOf, isReady, n0, Rise, useKanbanData, useRun, when, type Order, type Step } from "./shared";
 
 // 🏭 KANBAN › สั่งผลิต
-//   pick a ready Kanban (filter by customer) · qty -> cards = qty / pcs per box (rounded up, shown as stacked cards) · planned start
+//   pick a ready Kanban (filter by customer) · qty -> cards by the Kanban's formula (สูตรคำนวณ KANBAN, shown as stacked cards) · planned start
+//   history: production progress per order (done / cards)
 //   FLOW: STANDARD = the Kanban's flow · TEMP = own points for this order only (the standard flow is not changed)
 //   ?receipt=<id> (from สะสม / รับยอด) = Kanban + qty locked to the received qty · history: search / flow filter / delete (not started only)
 type Mode = "STANDARD" | "TEMP";
@@ -25,6 +26,24 @@ const now5 = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, "0")}:${String(Math.floor(d.getMinutes() / 5) * 5).padStart(2, "0")}`;
 };
+
+/** production progress of an order: cards done / all cards (running shown as text) */
+export function Progress({ o }: { o: Pick<Order, "cards" | "done" | "running"> }) {
+  const pct = o.cards ? Math.round((o.done / o.cards) * 100) : 0;
+  return (
+    <div className="min-w-[120px]" title={`เสร็จ ${n0(o.done)} / ${n0(o.cards)} ใบ · กำลังผลิต ${n0(o.running)} ใบ`}>
+      <div className="flex items-center gap-2">
+        <span className="kb-track flex-1">
+          <span className={`kb-fill block ${pct >= 100 ? "is-ok" : ""}`} style={{ width: `${pct}%` }} />
+        </span>
+        <b className="w-10 text-right font-mono text-xs text-primary">{pct}%</b>
+      </div>
+      <p className="mt-0.5 text-[10.5px] font-bold text-ink-soft">
+        {pct >= 100 ? "ผลิตครบแล้ว" : `${n0(o.done)}/${n0(o.cards)} ใบ${o.running ? ` · กำลังผลิต ${n0(o.running)}` : ""}`}
+      </p>
+    </div>
+  );
+}
 
 export default function KanbanOrders() {
   const toast = useToast();
@@ -51,9 +70,10 @@ export default function KanbanOrders() {
   const custOpts = useMemo(() => [...new Set(ready.map((k) => k.customer).filter((c): c is string => !!c))].sort().map((c) => ({ value: c, label: c })), [ready]);
   const usable = useMemo(() => ready.filter((k) => !customer || k.customer === customer), [ready, customer]);
   const sel = receipt ? (data?.kanbans.find((k) => k.id === receipt.kanbanId) ?? null) : (usable.find((k) => String(k.id) === kid) ?? null);
-  const nQty = receipt ? receipt.qty : Number(qty || sel?.orderQty || 0);
+  const nQty = receipt ? receipt.qty : Number(qty || 0);
   const steps = mode === "STANDARD" ? (sel?.steps ?? []) : temp;
-  const cards = sel ? cardCount(nQty, sel.perBox) : 0;
+  const fx = sel ? formulaOf(sel, data?.formulas ?? []) : null;
+  const cards = sel ? formulaCards(nQty, sel.perBox, fx) : 0;
   const zones = [...new Set(steps.map((s) => s.zone).filter(Boolean))];
 
   const orders = useMemo(() => {
@@ -111,7 +131,7 @@ export default function KanbanOrders() {
 
   return (
     <PageBody className="md-gray md-partner kb">
-      <PageHeader icon="/icons/ForecastOrder.png" title="สั่งผลิต" subtitle="KANBAN · เปิดใบสั่งผลิต → แตกเป็นใบ Kanban ตามจำนวนต่อกล่อง" />
+      <PageHeader icon="/icons/ForecastOrder.png" title="สั่งผลิต" subtitle="KANBAN · เปิดใบสั่งผลิต → แตกเป็นใบ Kanban ตามสูตรคำนวณ KANBAN" />
       {!data ? (
         <Loading />
       ) : (
@@ -141,7 +161,7 @@ export default function KanbanOrders() {
                     <ComboBox
                       value={sel ? String(sel.id) : ""}
                       onChange={pick}
-                      options={usable.map((k) => ({ value: String(k.id), label: k.code, sub: `${k.name} · ${n0(k.perBox)}/กล่อง` }))}
+                      options={usable.map((k) => ({ value: String(k.id), label: k.code, sub: `${k.partA ?? k.name} · PACKING ${n0(k.perBox)}` }))}
                       disabled={!!receipt}
                       ariaLabel="KANBAN"
                       placeholder={usable.length ? "พิมพ์ค้นหา / เลือก Kanban" : "ยังไม่มี Kanban ที่พร้อมใช้งาน"}
@@ -149,14 +169,16 @@ export default function KanbanOrders() {
                   </label>
                   <label className="block min-w-0">
                     {lbl("จำนวนที่สั่งผลิต (ชิ้น) *")}
-                    <input className="field font-mono" inputMode="numeric" readOnly={!!receipt} value={receipt ? String(receipt.qty) : qty} placeholder={sel ? String(sel.orderQty) : "0"} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} />
+                    <input className="field font-mono" inputMode="numeric" readOnly={!!receipt} value={receipt ? String(receipt.qty) : qty} placeholder="จำนวนชิ้นที่ต้องการผลิต" onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} />
                   </label>
                   <div className="block min-w-0">
-                    {lbl("จำนวน KANBAN (ปัดขึ้น)")}
+                    {lbl(`จำนวน KANBAN${fx ? ` · ${fx.name}` : ""}`)}
                     <div className="kb-count">
                       <CardStack count={cards} />
                       <small>
-                        = {n0(nQty)} ÷ {n0(sel?.perBox ?? 0)}
+                        = {n0(nQty)}
+                        {fx?.allowancePct ? ` x ${1 + fx.allowancePct / 100}` : ""} ÷ PACKING {n0(sel?.perBox ?? 0)}
+                        {fx ? ` (${fx.roundMode})` : ""}
                       </small>
                     </div>
                   </div>
@@ -211,7 +233,7 @@ export default function KanbanOrders() {
                     </button>
                   ))}
                 </div>
-                <SearchBox value={key} onChange={setKey} placeholder="ค้นหา # / CODE / PART A / PRODUCT NAME / CUSTOMER" className="md-search ml-auto w-[320px] max-w-full" />
+                <SearchBox value={key} onChange={setKey} placeholder="ค้นหา # / CODE / PART / PRODUCT NAME / CUSTOMER" className="md-search ml-auto w-[320px] max-w-full" />
               </div>
               {orders.length === 0 ? (
                 <Empty>{data.orders.length ? "ไม่พบใบสั่งผลิตตามเงื่อนไข" : "ยังไม่มีใบสั่งผลิต"}</Empty>
@@ -225,6 +247,7 @@ export default function KanbanOrders() {
                         <th>CUSTOMER</th>
                         <th>QTY</th>
                         <th>ใบ KANBAN</th>
+                        <th>PROGRESS</th>
                         <th>FLOW</th>
                         <th>เริ่มตามแผน</th>
                         <th>สั่งเมื่อ</th>
@@ -250,6 +273,9 @@ export default function KanbanOrders() {
                             </td>
                             <td data-l="ใบ KANBAN">
                               <CardStack count={o.cards} />
+                            </td>
+                            <td data-l="PROGRESS">
+                              <Progress o={o} />
                             </td>
                             <td data-l="FLOW" className="text-left">
                               <span className={`kb-pill mb-1 ${o.flowMode === "TEMP" ? "is-warn" : "is-blue"}`}>{o.flowMode === "TEMP" ? "FLOW ชั่วคราว" : "STANDARD"}</span>

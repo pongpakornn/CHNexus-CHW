@@ -7,7 +7,7 @@ import { useDialogs } from "@/components/modals/Dialogs";
 import { useToast } from "@/components/notifications/Toasts";
 import { ComboBox } from "@/components/dropdowns/ComboBox";
 import { useDebounced } from "@/lib/useDebounced";
-import { cardCount, CardStack, n0, Rise, useKanbanData, useRun, when, type Kanban } from "./shared";
+import { CardStack, formulaCards, formulaOf, n0, Rise, useKanbanData, useRun, when, type Kanban } from "./shared";
 
 // 📥 KANBAN › สะสมยอด / รับยอด (one page)
 //   สะสมยอด: sales scan history (+qty) per Kanban · target per Kanban + AUTO (reaches target = received automatically)
@@ -126,7 +126,7 @@ export default function StockReceive() {
                             {n0(r.qty)}
                           </td>
                           <td data-l="ใบ KANBAN">
-                            <CardStack count={cardCount(r.qty, r.perBox)} />
+                            <CardStack count={formulaCards(r.qty, r.perBox, formulaOf(data.kanbans.find((k) => k.id === r.kanbanId), data.formulas))} />
                           </td>
                           <td data-l="รับเมื่อ" className="whitespace-nowrap text-xs">
                             {when(r.receivedAt)}
@@ -158,7 +158,7 @@ export default function StockReceive() {
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             {/* accumulated per Kanban */}
             <Rise i={1}>
-              <Card title={`ยอดสะสมต่อ KANBAN • ${n0(kanbans.length)}`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหา CODE / PART A / PRODUCT NAME" className="w-[240px] max-w-full" />} bodyClass="p-3 md:p-4">
+              <Card title={`ยอดสะสมต่อ KANBAN • ${n0(kanbans.length)}`} actions={<SearchBox value={key} onChange={setKey} placeholder="ค้นหา CODE / PART / PRODUCT NAME" className="w-[240px] max-w-full" />} bodyClass="p-3 md:p-4">
                 {kanbans.length === 0 ? (
                   <Empty>{data.kanbans.length ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มี Kanban · สร้างที่ KANBAN MANAGEMENT"}</Empty>
                 ) : (
@@ -207,7 +207,7 @@ export default function StockReceive() {
                   <div className="grid gap-3">
                     <label className="block min-w-0">
                       <span className="mb-1 block text-[11px] font-extrabold uppercase text-ink-soft">KANBAN *</span>
-                      <ComboBox value={scanK} onChange={setScanK} options={kOpts} ariaLabel="KANBAN" placeholder="พิมพ์ค้นหา / เลือก Kanban (CODE / PART A)" />
+                      <ComboBox value={scanK} onChange={setScanK} options={kOpts} ariaLabel="KANBAN" placeholder="พิมพ์ค้นหา / เลือก Kanban (CODE / PART)" />
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block min-w-0">

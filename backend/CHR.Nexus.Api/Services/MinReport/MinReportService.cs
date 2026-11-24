@@ -161,7 +161,7 @@ public sealed class MinReportService
     public static readonly (string Key, string Label)[] Fields =
     {
         ("CODE", "PRODUCT CODE"), ("NAME", "PRODUCT NAME"), ("PARTA", "PART A"), ("PARTB", "PART B"), ("PARTNO", "PART NO"), ("MODEL", "MODEL"),
-        ("CUSTOMER", "CUSTOMER"), ("SUPPLIER", "SUPPLIER"), ("CATEGORY", "CATEGORY"), ("BIN", "BIN"), ("PACKSIZE", "PACK SIZE")
+        ("CUSTOMER", "CUSTOMER"), ("SUPPLIER", "SUPPLIER"), ("CATEGORY", "CATEGORY"), ("BIN", "BIN"), ("PACKSIZE", "PACKING")
     };
     public static bool IsField(string k) => Fields.Any(f => f.Key == k);
 

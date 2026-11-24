@@ -21,10 +21,12 @@ public sealed class KanbanRow
     public string PartNo { get; set; }
     public string Customer { get; set; }
     public string CustomerName { get; set; }
-    public int PerBox { get; set; }
+    public int PerBox { get; set; }          // PACKING (pcs per box)
     public int OrderQty { get; set; }
     public string Zone { get; set; }
     public string Note { get; set; }
+    public int? FormulaId { get; set; }      // null = default formula
+    public string FormulaName { get; set; }
     public int Target { get; set; }
     public bool Auto { get; set; }
     public int Acc { get; set; }
@@ -59,6 +61,29 @@ public sealed class KOrderRow
     public List<KStep> Steps { get; set; } = new();
 }
 
+/// <summary>card formula (script 75): CARDS = ROUND( QTY x (1 + ALLOWANCE % / 100) / PACKING ) · at least 1 card</summary>
+public sealed class KFormula
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string RoundMode { get; set; }   // UP / NEAREST / DOWN
+    public decimal AllowancePct { get; set; }
+    public bool IsDefault { get; set; }
+    public int Used { get; set; }           // Kanbans using it (delete blocked when > 0)
+    public string UpdatedBy { get; set; }
+    public DateTime UpdatedDate { get; set; }
+
+    public static readonly KFormula Fallback = new() { Name = "ROUND UP", RoundMode = "UP" };
+
+    public int Cards(int qty, int packing)
+    {
+        if (qty <= 0 || packing <= 0) return 0;
+        decimal x = qty * (1 + AllowancePct / 100m) / packing;
+        decimal n = RoundMode switch { "DOWN" => Math.Floor(x), "NEAREST" => Math.Round(x, MidpointRounding.AwayFromZero), _ => Math.Ceiling(x) };
+        return (int)Math.Max(1, n);
+    }
+}
+
 public sealed class KanbanService
 {
     public const int MaxCards = 2000;
@@ -72,7 +97,8 @@ public sealed class KanbanService
     {
         using var c = Conn();
         var rows = c.Query<KanbanRow>($@"SELECT k.KanbanID AS Id, k.KanbanCode AS Code, k.KanbanName AS Name, k.PartID AS PartId, k.PartA, k.PartNo, k.CustomerCode AS Customer, cu.CustomerName,
-                   k.PerBox, k.OrderQty, k.Zone, k.Note, ISNULL(ru.TargetQty, 0) AS Target, ISNULL(ru.AutoReceive, 0) AS Auto,
+                   k.PerBox, k.OrderQty, k.Zone, k.Note, k.FormulaID AS FormulaId, ISNULL(fo.FormulaName, df.FormulaName) AS FormulaName,
+                   ISNULL(ru.TargetQty, 0) AS Target, ISNULL(ru.AutoReceive, 0) AS Auto,
                    {AccSql} AS Acc,
                    (SELECT COUNT(1) FROM Kanban.Orders o WHERE o.KanbanID = k.KanbanID) + (SELECT COUNT(1) FROM Kanban.Scans s WHERE s.KanbanID = k.KanbanID)
                    + (SELECT COUNT(1) FROM Kanban.Receipts r WHERE r.KanbanID = k.KanbanID) AS Used,
@@ -80,6 +106,8 @@ public sealed class KanbanService
             FROM Kanban.Kanbans k
             LEFT JOIN Kanban.Rules ru ON ru.KanbanID = k.KanbanID
             LEFT JOIN Master.Customers cu ON cu.CustomerCode = k.CustomerCode
+            LEFT JOIN Kanban.Formulas fo ON fo.FormulaID = k.FormulaID
+            OUTER APPLY (SELECT TOP 1 FormulaName FROM Kanban.Formulas WHERE IsDefault = 1) df
             WHERE @id IS NULL OR k.KanbanID = @id
             ORDER BY k.KanbanCode", new { id }).ToList();
         var steps = c.Query<StepRow>("SELECT KanbanID AS Id, Seq, Zone, Point FROM Kanban.FlowSteps WHERE @id IS NULL OR KanbanID = @id ORDER BY KanbanID, Seq", new { id })
@@ -161,26 +189,70 @@ public sealed class KanbanService
         return new { zones, machines, points, zoneInfo = new List<object>(), stations = new List<object>(), zoneMaster = false };
     }
 
-    /// <summary>Part Information (Nexus.Parts with PART A = finished goods) for Kanban Management: pick by PART A / PART NO / Product Name · customer filter</summary>
+    // PART = PART A (finished goods) or PART B of Part Information · stored in Kanbans.PartA
+    private const string PartSql = "COALESCE(NULLIF(LTRIM(RTRIM(p.PartA)), ''), NULLIF(LTRIM(RTRIM(p.PartB)), ''))";
+
+    /// <summary>Part Information (Nexus.Parts with PART A or PART B) for Kanban Management: pick by PART / PART NO / Product Name · customer filter · PACKING = PackSize</summary>
     public object Parts()
     {
         using var c = Conn();
-        return c.Query(@"SELECT p.PartID AS id, LTRIM(RTRIM(p.PartA)) AS partA, ISNULL(LTRIM(RTRIM(p.PartNumber)), '') AS partNo,
-                                ISNULL(LTRIM(RTRIM(p.Description)), '') AS name, ISNULL(LTRIM(RTRIM(p.Customer)), '') AS customer
+        return c.Query($@"SELECT p.PartID AS id, {PartSql} AS partA, CASE WHEN ISNULL(LTRIM(RTRIM(p.PartA)), '') <> '' THEN 'A' ELSE 'B' END AS kind,
+                                ISNULL(LTRIM(RTRIM(p.PartNumber)), '') AS partNo, ISNULL(LTRIM(RTRIM(p.Description)), '') AS name,
+                                ISNULL(LTRIM(RTRIM(p.Customer)), '') AS customer, CAST(CASE WHEN p.PackSize > 0 THEN p.PackSize ELSE 0 END AS INT) AS packing
                          FROM Nexus.Parts p WITH (NOLOCK)
-                         WHERE p.IsActive = 1 AND ISNULL(LTRIM(RTRIM(p.PartA)), '') <> ''
-                         ORDER BY p.PartA").ToList();
+                         WHERE p.IsActive = 1 AND {PartSql} IS NOT NULL
+                         ORDER BY 2").ToList();
     }
 
     public sealed record PartPick(string PartA, string PartNo, string Name, string Customer);
 
-    /// <summary>the part picked in Kanban Management (null = not found / inactive / no PART A)</summary>
+    /// <summary>the part picked in Kanban Management (null = not found / inactive / no PART A or B)</summary>
     public PartPick Part(int id)
     {
         using var c = Conn();
         return c.QueryFirstOrDefault<PartPick>(
-            @"SELECT LTRIM(RTRIM(PartA)) AS PartA, NULLIF(LTRIM(RTRIM(PartNumber)), '') AS PartNo, LTRIM(RTRIM(Description)) AS Name, NULLIF(LTRIM(RTRIM(Customer)), '') AS Customer
-              FROM Nexus.Parts WHERE PartID = @id AND IsActive = 1 AND ISNULL(LTRIM(RTRIM(PartA)), '') <> ''", new { id });
+            $@"SELECT {PartSql} AS PartA, NULLIF(LTRIM(RTRIM(p.PartNumber)), '') AS PartNo, LTRIM(RTRIM(p.Description)) AS Name, NULLIF(LTRIM(RTRIM(p.Customer)), '') AS Customer
+               FROM Nexus.Parts p WHERE p.PartID = @id AND p.IsActive = 1 AND {PartSql} IS NOT NULL", new { id });
+    }
+
+    // ---------------------------------------------------------------- card formulas (script 75)
+    public List<KFormula> Formulas()
+    {
+        using var c = Conn();
+        return c.Query<KFormula>(@"SELECT f.FormulaID AS Id, f.FormulaName AS Name, f.RoundMode, f.AllowancePct, f.IsDefault,
+                                          (SELECT COUNT(1) FROM Kanban.Kanbans k WHERE k.FormulaID = f.FormulaID OR (k.FormulaID IS NULL AND f.IsDefault = 1)) AS Used,
+                                          f.UpdatedBy, f.UpdatedDate
+                                   FROM Kanban.Formulas f ORDER BY f.IsDefault DESC, f.FormulaName").ToList();
+    }
+
+    /// <summary>formula of a Kanban (null / missing id = default · no default row = ROUND UP)</summary>
+    public KFormula Formula(int? id)
+    {
+        var all = Formulas();
+        return all.FirstOrDefault(f => f.Id == id) ?? all.FirstOrDefault(f => f.IsDefault) ?? KFormula.Fallback;
+    }
+
+    public int SaveFormula(int id, string name, string round, decimal pct, string uid)
+    {
+        using var c = Conn();
+        var p = new { id, name, round, pct, uid };
+        if (id == 0)
+            return c.QuerySingle<int>(@"INSERT INTO Kanban.Formulas (FormulaName, RoundMode, AllowancePct, CreatedBy, UpdatedBy)
+                                        OUTPUT INSERTED.FormulaID VALUES (@name, @round, @pct, @uid, @uid)", p);
+        c.Execute("UPDATE Kanban.Formulas SET FormulaName = @name, RoundMode = @round, AllowancePct = @pct, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE FormulaID = @id", p);
+        return id;
+    }
+
+    public bool FormulaNameExists(string name, int exceptId)
+    {
+        using var c = Conn();
+        return c.ExecuteScalar<int>("SELECT COUNT(1) FROM Kanban.Formulas WHERE FormulaName = @name AND FormulaID <> @exceptId", new { name, exceptId }) > 0;
+    }
+
+    public void DeleteFormula(int id)
+    {
+        using var c = Conn();
+        c.Execute("DELETE FROM Kanban.Formulas WHERE FormulaID = @id AND IsDefault = 0 AND NOT EXISTS (SELECT 1 FROM Kanban.Kanbans WHERE FormulaID = @id)", new { id });
     }
 
     public bool CodeExists(string code, int exceptId)
@@ -192,12 +264,12 @@ public sealed class KanbanService
     public int Save(int id, KanbanRow r, string uid)
     {
         using var c = Conn();
-        var p = new { id, r.Code, r.Name, r.PartId, r.PartA, r.PartNo, r.Customer, r.PerBox, r.OrderQty, r.Zone, r.Note, uid };
+        var p = new { id, r.Code, r.Name, r.PartId, r.PartA, r.PartNo, r.Customer, r.PerBox, r.OrderQty, r.Zone, r.Note, r.FormulaId, uid };
         if (id == 0)
-            return c.QuerySingle<int>(@"INSERT INTO Kanban.Kanbans (KanbanCode, KanbanName, PartID, PartA, PartNo, CustomerCode, PerBox, OrderQty, Zone, Note, CreatedBy, UpdatedBy)
-                                        OUTPUT INSERTED.KanbanID VALUES (@Code, @Name, @PartId, @PartA, @PartNo, @Customer, @PerBox, @OrderQty, @Zone, @Note, @uid, @uid)", p);
+            return c.QuerySingle<int>(@"INSERT INTO Kanban.Kanbans (KanbanCode, KanbanName, PartID, PartA, PartNo, CustomerCode, PerBox, OrderQty, Zone, Note, FormulaID, CreatedBy, UpdatedBy)
+                                        OUTPUT INSERTED.KanbanID VALUES (@Code, @Name, @PartId, @PartA, @PartNo, @Customer, @PerBox, @OrderQty, @Zone, @Note, @FormulaId, @uid, @uid)", p);
         c.Execute(@"UPDATE Kanban.Kanbans SET KanbanCode = @Code, KanbanName = @Name, PartID = @PartId, PartA = @PartA, PartNo = @PartNo, CustomerCode = @Customer, PerBox = @PerBox, OrderQty = @OrderQty,
-                           Zone = @Zone, Note = @Note, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE KanbanID = @id", p);
+                           Zone = @Zone, Note = @Note, FormulaID = @FormulaId, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE KanbanID = @id", p);
         return id;
     }
 
@@ -296,9 +368,8 @@ public sealed class KanbanService
         return (r.Code, r.Qty);
     }
 
-    public int AddOrder(int kanbanId, int qty, int perBox, string mode, DateTime? planned, List<KStep> steps, int? receiptId, string uid)
+    public int AddOrder(int kanbanId, int qty, int perBox, int cards, string mode, DateTime? planned, List<KStep> steps, int? receiptId, string uid)
     {
-        int cards = (qty + perBox - 1) / perBox;
         using var c = Conn();
         c.Open();
         using var tx = c.BeginTransaction();

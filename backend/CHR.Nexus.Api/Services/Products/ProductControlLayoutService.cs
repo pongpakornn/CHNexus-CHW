@@ -36,7 +36,7 @@ namespace Nexus.Services
         {
             ("IMAGE", "IMAGE"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY"), ("MODEL", "MODEL"),
             ("CODE", "PRODUCT CODE"), ("PARTA", "PART A"), ("PARTB", "PART B"), ("PARTNO", "PART NO"), ("NAME", "PRODUCT NAME"),
-            ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "NUMBER COIL"), ("WEIGHT", "WEIGHT (KG)"),
+            ("PACKSIZE", "PACKING"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "NUMBER COIL"), ("WEIGHT", "WEIGHT (KG)"),
             ("QRCODE", "QR CODE")
         };
         public static readonly string[] Default = { "IMAGE", "SUPPLIER", "CUSTOMER", "CATEGORY", "MODEL", "CODE", "PARTA", "PARTB", "PARTNO", "NAME", "PACKSIZE", "BIN", "MOTHER", "COILNO", "WEIGHT", "QRCODE" };
@@ -144,7 +144,7 @@ namespace Nexus.Services
         {
             ("IMAGE", "IMAGE"), ("SUPPLIER", "SUPPLIER"), ("CUSTOMER", "CUSTOMER"), ("CATEGORY", "CATEGORY"),
             ("PARTA", "PART A"), ("PARTB", "PART B"), ("MODEL", "MODEL"), ("CODE", "PRODUCT CODE"), ("PARTNO", "PART NO"),
-            ("NAME", "PRODUCT NAME"), ("PACKSIZE", "PACKSIZE"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "NUMBER COIL"),
+            ("NAME", "PRODUCT NAME"), ("PACKSIZE", "PACKING"), ("BIN", "BIN"), ("MOTHER", "MASTER COIL"), ("COILNO", "NUMBER COIL"),
             ("QRCODE", "QR CODE")
         };
         public static readonly string[] Groups = { "CATEGORY", "CUSTOMER", "SUPPLIER", "NONE" };

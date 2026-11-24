@@ -256,7 +256,7 @@ export function PickingExport({ req, onClose, source }: { req: PickingReq | null
                   placeholder="PCS"
                   maxLength={20}
                   value={unit}
-                  title="หน่วยของ PACKSIZE (ค่าเริ่ม = หน่วยของคลัง)"
+                  title="หน่วยของ PACKING (ค่าเริ่ม = หน่วยของคลัง)"
                   onChange={(e) => setUnit(e.target.value.toUpperCase())}
                 />
                 <datalist id="picking-units">
@@ -338,7 +338,7 @@ function PickingCardView({ c, s, qrMm, logoMm, a4, label }: { c: Card } & CardOp
       {row([["Part No.", c.partNo]])}
       {row([["Product Name", c.name]], { two: !label })}
       {row([["Production date", ""], ["Inspection date", ""]])}
-      {row([["Delivery date", ""], ["Quantity / Packsize", c.qty]], { stars: [1, 1.15] })}
+      {row([["Delivery date", ""], ["Quantity / Packing", c.qty]], { stars: [1, 1.15] })}
     </div>
   );
 }

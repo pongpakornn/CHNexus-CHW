@@ -8,7 +8,7 @@ import { ALL_STATIONS, n0, PartImg, type Kanban, type KanbanData, type Step } fr
 // 👁 KANBAN › PREVIEW FLOW: Kanban Post -> each flow step (ALL = every workstation of the zone in parallel) -> Line-side Store of the last zone
 const C = { kanban: "#7c3aed", station: "#2563eb", machine: "#0891b2", store: "#15803d", none: "#94a3b8" };
 
-export function flowColumns(k: Pick<Kanban, "code" | "partId" | "partA" | "name" | "perBox" | "orderQty">, steps: Step[], options: KanbanData["options"]): FlowColumn[] {
+export function flowColumns(k: Pick<Kanban, "code" | "partId" | "partA" | "name" | "perBox">, steps: Step[], options: KanbanData["options"]): FlowColumn[] {
   const info = (z: string) => options.zoneInfo.find((x) => x.code === z);
   const people = (n: number) => `👤 ${n0(n)} คน`;
   const cols: FlowColumn[] = [
@@ -21,7 +21,7 @@ export function flowColumns(k: Pick<Kanban, "code" | "partId" | "partA" | "name"
           id: "kanban",
           title: k.partA || k.code || "KANBAN",
           sub: k.name || k.code,
-          meta: `${n0(Math.ceil(k.orderQty / Math.max(1, k.perBox)))} ใบ · ${n0(k.perBox)} ชิ้น/กล่อง`,
+          meta: `PACKING ${n0(k.perBox)} ชิ้น / กล่อง`,
           color: C.kanban,
           icon: k.partId ? <PartImg partId={k.partId} className="size-full p-0.5" /> : "📦",
         },
