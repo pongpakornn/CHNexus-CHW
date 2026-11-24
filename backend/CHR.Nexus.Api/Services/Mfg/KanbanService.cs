@@ -6,7 +6,7 @@ using Nexus.Helpers;
 
 namespace Nexus.Services;
 
-// 🏭 MANUFACTURING › KANBAN CONTROL (schema Kanban, script 72)
+// 🏭 MANUFACTURING › KANBAN (schema Kanban, scripts 72 + 73 part columns)
 //   accumulated qty = sum(Scans) - sum(Receipts) per Kanban · cards per order = ceil(qty / pcs per box)
 //   every write that depends on the accumulated qty locks the Kanban row first (UPDLOCK) so two screens can't take the same pieces
 public sealed record KStep(string Zone, string Point);
@@ -15,7 +15,10 @@ public sealed class KanbanRow
 {
     public int Id { get; set; }
     public string Code { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; }        // Product Name (Part Information)
+    public int? PartId { get; set; }
+    public string PartA { get; set; }
+    public string PartNo { get; set; }
     public string Customer { get; set; }
     public string CustomerName { get; set; }
     public int PerBox { get; set; }
@@ -37,6 +40,9 @@ public sealed class KOrderRow
     public int KanbanId { get; set; }
     public string Code { get; set; }
     public string Name { get; set; }
+    public int? PartId { get; set; }
+    public string PartA { get; set; }
+    public string PartNo { get; set; }
     public string Customer { get; set; }
     public string Zone { get; set; }
     public int Qty { get; set; }
@@ -65,7 +71,7 @@ public sealed class KanbanService
     public List<KanbanRow> Kanbans(int? id = null)
     {
         using var c = Conn();
-        var rows = c.Query<KanbanRow>($@"SELECT k.KanbanID AS Id, k.KanbanCode AS Code, k.KanbanName AS Name, k.CustomerCode AS Customer, cu.CustomerName,
+        var rows = c.Query<KanbanRow>($@"SELECT k.KanbanID AS Id, k.KanbanCode AS Code, k.KanbanName AS Name, k.PartID AS PartId, k.PartA, k.PartNo, k.CustomerCode AS Customer, cu.CustomerName,
                    k.PerBox, k.OrderQty, k.Zone, k.Note, ISNULL(ru.TargetQty, 0) AS Target, ISNULL(ru.AutoReceive, 0) AS Auto,
                    {AccSql} AS Acc,
                    (SELECT COUNT(1) FROM Kanban.Orders o WHERE o.KanbanID = k.KanbanID) + (SELECT COUNT(1) FROM Kanban.Scans s WHERE s.KanbanID = k.KanbanID)
@@ -87,7 +93,7 @@ public sealed class KanbanService
     public List<KOrderRow> Orders(int top = 500, int? id = null)
     {
         using var c = Conn();
-        var rows = c.Query<KOrderRow>(@"SELECT TOP (@top) o.OrderID AS Id, o.KanbanID, k.KanbanCode AS Code, k.KanbanName AS Name, k.CustomerCode AS Customer, k.Zone,
+        var rows = c.Query<KOrderRow>(@"SELECT TOP (@top) o.OrderID AS Id, o.KanbanID, k.KanbanCode AS Code, k.KanbanName AS Name, k.PartID AS PartId, k.PartA, k.PartNo, k.CustomerCode AS Customer, k.Zone,
                    o.Qty, o.PerBox, o.Cards, o.FlowMode, o.PlannedStart, o.CreatedBy, o.CreatedAt,
                    SUM(CASE WHEN cd.Status = 'QUEUE' THEN 1 ELSE 0 END) AS Queue, SUM(CASE WHEN cd.Status = 'RUNNING' THEN 1 ELSE 0 END) AS Running,
                    SUM(CASE WHEN cd.Status = 'DONE' THEN 1 ELSE 0 END) AS Done,
@@ -96,7 +102,7 @@ public sealed class KanbanService
             JOIN Kanban.Kanbans k ON k.KanbanID = o.KanbanID
             LEFT JOIN Kanban.Cards cd ON cd.OrderID = o.OrderID
             WHERE @id IS NULL OR o.OrderID = @id
-            GROUP BY o.OrderID, o.KanbanID, k.KanbanCode, k.KanbanName, k.CustomerCode, k.Zone, o.Qty, o.PerBox, o.Cards, o.FlowMode, o.PlannedStart, o.CreatedBy, o.CreatedAt
+            GROUP BY o.OrderID, o.KanbanID, k.KanbanCode, k.KanbanName, k.PartID, k.PartA, k.PartNo, k.CustomerCode, k.Zone, o.Qty, o.PerBox, o.Cards, o.FlowMode, o.PlannedStart, o.CreatedBy, o.CreatedAt
             ORDER BY o.OrderID DESC", new { top, id }).ToList();
         if (rows.Count == 0) return rows;
         var ids = rows.Select(r => r.Id).ToArray();
@@ -122,6 +128,20 @@ public sealed class KanbanService
                          FROM Kanban.Scans s JOIN Kanban.Kanbans k ON k.KanbanID = s.KanbanID ORDER BY s.ScanID DESC", new { top }).ToList();
     }
 
+    /// <summary>Dashboard: RUNNING cards not updated for 30+ minutes (oldest first) · point = the step the card is at</summary>
+    public object Stuck(int top = 5)
+    {
+        using var c = Conn();
+        return c.Query(@"SELECT TOP (@top) cd.CardID AS id, k.KanbanCode AS code, k.PartA AS partA, cd.Seq AS seq, o.Cards AS total,
+                                ISNULL(st.Point, '-') AS point, ISNULL(st.Zone, '') AS zone, DATEDIFF(MINUTE, cd.UpdatedAt, GETDATE()) AS minutes
+                         FROM Kanban.Cards cd
+                         JOIN Kanban.Orders o ON o.OrderID = cd.OrderID
+                         JOIN Kanban.Kanbans k ON k.KanbanID = o.KanbanID
+                         LEFT JOIN Kanban.OrderSteps st ON st.OrderID = cd.OrderID AND st.Seq = cd.StepIndex + 1
+                         WHERE cd.Status = 'RUNNING' AND cd.UpdatedAt < DATEADD(MINUTE, -30, GETDATE())
+                         ORDER BY cd.UpdatedAt", new { top }).ToList();
+    }
+
     /// <summary>zones + update points for Set Flow: active machines of Machine Information (script 71) + zones already used</summary>
     public object Options()
     {
@@ -129,10 +149,38 @@ public sealed class KanbanService
         var machines = DbSchema.HasEquipment
             ? c.Query("SELECT ISNULL(MachineZone, '-') AS zone, MachineCode AS code, MachineName AS name, MachineType AS type FROM Master.Machines WHERE Status = 'ACTIVE' ORDER BY MachineZone, MachineCode").ToList()
             : new List<dynamic>();
+        var points = c.Query<string>("SELECT Point FROM Kanban.FlowSteps UNION SELECT Point FROM Kanban.OrderSteps").ToList();
+        // script 74: zones come from Zone & Workstation Information (active) + their workstations / line-side store for the flow preview
+        if (DbSchema.HasZones)
+        {
+            var (master, stations) = new ZoneService().FlowOptions();
+            return new { zones = master.Where(z => (string)z.status == "ACTIVE").Select(z => (string)z.code).ToList(), machines, points, zoneInfo = master, stations, zoneMaster = true };
+        }
         var zones = c.Query<string>(@"SELECT Zone FROM Kanban.Kanbans WHERE Zone IS NOT NULL UNION SELECT Zone FROM Kanban.FlowSteps
                                       UNION SELECT Zone FROM Kanban.OrderSteps" + (DbSchema.HasEquipment ? " UNION SELECT MachineZone FROM Master.Machines WHERE MachineZone IS NOT NULL" : "")).OrderBy(z => z).ToList();
-        var points = c.Query<string>("SELECT Point FROM Kanban.FlowSteps UNION SELECT Point FROM Kanban.OrderSteps").ToList();
-        return new { zones, machines, points };
+        return new { zones, machines, points, zoneInfo = new List<object>(), stations = new List<object>(), zoneMaster = false };
+    }
+
+    /// <summary>Part Information (Nexus.Parts with PART A = finished goods) for Kanban Management: pick by PART A / PART NO / Product Name · customer filter</summary>
+    public object Parts()
+    {
+        using var c = Conn();
+        return c.Query(@"SELECT p.PartID AS id, LTRIM(RTRIM(p.PartA)) AS partA, ISNULL(LTRIM(RTRIM(p.PartNumber)), '') AS partNo,
+                                ISNULL(LTRIM(RTRIM(p.Description)), '') AS name, ISNULL(LTRIM(RTRIM(p.Customer)), '') AS customer
+                         FROM Nexus.Parts p WITH (NOLOCK)
+                         WHERE p.IsActive = 1 AND ISNULL(LTRIM(RTRIM(p.PartA)), '') <> ''
+                         ORDER BY p.PartA").ToList();
+    }
+
+    public sealed record PartPick(string PartA, string PartNo, string Name, string Customer);
+
+    /// <summary>the part picked in Kanban Management (null = not found / inactive / no PART A)</summary>
+    public PartPick Part(int id)
+    {
+        using var c = Conn();
+        return c.QueryFirstOrDefault<PartPick>(
+            @"SELECT LTRIM(RTRIM(PartA)) AS PartA, NULLIF(LTRIM(RTRIM(PartNumber)), '') AS PartNo, LTRIM(RTRIM(Description)) AS Name, NULLIF(LTRIM(RTRIM(Customer)), '') AS Customer
+              FROM Nexus.Parts WHERE PartID = @id AND IsActive = 1 AND ISNULL(LTRIM(RTRIM(PartA)), '') <> ''", new { id });
     }
 
     public bool CodeExists(string code, int exceptId)
@@ -144,11 +192,11 @@ public sealed class KanbanService
     public int Save(int id, KanbanRow r, string uid)
     {
         using var c = Conn();
-        var p = new { id, r.Code, r.Name, r.Customer, r.PerBox, r.OrderQty, r.Zone, r.Note, uid };
+        var p = new { id, r.Code, r.Name, r.PartId, r.PartA, r.PartNo, r.Customer, r.PerBox, r.OrderQty, r.Zone, r.Note, uid };
         if (id == 0)
-            return c.QuerySingle<int>(@"INSERT INTO Kanban.Kanbans (KanbanCode, KanbanName, CustomerCode, PerBox, OrderQty, Zone, Note, CreatedBy, UpdatedBy)
-                                        OUTPUT INSERTED.KanbanID VALUES (@Code, @Name, @Customer, @PerBox, @OrderQty, @Zone, @Note, @uid, @uid)", p);
-        c.Execute(@"UPDATE Kanban.Kanbans SET KanbanCode = @Code, KanbanName = @Name, CustomerCode = @Customer, PerBox = @PerBox, OrderQty = @OrderQty,
+            return c.QuerySingle<int>(@"INSERT INTO Kanban.Kanbans (KanbanCode, KanbanName, PartID, PartA, PartNo, CustomerCode, PerBox, OrderQty, Zone, Note, CreatedBy, UpdatedBy)
+                                        OUTPUT INSERTED.KanbanID VALUES (@Code, @Name, @PartId, @PartA, @PartNo, @Customer, @PerBox, @OrderQty, @Zone, @Note, @uid, @uid)", p);
+        c.Execute(@"UPDATE Kanban.Kanbans SET KanbanCode = @Code, KanbanName = @Name, PartID = @PartId, PartA = @PartA, PartNo = @PartNo, CustomerCode = @Customer, PerBox = @PerBox, OrderQty = @OrderQty,
                            Zone = @Zone, Note = @Note, UpdatedBy = @uid, UpdatedDate = GETDATE() WHERE KanbanID = @id", p);
         return id;
     }

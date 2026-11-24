@@ -1,0 +1,151 @@
+/* 🔀 Flow diagram: white cards with a colored left bar (like an org chart) · curved lines drawn in · one motion curve (--ease-drop) */
+.fd-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 6px;
+}
+.fd {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 64px;
+  width: max-content;
+  min-width: 100%;
+  padding: 12px 16px 16px 8px;
+}
+.fd-lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.fd-line {
+  fill: none;
+  stroke: #6366f1;
+  stroke-width: 1.6;
+  stroke-opacity: 0.7;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: fd-draw 0.7s var(--ease-drop) forwards;
+}
+.fd-col {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+}
+.fd-col-head {
+  display: grid;
+  gap: 1px;
+  border-radius: 10px;
+  padding: 4px 10px;
+  text-align: center;
+  background: var(--g-100, #f1f1f3);
+  animation: fd-in 0.45s var(--ease-drop) both;
+  animation-delay: calc(var(--ci) * 0.12s);
+}
+.fd-col-head b {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+.fd-col-head span {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.fd-nodes {
+  display: grid;
+  gap: 12px;
+}
+.fd-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 220px;
+  max-width: 70vw;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--c);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface, #fff);
+  box-shadow: 0 10px 22px -18px rgb(15 23 42 / 0.55);
+  animation: fd-in 0.45s var(--ease-drop) both;
+  animation-delay: calc(var(--ci) * 0.12s + var(--ni) * 0.05s);
+  transition: box-shadow 0.4s var(--ease-drop);
+}
+.fd-node:hover {
+  box-shadow: 0 16px 28px -16px var(--c);
+}
+.fd-node.is-muted {
+  border-style: dashed;
+  border-left-style: solid;
+  opacity: 0.75;
+}
+.fd-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 10px;
+  font-size: 20px;
+  background: color-mix(in srgb, var(--c) 10%, #fff);
+}
+.fd-title {
+  overflow: hidden;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--c) 60%, transparent);
+  text-underline-offset: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fd-sub {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fd-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+@keyframes fd-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* fade only: a moving card would put the measured line ends in the wrong place */
+@keyframes fd-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (max-width: 640px) {
+  .fd {
+    gap: 40px;
+  }
+  .fd-node {
+    width: 180px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fd-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .fd-node,
+  .fd-col-head {
+    animation: none;
+    transition: none;
+  }
+}

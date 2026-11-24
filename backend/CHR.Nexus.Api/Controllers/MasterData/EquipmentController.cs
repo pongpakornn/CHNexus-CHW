@@ -25,6 +25,9 @@ public sealed class EquipmentController : AppController
     private static string Changes(params (string Label, object Old, object New)[] f) =>
         string.Join(" | ", f.Where(x => !Equals(x.Old?.ToString() ?? "", x.New?.ToString() ?? "")).Select(x => $"{x.Label}: {x.Old ?? "-"} > {x.New ?? "-"}")) is { Length: > 0 } s ? s : "no change";
 
+    // zone pick list = Zone & Workstation Information (script 74) · null = not installed yet (type a zone like before)
+    private static object ZoneCodes() => DbSchema.HasZones ? new ZoneService().Zones().Where(z => z.Status == "ACTIVE").Select(z => new { z.Code, z.Name }).ToList() : null;
+
     // ---------------------------------------------------------------- MACHINE
     public sealed record MachineRequest(string Code, string Name, string Type, string Zone, decimal? SetupMin, decimal? ChangeMoldMin, int? Speed, string Status);
 
@@ -33,7 +36,7 @@ public sealed class EquipmentController : AppController
     {
         if (Me?.CanViewMasterData != true) return Deny();
         if (!DbSchema.HasEquipment) return NotReady();
-        return Ok(new { can = Can, rows = _svc.Machines() });
+        return Ok(new { can = Can, rows = _svc.Machines(), zones = ZoneCodes() });
     }
 
     private (MachineRow Row, string Error) CleanMachine(MachineRequest q)
@@ -64,6 +67,7 @@ public sealed class EquipmentController : AppController
         if (id != 0 && old == null) return Fail("ไม่พบเครื่องจักรนี้ (อาจถูกลบไปแล้ว)");
         var (r, err) = CleanMachine(req);
         if (err != null) return Fail(err);
+        if (r.Zone != old?.Zone && !ZoneService.ZoneExists(r.Zone)) return Fail($"ไม่พบ ZONE \"{r.Zone}\" ใน Zone & Workstation Information");
         if (_svc.MachineCodeExists(r.Code, id)) return Fail($"มี MACHINE CODE \"{r.Code}\" อยู่แล้ว");
         try
         {
@@ -102,7 +106,7 @@ public sealed class EquipmentController : AppController
     {
         if (Me?.CanViewMasterData != true) return Deny();
         if (!DbSchema.HasEquipment) return NotReady();
-        return Ok(new { can = Can, rows = _svc.Molds() });
+        return Ok(new { can = Can, rows = _svc.Molds(), zones = ZoneCodes() });
     }
 
     private (MoldRow Row, string Error) CleanMold(MoldRequest q)
@@ -137,6 +141,7 @@ public sealed class EquipmentController : AppController
         if (id != 0 && old == null) return Fail("ไม่พบแม่พิมพ์นี้ (อาจถูกลบไปแล้ว)");
         var (r, err) = CleanMold(req);
         if (err != null) return Fail(err);
+        if (r.Zone != old?.Zone && !ZoneService.ZoneExists(r.Zone)) return Fail($"ไม่พบ ZONE \"{r.Zone}\" ใน Zone & Workstation Information");
         if (_svc.MoldCodeExists(r.Code, id)) return Fail($"มี MOLD CODE \"{r.Code}\" อยู่แล้ว");
         try
         {

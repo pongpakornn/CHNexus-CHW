@@ -81,6 +81,8 @@ export const MASTER_ITEM: MenuItem = {
     // 🏭 MACHINE / MOLD INFORMATION (script 71): rights = MASTER DATA (same as Customer / Supplier)
     { href: "/master/machines", label: "Machine Information", title: "PRODUCT CONTROL • MACHINE INFORMATION", icon: "/icons/64engine_motorFF.png", can: "masterData" },
     { href: "/master/molds", label: "Mold Information", title: "PRODUCT CONTROL • MOLD INFORMATION", icon: "/icons/Capacity.png", can: "masterData" },
+    // 🏭 ZONE & WORKSTATION INFORMATION (script 74): production zones · workstations · line-side stores (used by Kanban Set Flow)
+    { href: "/master/zones", label: "Zone & Workstation", title: "PRODUCT CONTROL • ZONE & WORKSTATION INFORMATION", icon: "/icons/StoreWarehouse.png", can: "masterData" },
     // 📦 FORECAST / ORDER / DELIVERY (ย้ายมาจาก CIMS): ข้อมูลกลางที่ CIMS (Max-Min) และ Production Plan (PCS) ใช้ร่วมกัน
     { href: "/master/forecast", label: "Forecast / Order", title: "MASTER DATA • FORECAST / ORDER / DELIVERY", icon: "/icons/ForecastOrder.png", can: "forecast", caption: "Planning" },
     // 📅 WORKDAYS (ย้ายมาจาก CIMS › Max-Min Calculator): ลูกค้า · บริษัท
@@ -242,7 +244,7 @@ const WOF_ITEMS: MenuItem[] = [
   { href: "/pc/wof", label: "WORK ORDER FOLLOW", title: "PC • WORK ORDER FOLLOW", icon: "/icons/ForecastOrder.png", can: PC_PERM },
 ];
 
-// 🏭 MANUFACTURING (MES): Production Scheduling & Work Order · Kanban Control · Product Structure (BOM) in one system
+// 🏭 MANUFACTURING (MES): Production Scheduling & Work Order · Kanban · Product Structure (BOM) in one system
 //   on plan = every user sees it · real pages = replace /mfg/[slug] and add a can key per menu
 export const MFG: SystemDef = {
   key: "mfg",
@@ -251,7 +253,7 @@ export const MFG: SystemDef = {
   sub: "MES · Scheduling · Kanban · BOM",
   art: "/images/systems/scheduling.webp",
   title: "MANUFACTURING • MES",
-  desc: "Manufacturing Execution System: Production Scheduling & Work Order · Kanban Control · Product Structure (BOM)",
+  desc: "Manufacturing Execution System: Production Scheduling & Work Order · Kanban · Product Structure (BOM)",
   icon: "/icons/ForecastOrder.png",
   color: "#2563eb",
   soon: true,
@@ -259,14 +261,14 @@ export const MFG: SystemDef = {
     // 🏭 KANBAN CONTROL (script 72, SystemID MFG_KANBAN): group like Product Control · Dashboard first
     {
       href: "#mfg-kanban",
-      label: "Kanban Control",
-      title: "MANUFACTURING • KANBAN CONTROL",
+      label: "Kanban",
+      title: "MANUFACTURING • KANBAN",
       icon: "/icons/PickList.png",
       children: [
-        { href: "/mfg/kanban", label: "Dashboard", title: "KANBAN CONTROL • DASHBOARD", icon: "/icons/Dashboard.png", can: "mfgKanban", caption: "Kanban Control" },
-        { href: "/mfg/kanban/set", label: "Set Kanban", title: "KANBAN CONTROL • SET KANBAN", icon: "/icons/PickList.png", can: "mfgKanban" },
-        { href: "/mfg/kanban/stock", label: "สะสมยอด / รับยอด", title: "KANBAN CONTROL • สะสมยอด / รับยอด", icon: "/icons/MultiScanner.png", can: "mfgKanban" },
-        { href: "/mfg/kanban/orders", label: "สั่งผลิต", title: "KANBAN CONTROL • สั่งผลิต", icon: "/icons/ForecastOrder.png", can: "mfgKanban" },
+        { href: "/mfg/kanban", label: "Dashboard", title: "KANBAN • DASHBOARD", icon: "/icons/Dashboard.png", can: "mfgKanban", caption: "Kanban" },
+        { href: "/mfg/kanban/set", label: "Kanban Management", title: "KANBAN • KANBAN MANAGEMENT", icon: "/icons/PickList.png", can: "mfgKanban" },
+        { href: "/mfg/kanban/stock", label: "สะสมยอด / รับยอด", title: "KANBAN • สะสมยอด / รับยอด", icon: "/icons/MultiScanner.png", can: "mfgKanban" },
+        { href: "/mfg/kanban/orders", label: "สั่งผลิต", title: "KANBAN • สั่งผลิต", icon: "/icons/ForecastOrder.png", can: "mfgKanban" },
       ],
     },
     { href: "/mfg/scheduling", label: "Production Scheduling & Work Order", title: "MANUFACTURING • PRODUCTION SCHEDULING & WORK ORDER", icon: "/icons/ForecastOrder.png" },

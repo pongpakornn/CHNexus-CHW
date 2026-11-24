@@ -1,6 +1,6 @@
 import KanbanDashboard from "./KanbanDashboard";
 
-// 🏭 MANUFACTURING › KANBAN CONTROL › DASHBOARD
+// 🏭 MANUFACTURING › KANBAN › DASHBOARD
 export const instant = false;
 
 export default KanbanDashboard;

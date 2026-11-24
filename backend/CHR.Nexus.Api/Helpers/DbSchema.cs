@@ -230,12 +230,27 @@ namespace Nexus.Helpers
         public static bool HasMasterData => _master || (_master = TableExists("Master.Customers") == true && TableExists("Master.Suppliers") == true);
 
         // 71_Master_Machine_Mold_Breaks.sql: Master.Machines / Master.Molds · Master.CompanyBreaks
-        private static bool _equip, _breaks;
+        private static bool _equip, _breaks, _zones;
         public static bool HasEquipment => _equip || (_equip = HasMasterData && TableExists("Master.Machines") == true && TableExists("Master.Molds") == true);
         // 72_Mfg_Kanban.sql: MANUFACTURING › KANBAN CONTROL (schema Kanban)
         private static bool _kanban;
-        public static bool HasKanban => _kanban || (_kanban = TableExists("Kanban.Kanbans") == true && TableExists("Kanban.Receipts") == true && TableExists("Kanban.Cards") == true);
+        // + script 73: Kanban.Kanbans.PartID / PartA / PartNo (Kanban Management picks the part from Part Information)
+        public static bool HasKanban => _kanban || (_kanban = TableExists("Kanban.Kanbans") == true && TableExists("Kanban.Receipts") == true && TableExists("Kanban.Cards") == true
+                                                              && ScalarTrue("SELECT CASE WHEN COL_LENGTH('Kanban.Kanbans', 'PartNo') IS NOT NULL THEN 1 ELSE 0 END"));
+        private static bool ScalarTrue(string sql)
+        {
+            try
+            {
+                using var conn = new SqlConnection(GlobalConfig.ConnStr);
+                using var cmd = new SqlCommand(sql, conn);
+                conn.Open();
+                return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+            }
+            catch { return false; }   // can't reach the DB = ask again next time
+        }
         public static bool HasCompanyBreaks => _breaks || (_breaks = TableExists("Master.CompanyBreaks") == true);
+        // script 74: Zone & Workstation Information (Master.ProductionZones / Workstations / LineSideStores)
+        public static bool HasZones => _zones || (_zones = TableExists("Master.ProductionZones") == true && TableExists("Master.Workstations") == true && TableExists("Master.LineSideStores") == true);
 
         // 🏭 EDP PLANNING (26_EDP_Planning.sql): EDP.PlanHeaders / EDP.PlanCards / EDP.vw_Parts (view)
         private static bool _edp;

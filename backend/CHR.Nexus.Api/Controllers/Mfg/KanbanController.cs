@@ -7,15 +7,15 @@ using Nexus.Services;
 
 namespace CHR.Nexus.Api.Controllers;
 
-// 🏭 MANUFACTURING › KANBAN CONTROL (SystemID MFG_KANBAN, schema Kanban - script 72)
-//   GET  /api/kanban                      : everything the 4 pages need (Dashboard · Set Kanban · สะสม / รับยอด · สั่งผลิต) in one call
-//   Set Kanban: kanbans (ADD / EDIT / DEL) + flow (EDIT) · สะสมยอด: scans (ADD / DEL) + rule target / auto (EDIT)
+// 🏭 MANUFACTURING › KANBAN (SystemID MFG_KANBAN, schema Kanban - scripts 72 + 73)
+//   GET  /api/kanban                      : everything the 4 pages need (Dashboard · Kanban Management · สะสม / รับยอด · สั่งผลิต) in one call
+//   Kanban Management: kanbans (ADD / EDIT / DEL) + flow (EDIT) · สะสมยอด: scans (ADD / DEL) + rule target / auto (EDIT)
 //   รับยอด: receipts (ADD = receive · DEL = return) · สั่งผลิต: orders (ADD / DEL) · every write -> Activity Log · screens refresh live ("kanban")
 [Route("api/kanban")]
 public sealed class KanbanController : AppController
 {
     private readonly KanbanService _svc = new();
-    private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง KANBAN (database/nexus/72_Mfg_Kanban.sql)");
+    private IActionResult NotReady() => Fail("ฐานข้อมูลยังไม่มีตาราง KANBAN (database/nexus/72_Mfg_Kanban.sql + 73_Mfg_Kanban_Part.sql)");
     private IActionResult Guard(bool ok) => !ok ? Deny() : !DbSchema.HasKanban ? NotReady() : null;
     private static string Text(string s, int max) { s = Regex.Replace((s ?? "").Trim(), @"\s+", " "); return s.Length == 0 ? null : s.Length > max ? s[..max] : s; }
     private static string Up(string s, int max) => Text(s, max)?.ToUpperInvariant();
@@ -34,13 +34,24 @@ public sealed class KanbanController : AppController
                 receipts = _svc.Receipts(),
                 scans = _svc.Scans(),
                 options = _svc.Options(),
+                stuck = _svc.Stuck(),
             });
         }
         catch (Exception ex) { return Fail(ex, "โหลดข้อมูล KANBAN ไม่สำเร็จ"); }
     }
 
-    // ---------------------------------------------------------------- SET KANBAN
-    public sealed record KanbanRequest(string Code, string Name, string Customer, int PerBox, int OrderQty, string Zone, string Note);
+    // ---------------------------------------------------------------- KANBAN MANAGEMENT
+    // part list for the form (PART A / PART NO / Product Name typeahead · filtered by the picked customer on screen)
+    [HttpGet("parts")]
+    public IActionResult Parts()
+    {
+        if (Guard(Me?.CanViewKanban == true) is { } g) return g;
+        try { return Ok(_svc.Parts()); }
+        catch (Exception ex) { return Fail(ex, "โหลดรายการ PART ไม่สำเร็จ"); }
+    }
+
+    // PartId = Part Information row · PART A / PART NO / Product Name are copied from it on the server (screen values are not trusted)
+    public sealed record KanbanRequest(string Code, int? PartId, string Customer, int PerBox, int OrderQty, string Zone, string Note);
 
     [HttpPost("kanbans")]
     public IActionResult Add([FromBody] KanbanRequest req) => Save(0, req);
@@ -51,21 +62,26 @@ public sealed class KanbanController : AppController
     private IActionResult Save(int id, KanbanRequest q)
     {
         if (Guard(id == 0 ? Me?.CanAddKanban == true : Me?.CanEditKanban == true) is { } g) return g;
-        var r = new KanbanRow { Code = Up(q?.Code, 60) ?? "", Name = Text(q?.Name, 200), Customer = Up(q?.Customer, 50), PerBox = q?.PerBox ?? 0, OrderQty = q?.OrderQty ?? 0, Zone = Up(q?.Zone, 50), Note = Text(q?.Note, 300) };
+        var r = new KanbanRow { Code = Up(q?.Code, 60) ?? "", Customer = Up(q?.Customer, 50), PerBox = q?.PerBox ?? 0, OrderQty = q?.OrderQty ?? 0, Zone = Up(q?.Zone, 50), Note = Text(q?.Note, 300) };
         if (r.Code.Length == 0) return Fail("กรุณากรอกรหัสงาน (KANBAN CODE)");
         if (!MasterDataController.CodeOk.IsMatch(r.Code)) return Fail($"รหัสงาน \"{r.Code}\" ใช้ไม่ได้\nใช้ได้เฉพาะ A-Z 0-9 เว้นวรรค - _ . / & ( ) ยาวไม่เกิน 50 ตัว");
-        if (r.Name == null) return Fail("กรุณากรอกชื่องาน");
+        if (q?.PartId is not int partId) return Fail("กรุณาเลือก PART A / PART NO / PRODUCT NAME");
+        var part = _svc.Part(partId);
+        if (part == null) return Fail("ไม่พบ PART นี้ใน Part Information (อาจถูกปิดใช้งาน) กรุณาเลือกใหม่");
+        (r.PartId, r.PartA, r.PartNo, r.Name) = (partId, Text(part.PartA, 50), Text(part.PartNo, 100), Text(part.Name, 200) ?? Text(part.PartA, 200));
+        r.Customer ??= Up(part.Customer, 50);
         if (r.PerBox is < 1 or > 1_000_000) return Fail("จำนวนชิ้นงานต่อกล่อง ต้องเป็นจำนวนเต็ม 1 - 1,000,000");
         if (r.OrderQty is < 1 or > 100_000_000) return Fail("จำนวนที่สั่งผลิต ต้องเป็นจำนวนเต็มมากกว่า 0");
         var old = id == 0 ? null : _svc.Kanban(id);
         if (id != 0 && old == null) return Fail("ไม่พบ Kanban นี้ (อาจถูกลบไปแล้ว)");
+        if (r.Zone != old?.Zone && !ZoneService.ZoneExists(r.Zone)) return Fail($"ไม่พบ ZONE \"{r.Zone}\" ใน Master Data › Zone & Workstation Information");
         if (_svc.CodeExists(r.Code, id)) return Fail($"มีรหัสงาน \"{r.Code}\" อยู่แล้ว");
         try
         {
             int newId = _svc.Save(id, r, Uid);
-            string now = $"{r.Code} | {r.Name} | {r.Customer ?? "-"} | PER BOX {r.PerBox} | QTY {r.OrderQty} | ZONE {r.Zone ?? "-"}";
+            string now = $"{r.Code} | {r.PartA} | {r.PartNo ?? "-"} | {r.Name} | {r.Customer ?? "-"} | PER BOX {r.PerBox} | QTY {r.OrderQty} | ZONE {r.Zone ?? "-"}";
             LogService.WriteLog(Uid, old == null ? "KANBAN_ADD" : "KANBAN_EDIT",
-                old == null ? "Kanban: " + now : $"Kanban: {old.Code} | {old.Name} | {old.Customer ?? "-"} | PER BOX {old.PerBox} | QTY {old.OrderQty} | ZONE {old.Zone ?? "-"} > {now}", r.Code);
+                old == null ? "Kanban: " + now : $"Kanban: {old.Code} | {old.PartA ?? "-"} | {old.PartNo ?? "-"} | {old.Name} | {old.Customer ?? "-"} | PER BOX {old.PerBox} | QTY {old.OrderQty} | ZONE {old.Zone ?? "-"} > {now}", r.Code);
             return Ok(new { id = newId, message = old == null ? $"บันทึก Kanban {r.Code} แล้ว · ตั้งค่า FLOW ต่อได้เลย" : $"บันทึก Kanban {r.Code} แล้ว" });
         }
         catch (Exception ex) { return Fail(ex, "บันทึกไม่สำเร็จ"); }
@@ -96,7 +112,9 @@ public sealed class KanbanController : AppController
         if (steps.Count == 0) return (steps, "กรุณากำหนดจุดใน FLOW อย่างน้อย 1 จุด");
         if (steps.Count > 20) return (steps, "FLOW กำหนดได้ไม่เกิน 20 จุด");
         int bad = steps.FindIndex(s => s.Zone == null || s.Point == null);
-        return bad >= 0 ? (steps, $"จุดที่ {bad + 1}: กรุณาเลือก ZONE และจุดอัพเดทหน้างานให้ครบ") : (steps, null);
+        if (bad >= 0) return (steps, $"จุดที่ {bad + 1}: กรุณาเลือก ZONE และสถานีงาน / เครื่องจักรให้ครบ");
+        bad = steps.FindIndex(s => !ZoneService.ZoneExists(s.Zone));
+        return bad >= 0 ? (steps, $"จุดที่ {bad + 1}: ไม่พบ ZONE \"{steps[bad].Zone}\" ใน Master Data › Zone & Workstation Information") : (steps, null);
     }
 
     [HttpPut("kanbans/{id:int}/flow")]

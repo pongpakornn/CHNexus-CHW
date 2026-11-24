@@ -14,7 +14,7 @@ import { today } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { cardCount, CardStack, FlowChips, FlowEditor, isReady, n0, Rise, useKanbanData, useRun, when, type Step } from "./shared";
 
-// 🏭 KANBAN CONTROL › สั่งผลิต
+// 🏭 KANBAN › สั่งผลิต
 //   pick a ready Kanban (filter by customer) · qty -> cards = qty / pcs per box (rounded up, shown as stacked cards) · planned start
 //   FLOW: STANDARD = the Kanban's flow · TEMP = own points for this order only (the standard flow is not changed)
 //   ?receipt=<id> (from สะสม / รับยอด) = Kanban + qty locked to the received qty · history: search / flow filter / delete (not started only)
@@ -58,7 +58,7 @@ export default function KanbanOrders() {
 
   const orders = useMemo(() => {
     const t = q.trim().toUpperCase();
-    return (data?.orders ?? []).filter((o) => (filter === "ALL" || o.flowMode === filter) && (!t || [o.code, o.name, o.customer, `#${o.id}`].some((v) => (v ?? "").toUpperCase().includes(t))));
+    return (data?.orders ?? []).filter((o) => (filter === "ALL" || o.flowMode === filter) && (!t || [o.code, o.partA, o.partNo, o.name, o.customer, `#${o.id}`].some((v) => (v ?? "").toUpperCase().includes(t))));
   }, [data, q, filter]);
 
   function pick(v: string) {
@@ -111,7 +111,7 @@ export default function KanbanOrders() {
 
   return (
     <PageBody className="md-gray md-partner kb">
-      <PageHeader icon="/icons/ForecastOrder.png" title="สั่งผลิต" subtitle="KANBAN CONTROL · เปิดใบสั่งผลิต → แตกเป็นใบ Kanban ตามจำนวนต่อกล่อง" />
+      <PageHeader icon="/icons/ForecastOrder.png" title="สั่งผลิต" subtitle="KANBAN · เปิดใบสั่งผลิต → แตกเป็นใบ Kanban ตามจำนวนต่อกล่อง" />
       {!data ? (
         <Loading />
       ) : (
@@ -175,7 +175,7 @@ export default function KanbanOrders() {
                         </button>
                       ))}
                     </div>
-                    <span className="text-xs font-bold text-ink-soft">{mode === "STANDARD" ? "ใช้ FLOW หลักที่ตั้งไว้ตอน SET KANBAN" : "กำหนดจุดเฉพาะใบสั่งนี้ · ไม่ทับ FLOW มาตรฐาน"}</span>
+                    <span className="text-xs font-bold text-ink-soft">{mode === "STANDARD" ? "ใช้ FLOW หลักที่ตั้งไว้ใน KANBAN MANAGEMENT" : "กำหนดจุดเฉพาะใบสั่งนี้ · ไม่ทับ FLOW มาตรฐาน"}</span>
                   </div>
                   {zones.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
@@ -211,7 +211,7 @@ export default function KanbanOrders() {
                     </button>
                   ))}
                 </div>
-                <SearchBox value={key} onChange={setKey} placeholder="ค้นหา # / รหัส / ชื่องาน / ลูกค้า" className="md-search ml-auto w-[320px] max-w-full" />
+                <SearchBox value={key} onChange={setKey} placeholder="ค้นหา # / CODE / PART A / PRODUCT NAME / CUSTOMER" className="md-search ml-auto w-[320px] max-w-full" />
               </div>
               {orders.length === 0 ? (
                 <Empty>{data.orders.length ? "ไม่พบใบสั่งผลิตตามเงื่อนไข" : "ยังไม่มีใบสั่งผลิต"}</Empty>

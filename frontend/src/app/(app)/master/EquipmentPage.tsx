@@ -38,7 +38,8 @@ type Row = {
   updatedBy: string | null;
   updatedDate: string;
 };
-type Data = { can: { add: boolean; edit: boolean; delete: boolean }; rows: Row[] };
+// zones = Zone & Workstation Information (script 74) · null = not installed yet (type a zone like before)
+type Data = { can: { add: boolean; edit: boolean; delete: boolean }; rows: Row[]; zones?: { code: string; name: string | null }[] | null };
 type Mode = "add" | "edit" | "view";
 type Form = { code: string; name: string; type: string; zone: string; setup: string; change: string; speed: string; owner: string; customer: string; pps: string; status: string };
 const EMPTY: Form = { code: "", name: "", type: "", zone: "", setup: "", change: "", speed: "", owner: "CUSTOMER", customer: "", pps: "", status: "ACTIVE" };
@@ -117,7 +118,8 @@ export function EquipmentPage({ kind }: { kind: Kind }) {
   }, [rows, kind]);
   const counts = Object.fromEntries(m.tabs.map((t) => [t, all.filter((r) => t === "ALL" || (mach ? r.status === t : r.owner === t)).length]));
   const typeOpts = useMemo(() => uniq(all.map((r) => r.type)), [all]);
-  const zoneOpts = useMemo(() => uniq(all.map((r) => r.zone)), [all]);
+  const zoneMaster = data?.zones ?? null;
+  const zoneOpts = useMemo(() => (zoneMaster ? zoneMaster.map((z) => ({ value: z.code, label: z.code, sub: z.name ?? undefined })) : uniq(all.map((r) => r.zone))), [zoneMaster, all]);
   const custOpts = useMemo(() => customers.filter((c) => c.isActive || c.code === f.customer).map((c) => ({ value: c.code, label: c.code, sub: c.name ?? undefined })), [customers, f.customer]);
 
   const ro = mode === "view";
@@ -204,7 +206,7 @@ export function EquipmentPage({ kind }: { kind: Kind }) {
             >
               <div className="reg-fields grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {mach
-                  ? fld("MACHINE TYPE *", <ComboBox value={f.type} onChange={(v) => set({ type: v })} options={typeOpts} free={upper} disabled={ro} ariaLabel="MACHINE TYPE" placeholder="เลือก / พิมพ์ประเภทใหม่ เช่น PRESS 200T" />)
+                  ? fld("MACHINE TYPE *", <ComboBox value={f.type} onChange={(v) => set({ type: v })} options={typeOpts} free={upper} disabled={ro} ariaLabel="MACHINE TYPE" placeholder="เลือกประเภท หรือพิมพ์ประเภทใหม่" />)
                   : fld(
                       "OWNER TYPE *",
                       ro ? (
@@ -218,17 +220,17 @@ export function EquipmentPage({ kind }: { kind: Kind }) {
                     f.owner === "CUSTOMER" ? "CUSTOMER *" : "CUSTOMER",
                     <ComboBox value={f.customer} onChange={(v) => set({ customer: v })} options={custOpts} disabled={ro || f.owner === "COMPANY"} ariaLabel="CUSTOMER" placeholder={f.owner === "COMPANY" ? "แม่พิมพ์ของบริษัท (ไม่ต้องเลือก)" : "พิมพ์ค้นหา / เลือกลูกค้า"} />,
                   )}
-                {fld(`${m.label} CODE *`, <input className="field font-mono font-bold uppercase" readOnly={ro} maxLength={50} value={f.code} placeholder={mach ? "เช่น PR-200-01" : "เช่น MD-0001"} onChange={(e) => set({ code: e.target.value.toUpperCase() })} onKeyDown={(e) => e.key === "Enter" && !ro && save()} />)}
-                {fld(`${m.label} NAME`, <input className="field" readOnly={ro} maxLength={200} value={f.name} placeholder="เติมทีหลังได้" onChange={(e) => set({ name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && !ro && save()} />, mach)}
-                {fld(`${m.label} ZONE`, <ComboBox value={f.zone} onChange={(v) => set({ zone: v })} options={zoneOpts} free={upper} disabled={ro} ariaLabel={`${m.label} ZONE`} placeholder="เลือก / พิมพ์โซนใหม่" />)}
+                {fld(`${m.label} CODE *`, <input className="field font-mono font-bold uppercase" readOnly={ro} maxLength={50} value={f.code} placeholder={mach ? "รหัสเครื่องจักร (ห้ามซ้ำ)" : "รหัสแม่พิมพ์ (ห้ามซ้ำ)"} onChange={(e) => set({ code: e.target.value.toUpperCase() })} onKeyDown={(e) => e.key === "Enter" && !ro && save()} />)}
+                {fld(`${m.label} NAME`, <input className="field" readOnly={ro} maxLength={200} value={f.name} placeholder={mach ? "ชื่อเครื่องจักร (ไม่บังคับ)" : "ชื่อแม่พิมพ์ (ไม่บังคับ)"} onChange={(e) => set({ name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && !ro && save()} />, mach)}
+                {fld(`${m.label} ZONE`, <ComboBox value={f.zone} onChange={(v) => set({ zone: v })} options={zoneOpts} free={zoneMaster ? undefined : upper} disabled={ro} ariaLabel={`${m.label} ZONE`} placeholder={zoneMaster ? (zoneOpts.length ? "เลือก ZONE" : "ยังไม่มี ZONE · เพิ่มที่ Zone & Workstation") : "เลือก / พิมพ์โซนใหม่"} />)}
                 {mach ? (
                   <>
-                    {fld("STD SETUP TIME (MIN.)", numIn(f.setup, (v) => set({ setup: v }), "เช่น 30"))}
-                    {fld("CHANGE MOLD TIME (MIN.)", numIn(f.change, (v) => set({ change: v }), "เช่น 45"))}
-                    {fld("MACHINE SPEED (STROKE/HR)", numIn(f.speed, (v) => set({ speed: v.replace(".", "") }), "เช่น 600"))}
+                    {fld("STD SETUP TIME (MIN.)", numIn(f.setup, (v) => set({ setup: v }), "จำนวนนาที"))}
+                    {fld("CHANGE MOLD TIME (MIN.)", numIn(f.change, (v) => set({ change: v }), "จำนวนนาที"))}
+                    {fld("MACHINE SPEED (STROKE/HR)", numIn(f.speed, (v) => set({ speed: v.replace(".", "") }), "จำนวน Stroke ต่อชั่วโมง"))}
                   </>
                 ) : (
-                  fld("PARTS PER STROKE (ชิ้น/จังหวะ)", numIn(f.pps, (v) => set({ pps: v.replace(".", "") }), "เช่น 2"))
+                  fld("PARTS PER STROKE (ชิ้น/จังหวะ)", numIn(f.pps, (v) => set({ pps: v.replace(".", "") }), "จำนวนชิ้นต่อ 1 จังหวะ"))
                 )}
                 {fld(
                   "STATUS",
